@@ -165,7 +165,7 @@ async function fetchHittingStats(playerId) {
   if (!s) return null;
   return {
     g: num(s.gamesPlayed), pa: num(s.plateAppearances), ab: num(s.atBats),
-    h: num(s.hits), hr: num(s.homeRuns), rbi: num(s.rbi), sb: num(s.stolenBases),
+    h: num(s.hits), r: num(s.runs), hr: num(s.homeRuns), rbi: num(s.rbi), sb: num(s.stolenBases),
     bb: num(s.baseOnBalls), so: num(s.strikeOuts),
     avg: num(s.avg), obp: num(s.obp), slg: num(s.slg), ops: num(s.ops),
   };
@@ -204,7 +204,7 @@ async function fetchLast10(playerId) {
     date: s.date,
     opp: s.opponent?.abbreviation ?? null,
     ab: num(s.stat.atBats), h: num(s.stat.hits),
-    hr: num(s.stat.homeRuns), rbi: num(s.stat.rbi),
+    r: num(s.stat.runs), hr: num(s.stat.homeRuns), rbi: num(s.stat.rbi),
   }));
   const ab = last.reduce((t, g) => t + (g.ab || 0), 0);
   const h = last.reduce((t, g) => t + (g.h || 0), 0);
