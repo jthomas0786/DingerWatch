@@ -359,22 +359,54 @@ function localTimeLabel(iso) {
 }
 
 /** Season stats → the statcast-shaped object the scoring model consumes. */
+/**
+ * Accept an upstream metric only if it falls in a physically plausible range.
+ * This is a defence-in-depth guard: a bug once fed barrel-rate PERCENTILES
+ * (0-100) into this field, so every hitter showed an ~85% barrel rate. Rather
+ * than trust the feed, implausible values are rejected here and the derived
+ * estimate is used instead — a slightly-wrong number beats an absurd one.
+ */
+function plausible(value, lo, hi, label) {
+  if (value == null || Number.isNaN(value)) return null;
+  if (value < lo || value > hi) {
+    if (!plausible._warned?.has(label)) {
+      (plausible._warned ??= new Set()).add(label);
+      console.warn(`[slate] ${label}=${value} outside plausible range [${lo}, ${hi}] — ` +
+                   `ignoring upstream value and using a derived estimate. ` +
+                   `Check enrich-statcast.py column mapping.`);
+    }
+    return null;
+  }
+  return value;
+}
+
 function toStatcastShape(season, statcast) {
   // Prefer real Statcast when the enrichment step ran; otherwise derive a
   // reasonable stand-in from season rate stats so scoring still works.
   const slg = season.slg ?? 0.400;
   const iso = Math.max(0, slg - (season.avg ?? 0.250));
+
+  // Range-check every upstream metric before trusting it.
+  const barrel  = plausible(statcast?.barrelPct,   0,  35, 'barrelPct');
+  const ev      = plausible(statcast?.exitVelo,   60, 100, 'exitVelo');
+  const hardHit = plausible(statcast?.hardHitPct,  0,  80, 'hardHitPct');
+  const xwoba   = plausible(statcast?.xwoba,       0, 0.7, 'xwoba');
+  const xslg    = plausible(statcast?.xslg,        0, 1.2, 'xslg');
+  const maxEv   = plausible(statcast?.maxExitVelo, 80, 130, 'maxExitVelo');
+
+  const usedReal = barrel != null || ev != null || hardHit != null;
+
   return {
-    barrel:      statcast?.barrelPct   ?? +(iso * 42).toFixed(1),
-    ev:          statcast?.exitVelo    ?? +(86 + iso * 18).toFixed(1),
-    maxEv:       statcast?.exitVelo ? +(statcast.exitVelo + 20).toFixed(1) : +(104 + iso * 20).toFixed(1),
-    hardHit:     statcast?.hardHitPct  ?? +(28 + iso * 70).toFixed(1),
-    xwoba:       statcast?.xwoba       ?? +((season.obp ?? .310) * 0.6 + slg * 0.4).toFixed(3),
-    xslg:        statcast?.xslg        ?? slg,
+    barrel:      barrel  ?? +(iso * 42).toFixed(1),
+    ev:          ev      ?? +(86 + iso * 18).toFixed(1),
+    maxEv:       maxEv   ?? (ev != null ? +(ev + 20).toFixed(1) : +(104 + iso * 20).toFixed(1)),
+    hardHit:     hardHit ?? +(28 + iso * 70).toFixed(1),
+    xwoba:       xwoba   ?? +((season.obp ?? .310) * 0.6 + slg * 0.4).toFixed(3),
+    xslg:        xslg    ?? slg,
     sweetSpot:   +(28 + iso * 22).toFixed(1),
     pull:        +(35 + iso * 20).toFixed(1),
     launchAngle: +(11 + iso * 16).toFixed(1),
-    _derived:    !statcast,   // flagged so the UI can label it honestly
+    _derived:    !usedReal,   // flagged so the UI can label it honestly
   };
 }
 
@@ -616,12 +648,12 @@ const MODEL = {
     weights:      { statcast: 45, form: 20, park: 25, matchup: 10 },  // must total 100
 
     // Statcast half: how barrel% and hard-hit% split the statcast weight
-    barrelWeight: 0.65,   // remainder goes to hard-hit%
-    barrelScale:  10,     // 20% barrel rate = full credit
-    hardHitScale: 40,     // 55% hard-hit rate = full credit
+    barrelWeight: 0.55,   // remainder (0.45) goes to hard-hit%
+    barrelScale:  20,     // 20% barrel rate = full credit
+    hardHitScale: 55,     // 55% hard-hit rate = full credit
 
     // Recent form: bonus/penalty applied to the tier's baseline
-    trendBonus:   2,      // "up" adds this; "down" subtracts it
+    trendBonus:   3,      // "up" adds this; "down" subtracts it
 
     // Environment: park factor / 100, then multiplied by the weather factor
     weatherMult:  { pos: 1.08, neg: 0.90, neu: 1.00 },
@@ -638,9 +670,9 @@ const MODEL = {
 
   // ---- Total Bases: blend of expected slugging and contact rate ----
   tb: {
-    xslgWeight:   0.4,    // remainder goes to batting average
-    xslgScale:    0.750,  // xSLG that earns full marks
-    avgScale:     0.350,  // AVG that earns full marks
+    xslgWeight:   0.5,    // remainder goes to batting average
+    xslgScale:    0.650,  // xSLG that earns full marks
+    avgScale:     0.320,  // AVG that earns full marks
   },
 
   // ---- RBI: lineup-role baseline, nudged by form and park ----
@@ -651,7 +683,7 @@ const MODEL = {
 
   // ---- Stolen bases: speed score, lightly damped in heavy air ----
   sb: {
-    coldWeatherMult: 2.00,
+    coldWeatherMult: 0.95,
   },
 };
 
