@@ -649,8 +649,8 @@ const MODEL = {
 
     // Statcast half: how barrel% and hard-hit% split the statcast weight
     barrelWeight: 0.60,   // remainder goes to hard-hit%
-    barrelScale:  15,     // 20% barrel rate = full credit
-    hardHitScale: 40,     // 55% hard-hit rate = full credit
+    barrelScale:  20,     // 20% barrel rate = full credit
+    hardHitScale: 55,     // 55% hard-hit rate = full credit
 
     // Recent form: bonus/penalty applied to the tier's baseline
     trendBonus:   4,      // "up" adds this; "down" subtracts it
@@ -683,7 +683,7 @@ const MODEL = {
 
   // ---- Stolen bases: speed score, lightly damped in heavy air ----
   sb: {
-    coldWeatherMult: 0.25,
+    coldWeatherMult: 3.5,
   },
 };
 
