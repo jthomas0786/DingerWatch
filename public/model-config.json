@@ -1,0 +1,34 @@
+{
+  "_comment": "Optional. Rename to model-config.json and place next to index.html. Deep-merged over the app's defaults at load, so your tuning survives any app rebuild. Include only the keys you want to change — everything else keeps its default.",
+
+  "hr": {
+    "weights":      { "statcast": 45, "form": 20, "park": 25, "matchup": 10 },
+    "barrelWeight": 0.60,
+    "barrelScale":  20,
+    "hardHitScale": 55,
+    "trendBonus":   4,
+    "weatherMult":  { "pos": 1.08, "neg": 0.90, "neu": 1.00 },
+    "leagueHR9":    1.10,
+    "matchupCap":   1.50
+  },
+
+  "hits": { "expectedAB": 4 },
+
+  "tb": {
+    "xslgWeight": 0.45,
+    "xslgScale":  0.750,
+    "avgScale":   0.350
+  },
+
+  "rbi": {
+    "trendMultiplier": 2,
+    "parkDivisor":     3
+  },
+
+  "sb": {
+    "coldWeatherMult": 0.95,
+    "rateMultiplier":  120,
+    "baseline":        28,
+    "posBonus": { "CF": 12, "SS": 8, "2B": 6, "LF": 4, "RF": 0, "3B": -4, "1B": -10, "DH": -12, "C": -14 }
+  }
+}
