@@ -1,0 +1,11 @@
+{
+  "name": "dinger-watch-slate-builder",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Daily MLB slate builder — assembles schedule, rosters, stats, and weather into a single slate.json",
+  "scripts": {
+    "build": "node build-slate.js",
+    "build:tomorrow": "node -e \"const d=new Date();d.setDate(d.getDate()+1);console.log(d.toISOString().slice(0,10))\" | xargs -I{} node build-slate.js --date {}"
+  },
+  "engines": { "node": ">=18" }
+}

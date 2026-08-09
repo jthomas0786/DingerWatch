@@ -1,0 +1,1708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Dinger Watch</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+:root{
+  --night:#0a0808; --night2:#151010; --panel:#1c1414; --line:#3a2424;
+  --grass:#7a1220; --grass-bright:#3ecf6e; --foul:#e0122e;
+  --white:#f5f0f0; --mute:#9a8484; --hot:#ff2d4d; --warm:#ff5533; --cool:#b8a8a8;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  background: radial-gradient(ellipse 1100px 550px at 50% -10%, #2a0e12 0%, var(--night) 55%), var(--night);
+  color: var(--white); font-family:'Inter',sans-serif; min-height:100vh; padding-bottom:60px;
+}
+header{ position:relative; padding:44px 20px 26px; text-align:center; overflow:hidden; }
+header::before, header::after{ content:''; position:absolute; top:-120px; width:440px; height:440px; background: radial-gradient(circle, rgba(224,18,46,0.16) 0%, rgba(224,18,46,0) 65%); border-radius:50%;}
+header::before{left:-140px;} header::after{right:-140px;}
+.brand-row{ display:flex; align-items:center; justify-content:center; gap:14px; position:relative; margin-bottom:14px; flex-wrap:wrap; }
+.brand-icon{ width:64px; height:40px; flex-shrink:0; filter:drop-shadow(0 0 10px rgba(224,18,46,0.35)); }
+.brand-text{
+  font-family:'Archivo Black',sans-serif; font-size:clamp(34px,7vw,64px); line-height:1;
+  letter-spacing:-0.01em; color:var(--white);
+}
+.brand-text span{ color:var(--foul); display:inline-block; margin-left:2px; }
+.eyebrow{ font-family:'Space Mono',monospace; letter-spacing:0.22em; text-transform:uppercase; font-size:10.5px; color:var(--mute); margin-bottom:12px; position:relative;}
+h1{ font-family:'Oswald',sans-serif; font-weight:500; font-size:clamp(24px,3.8vw,38px); line-height:1.15; position:relative; color:var(--mute); letter-spacing:0.02em; margin-top:4px;}
+h1 span{ color:var(--foul); font-weight:700;}
+.subhead{ font-family:'Oswald',sans-serif; color:var(--mute); font-size:13.5px; margin-top:10px; position:relative; max-width:520px; margin-left:auto; margin-right:auto;}
+
+.day-toggle{ display:inline-flex; gap:4px; margin-top:18px; background: var(--panel); border:1px solid var(--line); border-radius:30px; padding:4px; position:relative; }
+.day-toggle button{ border:none; background:transparent; color:var(--mute); font-family:'Space Mono',monospace; font-size:12px; padding:8px 18px; border-radius:24px; cursor:pointer; transition: all .15s ease; }
+.day-toggle button.active{ background: var(--foul); color: var(--night); font-weight:700; }
+.day-note{ font-size:10.5px; color: var(--mute); margin-top:8px; font-family:'Space Mono',monospace; }
+.refresh-row{ display:flex; align-items:center; justify-content:center; gap:10px; margin-top:10px; }
+#lastUpdated{ font-size:10.5px; color: var(--mute); font-family:'Space Mono',monospace; }
+#refreshBtn{
+  background: var(--panel); border:1px solid var(--line); color: var(--mute); font-family:'Space Mono',monospace;
+  font-size:10.5px; padding:4px 10px; border-radius:14px; cursor:pointer; transition: all .15s ease;
+}
+#refreshBtn:hover{ border-color: var(--foul); color: var(--white); }
+#refreshBtn.spinning{ color: var(--foul); border-color: var(--foul); }
+
+main{ max-width:760px; margin: 8px auto 0; padding: 0 20px; }
+
+.prop-tabs{ display:flex; gap:8px; overflow-x:auto; padding: 22px 0 6px; scrollbar-width:thin; position: sticky; top:0; background: var(--night); z-index:40; margin: 0 -20px; padding-left:20px; padding-right:20px; border-bottom: 1px solid var(--line); }
+.prop-tab{ flex:0 0 auto; background: var(--panel); border:1px solid var(--line); color: var(--mute); font-family:'Oswald',sans-serif; font-size:13px; padding:9px 16px; border-radius:20px; cursor:pointer; white-space:nowrap; transition: all .15s ease; margin-bottom:14px; }
+.prop-tab:hover{ border-color: var(--foul); color: var(--white); }
+.prop-tab.active{ background: var(--foul); color: var(--night); border-color: var(--foul); font-weight:700; }
+
+.section-head{ padding: 18px 2px 6px; }
+.section-head h2{ font-family:'Archivo Black',sans-serif; font-size:22px; }
+.section-head p{ font-family:'Oswald',sans-serif; color: var(--mute); font-size:13px; margin-top:4px; }
+
+.pick-list{ display:flex; flex-direction:column; gap:12px; margin-top:14px; }
+.pick-card{ background: var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 18px; cursor:pointer; transition: border-color .15s ease, transform .1s ease; display:flex; gap:14px; align-items:flex-start; }
+.pick-card:hover{ border-color: var(--foul); transform: translateY(-1px); }
+.pick-rank{ font-family:'Archivo Black',sans-serif; font-size:26px; color: var(--foul); width:28px; flex-shrink:0; text-align:center; padding-top:6px; }
+.pick-rank.r2{ color: var(--grass-bright); } .pick-rank.r3{ color: var(--cool); } .pick-rank.r4, .pick-rank.r5{ color: var(--mute); }
+.pick-headshot{
+  width:58px; height:58px; border-radius:50%; flex-shrink:0; object-fit:contain; object-position:center;
+  background: var(--night2); border:2px solid var(--line); padding:3px;
+}
+.pick-headshot.placeholder{ padding:8px; object-fit:contain; opacity:0.5; }
+.pick-body{ flex:1; min-width:0; }
+.pick-name-row{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.pick-name{ font-family:'Oswald',sans-serif; font-weight:600; font-size:17px; }
+.pick-team{ font-family:'Space Mono',monospace; font-size:11px; color: var(--mute); }
+.pick-matchup{ font-size:12px; color: var(--mute); margin-top:2px; }
+.pick-summary{ font-size:12.5px; color: var(--white); line-height:1.5; margin-top:8px; padding-left:10px; border-left:2px solid var(--foul); }
+.pick-chips{ display:flex; gap:6px; flex-wrap:wrap; margin-top:9px; }
+.chip{ font-family:'Space Mono',monospace; font-size:10px; background: var(--night2); border:1px solid var(--line); color: var(--mute); padding:3px 8px; border-radius:6px; }
+.chip b{ color: var(--white); }
+.pick-env{ display:flex; align-items:center; gap:12px; margin-top:9px; flex-wrap:wrap; }
+.env-item{ display:flex; align-items:center; gap:5px; font-family:'Space Mono',monospace; font-size:10px; color: var(--mute); }
+.env-item b{ color: var(--white); font-weight:600; }
+.env-icon{ width:18px; height:18px; flex-shrink:0; opacity:0.85; }
+.wind-arrow{ width:14px; height:14px; flex-shrink:0; }
+.pick-score{ flex:0 0 60px; text-align:center; padding-top:6px; }
+.pick-score-val{ font-family:'Archivo Black',sans-serif; font-size:24px; line-height:1;}
+.pick-score-val.score-hi{ color: var(--grass-bright); }
+.pick-score-val.score-mid{ color: #f4c430; }
+.pick-score-val.score-lo{ color: var(--hot); }
+.pick-score-label{ font-size:8.5px; color: var(--mute); font-family:'Space Mono',monospace; text-transform:uppercase; margin-top:3px; letter-spacing:0.04em;}
+
+.live-status{ display:flex; gap:14px; align-items:center; justify-content:center; margin-top:16px; font-family:'Space Mono',monospace; font-size:10.5px; color: var(--mute); flex-wrap:wrap; }
+.dot{ width:6px; height:6px; border-radius:50%; display:inline-block; margin-right:5px;}
+.dot.ok{ background: var(--grass-bright); box-shadow:0 0 6px var(--grass-bright);}
+.dot.fallback{ background: var(--warm);}
+.dot.pending{ background: var(--mute); animation: pulse 1.5s infinite;}
+@keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute); font-size:11.5px; text-align:center; line-height:1.7; }
+
+.modal-overlay{ display:none; position:fixed; inset:0; background: rgba(5,7,12,0.78); backdrop-filter: blur(4px); z-index:100; padding: 24px; overflow-y:auto; }
+.modal-overlay.open{ display:block; }
+.modal{ max-width: 720px; margin: 20px auto 60px; background: var(--panel); border:1px solid var(--line); border-radius:16px; overflow:hidden; animation: modalIn .2s ease; }
+@keyframes modalIn{ from{opacity:0; transform:translateY(12px);} to{opacity:1; transform:translateY(0);} }
+.modal-head{ padding: 26px 28px 20px; background: linear-gradient(180deg, rgba(224,18,46,0.14), transparent); border-bottom:1px solid var(--line); position:relative; display:flex; gap:18px; align-items:flex-start; }
+.modal-headshot{
+  width:88px; height:88px; border-radius:50%; flex-shrink:0; object-fit:contain; object-position:center;
+  background: var(--night2); border:3px solid var(--line); padding:4px;
+}
+.modal-head-text{ flex:1; min-width:0; }
+.modal-close{ position:absolute; top:18px; right:20px; background:none; border:none; color: var(--mute); font-size:22px; cursor:pointer; line-height:1; }
+.modal-close:hover{ color: var(--white); }
+.modal-name{ font-family:'Archivo Black',sans-serif; font-size:26px; }
+.modal-tag{ font-family:'Space Mono',monospace; font-size:12px; color: var(--mute); margin-top:6px; }
+.dq-badge{ font-family:'Space Mono',monospace; font-size:9.5px; padding:2px 8px; border-radius:20px; text-transform:uppercase; margin-left:8px; }
+.dq-badge.sourced{ background:rgba(74,156,90,0.18); color:var(--grass-bright); border:1px solid rgba(74,156,90,0.4); }
+.dq-badge.modeled{ background:rgba(184,168,168,0.15); color:var(--cool); border:1px solid rgba(184,168,168,0.35); }
+.modal-index{ display:flex; align-items:center; gap:18px; margin-top:16px; }
+.modal-index-num{ font-family:'Archivo Black',sans-serif; font-size:42px; color: var(--foul); }
+.modal-index-bar{ flex:1; }
+.modal-index-track{ height:9px; background: var(--line); border-radius:6px; overflow:hidden; }
+.modal-index-fill{ height:100%; background: linear-gradient(90deg, var(--warm), var(--foul)); border-radius:6px; }
+.tabs{ display:flex; gap:2px; padding: 0 28px; background: var(--night2); overflow-x:auto; }
+.tab{ padding: 12px 15px; font-family:'Space Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color: var(--mute); cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap; }
+.tab.active{ color: var(--foul); border-bottom-color: var(--foul); }
+.tab-content{ padding: 22px 28px 28px; display:none; }
+.tab-content.active{ display:block; }
+.chart-wrap{ background: var(--night2); border:1px solid var(--line); border-radius:10px; padding:16px 18px 10px; margin-bottom:14px; }
+.chart-title{ font-family:'Space Mono',monospace; font-size:10.5px; color: var(--mute); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:12px; }
+.bar-chart{ display:flex; align-items:flex-end; gap:6px; height:110px; }
+.bar-chart .bcol{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:5px; }
+.bar-chart .bfill{ width:100%; border-radius:3px 3px 0 0; background: var(--cool); min-height:2px; }
+.bar-chart .bfill.hr{ background: var(--foul); }
+.bar-chart .blabel{ font-size:9px; color: var(--mute); font-family:'Space Mono',monospace; }
+.chart-legend{ display:flex; gap:14px; margin-top:10px; font-size:10.5px; color: var(--mute); font-family:'Space Mono',monospace; }
+.chart-legend span{ display:flex; align-items:center; gap:5px; }
+.legend-dot{ width:8px; height:8px; border-radius:2px; display:inline-block; }
+.live-note{ font-size:11px; color: var(--grass-bright); font-family:'Space Mono',monospace; margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+.live-note.pending{ color: var(--mute); }
+.live-note.err{ color: var(--warm); }
+.gamelog-table{ width:100%; border-collapse:collapse; font-size:12px; margin-top:4px; }
+.gamelog-table th{ text-align:left; font-family:'Space Mono',monospace; font-size:9.5px; color: var(--mute); text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line); }
+.gamelog-table td{ padding:7px 8px; border-bottom:1px solid var(--line); }
+.gamelog-table td.hr-cell{ color: var(--foul); font-weight:700; }
+.stat-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(130px,1fr)); gap:12px; margin-bottom: 16px;}
+.stat-box{ background: var(--night2); border:1px solid var(--line); border-radius:10px; padding:13px 15px; }
+.stat-box .sv{ font-family:'Oswald',sans-serif; font-size:20px; font-weight:600; }
+.stat-box .sl{ font-size:10px; color: var(--mute); text-transform:uppercase; letter-spacing:0.06em; font-family:'Space Mono',monospace; margin-top:2px;}
+.stat-box .sc{ font-size:10.5px; color: var(--mute); margin-top:5px; }
+.pctl-track{ height:5px; background: var(--line); border-radius:3px; margin-top:8px; overflow:hidden; }
+.pctl-fill{ height:100%; background: var(--grass-bright); }
+.breakdown-row{ display:flex; align-items:center; gap:12px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.breakdown-row:last-child{ border-bottom:none; }
+.breakdown-label{ flex: 0 0 150px; font-size:12.5px; }
+.breakdown-track{ flex:1; height:7px; background: var(--line); border-radius:4px; overflow:hidden; }
+.breakdown-fill{ height:100%; border-radius:4px; }
+.breakdown-pts{ flex:0 0 55px; text-align:right; font-family:'Space Mono',monospace; font-size:12px; color: var(--foul); font-weight:700; }
+.matchup-block{ background: var(--night2); border:1px solid var(--line); border-radius:10px; padding:15px 17px; margin-bottom:11px; }
+.matchup-block h5{ font-family:'Oswald',sans-serif; font-size:13.5px; margin-bottom:7px; color: var(--foul); }
+.matchup-block p{ font-size:12.5px; color: var(--white); line-height:1.6; }
+.matchup-block .msub{ font-size:11px; color: var(--mute); margin-top:4px; }
+.narrative{ font-size:13px; color: var(--white); line-height:1.7; background: var(--night2); border:1px solid var(--line); border-radius:10px; padding:15px 17px; }
+
+.slate-list{ display:flex; flex-direction:column; gap:10px; margin-top:14px; }
+.slate-card{ background: var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 18px; cursor:pointer; transition: border-color .15s ease; }
+.slate-card:hover{ border-color: var(--foul); }
+.slate-card.is-live{ border-color: var(--foul); box-shadow: 0 0 0 1px rgba(224,18,46,0.25); }
+.slate-status-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.slate-badge{ font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.05em; padding:3px 9px; border-radius:20px; text-transform:uppercase; font-weight:700; }
+.slate-badge.live{ background:rgba(224,18,46,0.18); color:var(--foul); border:1px solid rgba(224,18,46,0.4); animation: pulse 1.8s infinite; }
+.slate-badge.final{ background: var(--night2); color: var(--mute); border:1px solid var(--line); }
+.slate-badge.pre{ background: var(--night2); color: var(--cool); border:1px solid var(--line); }
+.slate-time{ font-family:'Space Mono',monospace; font-size:11px; color: var(--mute); }
+.slate-teams{ display:flex; flex-direction:column; gap:8px; }
+.slate-team-row{ display:flex; align-items:center; gap:10px; }
+.slate-team-row.batting .slate-team-name{ color: var(--foul); }
+.slate-logo{ width:26px; height:26px; flex-shrink:0; object-fit:contain; }
+.slate-team-name{ font-family:'Oswald',sans-serif; font-weight:600; font-size:14.5px; flex:1; }
+.slate-runs{ font-family:'Archivo Black',sans-serif; font-size:20px; min-width:28px; text-align:right; }
+.slate-live-detail{ display:flex; align-items:center; justify-content:space-between; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); flex-wrap:wrap; gap:10px; }
+.slate-count{ display:flex; align-items:center; gap:14px; }
+.count-item{ text-align:center; }
+.count-label{ font-family:'Space Mono',monospace; font-size:8.5px; color: var(--mute); text-transform:uppercase; }
+.count-dots{ display:flex; gap:3px; margin-top:3px; }
+.count-dot{ width:7px; height:7px; border-radius:50%; background: var(--line); }
+.count-dot.on{ background: var(--foul); }
+.count-dot.out-on{ background: var(--hot); }
+.slate-matchup{ font-size:11.5px; color: var(--mute); font-family:'Space Mono',monospace; text-align:right; }
+.slate-matchup b{ color: var(--white); font-weight:600; }
+.odds-grid{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; }
+.odds-col-head{ font-family:'Space Mono',monospace; font-size:9.5px; color: var(--mute); text-transform:uppercase; text-align:center; margin-bottom:8px; letter-spacing:0.05em; }
+.odds-team-row{ display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); gap:6px; }
+.odds-team-row:last-child{ border-bottom:none; }
+.odds-team-label{ font-family:'Oswald',sans-serif; font-size:12.5px; font-weight:500; }
+.odds-price{ font-family:'Space Mono',monospace; font-size:13px; font-weight:700; color: var(--foul); min-width:44px; text-align:right; }
+.odds-source-note{ font-size:10.5px; color: var(--mute); font-family:'Space Mono',monospace; margin-top:10px; text-align:center; }
+.wx-diagram-wrap{ display:flex; align-items:center; gap:16px; }
+.wx-diamond{ width:120px; height:120px; flex-shrink:0; }
+.wx-diagram-info{ flex:1; }
+.wx-temp{ font-family:'Archivo Black',sans-serif; font-size:26px; }
+.wx-wind-label{ font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; margin-top:4px; }
+.wx-wind-sub{ font-family:'Space Mono',monospace; font-size:11px; color: var(--mute); margin-top:2px; }
+.wx-diamond-note{ font-family:'Space Mono',monospace; font-size:12px; color: var(--mute); padding:10px 0; }
+.team-section{ margin-top:10px; }
+.team-section-head{
+  display:flex; align-items:center; justify-content:space-between; padding: 16px 4px 8px;
+  border-top: 1px solid var(--line); margin-top:14px;
+}
+.team-section:first-child .team-section-head{ border-top:none; margin-top:0; }
+.team-section-head h3{ font-family:'Oswald',sans-serif; font-size:16px; letter-spacing:0.02em; }
+.team-section-head span{ font-family:'Space Mono',monospace; font-size:10.5px; color: var(--mute); text-transform:uppercase; }
+.all-row{
+  display:flex; align-items:center; gap:12px; padding:11px 6px; border-bottom:1px solid var(--line);
+  cursor:pointer; border-radius:8px; transition: background .15s ease;
+}
+.all-row:hover{ background: rgba(224,18,46,0.08); }
+.all-row:last-child{ border-bottom:none; }
+.all-row .ar-name{ flex:1; min-width:0; font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; }
+.all-row .ar-pos{ font-family:'Space Mono',monospace; font-size:10.5px; color: var(--mute); }
+.all-row .ar-hr{ font-family:'Space Mono',monospace; font-size:11px; color: var(--mute); flex:0 0 60px; text-align:right; }
+.all-row .ar-idx{ font-family:'Archivo Black',sans-serif; font-size:16px; flex:0 0 50px; text-align:right; }
+.all-row .ar-idx.score-hi{ color: var(--grass-bright); }
+.all-row .ar-idx.score-mid{ color: #f4c430; }
+.all-row .ar-idx.score-lo{ color: var(--hot); }
+
+@media (max-width:500px){
+  .pick-chips{ display:none; }
+  .prop-tabs{ margin: 0 -20px; }
+  .pick-headshot{ width:40px; height:40px; }
+  .pick-summary{ font-size:11.5px; }
+  .env-item{ font-size:9px; }
+  .modal-headshot{ width:60px; height:60px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand-row">
+    <svg class="brand-icon" viewBox="0 0 160 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <linearGradient id="trailGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#e0122e" stop-opacity="0"/>
+          <stop offset="100%" stop-color="#e0122e" stop-opacity="0.9"/>
+        </linearGradient>
+      </defs>
+      <path d="M4,70 Q40,66 74,54" stroke="url(#trailGrad)" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path d="M4,84 Q44,78 70,62" stroke="url(#trailGrad)" stroke-width="3.5" fill="none" stroke-linecap="round" opacity="0.7"/>
+      <path d="M10,56 Q42,52 66,46" stroke="url(#trailGrad)" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.5"/>
+      <circle cx="110" cy="42" r="34" fill="#f5f0f0"/>
+      <circle cx="110" cy="42" r="34" fill="none" stroke="#3a2424" stroke-width="1"/>
+      <path d="M84,20 Q100,42 84,64" stroke="#e0122e" stroke-width="3" fill="none"/>
+      <path d="M136,20 Q120,42 136,64" stroke="#e0122e" stroke-width="3" fill="none"/>
+      <g stroke="#e0122e" stroke-width="1.6">
+        <line x1="86" y1="24" x2="91" y2="21"/><line x1="83" y1="31" x2="88" y2="28.5"/>
+        <line x1="82" y1="39" x2="87.5" y2="38"/><line x1="82" y1="47" x2="87.5" y2="47.5"/>
+        <line x1="84" y1="55" x2="89" y2="57"/><line x1="87" y1="61" x2="92" y2="64.5"/>
+        <line x1="134" y1="24" x2="129" y2="21"/><line x1="137" y1="31" x2="132" y2="28.5"/>
+        <line x1="138" y1="39" x2="132.5" y2="38"/><line x1="138" y1="47" x2="132.5" y2="47.5"/>
+        <line x1="136" y1="55" x2="131" y2="57"/><line x1="133" y1="61" x2="128" y2="64.5"/>
+      </g>
+    </svg>
+    <div class="brand-text">DINGER<span>WATCH</span></div>
+  </div>
+  <h1>Who's Going <span>Deep</span></h1>
+  <div class="eyebrow">Sunday, August 9, 2026</div>
+  <div class="subhead">Top MLB prop picks ranked by Statcast contact quality, park factor, live weather, and pitching matchups.</div>
+  <div class="day-toggle" id="dayToggle">
+    <button class="active" data-day="today">Today · Aug 9</button>
+    <button data-day="tomorrow">Tomorrow · Aug 10</button>
+  </div>
+  <div class="day-note" id="dayNote">15 games on today's slate</div>
+  <div class="refresh-row">
+    <span id="lastUpdated">Updated just now</span>
+    <button id="refreshBtn" title="Refresh live data now">↻ Refresh</button>
+  </div>
+  <div class="live-status">
+    <span><span class="dot pending" id="dotSlate"></span>Slate data (slate.json)</span>
+    <span><span class="dot pending" id="dotSchedule"></span>Live game state (MLB Stats API)</span>
+  </div>
+</header>
+
+<main>
+  <div class="prop-tabs" id="propTabs"></div>
+  <div class="section-head">
+    <h2 id="sectionTitle">Top 20 · Home Run</h2>
+    <p id="sectionSub">Ranked by Home Run Index — Statcast profile, park, weather, and matchup combined.</p>
+  </div>
+  <div class="pick-list" id="pickList"></div>
+</main>
+
+<footer>
+  All game, roster, player, pitcher, and weather data is loaded from <b>slate.json</b>, rebuilt each morning by <code>build-slate.js</code> against the MLB Stats API and Open-Meteo. Because it's server-generated and served same-origin, it doesn't depend on the browser making cross-origin calls — and stats, trades, and injuries self-correct daily rather than needing manual updates.
+  Live in-game score, inning, count, and batter/pitcher still poll the MLB Stats API directly, since a daily build can't cover in-progress games.
+  Statcast metrics appear when the optional enrichment step has run; otherwise contact-quality values are derived from season rate stats and are flagged as such.
+  Odds are not included — no free public sportsbook feed exists. Everything here is modeled and directional, for entertainment only, not betting advice.
+</footer>
+
+<div class="modal-overlay" id="modalOverlay"><div class="modal" id="modalBody"></div></div>
+
+<script>
+const STADIUM_COORDS = {
+  'sd-hou': {lat:32.7076, lon:-117.1570}, 'az-lad': {lat:33.4455, lon:-112.0667},
+  'tex-bal': {lat:32.7473, lon:-97.0847}, 'stl-col': {lat:38.6226, lon:-90.1928},
+  'sf-det': {lat:37.7786, lon:-122.3893}, 'mil-min': {lat:43.0280, lon:-87.9712},
+  'cws-cle': {lat:41.8299, lon:-87.6338}, 'kc-chc': {lat:39.0517, lon:-94.4803},
+  'sea-tb': {lat:47.5914, lon:-122.3325}, 'nym-pit': {lat:40.4469, lon:-80.0057},
+  'ath-bos': {lat:42.3467, lon:-71.0972}, 'laa-mia': {lat:25.7781, lon:-80.2196},
+  'atl-nyy': {lat:40.8296, lon:-73.9262}, 'tor-phi': {lat:39.9061, lon:-75.1665}, 'cin-wsh': {lat:38.8730, lon:-77.0074}
+};
+// Approximate home-plate-to-center-field compass bearing per park (0=N, 90=E, clockwise).
+// Used only to express live wind relative to the field (out/in/across), the same
+// way RotoGrinders' MLB weather tool overlays wind on a diamond diagram. Most parks
+// are oriented NE-E by design (keeps the setting sun out of batters' eyes) — exact
+// degrees are approximate, not survey-precise.
+// ============================================================================
+// DATA LAYER — loaded from slate.json (built server-side by build-slate.js)
+// ----------------------------------------------------------------------------
+// Everything below used to be hardcoded: game matchups, park data, ~270 player
+// stat lines, and probable pitchers. All of it now comes from one same-origin
+// request, so it self-corrects daily and no longer needs manual patching when
+// players are traded, hit the IL, or their HR totals change.
+//
+// One request instead of ~50 cross-origin ones also means no CORS/CSP blocking
+// when the site is published.
+// ============================================================================
+
+let games = [];
+let allBatters = [];
+let allPitchers = [];
+let slateMeta = { date: null, generatedAt: null, warnings: [], sources: {} };
+
+const SLATE_URL = './slate.json';
+
+/** Team abbreviation → full nickname, for display. */
+function teamNickname(abbr, fallback) { return fallback || abbr; }
+
+/**
+ * Derive a qualitative weather effect from the wind sector the builder computed.
+ * The builder already did the hard part (translating compass degrees into
+ * out/in/across relative to that park's actual orientation).
+ */
+function weatherEffectFrom(weather, roof) {
+  if (!weather || weather.indoor || roof === 'fixed') return { effect: 'neu', note: 'Indoor — no wind effect' };
+  const sector = weather.wind?.sector;
+  if (sector === 'out') return { effect: 'pos', note: `Wind ${weather.wind.label.toLowerCase()} — helps carry` };
+  if (sector === 'in')  return { effect: 'neg', note: `Wind ${weather.wind.label.toLowerCase()} — suppresses carry` };
+  if (sector === 'across') return { effect: 'neu', note: `Wind ${weather.wind.label.toLowerCase()}` };
+  return { effect: 'neu', note: 'Neutral conditions' };
+}
+
+/** Format a UTC ISO timestamp as a local clock time for display. */
+function localTimeLabel(iso) {
+  try {
+    // Renders in the viewer's own timezone — a fan in NY and one in LA each
+    // see their correct local first pitch from the same UTC timestamp.
+    return new Date(iso).toLocaleTimeString('en-US', {
+      hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
+    });
+  } catch { return ''; }
+}
+
+/** Season stats → the statcast-shaped object the scoring model consumes. */
+function toStatcastShape(season, statcast) {
+  // Prefer real Statcast when the enrichment step ran; otherwise derive a
+  // reasonable stand-in from season rate stats so scoring still works.
+  const slg = season.slg ?? 0.400;
+  const iso = Math.max(0, slg - (season.avg ?? 0.250));
+  return {
+    barrel:      statcast?.barrelPct   ?? +(iso * 42).toFixed(1),
+    ev:          statcast?.exitVelo    ?? +(86 + iso * 18).toFixed(1),
+    maxEv:       statcast?.exitVelo ? +(statcast.exitVelo + 20).toFixed(1) : +(104 + iso * 20).toFixed(1),
+    hardHit:     statcast?.hardHitPct  ?? +(28 + iso * 70).toFixed(1),
+    xwoba:       statcast?.xwoba       ?? +((season.obp ?? .310) * 0.6 + slg * 0.4).toFixed(3),
+    xslg:        statcast?.xslg        ?? slg,
+    sweetSpot:   +(28 + iso * 22).toFixed(1),
+    pull:        +(35 + iso * 20).toFixed(1),
+    launchAngle: +(11 + iso * 16).toFixed(1),
+    _derived:    !statcast,   // flagged so the UI can label it honestly
+  };
+}
+
+/** Speed score proxy — SB rate relative to opportunities, scaled by position. */
+function speedScore(season, pos) {
+  const sb = season.sb ?? 0;
+  const onBase = (season.h ?? 0) + (season.bb ?? 0);
+  const rate = onBase > 0 ? sb / onBase : 0;
+  const posBonus = ({ CF: 12, SS: 8, LF: 4, '2B': 6, RF: 0, '3B': -4, C: -14, '1B': -10, DH: -12 })[pos] ?? 0;
+  return Math.max(1, Math.min(100, Math.round(rate * 260 + 28 + posBonus)));
+}
+
+/** Recent-form trend from the last-10 log vs. season baseline. */
+function formTrend(last10, season) {
+  if (!last10 || !last10.ab || last10.ab < 15) return 'flat';
+  const seasonAvg = season.avg ?? 0.250;
+  const diff = (last10.avg ?? seasonAvg) - seasonAvg;
+  return diff > 0.045 ? 'up' : diff < -0.045 ? 'down' : 'flat';
+}
+
+/** Rough tier from season power output — drives the RBI/form baselines. */
+function tierFromStats(season) {
+  const hr = season.hr ?? 0;
+  const paScale = season.pa ? 550 / season.pa : 1;
+  const projHR = hr * paScale;
+  return projHR >= 32 ? 1 : projHR >= 20 ? 2 : projHR >= 12 ? 3 : 4;
+}
+
+/** Convert one slate.json hitter into the player object the app expects. */
+function adaptHitter(h, teamAbbr, game, side) {
+  const s = h.season || {};
+  const statcast = toStatcastShape(s, h.statcast);
+  const l10 = h.last10 || {};
+  const trend = formTrend(l10, s);
+  const tier = tierFromStats(s);
+  const hr = s.hr ?? 0;
+  const ab = s.ab ?? 0;
+
+  const p = {
+    id: h.id,
+    name: h.name,
+    team: teamAbbr,
+    pos: h.pos,
+    hand: h.hand || '?',
+    hr, pa: s.pa ?? 0, ab,
+    avg: s.avg ?? 0.250,
+    ops: s.ops ?? null,
+    rbi: s.rbi ?? 0,
+    sb: s.sb ?? 0,
+    speed: speedScore(s, h.pos),
+    tier,
+    statcast,
+    recentForm: {
+      last15: l10.hr != null ? `${l10.hr} HR / ${l10.ab} AB` : '—',
+      last30: l10.hr != null ? `${l10.hr} HR / ${l10.ab} AB (L10 G)` : '—',
+      trend,
+    },
+    gameLog: h.gameLog || [],
+    note: tier === 1 ? 'Elite power threat'
+        : tier === 2 ? 'Consistent power bat'
+        : tier === 3 ? 'Everyday pop'
+        : 'Contact-first, occasional pop',
+    dataQuality: h.statcast ? 'sourced' : 'derived',
+    game, side,
+    oppPitcher: side === 'away' ? game.homePitcher : game.awayPitcher,
+    pace: hr > 0 && ab > 0 ? `1 per ${(ab / hr).toFixed(1)} AB` : '—',
+    rosterStatus: 'active',   // slate.json already excludes inactive players
+  };
+
+  p.narrative = buildNarrative(p, game);
+  scorePlayer(p, game);
+  p.index = p.hrIndex;
+  return p;
+}
+
+/** Short written "why" for the HR tab, assembled from this player's real numbers. */
+function surname(fullName){
+  const parts = String(fullName).trim().split(/\s+/);
+  if (parts.length === 1) return parts[0];
+  // Skip generational suffixes so "Fernando Tatis Jr." -> "Tatis", not "Jr."
+  const suffixes = new Set(['Jr.','Jr','Sr.','Sr','II','III','IV']);
+  for (let i = parts.length - 1; i > 0; i--) {
+    if (!suffixes.has(parts[i])) return parts[i];
+  }
+  return parts[parts.length - 1];
+}
+
+function buildNarrative(p, g) {
+  const last = surname(p.name);
+  const bits = [];
+  bits.push(`${last} has ${p.hr} HR in ${p.ab} AB (${p.pace})`);
+  if (p.statcast.barrel) bits.push(`${p.statcast.barrel}% barrel rate`);
+  if (p.recentForm.trend === 'up') bits.push('and is trending up over his last 10 games');
+  else if (p.recentForm.trend === 'down') bits.push('though he has cooled off recently');
+  const env = g.weatherEffect === 'pos' ? `${g.weatherNote} at ${g.parkShort}`
+            : g.weatherEffect === 'neg' ? `${g.weatherNote} at ${g.parkShort} works against him`
+            : `${g.parkShort} plays roughly neutral tonight`;
+  const opp = p.oppPitcher?.name ? ` Facing ${p.oppPitcher.name} (${p.oppPitcher.hr9 ?? '—'} HR/9).` : '';
+  return `${bits.join(', ')}. ${env}.${opp}`;
+}
+
+/** Convert one slate.json game into the app's game object. */
+function adaptGame(sg) {
+  const v = sg.venue || {};
+  const wx = sg.weather || null;
+  const { effect, note } = weatherEffectFrom(wx, v.roof);
+
+  const mkPitcher = (side) => {
+    const p = sg[side].pitcher;
+    if (!p) {
+      return {
+        name: `${sg[side].abbr} starter TBD`, throws: '?',
+        hr9: 1.05, k9: 9.0, barrelAllowed: 7.5,
+        mix: 'Probable starter not yet announced by MLB',
+        announced: false,
+      };
+    }
+    const st = p.stats || {};
+    return {
+      id: p.id, name: p.name, throws: p.throws || '?',
+      hr9: st.hr9 ?? 1.05, k9: st.k9 ?? 9.0, bb9: st.bb9 ?? null,
+      era: st.era ?? null, whip: st.whip ?? null, ip: st.ip ?? null,
+      barrelAllowed: st.hr9 != null ? +(st.hr9 * 6.8).toFixed(1) : 7.5,
+      mix: st.era != null
+        ? `${st.era} ERA · ${st.whip ?? '—'} WHIP · ${st.k9 ?? '—'} K/9 · ${st.hr9 ?? '—'} HR/9`
+        : 'Season stats unavailable',
+      announced: true,
+    };
+  };
+
+  const g = {
+    id: `${sg.away.abbr.toLowerCase()}-${sg.home.abbr.toLowerCase()}${sg.gameNumber > 1 ? '-g' + sg.gameNumber : ''}`,
+    gamePk: sg.gamePk,
+    startTimeUTC: sg.startTimeUTC,
+    timeToday: localTimeLabel(sg.startTimeUTC),
+    timeTomorrow: null,
+    mlbStatus: sg.status,
+    detailedState: sg.detailedStatus,
+    doubleHeader: sg.doubleHeader,
+    away: sg.away.abbr, home: sg.home.abbr,
+    awayName: teamNickname(sg.away.abbr, sg.away.name),
+    homeName: teamNickname(sg.home.abbr, sg.home.name),
+    park: v.name ? `${v.name}` : 'Unknown venue',
+    parkShort: (v.name || '').split(',')[0],
+    parkFactor: v.parkFactor ?? 100,
+    parkNote: v.parkFactor > 103 ? 'Hitter-friendly park'
+            : v.parkFactor < 94 ? 'Pitcher-friendly park'
+            : 'Roughly neutral park',
+    roof: v.roof || 'open-air',
+    cfBearing: v.cfBearing ?? null,
+    elevation: v.elevation ?? null,
+    weatherEffect: effect,
+    weatherNote: note,
+    liveWeather: !!wx && !wx.indoor,
+    tempF: wx?.tempF ?? null,
+    windMph: wx?.windMph ?? null,
+    windDeg: wx?.windDeg ?? null,
+    dewPoint: wx?.dewPoint ?? null,
+    precipChance: wx?.precipChance ?? null,
+    windLabel: wx?.wind?.label ?? null,
+    weather: wx && !wx.indoor
+      ? `${wx.tempF}°F, wind ${wx.windMph} mph — ${wx.wind?.label ?? 'direction n/a'}${wx.precipChance > 30 ? `, ${wx.precipChance}% precip` : ''}`
+      : 'Indoor / roof closed',
+    odds: null,   // no free live odds feed — see README
+  };
+
+  g.awayPitcher = mkPitcher('away');
+  g.homePitcher = mkPitcher('home');
+  g.awayRoster = (sg.away.lineup || []).map(h => adaptHitter(h, g.away, g, 'away'));
+  g.homeRoster = (sg.home.lineup || []).map(h => adaptHitter(h, g.home, g, 'home'));
+  return g;
+}
+
+/** Build the flat pools the ranking tabs read from. */
+function rebuildPools() {
+  allBatters = [];
+  games.forEach(g => { allBatters = allBatters.concat(g.awayRoster, g.homeRoster); });
+
+  allPitchers = [];
+  games.forEach(g => {
+    const mkP = (p, opp) => {
+      const expIP = p.k9 >= 10.5 ? 6.3 : p.k9 >= 9 ? 5.8 : p.k9 >= 8 ? 5.4 : 5.0;
+      return { ...p, opp, game: g, expIP, projK: +((p.k9 * expIP) / 9).toFixed(1) };
+    };
+    if (g.awayPitcher.announced) allPitchers.push(mkP(g.awayPitcher, g.home));
+    if (g.homePitcher.announced) allPitchers.push(mkP(g.homePitcher, g.away));
+  });
+}
+
+/** Fetch slate.json and populate everything. Returns true on success. */
+async function loadSlate() {
+  const dot = document.getElementById('dotSlate');
+  try {
+    const res = await fetch(SLATE_URL, { cache: 'no-cache' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const slate = await res.json();
+
+    slateMeta = {
+      date: slate.date,
+      generatedAt: slate.generatedAt,
+      warnings: slate.warnings || [],
+      sources: slate.sources || {},
+      gameCount: slate.gameCount,
+    };
+
+    games = (slate.games || []).map(adaptGame);
+    rebuildPools();
+
+    if (dot) dot.className = 'dot ok';
+    return true;
+  } catch (err) {
+    if (dot) dot.className = 'dot fallback';
+    slateMeta.loadError = err.message;
+    games = [];
+    rebuildPools();
+    return false;
+  }
+}
+
+// Tier baselines retained for scoring (form + RBI weights by power tier).
+const TIER_RANGES = {
+  1: { base:{form:15, rbi:78} },
+  2: { base:{form:11, rbi:60} },
+  3: { base:{form:7,  rbi:42} },
+  4: { base:{form:3,  rbi:24} },
+};
+
+function scorePlayer(base, game){
+  const weatherMult = game.weatherEffect==='pos' ? 1.08 : (game.weatherEffect==='neg' ? 0.90 : 1.0);
+  const statcastScore = Math.max(0,Math.min(45, Math.round(45 * ((base.statcast.barrel/20)*0.55 + (base.statcast.hardHit/55)*0.45))));
+  const trendAdj = base.recentForm.trend==='up' ? 3 : (base.recentForm.trend==='down' ? -3 : 0);
+  const r = TIER_RANGES[base.tier];
+  const formScore = Math.max(0, Math.min(20, (r ? r.base.form : 12) + trendAdj));
+  const parkScore = Math.max(0, Math.min(25, Math.round(25 * (game.parkFactor/100) * weatherMult)));
+  const matchupScore = Math.max(0, Math.min(10, Math.round(10 * Math.min(1.5, base.oppPitcher.hr9/1.1))));
+  base.breakdown = {statcast:statcastScore, form:formScore, park:parkScore, matchup:matchupScore};
+  base.hrIndex = statcastScore+formScore+parkScore+matchupScore;
+
+  base.hitProb = Math.round(100*(1-Math.pow(1-base.avg,4)));
+  base.tbScore = Math.max(0,Math.min(100, Math.round(100*(0.5*(base.statcast.xslg/0.650) + 0.5*(base.avg/0.320)))));
+  const rbiBase = r ? r.base.rbi : 40;
+  base.rbiScore = Math.max(0,Math.min(100, Math.round(rbiBase + trendAdj*2 + (game.parkFactor-100)/3)));
+  base.sbScore = Math.max(0,Math.min(100, Math.round(base.speed * (game.weatherEffect==='neg'?0.95:1.0))));
+  base.index = base.hrIndex;
+}
+
+
+const PROP_TABS = [
+  {id:'slate', label:'Slate'}, {id:'firstinning', label:'1st Inning O/U'},
+  {id:'hr', label:'Home Runs'}, {id:'hits', label:'Hits'}, {id:'tb', label:'Total Bases'},
+  {id:'rbi', label:'RBIs'}, {id:'sb', label:'Stolen Bases'}, {id:'k', label:'Strikeouts'},
+  {id:'all', label:'All Players'},
+];
+let activeTab = 'slate';
+const TOP_N = 20;
+
+function isPlayable(p){ return p.rosterStatus !== 'inactive'; }
+
+function getTop5(tabId){
+  if(tabId==='k'){
+    // Only today's confirmed probable starters — no relievers, and no showing
+    // yesterday's pitchers as if they're starting again on a different date.
+    let pool = [...allPitchers].filter(isPlayable);
+    if(selectedDay !== 'today'){
+      // For a future date, only trust starters MLB has actually posted and we've
+      // live-confirmed — not the previous day's starters carried over by default.
+      pool = pool.filter(p => p.liveConfirmed);
+    }
+    return pool.sort((a,b)=>b.projK-a.projK).slice(0,TOP_N);
+  }
+  let sorted;
+  if(tabId==='hr') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.hrIndex-a.hrIndex);
+  else if(tabId==='hits') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.hitProb-a.hitProb);
+  else if(tabId==='tb') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.tbScore-a.tbScore);
+  else if(tabId==='rbi') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.rbiScore-a.rbiScore);
+  else if(tabId==='sb') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.sbScore-a.sbScore);
+  else return [];
+  return sorted.slice(0,TOP_N);
+}
+
+function getAllByTeam(){
+  const byTeam = {};
+  allBatters.filter(isPlayable).forEach(p=>{ (byTeam[p.team] = byTeam[p.team] || []).push(p); });
+  const teams = Object.keys(byTeam).sort();
+  teams.forEach(t => byTeam[t].sort((a,b)=>b.hrIndex-a.hrIndex));
+  return teams.map(t => ({team:t, players:byTeam[t]}));
+}
+function chipsFor(tabId, p){
+  if(tabId==='k') return [`<span class="chip">K/9 <b>${p.k9}</b></span>`,`<span class="chip">Proj IP <b>${p.expIP}</b></span>`,`<span class="chip">Throws <b>${p.throws}</b></span>`];
+  if(tabId==='hr') return [`<span class="chip">Barrel% <b>${p.statcast.barrel}%</b></span>`,`<span class="chip">Park <b>${p.game.parkFactor}</b></span>`,`<span class="chip">Opp HR/9 <b>${p.oppPitcher.hr9}</b></span>`];
+  if(tabId==='hits') return [`<span class="chip">Avg <b>.${Math.round(p.avg*1000)}</b></span>`,`<span class="chip">Hard-Hit% <b>${p.statcast.hardHit}%</b></span>`,`<span class="chip">Form <b>${p.recentForm.trend}</b></span>`];
+  if(tabId==='tb') return [`<span class="chip">xSLG <b>${p.statcast.xslg}</b></span>`,`<span class="chip">Avg <b>.${Math.round(p.avg*1000)}</b></span>`,`<span class="chip">Park <b>${p.game.parkFactor}</b></span>`];
+  if(tabId==='rbi') return [`<span class="chip">Tier <b>${p.tier<=2?'Middle order':'Depth'}</b></span>`,`<span class="chip">Park <b>${p.game.parkFactor}</b></span>`,`<span class="chip">Form <b>${p.recentForm.trend}</b></span>`];
+  if(tabId==='sb') return [`<span class="chip">Speed <b>${p.speed}/100</b></span>`,`<span class="chip">Pos <b>${p.pos}</b></span>`];
+  return [];
+}
+function scoreFor(tabId, p){
+  if(tabId==='k') return p.projK;
+  if(tabId==='hr') return p.hrIndex;
+  if(tabId==='hits') return p.hitProb;
+  if(tabId==='tb') return p.tbScore;
+  if(tabId==='rbi') return p.rbiScore;
+  if(tabId==='sb') return p.sbScore;
+}
+function scoreLabel(tabId){
+  return tabId==='k' ? 'PROJ K' : (tabId==='hits' ? 'HIT %' : (tabId==='tb' ? 'TB IDX' : (tabId==='rbi' ? 'RBI IDX' : (tabId==='sb' ? 'SB IDX' : 'HR IDX'))));
+}
+const SECTION_META = {
+  slate: {title:'Today\'s Slate', sub:'Live scores, inning, count, and current batter/pitcher — updates automatically while games are in progress.'},
+  firstinning: {title:'1st Inning Over/Under', sub:'Modeled probability of a run scoring in the 1st inning — top-of-order contact quality vs. both starters, park, and weather.'},
+  hr: {title:'Top 20 · Home Run', sub:'Ranked by Home Run Index — Statcast profile, park, weather, and matchup combined.'},
+  hits: {title:'Top 20 · Hits', sub:'Estimated probability of recording at least one hit tonight, from season contact rate and matchup.'},
+  tb: {title:'Top 20 · Total Bases', sub:'Blends expected slugging and contact rate — best bets to rack up extra bases.'},
+  rbi: {title:'Top 20 · RBIs', sub:'Lineup role, recent form, and park context combined into an RBI opportunity score.'},
+  sb: {title:'Top 20 · Stolen Bases', sub:'Speed score by position and role — who\'s most likely to run tonight.'},
+  k: {title:'Top 20 · Pitcher Strikeouts', sub:'Today\'s confirmed probable starters only, ranked by projected strikeouts from K/9 and expected innings pitched.'},
+  all: {title:'All Players', sub:'Every hitter on tonight\'s slate, grouped by team and sorted by Home Run Index.'},
+};
+
+const pickList = document.getElementById('pickList');
+const propTabsEl = document.getElementById('propTabs');
+const sectionTitle = document.getElementById('sectionTitle');
+const sectionSub = document.getElementById('sectionSub');
+
+function renderTabs(){
+  propTabsEl.innerHTML = PROP_TABS.map(t => `<button class="prop-tab ${t.id===activeTab?'active':''}" data-tab="${t.id}">${t.label}</button>`).join('');
+  propTabsEl.querySelectorAll('.prop-tab').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ activeTab = btn.dataset.tab; renderTabs(); renderList(); window.scrollTo({top:0, behavior:'smooth'}); });
+  });
+}
+// ---- Player headshots (real MLB.com CDN, keyed off the live player-ID map) ----
+const AVATAR_PLACEHOLDER = "data:image/svg+xml;utf8," + encodeURIComponent(`
+  <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
+    <circle cx='50' cy='50' r='50' fill='#1c1414'/>
+    <circle cx='50' cy='38' r='19' fill='#3a2424'/>
+    <path d='M14,92 Q50,58 86,92 Z' fill='#3a2424'/>
+  </svg>`);
+function headshotUrl(name){
+  const id = resolvePlayerId(name);
+  if(!id) return null;
+  return `https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_180,q_auto:best/v1/people/${id}/headshot/67/current`;
+}
+function headshotImgTag(name, cls){
+  cls = cls || 'pick-headshot';
+  const url = headshotUrl(name);
+  if(url){
+    return `<img class="${cls}" src="${url}" alt="${name}" onerror="this.onerror=null;this.src='${AVATAR_PLACEHOLDER}';this.classList.add('placeholder');">`;
+  }
+  return `<img class="${cls} placeholder" src="${AVATAR_PLACEHOLDER}" alt="${name}">`;
+}
+
+// ---- Small inline ballpark + wind icons (custom SVG — no external image dependency) ----
+function ballparkIconSVG(roof){
+  const roofBit = roof === 'retractable'
+    ? `<path d="M6,16 Q24,6 42,16" stroke="#e0122e" stroke-width="2.5" fill="none" opacity="0.85"/>`
+    : `<circle cx="12" cy="8" r="1.3" fill="#e0122e" opacity="0.7"/><circle cx="20" cy="5" r="1" fill="#e0122e" opacity="0.5"/><circle cx="34" cy="7" r="1.3" fill="#e0122e" opacity="0.7"/>`;
+  return `<svg class="env-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+    ${roofBit}
+    <path d="M4,34 Q24,14 44,34 L44,38 Q24,20 4,38 Z" fill="#3a2424"/>
+    <path d="M24,22 L34,32 L24,42 L14,32 Z" fill="none" stroke="#9a8484" stroke-width="1.4"/>
+    <line x1="24" y1="22" x2="24" y2="42" stroke="#9a8484" stroke-width="1"/>
+  </svg>`;
+}
+function windArrowSVG(deg){
+  if(deg==null){
+    return `<svg class="wind-arrow" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="9" fill="none" stroke="#9a8484" stroke-width="1.5"/><line x1="12" y1="12" x2="12" y2="12" stroke="#9a8484" stroke-width="1.5"/></svg>`;
+  }
+  // meteorological wind direction = where wind is coming FROM; rotate an arrow pointing that way
+  return `<svg class="wind-arrow" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="transform:rotate(${deg}deg);">
+    <line x1="12" y1="20" x2="12" y2="5" stroke="#e0122e" stroke-width="2" stroke-linecap="round"/>
+    <path d="M12,3 L16,10 L8,10 Z" fill="#e0122e"/>
+  </svg>`;
+}
+
+// ---- Short "why" summaries per prop type ----
+function propSummary(tabId, p){
+  if(tabId==='k'){
+    return `${surname(p.name)} carries a ${p.k9} K/9 and projects for roughly ${p.expIP} innings tonight — that pencils out to about ${p.projK} strikeouts against ${p.opp}.`;
+  }
+  const last = surname(p.name);
+  if(tabId==='hr') return p.narrative;
+  if(tabId==='hits'){
+    return `${last} is hitting .${Math.round(p.avg*1000)} with a ${p.statcast.hardHit}% hard-hit rate — over a typical 4-AB night that works out to roughly a ${p.hitProb}% chance of at least one hit, trending ${p.recentForm.trend} lately.`;
+  }
+  if(tabId==='tb'){
+    return `${last}'s ${p.statcast.xslg} xSLG paired with a .${Math.round(p.avg*1000)} average gives him a strong shot at extra bases tonight, especially with ${p.game.park.split(',')[0]} playing at a ${p.game.parkFactor} park factor.`;
+  }
+  if(tabId==='rbi'){
+    return `${last} sits in a run-producing spot in the ${p.team} order with ${p.recentForm.trend} recent form — ${p.game.parkNote.toLowerCase()} adds a bit more scoring context tonight.`;
+  }
+  if(tabId==='sb'){
+    return `${last} grades out with a ${p.speed}/100 speed score at ${p.pos} — one of the faster, higher-opportunity profiles on tonight's slate.`;
+  }
+  return '';
+}
+
+function scoreTierClass(tabId, score){
+  if(tabId==='k') return ''; // raw projected-K count, not a 0-100 index — no tier coloring
+  if(score>=90) return 'score-hi';
+  if(score>=75) return 'score-mid';
+  return 'score-lo';
+}
+
+function renderList(){
+  const meta = SECTION_META[activeTab];
+  sectionTitle.textContent = meta.title;
+  sectionSub.textContent = meta.sub;
+
+  // Tomorrow is a genuinely different slate (different matchups entirely, not just
+  // different times), and this build only carries today's curated game data. Rather
+  // than show today's games mislabeled as tomorrow's, say so plainly.
+  if(selectedDay === 'tomorrow'){
+    pickList.innerHTML = `<div style="text-align:center; padding:44px 22px; color:var(--mute); font-family:'Oswald',sans-serif; font-size:14px; line-height:1.7;">
+      <div style="font-size:17px; color:var(--white); margin-bottom:10px;">Tomorrow's slate isn't loaded</div>
+      Tomorrow (Aug 10) is a completely different set of matchups — new series begin, and only about 10 games are scheduled versus today's 15.
+      This build carries curated player, park, and pitcher data for <b style="color:var(--foul);">today's games only</b>.<br><br>
+      Showing today's games here would be inaccurate, so the lists are intentionally blank.
+      Ask to regenerate for tomorrow's slate and I'll rebuild it with the correct matchups.
+    </div>`;
+    return;
+  }
+
+  if(activeTab==='slate'){
+    renderSlate();
+    return;
+  }
+  if(activeTab==='firstinning'){
+    renderFirstInning();
+    return;
+  }
+
+  if(activeTab==='all'){
+    const groups = getAllByTeam();
+    pickList.innerHTML = groups.map(g => `
+      <div class="team-section">
+        <div class="team-section-head"><h3>${g.team}</h3><span>${g.players.length} hitters</span></div>
+        ${g.players.map(p => `
+          <div class="all-row" data-team="${p.team}" data-pname="${p.name}">
+            <div class="ar-name">${p.name}</div>
+            <div class="ar-pos">${p.pos||''}</div>
+            <div class="ar-hr">${p.hr} HR</div>
+            <div class="ar-idx ${scoreTierClass('hr', p.hrIndex)}">${p.hrIndex}%</div>
+          </div>`).join('')}
+      </div>`).join('');
+    pickList.querySelectorAll('.all-row').forEach(row=>{
+      row.addEventListener('click', ()=>{
+        const p = allBatters.find(x=>x.team===row.dataset.team && x.name===row.dataset.pname);
+        openBatterModal(p);
+      });
+    });
+    return;
+  }
+
+  const top5 = getTop5(activeTab);
+  if(top5.length === 0){
+    const emptyMsg = (activeTab==='k' && selectedDay!=='today')
+      ? `Tomorrow's probable starters haven't been officially posted by MLB yet — check back closer to game time, or switch to Today for confirmed starters.`
+      : `No qualifying players found for this list right now.`;
+    pickList.innerHTML = `<div style="text-align:center; padding:40px 20px; color:var(--mute); font-family:'Oswald',sans-serif; font-size:14px;">${emptyMsg}</div>`;
+    return;
+  }
+  const rankClasses = Array.from({length:TOP_N}, (_,i)=> i===0?'':(i===1?'r2':(i===2?'r3':'r5')));
+  pickList.innerHTML = top5.map((p, i) => {
+    const isPitcher = activeTab==='k';
+    const team = isPitcher ? '' : p.team;
+    const g = p.game;
+    const matchupTxt = isPitcher ? `vs ${p.opp} · ${g.awayName} @ ${g.homeName} · ${gameTime(g)}` : `${g.awayName} @ ${g.homeName} · ${gameTime(g)}`;
+    const score = scoreFor(activeTab, p);
+    const scoreDisplay = activeTab==='k' ? score : `${score}%`;
+    const windTemp = g.roof==='open-air'
+      ? `${g.tempF!=null ? g.tempF+'°F' : ''} ${g.windMph!=null ? 'wind '+windDirLabel(g.windDeg)+' '+g.windMph+'mph' : g.weather}`.trim()
+      : 'Indoor / roof closed';
+    return `
+      <div class="pick-card" data-tab="${activeTab}" data-idx="${i}">
+        <div class="pick-rank ${rankClasses[i]}">${i+1}</div>
+        ${headshotImgTag(p.name)}
+        <div class="pick-body">
+          <div class="pick-name-row"><span class="pick-name">${p.name}</span><span class="pick-team">${isPitcher ? '' : team+' · '+(p.pos||'')}</span></div>
+          <div class="pick-matchup">${matchupTxt}</div>
+          <div class="pick-summary">${propSummary(activeTab, p)}</div>
+          <div class="pick-chips">${chipsFor(activeTab, p).join('')}</div>
+          <div class="pick-env">
+            <div class="env-item">${ballparkIconSVG(g.roof)}<b>${g.park.split(',')[0]}</b> · idx ${g.parkFactor}</div>
+            <div class="env-item">${windArrowSVG(g.roof==='open-air' ? g.windDeg : null)}<b>${windTemp}</b></div>
+          </div>
+        </div>
+        <div class="pick-score">
+          <div class="pick-score-val ${scoreTierClass(activeTab, score)}">${scoreDisplay}</div>
+          <div class="pick-score-label">${scoreLabel(activeTab)}</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  pickList.querySelectorAll('.pick-card').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      const top5cur = getTop5(activeTab);
+      const p = top5cur[parseInt(card.dataset.idx)];
+      if(activeTab==='k') openPitcherModal(p); else openBatterModal(p);
+    });
+  });
+}
+
+function windDirLabel(deg){ const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW']; return dirs[Math.round(deg/22.5)%16]; }
+
+// ---- RotoGrinders-style ballpark wind diagram ----
+function windRelativeToPark(windFromDeg, cfDeg){
+  const blowTo = (windFromDeg + 180) % 360; // meteorological wind deg is FROM; flip to get blow-TO direction
+  let rel = ((blowTo - cfDeg + 540) % 360) - 180; // -180..180, 0 = straight out to CF
+  let label, sector;
+  const a = Math.abs(rel);
+  if(a <= 22.5){ label = 'Blowing OUT to center'; sector='out'; }
+  else if(rel > 22.5 && rel <= 67.5){ label = 'Blowing OUT to right field'; sector='out'; }
+  else if(rel > 67.5 && rel <= 112.5){ label = 'Blowing ACROSS, toward 1B/RF side'; sector='across'; }
+  else if(rel > 112.5 && rel <= 157.5){ label = 'Blowing IN, from right field'; sector='in'; }
+  else if(a > 157.5){ label = 'Blowing IN, straight in'; sector='in'; }
+  else if(rel < -112.5){ label = 'Blowing IN, from left field'; sector='in'; }
+  else if(rel < -67.5){ label = 'Blowing ACROSS, toward 3B/LF side'; sector='across'; }
+  else { label = 'Blowing OUT to left field'; sector='out'; }
+  return {label, sector, arrowDeg: rel};
+}
+// Derive each game's qualitative weather effect ('pos'/'neg'/'neu' — used throughout
+// the scoring model) from the actual live wind reading, instead of leaving it frozen
+// at a hardcoded guess forever. Falls back to the original snapshot label if live
+// wind data or park orientation isn't available.
+function deriveWeatherEffect(g){
+  const cfDeg = g.cfBearing;
+  if(g.roof !== 'open-air' || cfDeg==null || g.windDeg==null) return; // leave as-is (indoor or no live data yet)
+  const rel = windRelativeToPark(g.windDeg, cfDeg);
+  g.weatherEffect = rel.sector === 'out' ? 'pos' : (rel.sector === 'in' ? 'neg' : 'neu');
+}
+// Re-run every player's score using current game state (live weather-derived
+// conditions, any reconciled probable-pitcher swap, current park data). Called
+// after live weather/schedule fetches resolve and whenever the day toggle changes,
+// so the Top 20 lists actually reflect the selected day instead of staying frozen
+// at whatever was computed on first page load.
+function rescoreAllPlayers(){
+  games.forEach(g => deriveWeatherEffect(g));
+  allBatters.forEach(p => scorePlayer(p, p.game));
+}
+
+function weatherDiagramHTML(g){
+  const cfDeg = g.cfBearing;
+  if(g.roof !== 'open-air' || cfDeg==null || g.windDeg==null){
+    return `<div class="wx-diagram-wrap">
+      <div class="wx-diamond-note">${g.roof==='open-air' ? 'Live wind data pending' : 'Indoor / roof closed — no wind effect'}</div>
+    </div>`;
+  }
+  const rel = windRelativeToPark(g.windDeg, cfDeg);
+  const sectorColor = rel.sector==='out' ? 'var(--foul)' : (rel.sector==='in' ? 'var(--cool)' : 'var(--warm)');
+  return `
+    <div class="wx-diagram-wrap">
+      <svg class="wx-diamond" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <path d="M100,175 L30,105 Q100,20 170,105 Z" fill="#1c2e1c" stroke="#3a2424" stroke-width="1.5"/>
+        <path d="M100,175 L60,135 L100,95 L140,135 Z" fill="#3a2424" opacity="0.5"/>
+        <circle cx="100" cy="175" r="5" fill="#e8e2e2"/>
+        <text x="100" y="35" text-anchor="middle" font-size="9" fill="#9a8484" font-family="monospace">CF</text>
+        <text x="45" y="80" text-anchor="middle" font-size="9" fill="#9a8484" font-family="monospace">LF</text>
+        <text x="155" y="80" text-anchor="middle" font-size="9" fill="#9a8484" font-family="monospace">RF</text>
+        <g transform="translate(100,105) rotate(${rel.arrowDeg})">
+          <line x1="0" y1="35" x2="0" y2="-35" stroke="${sectorColor}" stroke-width="4" stroke-linecap="round"/>
+          <path d="M0,-42 L10,-24 L-10,-24 Z" fill="${sectorColor}"/>
+        </g>
+      </svg>
+      <div class="wx-diagram-info">
+        <div class="wx-temp">${g.tempF!=null?g.tempF+'°F':''}</div>
+        <div class="wx-wind-label" style="color:${sectorColor};">${rel.label}</div>
+        <div class="wx-wind-sub">${g.windMph!=null?g.windMph+' mph':''} from ${windDirLabel(g.windDeg)}</div>
+      </div>
+    </div>`;
+}
+
+// ---- Real-clock date handling (so "today"/"tomorrow" always track the actual date) ----
+const DATA_BUILT_FOR = '2026-08-09'; // the date this game slate/roster snapshot was curated for
+function ymd(d){ return d.toISOString().slice(0,10); }
+function addDays(dateStr, n){ const d = new Date(dateStr+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+n); return ymd(d); }
+function shortLabel(dateStr){
+  const d = new Date(dateStr+'T12:00:00Z');
+  return d.toLocaleDateString('en-US', {month:'short', day:'numeric', timeZone:'UTC'});
+}
+function realTodayStr(){ return ymd(new Date()); }
+
+let selectedDay = 'today';
+function gameTime(g){ return (selectedDay==='tomorrow' ? g.timeTomorrow : g.timeToday) || g.timeToday; }
+function timeToMinutes(timeStr){
+  const m = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if(!m) return 9999;
+  let [_, h, min, ap] = m;
+  h = parseInt(h) % 12;
+  if(ap.toUpperCase()==='PM') h += 12;
+  return h*60 + parseInt(min);
+}
+function sortedGames(){
+  return [...games].sort((a,b) => timeToMinutes(gameTime(a)) - timeToMinutes(gameTime(b)));
+}
+function fmtOdds(n){ return n>0 ? `+${n}` : `${n}`; }
+let currentDates = { today: realTodayStr(), tomorrow: addDays(realTodayStr(), 1) };
+
+function refreshDayLabelsAndStaleness(){
+  const realToday = realTodayStr();
+  const changed = realToday !== currentDates.today;
+  currentDates = { today: realToday, tomorrow: addDays(realToday, 1) };
+
+  document.querySelector('.day-toggle button[data-day="today"]').textContent = `Today · ${shortLabel(currentDates.today)}`;
+  document.querySelector('.day-toggle button[data-day="tomorrow"]').textContent = `Tomorrow · ${shortLabel(currentDates.tomorrow)}`;
+
+  const daysStale = Math.round((new Date(realToday+'T00:00:00Z') - new Date(DATA_BUILT_FOR+'T00:00:00Z')) / 86400000);
+  const note = document.getElementById('dayNote');
+  if(daysStale > 1 || (daysStale === 1 && selectedDay==='tomorrow')){
+    note.innerHTML = `<span style="color:var(--hot)">This slate was built for ${shortLabel(DATA_BUILT_FOR)} and is ${daysStale+(selectedDay==='tomorrow'?1:0)} day(s) stale</span> — ask to regenerate for today's real games`;
+  } else if(daysStale === 1 && selectedDay === 'today'){
+    note.innerHTML = 'Auto-rolled to today\'s date · <span style="color:var(--warm)">showing yesterday\'s projected slate — matchups/pitchers may be outdated</span>';
+  } else if(selectedDay === 'tomorrow'){
+    note.innerHTML = 'Real matchups &amp; start times for tomorrow · <span style="color:var(--warm)">probable pitchers confirm live as MLB posts them — unconfirmed starters are hidden from Strikeouts</span>';
+  } else {
+    note.textContent = "15 games on today's slate";
+  }
+  return changed;
+}
+
+// Weather now arrives pre-fetched inside slate.json (server-side), so this is a
+// no-op kept only so older call sites don't throw. Kept intentionally rather than
+// deleted, to make the migration obvious to anyone reading the diff.
+async function fetchLiveWeather(){ return true; }
+async function _legacyFetchLiveWeather(){
+  const dot = document.getElementById('dotWeather');
+  try{
+    const dayIdx = selectedDay==='tomorrow' ? 1 : 0;
+    const entries = Object.entries(STADIUM_COORDS);
+    const results = await Promise.all(entries.map(async ([id, s]) => {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${s.lat}&longitude=${s.lon}&hourly=temperature_2m,wind_speed_10m,wind_direction_10m,relative_humidity_2m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=2`;
+      const res = await fetch(url);
+      if(!res.ok) throw new Error('bad response');
+      const data = await res.json();
+      const hourIdx = dayIdx*24 + 19;
+      return [id, {temp:data.hourly.temperature_2m[hourIdx], wind:data.hourly.wind_speed_10m[hourIdx], dir:data.hourly.wind_direction_10m[hourIdx], hum:data.hourly.relative_humidity_2m[hourIdx]}];
+    }));
+    const liveMap = Object.fromEntries(results);
+    games.forEach(g => {
+      const live = liveMap[g.id];
+      if(live && g.roof === 'open-air' && live.temp!=null){
+        g.weather = `${Math.round(live.temp)}°F, wind ${windDirLabel(live.dir)} ${Math.round(live.wind)}mph, ${Math.round(live.hum)}% humidity`;
+        g.liveWeather = true;
+        g.tempF = Math.round(live.temp);
+        g.windMph = Math.round(live.wind);
+        g.windDeg = live.dir;
+      }
+    });
+    dot.className = 'dot ok';
+    return true;
+  }catch(e){ dot.className = 'dot fallback'; return false; }
+}
+async function fetchLiveSchedule(){
+  const dot = document.getElementById('dotSchedule');
+  try{
+    const date = selectedDay==='tomorrow' ? currentDates.tomorrow : currentDates.today;
+    const url = `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${date}&hydrate=probablePitcher,linescore`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('bad response');
+    const data = await res.json();
+
+    // Reconcile our tracked games against the real live schedule: confirm/replace
+    // probable starters with whoever MLB actually has listed for this date.
+    const idToTeam = Object.fromEntries(Object.entries(TEAM_IDS).map(([k,v])=>[v,k]));
+    const scheduledGames = (data.dates && data.dates[0] && data.dates[0].games) || [];
+    scheduledGames.forEach(gm => {
+      const awayAbbr = idToTeam[gm.teams.away.team.id];
+      const homeAbbr = idToTeam[gm.teams.home.team.id];
+      if(!awayAbbr || !homeAbbr) return; // a team we're not tracking in this slate
+      const g = games.find(x => x.away===awayAbbr && x.home===homeAbbr);
+      if(!g) return;
+      g.gamePk = gm.gamePk;
+      g.mlbStatus = gm.status && gm.status.abstractGameState; // Preview / Live / Final
+      const applyPitcher = (slot, probable) => {
+        if(!probable || !probable.fullName) return;
+        if(probable.fullName !== g[slot].name){
+          // a different starter than our curated snapshot — swap in the real name,
+          // keep tendency stats at league-average placeholders since we haven't
+          // researched this specific pitcher's HR9/K9/barrel% yet
+          Object.assign(g[slot], {
+            name: probable.fullName, hr9:1.05, k9:9.0, barrelAllowed:7.5,
+            mix:'Live-confirmed starter — detailed pitch-mix profile not yet synced', liveConfirmed:true
+          });
+        } else {
+          g[slot].liveConfirmed = true; // matches our curated data exactly
+        }
+      };
+      applyPitcher('awayPitcher', gm.teams.away.probablePitcher);
+      applyPitcher('homePitcher', gm.teams.home.probablePitcher);
+    });
+
+    dot.className = 'dot ok';
+    return true;
+  }catch(e){ dot.className = 'dot fallback'; return false; }
+}
+
+// ---- Live scoreboard: real-time score/inning/count/batter/pitcher per game ----
+function teamLogoUrl(abbr){
+  const id = TEAM_IDS[abbr];
+  return id ? `https://www.mlbstatic.com/team-logos/${id}.svg` : null;
+}
+async function fetchLiveGameStates(){
+  const todaysGames = games.filter(g => g.gamePk);
+  if(!todaysGames.length) return false;
+  try{
+    await Promise.all(todaysGames.map(async g => {
+      try{
+        const res = await fetch(`https://statsapi.mlb.com/api/v1.1/game/${g.gamePk}/feed/live`);
+        if(!res.ok) return;
+        const data = await res.json();
+        const status = data.gameData && data.gameData.status;
+        const line = data.liveData && data.liveData.linescore;
+        g.mlbStatus = status ? status.abstractGameState : g.mlbStatus;
+        g.detailedState = status ? status.detailedState : null;
+        if(line){
+          g.liveScore = {
+            away: line.teams && line.teams.away ? line.teams.away.runs : null,
+            home: line.teams && line.teams.home ? line.teams.home.runs : null,
+            inning: line.currentInning, inningState: line.inningState,
+            balls: line.balls, strikes: line.strikes, outs: line.outs,
+            batter: line.offense && line.offense.batter ? line.offense.batter.fullName : null,
+            pitcher: line.defense && line.defense.pitcher ? line.defense.pitcher.fullName : null,
+          };
+        }
+      }catch(e){ /* leave this game's state as last-known on a per-game fetch failure */ }
+    }));
+    return true;
+  }catch(e){ return false; }
+}
+function renderSlate(){
+  const cards = sortedGames().map(g => {
+    const status = g.mlbStatus || 'Preview';
+    const isLive = status === 'Live';
+    const isFinal = status === 'Final' || status === 'Completed Early';
+    const badge = isLive ? `<span class="slate-badge live">● Live</span>` : (isFinal ? `<span class="slate-badge final">Final</span>` : `<span class="slate-badge pre">Scheduled</span>`);
+    const ls = g.liveScore || {};
+    const awayRuns = isLive || isFinal ? (ls.away!=null ? ls.away : '–') : '';
+    const homeRuns = isLive || isFinal ? (ls.home!=null ? ls.home : '–') : '';
+    const battingHome = isLive && ls.inningState === 'Bottom';
+    const battingAway = isLive && ls.inningState === 'Top';
+    const inningTxt = isLive && ls.inning ? `${ls.inningState==='Top'?'▲':'▼'} ${ls.inning===1?'1st':ls.inning===2?'2nd':ls.inning===3?'3rd':ls.inning+'th'}` : '';
+
+    let liveDetail = '';
+    if(isLive){
+      const balls = ls.balls||0, strikes = ls.strikes||0, outs = ls.outs||0;
+      const dots = (n, max, cls) => Array.from({length:max}, (_,i)=>`<span class="count-dot ${i<n?cls:''}"></span>`).join('');
+      liveDetail = `
+        <div class="slate-live-detail">
+          <div class="slate-count">
+            <div class="count-item"><div class="count-dots">${dots(balls,4,'on')}</div><div class="count-label">Balls</div></div>
+            <div class="count-item"><div class="count-dots">${dots(strikes,3,'on')}</div><div class="count-label">Strikes</div></div>
+            <div class="count-item"><div class="count-dots">${dots(outs,3,'out-on')}</div><div class="count-label">Outs</div></div>
+          </div>
+          <div class="slate-matchup">${ls.pitcher?`<b>${ls.pitcher}</b> pitching`:''} ${ls.batter?`vs <b>${ls.batter}</b>`:''}</div>
+        </div>`;
+    }
+
+    return `
+      <div class="slate-card ${isLive?'is-live':''}" data-gid="${g.id}">
+        <div class="slate-status-row">
+          ${badge}
+          <span class="slate-time">${isLive ? inningTxt : (isFinal ? g.park.split(',')[0] : gameTime(g))}</span>
+        </div>
+        <div class="slate-teams">
+          <div class="slate-team-row ${battingAway?'batting':''}">
+            <img class="slate-logo" src="${teamLogoUrl(g.away)}" alt="${g.away}" onerror="this.style.visibility='hidden'">
+            <span class="slate-team-name">${g.awayName}</span>
+            <span class="slate-runs">${awayRuns}</span>
+          </div>
+          <div class="slate-team-row ${battingHome?'batting':''}">
+            <img class="slate-logo" src="${teamLogoUrl(g.home)}" alt="${g.home}" onerror="this.style.visibility='hidden'">
+            <span class="slate-team-name">${g.homeName}</span>
+            <span class="slate-runs">${homeRuns}</span>
+          </div>
+        </div>
+        ${liveDetail}
+      </div>`;
+  }).join('');
+  pickList.innerHTML = `<div class="slate-list">${cards}</div>`;
+  pickList.querySelectorAll('.slate-card').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      const g = games.find(x=>x.id===card.dataset.gid);
+      if(g) openGameModal(g);
+    });
+  });
+}
+
+// ---- 1st Inning Over/Under model ----
+// Estimates the probability of at least one run in each half-inning by combining
+// the top-of-the-order offense (avg hit probability of a team's best 3 hitters,
+// used as a leadoff-quality proxy since our roster data isn't lineup-ordered),
+// the opposing starter's hittability (HR/9, K/9), park factor, and weather —
+// then combines top + bottom of the 1st as independent events for a full-inning
+// Over/Under read. This is an illustrative model, not a sportsbook feed.
+function halfInningRunProb(offenseHitAvg, pitcher, parkFactor, weatherEffect){
+  let p = 28; // rough league-average chance of a run in a given half-inning
+  p += (offenseHitAvg - 55) * 0.35;
+  p += (pitcher.hr9 - 1.05) * 12;
+  p -= (pitcher.k9 - 9.0) * 1.4;
+  p += (parkFactor - 100) * 0.08;
+  p += weatherEffect==='pos' ? 2 : (weatherEffect==='neg' ? -2 : 0);
+  return Math.max(8, Math.min(65, p));
+}
+function topOrderQuality(roster){
+  const top3 = [...roster].sort((a,b)=>b.hitProb-a.hitProb).slice(0,3);
+  return top3.reduce((s,p)=>s+p.hitProb,0) / top3.length;
+}
+function firstInningModel(g){
+  const awayQ = topOrderQuality(g.awayRoster);
+  const homeQ = topOrderQuality(g.homeRoster);
+  const top1 = halfInningRunProb(awayQ, g.homePitcher, g.parkFactor, g.weatherEffect); // home SP faces away order
+  const bot1 = halfInningRunProb(homeQ, g.awayPitcher, g.parkFactor, g.weatherEffect); // away SP faces home order
+  const overProb = Math.round((1 - (1-top1/100)*(1-bot1/100)) * 100);
+  let lean, leanClass;
+  const diff = overProb - 50;
+  if(diff >= 15){ lean='OVER'; leanClass='score-hi'; }
+  else if(diff >= 5){ lean='Lean Over'; leanClass='score-mid'; }
+  else if(diff <= -15){ lean='UNDER'; leanClass='score-hi'; }
+  else if(diff <= -5){ lean='Lean Under'; leanClass='score-mid'; }
+  else { lean='Toss-up'; leanClass='score-lo'; }
+  return {overProb, lean, leanClass, top1:Math.round(top1), bot1:Math.round(bot1), awayQ:Math.round(awayQ), homeQ:Math.round(homeQ)};
+}
+function renderFirstInning(){
+  const cards = sortedGames().map(g => {
+    if(!g.awayRoster || !g.homeRoster) return '';
+    const m = firstInningModel(g);
+    const isUnder = m.lean.toLowerCase().includes('under');
+    const isToss = m.lean==='Toss-up';
+    return `
+      <div class="pick-card" data-gid="${g.id}">
+        <div class="pick-body">
+          <div class="pick-name-row"><span class="pick-name">${g.awayName} @ ${g.homeName}</span><span class="pick-team">${gameTime(g)}</span></div>
+          <div class="pick-matchup">${g.awayPitcher.name} (${g.away}) vs ${g.homePitcher.name} (${g.home}) · ${g.park.split(',')[0]}</div>
+          <div class="pick-summary">Top of 1st (${g.awayName} bat, face ${g.homePitcher.name}): ~${m.top1}% run chance, top-order quality ${m.awayQ}. Bottom of 1st (${g.homeName} bat, face ${g.awayPitcher.name}): ~${m.bot1}%, top-order quality ${m.homeQ}. ${g.parkNote}, ${g.weatherEffect==='pos'?'wind helping the ball carry':g.weatherEffect==='neg'?'wind suppressing carry':'neutral conditions'}.</div>
+        </div>
+        <div class="pick-score">
+          <div class="pick-score-val ${isToss?'score-lo':(isUnder?'score-mid':'score-hi')}">${m.overProb}%</div>
+          <div class="pick-score-label">Over 0.5</div>
+        </div>
+      </div>`;
+  }).join('');
+  pickList.innerHTML = `<div class="pick-list">${cards}</div>
+    <div class="odds-source-note" style="margin-top:14px;">Modeled from top-order contact quality, starter HR/9 &amp; K/9, park factor, and live weather — not a sportsbook line. "Over 0.5" = probability at least one run scores in the 1st inning (top or bottom).</div>`;
+  pickList.querySelectorAll('.pick-card').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      const g = games.find(x=>x.id===card.dataset.gid);
+      if(g) openGameModal(g);
+    });
+  });
+}
+
+// ---- Live player ID resolution + last-10-game logs (real MLB Stats API data) ----
+let playerIdMap = null;
+let playerIdMapPromise = null;
+function loadPlayerIdMap(){
+  if(playerIdMapPromise) return playerIdMapPromise;
+  const dot = document.getElementById('dotRoster');
+  playerIdMapPromise = (async () => {
+    try{
+      const res = await fetch('https://statsapi.mlb.com/api/v1/sports/1/players?season=2026');
+      if(!res.ok) throw new Error('bad response');
+      const data = await res.json();
+      const map = {};
+      (data.people||[]).forEach(p => { map[p.fullName.toLowerCase()] = p.id; });
+      playerIdMap = map;
+      dot.className = 'dot ok';
+      return map;
+    }catch(e){
+      dot.className = 'dot fallback';
+      playerIdMap = {};
+      return {};
+    }
+  })();
+  return playerIdMapPromise;
+}
+function resolvePlayerId(name){
+  if(!playerIdMap) return null;
+  const key = name.toLowerCase().replace(/[.'']/g,'').trim();
+  if(playerIdMap[name.toLowerCase()]) return playerIdMap[name.toLowerCase()];
+  // fallback: fuzzy match ignoring punctuation/suffixes
+  const norm = s => s.toLowerCase().replace(/[.'']/g,'').replace(/\s+jr\.?$/,'').trim();
+  const target = norm(name);
+  for(const full in playerIdMap){ if(norm(full)===target) return playerIdMap[full]; }
+  return null;
+}
+async function fetchLast10(name){
+  await loadPlayerIdMap();
+  const id = resolvePlayerId(name);
+  if(!id) throw new Error('Player ID not found in live roster feed');
+  const url = `https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=gameLog&group=hitting&season=2026&gameType=R`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('gameLog fetch failed');
+  const data = await res.json();
+  const splits = (data.stats && data.stats[0] && data.stats[0].splits) || [];
+  return splits.slice(-10).map(s => ({
+    date: s.date, opp: s.opponent ? s.opponent.abbreviation : '',
+    ab: s.stat.atBats, h: s.stat.hits, hr: s.stat.homeRuns, rbi: s.stat.rbi
+  }));
+}
+
+// ---- Live active-roster / injury status check (real MLB Stats API) ----
+const TEAM_IDS = {
+  HOU:117, SD:135, LAD:119, AZ:109, BAL:110, TEX:140, STL:138, COL:115,
+  DET:116, SF:137, MIN:142, MIL:158, CLE:114, CWS:145, CHC:112, KC:118,
+  TB:139, SEA:136, NYM:121, PIT:134, ATH:133, BOS:111, LAA:108, MIA:146,
+  NYY:147, ATL:144, TOR:141, PHI:143, WSH:120, CIN:113
+};
+function normName(s){
+  return s.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // strip accents
+    .replace(/[.'']/g,'')
+    .replace(/\s+jr\.?$/,'')
+    .trim();
+}
+let activeRosterPromise = null;
+// Injured/optioned players are already excluded server-side by build-slate.js
+// (active roster vs 40-man diff), so this client-side check is no longer needed.
+function loadActiveRosters(){ return Promise.resolve({activeSets:{}, injuredSets:{}}); }
+function _legacyLoadActiveRosters(){
+  if(activeRosterPromise) return activeRosterPromise;
+  const dot = document.getElementById('dotActive');
+  activeRosterPromise = (async () => {
+    const activeSets = {}; // team -> Set of normalized active player names
+    const injuredSets = {}; // team -> Set of normalized IL/injured player names
+    try{
+      const entries = Object.entries(TEAM_IDS);
+      await Promise.all(entries.map(async ([team, id]) => {
+        try{
+          const [activeRes, fullRes] = await Promise.all([
+            fetch(`https://statsapi.mlb.com/api/v1/teams/${id}/roster?rosterType=active&season=2026`),
+            fetch(`https://statsapi.mlb.com/api/v1/teams/${id}/roster?rosterType=40Man&season=2026`)
+          ]);
+          const activeData = activeRes.ok ? await activeRes.json() : {roster:[]};
+          const fullData = fullRes.ok ? await fullRes.json() : {roster:[]};
+          const activeNames = new Set((activeData.roster||[]).map(p => normName(p.person.fullName)));
+          activeSets[team] = activeNames;
+          // players on the 40-man but NOT on the active roster are typically IL/minors/inactive
+          injuredSets[team] = new Set(
+            (fullData.roster||[])
+              .map(p => normName(p.person.fullName))
+              .filter(n => !activeNames.has(n))
+          );
+        }catch(e){
+          activeSets[team] = null; // unknown — fetch failed for this team
+          injuredSets[team] = new Set();
+        }
+      }));
+      dot.className = 'dot ok';
+    }catch(e){
+      dot.className = 'dot fallback';
+    }
+    return {activeSets, injuredSets};
+  })();
+  return activeRosterPromise;
+}
+function applyActiveStatus(){ /* handled server-side now */ }
+function _legacyApplyActiveStatus(rosterData){
+  const {activeSets} = rosterData;
+  [...allBatters, ...allPitchers].forEach(p => {
+    const teamSet = activeSets[p.team];
+    if(teamSet === undefined || teamSet === null){
+      p.rosterStatus = 'unknown'; // couldn't verify — keep, don't falsely flag as out
+    } else if(teamSet.has(normName(p.name))){
+      p.rosterStatus = 'active';
+    } else {
+      p.rosterStatus = 'inactive'; // not on today's active roster — injured, optioned, or DFA'd
+    }
+  });
+}
+
+document.getElementById('dayToggle').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button'); if(!btn) return;
+  selectedDay = btn.dataset.day;
+  document.querySelectorAll('.day-toggle button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  refreshDayLabelsAndStaleness();
+  rescoreAllPlayers();
+  renderList();
+  document.getElementById('dotWeather').className='dot pending';
+  document.getElementById('dotSchedule').className='dot pending';
+  fetchLiveWeather().then(()=>{ rescoreAllPlayers(); renderList(); });
+  fetchLiveSchedule().then(ok=>{ if(ok){ rescoreAllPlayers(); renderList(); } });
+});
+
+const overlay = document.getElementById('modalOverlay');
+const modalBody = document.getElementById('modalBody');
+function pctl(val, max){ return Math.min(100, Math.round((val/max)*100)); }
+function closeModal(){ overlay.classList.remove('open'); }
+overlay.addEventListener('click', (e)=>{ if(e.target===overlay) closeModal(); });
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeModal(); });
+function wireTabs(playerName){
+  modalBody.querySelectorAll('.tab').forEach(t=>{
+    t.addEventListener('click', ()=>{
+      modalBody.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      modalBody.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));
+      t.classList.add('active');
+      modalBody.querySelector(`.tab-content[data-panel="${t.dataset.tab}"]`).classList.add('active');
+      if(t.dataset.tab==='last10' && playerName) loadLast10(playerName);
+    });
+  });
+}
+async function loadLast10(name){
+  const container = document.getElementById('last10Container');
+  if(!container || container.dataset.loaded==='1') return;
+  try{
+    const games = await fetchLast10(name);
+    if(!games.length){
+      container.innerHTML = `<div class="live-note err">No live game log rows found for ${name} yet this season.</div>`;
+      container.dataset.loaded = '1';
+      return;
+    }
+    const maxAB = Math.max(...games.map(g=>g.ab), 1);
+    const bars = games.map(g => `
+      <div class="bcol">
+        <div style="font-size:9px;color:var(--foul);min-height:11px;">${g.hr>0?('🔥'.repeat(Math.min(g.hr,2))):''}</div>
+        <div class="bfill ${g.hr>0?'hr':''}" style="height:${Math.max(6,(g.h/maxAB)*100)}%;" title="${g.h}-for-${g.ab}, ${g.hr} HR"></div>
+        <div class="blabel">${g.opp||''}</div>
+      </div>`).join('');
+    const totalHR = games.reduce((s,g)=>s+g.hr,0);
+    const totalH = games.reduce((s,g)=>s+g.h,0);
+    const totalAB = games.reduce((s,g)=>s+g.ab,0);
+    container.innerHTML = `
+      <div class="live-note">● Live from MLB Stats API — real game-by-game hitting log, most recent ${games.length} games</div>
+      <div class="chart-wrap">
+        <div class="chart-title">Hits per game (bar height) · HR games marked</div>
+        <div class="bar-chart">${bars}</div>
+        <div class="chart-legend">
+          <span><span class="legend-dot" style="background:var(--cool);"></span>Hit game</span>
+          <span><span class="legend-dot" style="background:var(--foul);"></span>HR game</span>
+        </div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="sv">${totalHR}</div><div class="sl">HR (L10)</div></div>
+        <div class="stat-box"><div class="sv">${totalH}</div><div class="sl">Hits (L10)</div></div>
+        <div class="stat-box"><div class="sv">${totalAB ? (totalH/totalAB).toFixed(3).replace(/^0/,'') : '—'}</div><div class="sl">Avg (L10)</div></div>
+      </div>
+      <table class="gamelog-table">
+        <thead><tr><th>Date</th><th>Opp</th><th>AB</th><th>H</th><th>HR</th><th>RBI</th></tr></thead>
+        <tbody>${games.slice().reverse().map(g=>`<tr><td>${g.date}</td><td>${g.opp}</td><td>${g.ab}</td><td>${g.h}</td><td class="${g.hr>0?'hr-cell':''}">${g.hr}</td><td>${g.rbi}</td></tr>`).join('')}</tbody>
+      </table>
+    `;
+    container.dataset.loaded = '1';
+  }catch(e){
+    container.innerHTML = `<div class="live-note err">Couldn't match "${name}" to a live MLB Stats API player ID, or the game log fetch failed (${e.message}). This player may not be on a 2026 active roster in the feed.</div>`;
+  }
+}
+function openBatterModal(p){
+  const dqLabel = p.dataQuality==='sourced' ? 'Sourced (Statcast page)' : 'Modeled (tier/role estimate)';
+  const dqClass = p.dataQuality==='sourced' ? 'sourced' : 'modeled';
+  const g = p.game;
+  modalBody.innerHTML = `
+    <div class="modal-head">
+      <button class="modal-close" id="modalClose">&times;</button>
+      ${headshotImgTag(p.name, 'modal-headshot')}
+      <div class="modal-head-text">
+      <div class="modal-name">${p.name} <span class="dq-badge ${dqClass}">${dqLabel}</span></div>
+      <div class="modal-tag">${p.team} · ${p.pos||''} · Bats ${p.hand||'?'} · ${g.awayName} @ ${g.homeName} · ${gameTime(g)}</div>
+      <div class="modal-index">
+        <div class="modal-index-num">${p.hrIndex}%</div>
+        <div class="modal-index-bar"><div style="font-size:11px;color:var(--mute);margin-bottom:6px;font-family:'Space Mono',monospace;">HOME RUN INDEX TONIGHT</div>
+        <div class="modal-index-track"><div class="modal-index-fill" style="width:${p.hrIndex}%"></div></div></div>
+      </div>
+      </div>
+    </div>
+    <div class="tabs">
+      <div class="tab active" data-tab="overview">Overview</div>
+      <div class="tab" data-tab="last10">Last 10 Games</div>
+      <div class="tab" data-tab="statcast">Statcast Profile</div>
+      <div class="tab" data-tab="matchup">Matchup</div>
+      <div class="tab" data-tab="breakdown">Index Breakdown</div>
+    </div>
+    <div class="tab-content active" data-panel="overview">
+      <div class="stat-grid">
+        <div class="stat-box"><div class="sv">${p.hr}</div><div class="sl">2026 HR</div><div class="sc">${p.pace}</div></div>
+        <div class="stat-box"><div class="sv">.${Math.round(p.avg*1000)}</div><div class="sl">Avg</div><div class="sc">${p.hitProb}% hit prob tonight</div></div>
+        <div class="stat-box"><div class="sv">${p.recentForm.last15}</div><div class="sl">Last 15 Games</div></div>
+        <div class="stat-box"><div class="sv">${p.recentForm.last30}</div><div class="sl">Last 30 Games</div><div class="sc">Trend: ${p.recentForm.trend}</div></div>
+      </div>
+      <div class="narrative">${p.narrative}</div>
+    </div>
+    <div class="tab-content" data-panel="last10">
+      <div id="last10Container">
+        <div class="live-note pending" id="last10Status"><span class="dot pending" style="width:6px;height:6px;"></span> Fetching live game log from MLB Stats API…</div>
+      </div>
+    </div>
+    <div class="tab-content" data-panel="statcast">
+      <div class="stat-grid">
+        <div class="stat-box"><div class="sv">${p.statcast.barrel}%</div><div class="sl">Barrel Rate</div><div class="pctl-track"><div class="pctl-fill" style="width:${pctl(p.statcast.barrel,20)}%"></div></div></div>
+        <div class="stat-box"><div class="sv">${p.statcast.ev} mph</div><div class="sl">Avg Exit Velo</div><div class="pctl-track"><div class="pctl-fill" style="width:${pctl(p.statcast.ev,96)}%"></div></div></div>
+        <div class="stat-box"><div class="sv">${p.statcast.maxEv} mph</div><div class="sl">Max Exit Velo</div></div>
+        <div class="stat-box"><div class="sv">${p.statcast.hardHit}%</div><div class="sl">Hard-Hit Rate</div><div class="pctl-track"><div class="pctl-fill" style="width:${pctl(p.statcast.hardHit,55)}%"></div></div></div>
+        <div class="stat-box"><div class="sv">${p.statcast.xwoba}</div><div class="sl">xwOBA</div></div>
+        <div class="stat-box"><div class="sv">${p.statcast.xslg}</div><div class="sl">xSLG</div></div>
+        <div class="stat-box"><div class="sv">${p.statcast.sweetSpot}%</div><div class="sl">Sweet-Spot %</div></div>
+        <div class="stat-box"><div class="sv">${p.speed}/100</div><div class="sl">Speed Score</div></div>
+      </div>
+      <div class="narrative">Percentile bars are scaled against typical qualified-hitter ranges, not a live league-wide feed.</div>
+    </div>
+    <div class="tab-content" data-panel="matchup">
+      <div class="matchup-block"><h5>Tonight's Starter</h5><p>${p.oppPitcher.name} (throws ${p.oppPitcher.throws})</p>
+        <div class="msub">HR/9 allowed: ${p.oppPitcher.hr9} · Barrel% allowed: ${p.oppPitcher.barrelAllowed}% · K/9: ${p.oppPitcher.k9}</div>
+        <div class="msub">Arsenal: ${p.oppPitcher.mix}</div></div>
+      <div class="matchup-block"><h5>Ballpark Tonight</h5><p>${g.park}</p>
+        <div class="msub">Park HR factor: ${g.parkFactor} (100 = league average) · ${g.parkNote}</div></div>
+      <div class="matchup-block"><h5>Weather ${g.liveWeather ? '<span style="color:var(--grass-bright);font-size:10px;">● live-fetched</span>' : ''}</h5><p>${g.weather}</p>
+        <div class="msub">${g.weatherNote}</div></div>
+    </div>
+    <div class="tab-content" data-panel="breakdown">
+      <div class="breakdown-row"><div class="breakdown-label">Statcast Profile <span style="color:var(--mute);">(45%)</span></div>
+        <div class="breakdown-track"><div class="breakdown-fill" style="width:${p.breakdown.statcast/45*100}%;background:var(--foul);"></div></div>
+        <div class="breakdown-pts">${p.breakdown.statcast} pts</div></div>
+      <div class="breakdown-row"><div class="breakdown-label">Recent Form <span style="color:var(--mute);">(20%)</span></div>
+        <div class="breakdown-track"><div class="breakdown-fill" style="width:${p.breakdown.form/20*100}%;background:var(--grass-bright);"></div></div>
+        <div class="breakdown-pts">${p.breakdown.form} pts</div></div>
+      <div class="breakdown-row"><div class="breakdown-label">Park + Weather <span style="color:var(--mute);">(25%)</span></div>
+        <div class="breakdown-track"><div class="breakdown-fill" style="width:${p.breakdown.park/25*100}%;background:var(--cool);"></div></div>
+        <div class="breakdown-pts">${p.breakdown.park} pts</div></div>
+      <div class="breakdown-row"><div class="breakdown-label">Matchup <span style="color:var(--mute);">(10%)</span></div>
+        <div class="breakdown-track"><div class="breakdown-fill" style="width:${p.breakdown.matchup/10*100}%;background:var(--hot);"></div></div>
+        <div class="breakdown-pts">${p.breakdown.matchup} pts</div></div>
+      <div class="narrative" style="margin-top:14px;">Total = ${p.hrIndex} / 100. Illustrative model — treat relative ranking as more meaningful than the exact number.</div>
+    </div>
+  `;
+  overlay.classList.add('open');
+  document.getElementById('modalClose').onclick = closeModal;
+  wireTabs(p.name);
+}
+function openGameModal(g){
+  const o = g.odds;
+  const dqLabel = o.dataQuality==='sourced' ? 'Sourced (FanDuel)' : 'Modeled estimate';
+  const dqClass = o.dataQuality==='sourced' ? 'sourced' : 'modeled';
+  const status = g.mlbStatus || 'Preview';
+  const isLive = status === 'Live';
+  const isFinal = status === 'Final';
+  const ls = g.liveScore || {};
+  const topHR_away = g.awayRoster ? [...g.awayRoster].sort((a,b)=>b.hrIndex-a.hrIndex)[0] : null;
+  const topHR_home = g.homeRoster ? [...g.homeRoster].sort((a,b)=>b.hrIndex-a.hrIndex)[0] : null;
+  const rlFavName = o.runline.favorite==='away' ? g.awayName : g.homeName;
+  const rlDogName = o.runline.favorite==='away' ? g.homeName : g.awayName;
+
+  modalBody.innerHTML = `
+    <div class="modal-head">
+      <button class="modal-close" id="modalClose">&times;</button>
+      <div class="modal-head-text">
+        <div class="modal-name">${g.awayName} @ ${g.homeName}</div>
+        <div class="modal-tag">${g.park} · ${gameTime(g)} ${isLive?' · <span style="color:var(--foul);">● LIVE</span>':''}${isFinal?' · Final':''}</div>
+        ${isLive || isFinal ? `<div class="modal-index" style="margin-top:14px;"><div class="modal-index-num" style="font-size:32px;">${ls.away!=null?ls.away:'–'} – ${ls.home!=null?ls.home:'–'}</div></div>` : ''}
+      </div>
+    </div>
+    <div class="tabs">
+      <div class="tab active" data-tab="overview">Matchup</div>
+      <div class="tab" data-tab="odds">Odds</div>
+    </div>
+    <div class="tab-content active" data-panel="overview">
+      <div class="matchup-block"><h5>Starting Pitchers</h5>
+        <p>${g.awayName}: ${g.awayPitcher.name} (${g.awayPitcher.throws}) &nbsp;·&nbsp; ${g.homeName}: ${g.homePitcher.name} (${g.homePitcher.throws})</p>
+        <div class="msub">${g.awayPitcher.mix}</div>
+        <div class="msub">${g.homePitcher.mix}</div>
+      </div>
+      <div class="matchup-block"><h5>Ballpark &amp; Conditions</h5>
+        <p>${g.park}</p>
+        <div class="msub">Park HR factor: ${g.parkFactor} (100 = league average) · ${g.parkNote} ${g.liveWeather?'<span style="color:var(--grass-bright);font-size:10px;">● live weather</span>':''}</div>
+        ${weatherDiagramHTML(g)}
+      </div>
+      ${topHR_away || topHR_home ? `<div class="matchup-block"><h5>Top Home Run Threats</h5>
+        <p>${topHR_away ? `${g.awayName}: <b>${topHR_away.name}</b> (${topHR_away.hrIndex}% HR Index)`:''}</p>
+        <p>${topHR_home ? `${g.homeName}: <b>${topHR_home.name}</b> (${topHR_home.hrIndex}% HR Index)`:''}</p>
+      </div>` : ''}
+      ${isLive ? `<div class="matchup-block"><h5>Live Situation</h5>
+        <p>${ls.inningState||''} ${ls.inning||''} · ${ls.outs||0} out(s)</p>
+        <div class="msub">${ls.pitcher?`${ls.pitcher} pitching`:''} ${ls.batter?`vs ${ls.batter}`:''} · Count: ${ls.balls||0}-${ls.strikes||0}</div>
+      </div>` : ''}
+    </div>
+    <div class="tab-content" data-panel="odds">
+      <div class="live-note" style="margin-bottom:14px;"><span class="dq-badge ${dqClass}">${dqLabel}</span> — sportsbook odds have no public live API; this is a point-in-time snapshot, not a real-time line.</div>
+      <div class="odds-grid">
+        <div><div class="odds-col-head">Moneyline</div>
+          <div class="odds-team-row"><span class="odds-team-label">${g.awayName}</span><span class="odds-price">${fmtOdds(o.moneyline.away)}</span></div>
+          <div class="odds-team-row"><span class="odds-team-label">${g.homeName}</span><span class="odds-price">${fmtOdds(o.moneyline.home)}</span></div>
+        </div>
+        <div><div class="odds-col-head">Run Line</div>
+          <div class="odds-team-row"><span class="odds-team-label">${rlFavName} ${o.runline.line}</span><span class="odds-price">${fmtOdds(o.runline.favPrice)}</span></div>
+          <div class="odds-team-row"><span class="odds-team-label">${rlDogName} +${Math.abs(o.runline.line)}</span><span class="odds-price">${fmtOdds(o.runline.dogPrice)}</span></div>
+        </div>
+        <div><div class="odds-col-head">Total Runs</div>
+          <div class="odds-team-row"><span class="odds-team-label">Over ${o.total.line}</span><span class="odds-price">${fmtOdds(o.total.overPrice)}</span></div>
+          <div class="odds-team-row"><span class="odds-team-label">Under ${o.total.line}</span><span class="odds-price">${fmtOdds(o.total.underPrice)}</span></div>
+        </div>
+      </div>
+      <div class="odds-source-note">Odds via FanDuel Sportsbook · for reference only, not betting advice</div>
+    </div>
+  `;
+  overlay.classList.add('open');
+  document.getElementById('modalClose').onclick = closeModal;
+  wireTabs();
+}
+
+function openPitcherModal(p){
+  const g = p.game;
+  modalBody.innerHTML = `
+    <div class="modal-head">
+      <button class="modal-close" id="modalClose">&times;</button>
+      ${headshotImgTag(p.name, 'modal-headshot')}
+      <div class="modal-head-text">
+      <div class="modal-name">${p.name} <span class="dq-badge modeled">Modeled</span></div>
+      <div class="modal-tag">Throws ${p.throws} · vs ${p.opp} · ${g.awayName} @ ${g.homeName} · ${gameTime(g)}</div>
+      <div class="modal-index">
+        <div class="modal-index-num">${p.projK}</div>
+        <div class="modal-index-bar"><div style="font-size:11px;color:var(--mute);margin-bottom:6px;font-family:'Space Mono',monospace;">PROJECTED STRIKEOUTS</div>
+        <div class="modal-index-track"><div class="modal-index-fill" style="width:${Math.min(100,p.projK*8)}%"></div></div></div>
+      </div>
+      </div>
+    </div>
+    <div class="tab-content active" data-panel="overview" style="display:block;">
+      <div class="stat-grid">
+        <div class="stat-box"><div class="sv">${p.k9}</div><div class="sl">K/9 (season)</div></div>
+        <div class="stat-box"><div class="sv">${p.expIP}</div><div class="sl">Projected IP</div></div>
+        <div class="stat-box"><div class="sv">${p.hr9}</div><div class="sl">HR/9 allowed</div></div>
+        <div class="stat-box"><div class="sv">${p.barrelAllowed}%</div><div class="sl">Barrel% allowed</div></div>
+      </div>
+      <div class="matchup-block"><h5>Arsenal</h5><p>${p.mix}</p></div>
+      <div class="narrative">Projected strikeouts = season K/9 rate × expected innings pitched tonight (scaled by role: workhorse arms projected deeper into games). Treat as a directional estimate, not a locked line.</div>
+    </div>
+  `;
+  overlay.classList.add('open');
+  document.getElementById('modalClose').onclick = closeModal;
+}
+
+// ---------------------------------------------------------------- boot
+// One same-origin request replaces the old ~50 cross-origin fetches. Everything
+// downstream (rankings, modals, 1st-inning model) reads from what this returns.
+async function boot(){
+  renderTabs();
+  renderList();                       // paint the shell immediately
+
+  const ok = await loadSlate();
+  if(!ok){
+    pickList.innerHTML = `<div style="text-align:center;padding:46px 22px;color:var(--mute);font-family:'Oswald',sans-serif;font-size:14px;line-height:1.7;">
+      <div style="font-size:17px;color:var(--white);margin-bottom:10px;">Couldn't load slate.json</div>
+      Expected it next to this page at <code style="color:var(--foul);">./slate.json</code>.<br>
+      Run <code style="color:var(--foul);">node build-slate.js</code> to generate it, or check that your daily workflow committed it.
+      ${slateMeta.loadError ? `<div style="margin-top:12px;font-size:11.5px;">${slateMeta.loadError}</div>` : ''}
+    </div>`;
+    document.getElementById('dayNote').innerHTML = '<span style="color:var(--hot)">No slate data</span>';
+    return;
+  }
+
+  refreshDayLabelsAndStaleness();
+  renderList();
+  updateSlateFooter();
+
+  // Live in-game state is the one thing a daily build can't cover.
+  fetchLiveGameStates().then(()=>{ if(activeTab==='slate') renderList(); });
+  loadPlayerIdMap().then(()=>renderList());   // headshots
+}
+
+/** Surface build provenance + any partial-failure warnings from the builder. */
+function updateSlateFooter(){
+  const note = document.getElementById('dayNote');
+  if(!note) return;
+  const built = slateMeta.generatedAt ? new Date(slateMeta.generatedAt) : null;
+  const ageMin = built ? Math.round((Date.now()-built)/60000) : null;
+  const ageTxt = ageMin==null ? '' : ageMin < 90 ? `built ${ageMin}m ago` : `built ${Math.round(ageMin/60)}h ago`;
+  const warn = slateMeta.warnings?.length
+    ? ` · <span style="color:var(--warm)">${slateMeta.warnings.length} build warning(s)</span>`
+    : '';
+  const derived = allBatters.some(p => p.statcast?._derived)
+    ? ' · <span style="color:var(--warm)">some Statcast values derived from season stats</span>' : '';
+  note.innerHTML = `${games.length} games · ${ageTxt}${warn}${derived}`;
+  note.title = (slateMeta.warnings || []).join('\n');
+}
+
+boot();
+loadActiveRosters().then(rosterData => { applyActiveStatus(rosterData); renderList(); });
+
+// ---------------- Auto-update: live data refresh + day-change detection ----------------
+let lastUpdatedAt = Date.now();
+function touchLastUpdated(){ lastUpdatedAt = Date.now(); renderLastUpdated(); }
+function renderLastUpdated(){
+  const el = document.getElementById('lastUpdated');
+  if(!el) return;
+  const secs = Math.round((Date.now()-lastUpdatedAt)/1000);
+  el.textContent = secs < 5 ? 'Updated just now' : secs < 60 ? `Updated ${secs}s ago` : `Updated ${Math.round(secs/60)}m ago`;
+}
+setInterval(renderLastUpdated, 5000); // keep the "Updated Xs ago" ticker current
+
+async function fullLiveRefresh(){
+  const btn = document.getElementById('refreshBtn');
+  if(btn) btn.classList.add('spinning');
+  const dot = document.getElementById('dotSlate');
+  if(dot) dot.className = 'dot pending';
+
+  // Re-pull the whole slate (cheap: one request) plus current live game state.
+  const ok = await loadSlate();
+  if(ok){ refreshDayLabelsAndStaleness(); updateSlateFooter(); }
+  await fetchLiveGameStates();
+  renderList();
+  touchLastUpdated();
+  if(btn) btn.classList.remove('spinning');
+}
+
+// Manual refresh button
+document.getElementById('refreshBtn').addEventListener('click', fullLiveRefresh);
+
+// Auto-refresh live data (weather, schedule, active/injured status) every 5 minutes
+setInterval(fullLiveRefresh, 5*60*1000);
+
+// Live scoreboard needs much faster updates than everything else — poll game
+// state (score/inning/count/batter/pitcher) every 20 seconds so the Slate tab
+// tracks along in near real time while games are actually being played.
+setInterval(()=>{
+  fetchLiveGameStates().then(()=>{ if(activeTab==='slate') renderList(); });
+}, 20*1000);
+
+// Check every 30s whether the real calendar date has rolled over; if so, relabel
+// Today/Tomorrow, re-point the live fetches at the new date, and pull fresh data.
+setInterval(()=>{
+  const changed = refreshDayLabelsAndStaleness();
+  if(changed) fullLiveRefresh();
+}, 30*1000);
+
+// Also catch day-rollover immediately when the tab regains focus (covers laptops
+// that were asleep/backgrounded overnight, where the 30s interval was paused).
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible'){
+    const changed = refreshDayLabelsAndStaleness();
+    fullLiveRefresh();
+  }
+});
+</script>
+</body>
+</html>
