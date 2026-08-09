@@ -616,7 +616,7 @@ const MODEL = {
     weights:      { statcast: 45, form: 20, park: 25, matchup: 10 },  // must total 100
 
     // Statcast half: how barrel% and hard-hit% split the statcast weight
-    barrelWeight: 0.55,   // remainder (0.45) goes to hard-hit%
+    barrelWeight: 0.65,   // remainder goes to hard-hit%
     barrelScale:  20,     // 20% barrel rate = full credit
     hardHitScale: 55,     // 55% hard-hit rate = full credit
 
@@ -633,7 +633,7 @@ const MODEL = {
 
   // ---- Hits: P(at least one hit) = 1 - (1 - AVG)^atBats ----
   hits: {
-    expectedAB:   3,      // typical AB per game; 4.3 for leadoff-heavy modeling
+    expectedAB:   4,      // typical AB per game; 4.3 for leadoff-heavy modeling
   },
 
   // ---- Total Bases: blend of expected slugging and contact rate ----
@@ -651,7 +651,7 @@ const MODEL = {
 
   // ---- Stolen bases: speed score, lightly damped in heavy air ----
   sb: {
-    coldWeatherMult: 0.75,
+    coldWeatherMult: 1.25,
   },
 };
 
