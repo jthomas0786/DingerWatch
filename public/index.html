@@ -185,6 +185,17 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 .count-dot.out-on{ background: var(--hot); }
 .slate-matchup{ font-size:11.5px; color: var(--mute); font-family:'Space Mono',monospace; text-align:right; }
 .slate-matchup b{ color: var(--white); font-weight:600; }
+.linescore{ margin-top:12px; padding-top:12px; border-top:1px solid var(--line); overflow-x:auto; }
+.linescore table{ border-collapse:collapse; font-family:'Space Mono',monospace; font-size:11.5px; width:100%; min-width:max-content; }
+.linescore th, .linescore td{ padding:4px 7px; text-align:center; min-width:22px; }
+.linescore th{ color:var(--mute); font-size:9.5px; font-weight:400; border-bottom:1px solid var(--line); }
+.linescore td.team-cell, .linescore th.team-cell{ text-align:left; min-width:52px; padding-left:0; color:var(--white); font-family:'Oswald',sans-serif; font-size:12.5px; font-weight:600; }
+.linescore td.rhe{ font-weight:700; color:var(--white); }
+.linescore th.rhe-head{ color:var(--white); }
+.linescore .sep{ border-left:1px solid var(--line); }
+.linescore td.scored{ color:var(--foul); font-weight:700; }
+.linescore th.current-inn{ color:var(--foul); }
+.linescore tr.batting td.team-cell{ color:var(--foul); }
 .odds-grid{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; }
 .odds-col-head{ font-family:'Space Mono',monospace; font-size:9.5px; color: var(--mute); text-transform:uppercase; text-align:center; margin-bottom:8px; letter-spacing:0.05em; }
 .odds-team-row{ display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); gap:6px; }
@@ -416,7 +427,7 @@ function speedScore(season, pos) {
   const onBase = (season.h ?? 0) + (season.bb ?? 0);
   const rate = onBase > 0 ? sb / onBase : 0;
   const posBonus = ({ CF: 12, SS: 8, LF: 4, '2B': 6, RF: 0, '3B': -4, C: -14, '1B': -10, DH: -12 })[pos] ?? 0;
-  return Math.max(1, Math.min(100, Math.round(rate * 150 + 28 + posBonus)));
+  return Math.max(1, Math.min(100, Math.round(rate * 100 + 28 + posBonus)));
 }
 
 /** Recent-form trend from the last-10 log vs. season baseline. */
@@ -645,10 +656,10 @@ const MODEL = {
 
   // ---- Home Run Index (the four bars in the player modal) ----
   hr: {
-    weights:      { statcast: 50, form: 20, park: 15, matchup: 15 },  // must total 100
+    weights:      { statcast: 45, form: 20, park: 25, matchup: 10 },  // must total 100
 
     // Statcast half: how barrel% and hard-hit% split the statcast weight
-    barrelWeight: 0.60,   // remainder goes to hard-hit%
+    barrelWeight: 0.60,   // remainder (0.45) goes to hard-hit%
     barrelScale:  20,     // 20% barrel rate = full credit
     hardHitScale: 55,     // 55% hard-hit rate = full credit
 
@@ -683,7 +694,7 @@ const MODEL = {
 
   // ---- Stolen bases: speed score, lightly damped in heavy air ----
   sb: {
-    coldWeatherMult: -1.25,
+    coldWeatherMult: 0.95,
   },
 };
 
@@ -1212,13 +1223,26 @@ async function fetchLiveGameStates(){
         g.mlbStatus = status ? status.abstractGameState : g.mlbStatus;
         g.detailedState = status ? status.detailedState : null;
         if(line){
+          const t = line.teams || {};
           g.liveScore = {
-            away: line.teams && line.teams.away ? line.teams.away.runs : null,
-            home: line.teams && line.teams.home ? line.teams.home.runs : null,
+            away: t.away ? t.away.runs : null,
+            home: t.home ? t.home.runs : null,
+            // R/H/E totals for the linescore footer
+            awayHits: t.away ? t.away.hits : null, homeHits: t.home ? t.home.hits : null,
+            awayErrors: t.away ? t.away.errors : null, homeErrors: t.home ? t.home.errors : null,
             inning: line.currentInning, inningState: line.inningState,
             balls: line.balls, strikes: line.strikes, outs: line.outs,
             batter: line.offense && line.offense.batter ? line.offense.batter.fullName : null,
             pitcher: line.defense && line.defense.pitcher ? line.defense.pitcher.fullName : null,
+            // Per-inning runs. The API omits the bottom half when the home team
+            // hasn't batted yet (or doesn't need to), so `runs` can be undefined —
+            // that's meaningfully different from 0 and is rendered as a blank cell.
+            innings: (line.innings || []).map(inn => ({
+              num: inn.num,
+              away: inn.away ? inn.away.runs : undefined,
+              home: inn.home ? inn.home.runs : undefined,
+            })),
+            scheduledInnings: line.scheduledInnings || 9,
           };
         }
       }catch(e){ /* leave this game's state as last-known on a per-game fetch failure */ }
@@ -1226,6 +1250,55 @@ async function fetchLiveGameStates(){
     return true;
   }catch(e){ return false; }
 }
+/**
+ * ESPN-style linescore. Shown for live and completed games only — a Preview
+ * game has no innings to display.
+ *
+ * Two details the raw feed forces us to handle:
+ *  - A half-inning with no `runs` value hasn't been played (home team in a
+ *    walk-off or an in-progress top half). Blank ≠ 0, so it renders empty.
+ *  - Extra-inning games return more than 9 innings; the header is built from
+ *    the actual innings array, not a hardcoded 9.
+ */
+function linescoreHTML(g){
+  const ls = g.liveScore;
+  if(!ls || !ls.innings || !ls.innings.length) return '';
+
+  const scheduled = ls.scheduledInnings || 9;
+  const played = ls.innings.length;
+  const cols = Math.max(scheduled, played);       // pad to 9, extend for extras
+  const nums = Array.from({length: cols}, (_,i)=> i+1);
+  const byNum = Object.fromEntries(ls.innings.map(i => [i.num, i]));
+
+  const isLive = (g.mlbStatus === 'Live');
+  const cell = (v, isCurrent) => {
+    if(v === undefined || v === null) return '<td></td>';
+    return `<td class="${v > 0 ? 'scored' : ''}">${v}</td>`;
+  };
+
+  const head = nums.map(n =>
+    `<th class="${isLive && n === ls.inning ? 'current-inn' : ''}">${n}</th>`).join('');
+
+  const row = (side, label) => {
+    const battingNow = isLive &&
+      ((side === 'away' && ls.inningState === 'Top') || (side === 'home' && ls.inningState === 'Bottom'));
+    const cells = nums.map(n => cell(byNum[n] ? byNum[n][side] : undefined)).join('');
+    const r = side === 'away' ? ls.away : ls.home;
+    const h = side === 'away' ? ls.awayHits : ls.homeHits;
+    const e = side === 'away' ? ls.awayErrors : ls.homeErrors;
+    return `<tr class="${battingNow ? 'batting' : ''}">
+      <td class="team-cell">${label}</td>${cells}
+      <td class="rhe sep">${r ?? '–'}</td><td class="rhe">${h ?? '–'}</td><td class="rhe">${e ?? '–'}</td>
+    </tr>`;
+  };
+
+  return `<div class="linescore"><table>
+    <thead><tr><th class="team-cell"></th>${head}
+      <th class="rhe-head sep">R</th><th class="rhe-head">H</th><th class="rhe-head">E</th></tr></thead>
+    <tbody>${row('away', g.away)}${row('home', g.home)}</tbody>
+  </table></div>`;
+}
+
 function renderSlate(){
   const cards = sortedGames().map(g => {
     const status = g.mlbStatus || 'Preview';
@@ -1272,6 +1345,7 @@ function renderSlate(){
             <span class="slate-runs">${homeRuns}</span>
           </div>
         </div>
+        ${(isLive || isFinal) ? linescoreHTML(g) : ''}
         ${liveDetail}
       </div>`;
   }).join('');
