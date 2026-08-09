@@ -617,8 +617,8 @@ const MODEL = {
 
     // Statcast half: how barrel% and hard-hit% split the statcast weight
     barrelWeight: 0.65,   // remainder goes to hard-hit%
-    barrelScale:  20,     // 20% barrel rate = full credit
-    hardHitScale: 55,     // 55% hard-hit rate = full credit
+    barrelScale:  10,     // 20% barrel rate = full credit
+    hardHitScale: 40,     // 55% hard-hit rate = full credit
 
     // Recent form: bonus/penalty applied to the tier's baseline
     trendBonus:   2,      // "up" adds this; "down" subtracts it
@@ -639,19 +639,19 @@ const MODEL = {
   // ---- Total Bases: blend of expected slugging and contact rate ----
   tb: {
     xslgWeight:   0.4,    // remainder goes to batting average
-    xslgScale:    0.650,  // xSLG that earns full marks
-    avgScale:     0.320,  // AVG that earns full marks
+    xslgScale:    0.750,  // xSLG that earns full marks
+    avgScale:     0.350,  // AVG that earns full marks
   },
 
   // ---- RBI: lineup-role baseline, nudged by form and park ----
   rbi: {
     trendMultiplier: 2,   // trend bonus is multiplied by this
-    parkDivisor:     2,   // (parkFactor - 100) / this
+    parkDivisor:     3,   // (parkFactor - 100) / this
   },
 
   // ---- Stolen bases: speed score, lightly damped in heavy air ----
   sb: {
-    coldWeatherMult: 1.25,
+    coldWeatherMult: 2.00,
   },
 };
 
