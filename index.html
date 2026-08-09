@@ -602,22 +602,113 @@ const TIER_RANGES = {
   4: { base:{form:3,  rbi:24} },
 };
 
-function scorePlayer(base, game){
-  const weatherMult = game.weatherEffect==='pos' ? 1.08 : (game.weatherEffect==='neg' ? 0.90 : 1.0);
-  const statcastScore = Math.max(0,Math.min(45, Math.round(45 * ((base.statcast.barrel/20)*0.55 + (base.statcast.hardHit/55)*0.45))));
-  const trendAdj = base.recentForm.trend==='up' ? 3 : (base.recentForm.trend==='down' ? -3 : 0);
-  const r = TIER_RANGES[base.tier];
-  const formScore = Math.max(0, Math.min(20, (r ? r.base.form : 12) + trendAdj));
-  const parkScore = Math.max(0, Math.min(25, Math.round(25 * (game.parkFactor/100) * weatherMult)));
-  const matchupScore = Math.max(0, Math.min(10, Math.round(10 * Math.min(1.5, base.oppPitcher.hr9/1.1))));
-  base.breakdown = {statcast:statcastScore, form:formScore, park:parkScore, matchup:matchupScore};
-  base.hrIndex = statcastScore+formScore+parkScore+matchupScore;
+// ============================================================================
+//  ⚙️  MODEL — every tunable number lives here. Edit this block, reload, done.
+// ----------------------------------------------------------------------------
+//  The four HR weights should sum to 100 (there's a console check below).
+//  Each `*_SCALE` is "the input value that earns full marks" — lower it to make
+//  a category easier to max out, raise it to make it stricter.
+// ============================================================================
+const MODEL = {
 
-  base.hitProb = Math.round(100*(1-Math.pow(1-base.avg,4)));
-  base.tbScore = Math.max(0,Math.min(100, Math.round(100*(0.5*(base.statcast.xslg/0.650) + 0.5*(base.avg/0.320)))));
-  const rbiBase = r ? r.base.rbi : 40;
-  base.rbiScore = Math.max(0,Math.min(100, Math.round(rbiBase + trendAdj*2 + (game.parkFactor-100)/3)));
-  base.sbScore = Math.max(0,Math.min(100, Math.round(base.speed * (game.weatherEffect==='neg'?0.95:1.0))));
+  // ---- Home Run Index (the four bars in the player modal) ----
+  hr: {
+    weights:      { statcast: 45, form: 20, park: 25, matchup: 10 },  // must total 100
+
+    // Statcast half: how barrel% and hard-hit% split the statcast weight
+    barrelWeight: 0.55,   // remainder (0.45) goes to hard-hit%
+    barrelScale:  20,     // 20% barrel rate = full credit
+    hardHitScale: 55,     // 55% hard-hit rate = full credit
+
+    // Recent form: bonus/penalty applied to the tier's baseline
+    trendBonus:   4,      // "up" adds this; "down" subtracts it
+
+    // Environment: park factor / 100, then multiplied by the weather factor
+    weatherMult:  { pos: 1.08, neg: 0.90, neu: 1.00 },
+
+    // Matchup: opposing starter's HR/9 relative to league average
+    leagueHR9:    1.10,   // ~average HR/9; above this = favorable matchup
+    matchupCap:   1.50,   // don't let one bad pitcher run away with it
+  },
+
+  // ---- Hits: P(at least one hit) = 1 - (1 - AVG)^atBats ----
+  hits: {
+    expectedAB:   4,      // typical AB per game; 4.3 for leadoff-heavy modeling
+  },
+
+  // ---- Total Bases: blend of expected slugging and contact rate ----
+  tb: {
+    xslgWeight:   0.5,    // remainder goes to batting average
+    xslgScale:    0.650,  // xSLG that earns full marks
+    avgScale:     0.320,  // AVG that earns full marks
+  },
+
+  // ---- RBI: lineup-role baseline, nudged by form and park ----
+  rbi: {
+    trendMultiplier: 2,   // trend bonus is multiplied by this
+    parkDivisor:     3,   // (parkFactor - 100) / this
+  },
+
+  // ---- Stolen bases: speed score, lightly damped in heavy air ----
+  sb: {
+    coldWeatherMult: 0.85,
+  },
+};
+
+// Guard against a typo silently rescaling every HR index.
+(() => {
+  const w = MODEL.hr.weights;
+  const total = w.statcast + w.form + w.park + w.matchup;
+  if (total !== 100) console.warn(`⚠ MODEL.hr.weights sum to ${total}, expected 100 — indexes will be mis-scaled.`);
+})();
+
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+function scorePlayer(base, game){
+  const M = MODEL.hr;
+  const W = M.weights;
+
+  const weatherMult = M.weatherMult[game.weatherEffect] ?? M.weatherMult.neu;
+
+  // Contact quality — the single biggest driver.
+  const statcastScore = clamp(Math.round(W.statcast * (
+      (base.statcast.barrel  / M.barrelScale)  * M.barrelWeight +
+      (base.statcast.hardHit / M.hardHitScale) * (1 - M.barrelWeight)
+  )), 0, W.statcast);
+
+  // Recent form — tier baseline plus a hot/cold nudge.
+  const trendAdj = base.recentForm.trend==='up' ?  M.trendBonus
+                 : base.recentForm.trend==='down' ? -M.trendBonus : 0;
+  const r = TIER_RANGES[base.tier];
+  const formScore = clamp((r ? r.base.form : 12) + trendAdj, 0, W.form);
+
+  // Environment — park factor scaled by tonight's wind/weather.
+  const parkScore = clamp(Math.round(W.park * (game.parkFactor/100) * weatherMult), 0, W.park);
+
+  // Matchup — how homer-prone tonight's starter has been.
+  const matchupScore = clamp(Math.round(W.matchup *
+      Math.min(M.matchupCap, base.oppPitcher.hr9 / M.leagueHR9)), 0, W.matchup);
+
+  base.breakdown = { statcast: statcastScore, form: formScore, park: parkScore, matchup: matchupScore };
+  base.hrIndex = statcastScore + formScore + parkScore + matchupScore;
+
+  // ---- other props ----
+  base.hitProb = Math.round(100 * (1 - Math.pow(1 - base.avg, MODEL.hits.expectedAB)));
+
+  const T = MODEL.tb;
+  base.tbScore = clamp(Math.round(100 * (
+      (base.statcast.xslg / T.xslgScale) * T.xslgWeight +
+      (base.avg          / T.avgScale)  * (1 - T.xslgWeight)
+  )), 0, 100);
+
+  const R = MODEL.rbi;
+  base.rbiScore = clamp(Math.round((r ? r.base.rbi : 40)
+      + trendAdj * R.trendMultiplier
+      + (game.parkFactor - 100) / R.parkDivisor), 0, 100);
+
+  base.sbScore = clamp(Math.round(base.speed *
+      (game.weatherEffect==='neg' ? MODEL.sb.coldWeatherMult : 1.0)), 0, 100);
+
   base.index = base.hrIndex;
 }
 
