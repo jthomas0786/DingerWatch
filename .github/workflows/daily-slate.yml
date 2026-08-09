@@ -30,8 +30,8 @@ jobs:
 
       - name: Guard against the example fixture being served as real data
         run: |
-          if [ -f /slate.json ] && grep -q '"name": *"Player 6' /slate.json; then
-            echo "::error::/slate.json contains mock fixture data — delete it and let the build regenerate."
+          if [ -f public/slate.json ] && grep -q '"name": *"Player 6' public/slate.json; then
+            echo "::error::public/slate.json contains mock fixture data — delete it and let the build regenerate."
             exit 1
           fi
 
@@ -44,9 +44,9 @@ jobs:
       - name: Build today's slate
         run: |
           if [ -n "${{ inputs.date }}" ]; then
-            node build-slate.js --date "${{ inputs.date }}" --out /slate.json --verbose
+            node build-slate.js --date "${{ inputs.date }}" --out public/slate.json --verbose
           else
-            node build-slate.js --out /slate.json --verbose
+            node build-slate.js --out public/slate.json --verbose
           fi
 
       # Optional: layer Statcast metrics on top. Allowed to fail without killing
@@ -56,14 +56,14 @@ jobs:
         continue-on-error: true
         run: |
           pip install --quiet pybaseball pandas
-          python enrich-statcast.py --slate /slate.json
+          python enrich-statcast.py --slate public/slate.json
 
       - name: Sanity check output
         run: |
           # NB: package.json sets "type": "module", so require() is unavailable here.
           node --input-type=module -e "
             import { readFileSync } from 'node:fs';
-            const s = JSON.parse(readFileSync('./slate.json','utf8'));
+            const s = JSON.parse(readFileSync('./public/slate.json','utf8'));
             if (!Array.isArray(s.games)) { console.error('malformed slate'); process.exit(1); }
             console.log(\`✓ \${s.games.length} games for \${s.date}, generated \${s.generatedAt}\`);
             const byStatus = s.games.reduce((a,g)=>((a[g.status]=(a[g.status]||0)+1),a),{});
@@ -79,7 +79,7 @@ jobs:
         run: |
           git config user.name  'slate-bot'
           git config user.email 'actions@github.com'
-          git add /slate.json
+          git add public/slate.json
           git diff --staged --quiet && echo "no changes" && exit 0
           git commit -m "slate: $(date -u +%Y-%m-%d)"
           git push
@@ -93,4 +93,4 @@ jobs:
   #   if: github.event_name == 'schedule'
   #   steps:
   #     - uses: actions/checkout@v4
-  #     - run: node build-live.js --out /live.json
+  #     - run: node build-live.js --out public/live.json
