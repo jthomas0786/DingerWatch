@@ -421,13 +421,15 @@ function toStatcastShape(season, statcast) {
   };
 }
 
-/** Speed score proxy — SB rate relative to opportunities, scaled by position. */
+/** Speed score proxy — SB rate relative to opportunities, scaled by position.
+ *  All constants live in MODEL.sb so they're tunable via public/model-config.json. */
 function speedScore(season, pos) {
+  const S = MODEL.sb;
   const sb = season.sb ?? 0;
   const onBase = (season.h ?? 0) + (season.bb ?? 0);
   const rate = onBase > 0 ? sb / onBase : 0;
-  const posBonus = ({ CF: 12, SS: 8, LF: 4, '2B': 6, RF: 0, '3B': -4, C: -14, '1B': -10, DH: -12 })[pos] ?? 0;
-  return Math.max(1, Math.min(100, Math.round(rate * 120 + 28 + posBonus)));
+  const posBonus = S.posBonus[pos] ?? 0;
+  return clamp(Math.round(rate * S.rateMultiplier + S.baseline + posBonus), 1, 100);
 }
 
 /** Recent-form trend from the last-10 log vs. season baseline. */
@@ -646,20 +648,25 @@ const TIER_RANGES = {
 };
 
 // ============================================================================
-//  ⚙️  MODEL — every tunable number lives here. Edit this block, reload, done.
+//  ⚙️  MODEL — every tunable number lives here.
 // ----------------------------------------------------------------------------
-//  The four HR weights should sum to 100 (there's a console check below).
-//  Each `*_SCALE` is "the input value that earns full marks" — lower it to make
+//  These are the DEFAULTS. To change them permanently without editing this
+//  file, drop a `public/model-config.json` next to index.html — it is deep-merged
+//  over everything below at load time, so your tuning survives any future
+//  rebuild or redeploy of the app itself. See loadModelOverrides().
+//
+//  The four HR weights should sum to 100 (console check below).
+//  Each `*Scale` is "the input value that earns full marks" — lower it to make
 //  a category easier to max out, raise it to make it stricter.
 // ============================================================================
 const MODEL = {
 
   // ---- Home Run Index (the four bars in the player modal) ----
   hr: {
-    weights:      { statcast: 50, form: 20, park: 15, matchup: 15 },  // must total 100
+    weights:      { statcast: 45, form: 20, park: 25, matchup: 10 },  // must total 100
 
     // Statcast half: how barrel% and hard-hit% split the statcast weight
-    barrelWeight: 0.60,   // remainder (0.45) goes to hard-hit%
+    barrelWeight: 0.60,   // remainder (0.40) goes to hard-hit%
     barrelScale:  20,     // 20% barrel rate = full credit
     hardHitScale: 55,     // 55% hard-hit rate = full credit
 
@@ -681,7 +688,7 @@ const MODEL = {
 
   // ---- Total Bases: blend of expected slugging and contact rate ----
   tb: {
-    xslgWeight:   0.45,    // remainder goes to batting average
+    xslgWeight:   0.45,   // remainder (0.55) goes to batting average
     xslgScale:    0.750,  // xSLG that earns full marks
     avgScale:     0.350,  // AVG that earns full marks
   },
@@ -692,20 +699,76 @@ const MODEL = {
     parkDivisor:     3,   // (parkFactor - 100) / this
   },
 
-  // ---- Stolen bases: speed score, lightly damped in heavy air ----
+  // ---- Stolen bases ----
   sb: {
-    coldWeatherMult: 0.95,
+    coldWeatherMult: 0.95,  // heavy air lightly damps the running game
+
+    // Speed score proxy: SB per time-on-base, scaled and shifted by position.
+    rateMultiplier: 120,    // how hard SB rate drives the score
+    baseline:       28,     // score for a zero-steal player at a neutral position
+    posBonus: { CF: 12, SS: 8, '2B': 6, LF: 4, RF: 0, '3B': -4, '1B': -10, DH: -12, C: -14 },
   },
 };
 
+/**
+ * Deep-merge an optional `public/model-config.json` over MODEL.
+ *
+ * This exists so tuning lives OUTSIDE the app file. Ship a new index.html and
+ * your weights are untouched; they're only ever read from the sidecar config.
+ * Missing file is a normal, silent no-op — defaults above simply apply.
+ */
+async function loadModelOverrides(){
+  try{
+    const res = await fetch('.public/model-config.json', { cache: 'no-cache' });
+    if(!res.ok) return false;                 // absent is fine — defaults stand
+    const overrides = await res.json();
+    deepMerge(MODEL, overrides);
+    validateModel();
+    console.info('[model] applied overrides from public/model-config.json:', overrides);
+    return true;
+  }catch(e){
+    // A malformed override should not take the whole page down.
+    if(!(e instanceof SyntaxError)) return false;
+    console.warn('[model] public/model-config.json is not valid JSON — using defaults.', e.message);
+    return false;
+  }
+}
+
+function deepMerge(target, src){
+  for(const [k, v] of Object.entries(src || {})){
+    if(v && typeof v === 'object' && !Array.isArray(v)){
+      target[k] = deepMerge(target[k] && typeof target[k] === 'object' ? target[k] : {}, v);
+    } else if(v !== undefined){
+      target[k] = v;
+    }
+  }
+  return target;
+}
+
 // Guard against a typo silently rescaling every HR index.
-(() => {
+function validateModel(){
   const w = MODEL.hr.weights;
   const total = w.statcast + w.form + w.park + w.matchup;
   if (total !== 100) console.warn(`⚠ MODEL.hr.weights sum to ${total}, expected 100 — indexes will be mis-scaled.`);
-})();
+  if (MODEL.hr.barrelWeight < 0 || MODEL.hr.barrelWeight > 1) console.warn(`⚠ MODEL.hr.barrelWeight should be 0-1, got ${MODEL.hr.barrelWeight}`);
+  if (MODEL.tb.xslgWeight  < 0 || MODEL.tb.xslgWeight  > 1) console.warn(`⚠ MODEL.tb.xslgWeight should be 0-1, got ${MODEL.tb.xslgWeight}`);
+  if (MODEL.hits.expectedAB <= 0) console.warn(`⚠ MODEL.hits.expectedAB must be > 0, got ${MODEL.hits.expectedAB}`);
+  return total === 100;
+}
+validateModel();
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+/**
+ * Null-safe status-dot setter. The status row has been reshaped a few times as
+ * data moved server-side, orphaning references to dots that no longer exist.
+ * A missing indicator must never break the feature it was reporting on, so this
+ * silently no-ops instead of throwing.
+ */
+function setDot(id, state){
+  const el = document.getElementById(id);
+  if(el) el.className = 'dot ' + state;
+}
 
 function scorePlayer(base, game){
   const M = MODEL.hr;
@@ -1133,7 +1196,7 @@ function refreshDayLabelsAndStaleness(){
 // deleted, to make the migration obvious to anyone reading the diff.
 async function fetchLiveWeather(){ return true; }
 async function _legacyFetchLiveWeather(){
-  const dot = document.getElementById('dotWeather');
+  const dot = document.getElementById('dotWeather'); // may be absent — guarded below
   try{
     const dayIdx = selectedDay==='tomorrow' ? 1 : 0;
     const entries = Object.entries(STADIUM_COORDS);
@@ -1156,9 +1219,9 @@ async function _legacyFetchLiveWeather(){
         g.windDeg = live.dir;
       }
     });
-    dot.className = 'dot ok';
+    if(dot) dot.className = 'dot ok';
     return true;
-  }catch(e){ dot.className = 'dot fallback'; return false; }
+  }catch(e){ if(dot) dot.className = 'dot fallback'; return false; }
 }
 async function fetchLiveSchedule(){
   const dot = document.getElementById('dotSchedule');
@@ -1199,9 +1262,9 @@ async function fetchLiveSchedule(){
       applyPitcher('homePitcher', gm.teams.home.probablePitcher);
     });
 
-    dot.className = 'dot ok';
+    if(dot) dot.className = 'dot ok';
     return true;
-  }catch(e){ dot.className = 'dot fallback'; return false; }
+  }catch(e){ if(dot) dot.className = 'dot fallback'; return false; }
 }
 
 // ---- Live scoreboard: real-time score/inning/count/batter/pitcher per game ----
@@ -1438,7 +1501,7 @@ let playerIdMap = null;
 let playerIdMapPromise = null;
 function loadPlayerIdMap(){
   if(playerIdMapPromise) return playerIdMapPromise;
-  const dot = document.getElementById('dotRoster');
+  const setStatus = st => setDot('dotSlate', st);
   playerIdMapPromise = (async () => {
     try{
       const res = await fetch('https://statsapi.mlb.com/api/v1/sports/1/players?season=2026');
@@ -1447,10 +1510,10 @@ function loadPlayerIdMap(){
       const map = {};
       (data.people||[]).forEach(p => { map[p.fullName.toLowerCase()] = p.id; });
       playerIdMap = map;
-      dot.className = 'dot ok';
+      setStatus('ok');
       return map;
     }catch(e){
-      dot.className = 'dot fallback';
+      setStatus('fallback');
       playerIdMap = {};
       return {};
     }
@@ -1502,7 +1565,7 @@ let activeRosterPromise = null;
 function loadActiveRosters(){ return Promise.resolve({activeSets:{}, injuredSets:{}}); }
 function _legacyLoadActiveRosters(){
   if(activeRosterPromise) return activeRosterPromise;
-  const dot = document.getElementById('dotActive');
+  const setStatus = st => setDot('dotSlate', st);
   activeRosterPromise = (async () => {
     const activeSets = {}; // team -> Set of normalized active player names
     const injuredSets = {}; // team -> Set of normalized IL/injured player names
@@ -1529,9 +1592,9 @@ function _legacyLoadActiveRosters(){
           injuredSets[team] = new Set();
         }
       }));
-      dot.className = 'dot ok';
+      setStatus('ok');
     }catch(e){
-      dot.className = 'dot fallback';
+      setStatus('fallback');
     }
     return {activeSets, injuredSets};
   })();
@@ -1560,8 +1623,8 @@ document.getElementById('dayToggle').addEventListener('click', (e)=>{
   refreshDayLabelsAndStaleness();
   rescoreAllPlayers();
   renderList();
-  document.getElementById('dotWeather').className='dot pending';
-  document.getElementById('dotSchedule').className='dot pending';
+  setDot('dotSlate', 'pending');
+  setDot('dotSchedule', 'pending');
   fetchLiveWeather().then(()=>{ rescoreAllPlayers(); renderList(); });
   fetchLiveSchedule().then(ok=>{ if(ok){ rescoreAllPlayers(); renderList(); } });
 });
@@ -1625,7 +1688,16 @@ async function loadLast10(name){
     `;
     container.dataset.loaded = '1';
   }catch(e){
-    container.innerHTML = `<div class="live-note err">Couldn't match "${name}" to a live MLB Stats API player ID, or the game log fetch failed (${e.message}). This player may not be on a 2026 active roster in the feed.</div>`;
+    // Distinguish a genuine data gap (player not in the feed) from a code fault.
+    // Blaming the player name for what was actually a null DOM reference sent
+    // debugging in entirely the wrong direction once already.
+    const isDataGap = /player id not found|gameLog fetch failed|HTTP \d+/i.test(e.message);
+    if(isDataGap){
+      container.innerHTML = `<div class="live-note err">No game log available for "${name}" — this player may not be on a 2026 active roster in the MLB Stats API feed.</div>`;
+    } else {
+      console.error('[last10] unexpected error for', name, e);
+      container.innerHTML = `<div class="live-note err">Couldn't load the game log — this looks like an app error rather than missing data.<br><span style="font-family:'Space Mono',monospace;font-size:10.5px;">${e.message}</span><br>Details are in the browser console.</div>`;
+    }
   }
 }
 function openBatterModal(p){
@@ -1819,6 +1891,9 @@ function openPitcherModal(p){
 async function boot(){
   renderTabs();
   renderList();                       // paint the shell immediately
+
+  // Must land before loadSlate(), since every player is scored during adaptation.
+  await loadModelOverrides();
 
   const ok = await loadSlate();
   if(!ok){
