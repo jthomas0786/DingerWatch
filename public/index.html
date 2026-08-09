@@ -467,6 +467,9 @@ function adaptHitter(h, teamAbbr, game, side) {
     hr, pa: s.pa ?? 0, ab,
     avg: s.avg ?? 0.250,
     slg: s.slg ?? null,      // needed for projected total bases (SLG = TB/AB)
+    r:   s.r ?? null,        // runs scored — needed for the H+R+RBI combo
+    h:   s.h ?? null,        // hits and walks feed the on-base fallback for runs
+    bb:  s.bb ?? null,
     obp: s.obp ?? null,
     ops: s.ops ?? null,
     g:   s.g ?? null,        // needed for per-game RBI / SB rates
@@ -709,6 +712,18 @@ const MODEL = {
     parkDivisor:     3,   // (legacy 0-100 index only)
   },
 
+  // ---- HRR (Hits + Runs + RBIs) ----
+  //  The three components are projected independently, then summed. They do
+  //  overlap in reality — a solo homer is 1 H, 1 R and 1 RBI — but the standard
+  //  sportsbook H+R+RBI market counts each separately, so summing is correct
+  //  for this market rather than double-counting.
+  hrr: {
+    // Used only if the slate predates runs being captured: roughly a third of
+    // times-on-base come around to score.
+    runsFromOnBaseRate: 0.33,
+    parkSensitivity:    0.6,   // run scoring scales with park run environment
+  },
+
   // ---- Stolen bases ----
   sb: {
     coldWeatherMult: 0.95,  // heavy air lightly damps the running game
@@ -841,6 +856,24 @@ function scorePlayer(base, game){
   const formAdj = 1 + (trendAdj / M.trendBonus) * R.formSensitivity;
   base.projRBI = +(rbiPerGame * parkRuns * formAdj).toFixed(2);
 
+  // Projected runs scored = season R/game, adjusted for park run environment.
+  // Older slates lack `r`; fall back to an on-base-derived estimate and flag it
+  // so the UI never presents a guess as if it were a real season total.
+  const HRR = MODEL.hrr;
+  let runsPerGame, runsDerived = false;
+  if (base.r != null) {
+    runsPerGame = base.r / gp;
+  } else {
+    const onBasePerGame = ((base.h ?? 0) + (base.bb ?? 0)) / gp;
+    runsPerGame = onBasePerGame * HRR.runsFromOnBaseRate;
+    runsDerived = true;
+  }
+  base.projRuns = +(runsPerGame * (1 + ((game.parkFactor - 100) / 100) * HRR.parkSensitivity)).toFixed(2);
+  base.runsDerived = runsDerived;
+
+  // HRR = Hits + Runs + RBIs, the standard combo prop.
+  base.projHRR = +(base.projHits + base.projRuns + base.projRBI).toFixed(2);
+
   // Projected SB = season SB/game, lightly damped in heavy air.
   const S = MODEL.sb;
   const sbPerGame = (base.sb ?? 0) / gp;
@@ -865,7 +898,7 @@ function scorePlayer(base, game){
 const PROP_TABS = [
   {id:'slate', label:'Slate'}, {id:'firstinning', label:'1st Inning O/U'},
   {id:'hr', label:'Home Runs'}, {id:'hits', label:'Hits'}, {id:'tb', label:'Total Bases'},
-  {id:'rbi', label:'RBIs'}, {id:'sb', label:'Stolen Bases'}, {id:'k', label:'Strikeouts'},
+  {id:'rbi', label:'RBIs'}, {id:'hrr', label:'H+R+RBI'}, {id:'sb', label:'Stolen Bases'}, {id:'k', label:'Strikeouts'},
   {id:'all', label:'All Players'},
 ];
 let activeTab = 'slate';
@@ -890,6 +923,7 @@ function getTop5(tabId){
   else if(tabId==='hits') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.projHits-a.projHits);
   else if(tabId==='tb') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.projTB-a.projTB);
   else if(tabId==='rbi') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.projRBI-a.projRBI);
+  else if(tabId==='hrr') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.projHRR-a.projHRR);
   else if(tabId==='sb') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.projSB-a.projSB);
   else return [];
   return sorted.slice(0,TOP_N);
@@ -908,6 +942,7 @@ function chipsFor(tabId, p){
   if(tabId==='hits') return [`<span class="chip">Avg <b>.${Math.round(p.avg*1000)}</b></span>`,`<span class="chip">1+ hit <b>${p.hitProb}%</b></span>`,`<span class="chip">Form <b>${p.recentForm.trend}</b></span>`];
   if(tabId==='tb') return [`<span class="chip">SLG <b>${p.slg!=null?p.slg.toFixed(3).replace(/^0/,''):'—'}</b></span>`,`<span class="chip">xSLG <b>${p.statcast.xslg}</b></span>`,`<span class="chip">Park <b>${p.game.parkFactor}</b></span>`];
   if(tabId==='rbi') return [`<span class="chip">Season RBI <b>${p.rbi}</b></span>`,`<span class="chip">RBI/G <b>${p.g?(p.rbi/p.g).toFixed(2):'—'}</b></span>`,`<span class="chip">Park <b>${p.game.parkFactor}</b></span>`];
+  if(tabId==='hrr') return [`<span class="chip">H <b>${p.projHits.toFixed(2)}</b></span>`,`<span class="chip">R <b>${p.projRuns.toFixed(2)}</b></span>`,`<span class="chip">RBI <b>${p.projRBI.toFixed(2)}</b></span>`];
   if(tabId==='sb') return [`<span class="chip">Season SB <b>${p.sb}</b></span>`,`<span class="chip">SB/G <b>${p.g?(p.sb/p.g).toFixed(2):'—'}</b></span>`,`<span class="chip">Pos <b>${p.pos}</b></span>`];
   return [];
 }
@@ -917,12 +952,13 @@ function scoreFor(tabId, p){
   if(tabId==='hits') return p.projHits;   // projected counts below
   if(tabId==='tb') return p.projTB;
   if(tabId==='rbi') return p.projRBI;
+  if(tabId==='hrr') return p.projHRR;
   if(tabId==='sb') return p.projSB;
 }
 /** Only the HR index is a percentage; every other prop is a projected count. */
 function isPercentTab(tabId){ return tabId === 'hr'; }
 function scoreLabel(tabId){
-  return ({ k:'PROJ K', hits:'PROJ HITS', tb:'PROJ TB', rbi:'PROJ RBI', sb:'PROJ SB', hr:'HR IDX' })[tabId] || '';
+  return ({ k:'PROJ K', hits:'PROJ HITS', tb:'PROJ TB', rbi:'PROJ RBI', hrr:'PROJ H+R+RBI', sb:'PROJ SB', hr:'HR IDX' })[tabId] || '';
 }
 const SECTION_META = {
   slate: {title:'Today\'s Slate', sub:'Live scores, inning, count, and current batter/pitcher — updates automatically while games are in progress.'},
@@ -931,6 +967,7 @@ const SECTION_META = {
   hits: {title:'Top 20 · Projected Hits', sub:'Batting average × expected at-bats. Cards also show the chance of at least one hit.'},
   tb: {title:'Top 20 · Projected Total Bases', sub:'Slugging (blended with xSLG) × expected at-bats, adjusted for park and weather.'},
   rbi: {title:'Top 20 · Projected RBIs', sub:'Season RBI per game, adjusted for tonight\'s park run environment and recent form.'},
+  hrr: {title:'Top 20 · Projected H+R+RBI', sub:'Hits + Runs + RBIs combined — each projected from season per-game rates, then summed.'},
   sb: {title:'Top 20 · Projected Stolen Bases', sub:'Season stolen bases per game, lightly damped in heavy air.'},
   k: {title:'Top 20 · Pitcher Strikeouts', sub:'Today\'s confirmed probable starters only, ranked by projected strikeouts from K/9 and expected innings pitched.'},
   all: {title:'All Players', sub:'Every hitter on tonight\'s slate, grouped by team and sorted by Home Run Index.'},
@@ -1009,6 +1046,10 @@ function propSummary(tabId, p){
     const rate = p.g ? (p.rbi/p.g).toFixed(2) : '—';
     return `${last} has ${p.rbi} RBI in ${p.g ?? '—'} games (${rate}/game); adjusted for tonight's park and ${p.recentForm.trend} form that projects to <b>${p.projRBI.toFixed(2)} RBI</b>.`;
   }
+  if(tabId==='hrr'){
+    const rNote = p.runsDerived ? ' (runs estimated from on-base rate — rebuild the slate for exact totals)' : '';
+    return `${last} projects to <b>${p.projHits.toFixed(2)} hits + ${p.projRuns.toFixed(2)} runs + ${p.projRBI.toFixed(2)} RBI = ${p.projHRR.toFixed(2)} H+R+RBI</b>. Built from ${p.g ?? '—'} games of season rates at a ${p.game.parkFactor} park factor${rNote}.`;
+  }
   if(tabId==='sb'){
     const rate = p.g ? (p.sb/p.g).toFixed(2) : '—';
     return `${last} has ${p.sb} steals in ${p.g ?? '—'} games (${rate}/game), projecting to <b>${p.projSB.toFixed(2)} stolen bases</b> tonight from the ${p.pos} spot.`;
@@ -1026,6 +1067,7 @@ const SCORE_BANDS = {
   hits: { hi: 1.20, mid: 1.00 },   // projected hits
   tb:   { hi: 2.00, mid: 1.60 },   // projected total bases
   rbi:  { hi: 0.80, mid: 0.60 },   // projected RBI
+  hrr:  { hi: 2.40, mid: 1.90 },   // projected H+R+RBI combined
   sb:   { hi: 0.25, mid: 0.12 },   // projected steals
   k:    null,                       // no colouring
 };
