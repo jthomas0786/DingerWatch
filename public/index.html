@@ -1868,16 +1868,16 @@ function openBatterModal(p){
     </div>
     <div class="tab-content" data-panel="breakdown">
       <div class="breakdown-row"><div class="breakdown-label">Statcast Profile <span style="color:var(--mute);">(50%)</span></div>
-        <div class="breakdown-track"><div class="breakdown-fill" style="width:${p.breakdown.statcast/45*100}%;background:var(--foul);"></div></div>
+        <div class="breakdown-track"><div class="breakdown-fill" style="width:${p.breakdown.statcast/50*100}%;background:var(--foul);"></div></div>
         <div class="breakdown-pts">${p.breakdown.statcast} pts</div></div>
       <div class="breakdown-row"><div class="breakdown-label">Recent Form <span style="color:var(--mute);">(20%)</span></div>
         <div class="breakdown-track"><div class="breakdown-fill" style="width:${p.breakdown.form/20*100}%;background:var(--grass-bright);"></div></div>
         <div class="breakdown-pts">${p.breakdown.form} pts</div></div>
       <div class="breakdown-row"><div class="breakdown-label">Park + Weather <span style="color:var(--mute);">(15%)</span></div>
-        <div class="breakdown-track"><div class="breakdown-fill" style="width:${p.breakdown.park/25*100}%;background:var(--cool);"></div></div>
+        <div class="breakdown-track"><div class="breakdown-fill" style="width:${p.breakdown.park/15*100}%;background:var(--cool);"></div></div>
         <div class="breakdown-pts">${p.breakdown.park} pts</div></div>
       <div class="breakdown-row"><div class="breakdown-label">Matchup <span style="color:var(--mute);">(15%)</span></div>
-        <div class="breakdown-track"><div class="breakdown-fill" style="width:${p.breakdown.matchup/10*100}%;background:var(--hot);"></div></div>
+        <div class="breakdown-track"><div class="breakdown-fill" style="width:${p.breakdown.matchup/15*100}%;background:var(--hot);"></div></div>
         <div class="breakdown-pts">${p.breakdown.matchup} pts</div></div>
       <div class="narrative" style="margin-top:14px;">Total = ${p.hrIndex} / 100. Illustrative model — treat relative ranking as more meaningful than the exact number.</div>
     </div>
