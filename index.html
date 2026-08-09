@@ -633,12 +633,12 @@ const MODEL = {
 
   // ---- Hits: P(at least one hit) = 1 - (1 - AVG)^atBats ----
   hits: {
-    expectedAB:   4,      // typical AB per game; 4.3 for leadoff-heavy modeling
+    expectedAB:   3,      // typical AB per game; 4.3 for leadoff-heavy modeling
   },
 
   // ---- Total Bases: blend of expected slugging and contact rate ----
   tb: {
-    xslgWeight:   0.5,    // remainder goes to batting average
+    xslgWeight:   0.4,    // remainder goes to batting average
     xslgScale:    0.650,  // xSLG that earns full marks
     avgScale:     0.320,  // AVG that earns full marks
   },
@@ -646,12 +646,12 @@ const MODEL = {
   // ---- RBI: lineup-role baseline, nudged by form and park ----
   rbi: {
     trendMultiplier: 2,   // trend bonus is multiplied by this
-    parkDivisor:     3,   // (parkFactor - 100) / this
+    parkDivisor:     2,   // (parkFactor - 100) / this
   },
 
   // ---- Stolen bases: speed score, lightly damped in heavy air ----
   sb: {
-    coldWeatherMult: 0.80,
+    coldWeatherMult: 0.75,
   },
 };
 
