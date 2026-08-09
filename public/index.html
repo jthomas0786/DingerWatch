@@ -422,7 +422,7 @@ function toStatcastShape(season, statcast) {
 }
 
 /** Speed score proxy — SB rate relative to opportunities, scaled by position.
- *  All constants live in MODEL.sb so they're tunable via public/model-config.json. */
+ *  All constants live in MODEL.sb so they're tunable via model-config.json. */
 function speedScore(season, pos) {
   const S = MODEL.sb;
   const sb = season.sb ?? 0;
@@ -466,7 +466,10 @@ function adaptHitter(h, teamAbbr, game, side) {
     hand: h.hand || '?',
     hr, pa: s.pa ?? 0, ab,
     avg: s.avg ?? 0.250,
+    slg: s.slg ?? null,      // needed for projected total bases (SLG = TB/AB)
+    obp: s.obp ?? null,
     ops: s.ops ?? null,
+    g:   s.g ?? null,        // needed for per-game RBI / SB rates
     rbi: s.rbi ?? 0,
     sb: s.sb ?? 0,
     speed: speedScore(s, h.pos),
@@ -651,7 +654,7 @@ const TIER_RANGES = {
 //  ⚙️  MODEL — every tunable number lives here.
 // ----------------------------------------------------------------------------
 //  These are the DEFAULTS. To change them permanently without editing this
-//  file, drop a `public/model-config.json` next to index.html — it is deep-merged
+//  file, drop a `model-config.json` next to index.html — it is deep-merged
 //  over everything below at load time, so your tuning survives any future
 //  rebuild or redeploy of the app itself. See loadModelOverrides().
 //
@@ -686,17 +689,24 @@ const MODEL = {
     expectedAB:   4,      // typical AB per game; 4.3 for leadoff-heavy modeling
   },
 
-  // ---- Total Bases: blend of expected slugging and contact rate ----
+  // ---- Total Bases ----
+  //  Projected TB = expectedAB × blended SLG × park × weather.
+  //  (SLG is total bases per at-bat by definition, so this identity is exact.)
   tb: {
-    xslgWeight:   0.45,   // remainder (0.55) goes to batting average
-    xslgScale:    0.750,  // xSLG that earns full marks
-    avgScale:     0.350,  // AVG that earns full marks
+    xslgWeight:   0.45,   // how much xSLG counts vs actual SLG; remainder to SLG
+    parkSensitivity: 0.5, // 0 = ignore park, 1 = apply park factor at full strength
+    weatherExponent: 0.5, // how strongly wind affects extra-base hits
+    xslgScale:    0.750,  // (legacy 0-100 index only)
+    avgScale:     0.350,  // (legacy 0-100 index only)
   },
 
-  // ---- RBI: lineup-role baseline, nudged by form and park ----
+  // ---- RBI ----
+  //  Projected RBI = season RBI/game × park run environment × recent form.
   rbi: {
-    trendMultiplier: 2,   // trend bonus is multiplied by this
-    parkDivisor:     3,   // (parkFactor - 100) / this
+    parkSensitivity: 0.6, // how much park factor scales run production
+    formSensitivity: 0.12,// max ±12% swing from a hot/cold streak
+    trendMultiplier: 2,   // (legacy 0-100 index only)
+    parkDivisor:     3,   // (legacy 0-100 index only)
   },
 
   // ---- Stolen bases ----
@@ -711,7 +721,7 @@ const MODEL = {
 };
 
 /**
- * Deep-merge an optional `public/model-config.json` over MODEL.
+ * Deep-merge an optional `model-config.json` over MODEL.
  *
  * This exists so tuning lives OUTSIDE the app file. Ship a new index.html and
  * your weights are untouched; they're only ever read from the sidecar config.
@@ -719,17 +729,17 @@ const MODEL = {
  */
 async function loadModelOverrides(){
   try{
-    const res = await fetch('.public/model-config.json', { cache: 'no-cache' });
+    const res = await fetch('./model-config.json', { cache: 'no-cache' });
     if(!res.ok) return false;                 // absent is fine — defaults stand
     const overrides = await res.json();
     deepMerge(MODEL, overrides);
     validateModel();
-    console.info('[model] applied overrides from public/model-config.json:', overrides);
+    console.info('[model] applied overrides from model-config.json:', overrides);
     return true;
   }catch(e){
     // A malformed override should not take the whole page down.
     if(!(e instanceof SyntaxError)) return false;
-    console.warn('[model] public/model-config.json is not valid JSON — using defaults.', e.message);
+    console.warn('[model] model-config.json is not valid JSON — using defaults.', e.message);
     return false;
   }
 }
@@ -798,22 +808,55 @@ function scorePlayer(base, game){
   base.breakdown = { statcast: statcastScore, form: formScore, park: parkScore, matchup: matchupScore };
   base.hrIndex = statcastScore + formScore + parkScore + matchupScore;
 
-  // ---- other props ----
-  base.hitProb = Math.round(100 * (1 - Math.pow(1 - base.avg, MODEL.hits.expectedAB)));
+  // ---- other props: PROJECTED COUNTS, not index scores ----
+  // Each of these is a real rate stat multiplied by expected playing time, so
+  // the number means something concrete ("1.2 hits") rather than an arbitrary
+  // 0-100 index. Rate definitions do the heavy lifting:
+  //   AVG = H/AB   → hits per AB
+  //   SLG = TB/AB  → total bases per AB   (this identity is exact)
+  //   RBI/G, SB/G  → per-game rates from season totals
+  const H = MODEL.hits;
+  const ab = H.expectedAB;
 
+  // Projected hits = expected AB × batting average.
+  base.projHits = +(ab * base.avg).toFixed(2);
+  // Probability of at least one hit, kept for the card's supporting detail.
+  base.hitProb = Math.round(100 * (1 - Math.pow(1 - base.avg, ab)));
+
+  // Projected total bases = expected AB × SLG, nudged by tonight's park.
+  // Prefer xSLG when real Statcast is present (it's more predictive than SLG),
+  // blended per MODEL.tb.xslgWeight.
   const T = MODEL.tb;
+  const slgActual = base.slg ?? base.avg * 1.6;
+  const slgExpect = base.statcast?.xslg ?? slgActual;
+  const slgBlend = slgExpect * T.xslgWeight + slgActual * (1 - T.xslgWeight);
+  const parkTB = 1 + ((game.parkFactor - 100) / 100) * T.parkSensitivity;
+  base.projTB = +(ab * slgBlend * parkTB * weatherMult ** T.weatherExponent).toFixed(2);
+
+  // Projected RBI = season RBI/game, adjusted for park run environment and form.
+  const R = MODEL.rbi;
+  const gp = base.g && base.g > 0 ? base.g : Math.max(1, Math.round((base.pa || 0) / 4.2));
+  const rbiPerGame = (base.rbi ?? 0) / gp;
+  const parkRuns = 1 + ((game.parkFactor - 100) / 100) * R.parkSensitivity;
+  const formAdj = 1 + (trendAdj / M.trendBonus) * R.formSensitivity;
+  base.projRBI = +(rbiPerGame * parkRuns * formAdj).toFixed(2);
+
+  // Projected SB = season SB/game, lightly damped in heavy air.
+  const S = MODEL.sb;
+  const sbPerGame = (base.sb ?? 0) / gp;
+  base.projSB = +(sbPerGame * (game.weatherEffect === 'neg' ? S.coldWeatherMult : 1)).toFixed(2);
+
+  // Legacy 0-100 indexes retained so the All Players view and any older code
+  // paths keep working; the prop tabs now display the projections above.
   base.tbScore = clamp(Math.round(100 * (
       (base.statcast.xslg / T.xslgScale) * T.xslgWeight +
       (base.avg          / T.avgScale)  * (1 - T.xslgWeight)
   )), 0, 100);
-
-  const R = MODEL.rbi;
   base.rbiScore = clamp(Math.round((r ? r.base.rbi : 40)
       + trendAdj * R.trendMultiplier
       + (game.parkFactor - 100) / R.parkDivisor), 0, 100);
-
   base.sbScore = clamp(Math.round(base.speed *
-      (game.weatherEffect==='neg' ? MODEL.sb.coldWeatherMult : 1.0)), 0, 100);
+      (game.weatherEffect==='neg' ? S.coldWeatherMult : 1.0)), 0, 100);
 
   base.index = base.hrIndex;
 }
@@ -844,10 +887,10 @@ function getTop5(tabId){
   }
   let sorted;
   if(tabId==='hr') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.hrIndex-a.hrIndex);
-  else if(tabId==='hits') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.hitProb-a.hitProb);
-  else if(tabId==='tb') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.tbScore-a.tbScore);
-  else if(tabId==='rbi') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.rbiScore-a.rbiScore);
-  else if(tabId==='sb') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.sbScore-a.sbScore);
+  else if(tabId==='hits') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.projHits-a.projHits);
+  else if(tabId==='tb') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.projTB-a.projTB);
+  else if(tabId==='rbi') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.projRBI-a.projRBI);
+  else if(tabId==='sb') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.projSB-a.projSB);
   else return [];
   return sorted.slice(0,TOP_N);
 }
@@ -862,31 +905,33 @@ function getAllByTeam(){
 function chipsFor(tabId, p){
   if(tabId==='k') return [`<span class="chip">K/9 <b>${p.k9}</b></span>`,`<span class="chip">Proj IP <b>${p.expIP}</b></span>`,`<span class="chip">Throws <b>${p.throws}</b></span>`];
   if(tabId==='hr') return [`<span class="chip">Barrel% <b>${p.statcast.barrel}%</b></span>`,`<span class="chip">Park <b>${p.game.parkFactor}</b></span>`,`<span class="chip">Opp HR/9 <b>${p.oppPitcher.hr9}</b></span>`];
-  if(tabId==='hits') return [`<span class="chip">Avg <b>.${Math.round(p.avg*1000)}</b></span>`,`<span class="chip">Hard-Hit% <b>${p.statcast.hardHit}%</b></span>`,`<span class="chip">Form <b>${p.recentForm.trend}</b></span>`];
-  if(tabId==='tb') return [`<span class="chip">xSLG <b>${p.statcast.xslg}</b></span>`,`<span class="chip">Avg <b>.${Math.round(p.avg*1000)}</b></span>`,`<span class="chip">Park <b>${p.game.parkFactor}</b></span>`];
-  if(tabId==='rbi') return [`<span class="chip">Tier <b>${p.tier<=2?'Middle order':'Depth'}</b></span>`,`<span class="chip">Park <b>${p.game.parkFactor}</b></span>`,`<span class="chip">Form <b>${p.recentForm.trend}</b></span>`];
-  if(tabId==='sb') return [`<span class="chip">Speed <b>${p.speed}/100</b></span>`,`<span class="chip">Pos <b>${p.pos}</b></span>`];
+  if(tabId==='hits') return [`<span class="chip">Avg <b>.${Math.round(p.avg*1000)}</b></span>`,`<span class="chip">1+ hit <b>${p.hitProb}%</b></span>`,`<span class="chip">Form <b>${p.recentForm.trend}</b></span>`];
+  if(tabId==='tb') return [`<span class="chip">SLG <b>${p.slg!=null?p.slg.toFixed(3).replace(/^0/,''):'—'}</b></span>`,`<span class="chip">xSLG <b>${p.statcast.xslg}</b></span>`,`<span class="chip">Park <b>${p.game.parkFactor}</b></span>`];
+  if(tabId==='rbi') return [`<span class="chip">Season RBI <b>${p.rbi}</b></span>`,`<span class="chip">RBI/G <b>${p.g?(p.rbi/p.g).toFixed(2):'—'}</b></span>`,`<span class="chip">Park <b>${p.game.parkFactor}</b></span>`];
+  if(tabId==='sb') return [`<span class="chip">Season SB <b>${p.sb}</b></span>`,`<span class="chip">SB/G <b>${p.g?(p.sb/p.g).toFixed(2):'—'}</b></span>`,`<span class="chip">Pos <b>${p.pos}</b></span>`];
   return [];
 }
 function scoreFor(tabId, p){
   if(tabId==='k') return p.projK;
-  if(tabId==='hr') return p.hrIndex;
-  if(tabId==='hits') return p.hitProb;
-  if(tabId==='tb') return p.tbScore;
-  if(tabId==='rbi') return p.rbiScore;
-  if(tabId==='sb') return p.sbScore;
+  if(tabId==='hr') return p.hrIndex;      // genuinely a probability — stays a %
+  if(tabId==='hits') return p.projHits;   // projected counts below
+  if(tabId==='tb') return p.projTB;
+  if(tabId==='rbi') return p.projRBI;
+  if(tabId==='sb') return p.projSB;
 }
+/** Only the HR index is a percentage; every other prop is a projected count. */
+function isPercentTab(tabId){ return tabId === 'hr'; }
 function scoreLabel(tabId){
-  return tabId==='k' ? 'PROJ K' : (tabId==='hits' ? 'HIT %' : (tabId==='tb' ? 'TB IDX' : (tabId==='rbi' ? 'RBI IDX' : (tabId==='sb' ? 'SB IDX' : 'HR IDX'))));
+  return ({ k:'PROJ K', hits:'PROJ HITS', tb:'PROJ TB', rbi:'PROJ RBI', sb:'PROJ SB', hr:'HR IDX' })[tabId] || '';
 }
 const SECTION_META = {
   slate: {title:'Today\'s Slate', sub:'Live scores, inning, count, and current batter/pitcher — updates automatically while games are in progress.'},
   firstinning: {title:'1st Inning Over/Under', sub:'Modeled probability of a run scoring in the 1st inning — top-of-order contact quality vs. both starters, park, and weather.'},
   hr: {title:'Top 20 · Home Run', sub:'Ranked by Home Run Index — Statcast profile, park, weather, and matchup combined.'},
-  hits: {title:'Top 20 · Hits', sub:'Estimated probability of recording at least one hit tonight, from season contact rate and matchup.'},
-  tb: {title:'Top 20 · Total Bases', sub:'Blends expected slugging and contact rate — best bets to rack up extra bases.'},
-  rbi: {title:'Top 20 · RBIs', sub:'Lineup role, recent form, and park context combined into an RBI opportunity score.'},
-  sb: {title:'Top 20 · Stolen Bases', sub:'Speed score by position and role — who\'s most likely to run tonight.'},
+  hits: {title:'Top 20 · Projected Hits', sub:'Batting average × expected at-bats. Cards also show the chance of at least one hit.'},
+  tb: {title:'Top 20 · Projected Total Bases', sub:'Slugging (blended with xSLG) × expected at-bats, adjusted for park and weather.'},
+  rbi: {title:'Top 20 · Projected RBIs', sub:'Season RBI per game, adjusted for tonight\'s park run environment and recent form.'},
+  sb: {title:'Top 20 · Projected Stolen Bases', sub:'Season stolen bases per game, lightly damped in heavy air.'},
   k: {title:'Top 20 · Pitcher Strikeouts', sub:'Today\'s confirmed probable starters only, ranked by projected strikeouts from K/9 and expected innings pitched.'},
   all: {title:'All Players', sub:'Every hitter on tonight\'s slate, grouped by team and sorted by Home Run Index.'},
 };
@@ -954,24 +999,41 @@ function propSummary(tabId, p){
   const last = surname(p.name);
   if(tabId==='hr') return p.narrative;
   if(tabId==='hits'){
-    return `${last} is hitting .${Math.round(p.avg*1000)} with a ${p.statcast.hardHit}% hard-hit rate — over a typical 4-AB night that works out to roughly a ${p.hitProb}% chance of at least one hit, trending ${p.recentForm.trend} lately.`;
+    return `${last} is hitting .${Math.round(p.avg*1000)}; across an expected ${MODEL.hits.expectedAB} at-bats that projects to <b>${p.projHits.toFixed(2)} hits</b> (${p.hitProb}% chance of at least one). Form is trending ${p.recentForm.trend}.`;
   }
   if(tabId==='tb'){
-    return `${last}'s ${p.statcast.xslg} xSLG paired with a .${Math.round(p.avg*1000)} average gives him a strong shot at extra bases tonight, especially with ${p.game.park.split(',')[0]} playing at a ${p.game.parkFactor} park factor.`;
+    const slgTxt = p.slg!=null ? p.slg.toFixed(3).replace(/^0/,'') : '—';
+    return `Slugging ${slgTxt} (xSLG ${p.statcast.xslg}) over ${MODEL.hits.expectedAB} at-bats projects to <b>${p.projTB.toFixed(2)} total bases</b>, adjusted for ${p.game.parkShort || p.game.park} at a ${p.game.parkFactor} park factor.`;
   }
   if(tabId==='rbi'){
-    return `${last} sits in a run-producing spot in the ${p.team} order with ${p.recentForm.trend} recent form — ${p.game.parkNote.toLowerCase()} adds a bit more scoring context tonight.`;
+    const rate = p.g ? (p.rbi/p.g).toFixed(2) : '—';
+    return `${last} has ${p.rbi} RBI in ${p.g ?? '—'} games (${rate}/game); adjusted for tonight's park and ${p.recentForm.trend} form that projects to <b>${p.projRBI.toFixed(2)} RBI</b>.`;
   }
   if(tabId==='sb'){
-    return `${last} grades out with a ${p.speed}/100 speed score at ${p.pos} — one of the faster, higher-opportunity profiles on tonight's slate.`;
+    const rate = p.g ? (p.sb/p.g).toFixed(2) : '—';
+    return `${last} has ${p.sb} steals in ${p.g ?? '—'} games (${rate}/game), projecting to <b>${p.projSB.toFixed(2)} stolen bases</b> tonight from the ${p.pos} spot.`;
   }
   return '';
 }
 
+/**
+ * Colour bands. The HR tab is a 0-100 index so it uses percentage thresholds;
+ * every other tab is now a projected COUNT, where "90" is meaningless — those
+ * get bands calibrated to what a strong single-game projection actually is.
+ */
+const SCORE_BANDS = {
+  hr:   { hi: 90,   mid: 75   },   // index points
+  hits: { hi: 1.20, mid: 1.00 },   // projected hits
+  tb:   { hi: 2.00, mid: 1.60 },   // projected total bases
+  rbi:  { hi: 0.80, mid: 0.60 },   // projected RBI
+  sb:   { hi: 0.25, mid: 0.12 },   // projected steals
+  k:    null,                       // no colouring
+};
 function scoreTierClass(tabId, score){
-  if(tabId==='k') return ''; // raw projected-K count, not a 0-100 index — no tier coloring
-  if(score>=90) return 'score-hi';
-  if(score>=75) return 'score-mid';
+  const b = SCORE_BANDS[tabId];
+  if(!b) return '';
+  if(score >= b.hi) return 'score-hi';
+  if(score >= b.mid) return 'score-mid';
   return 'score-lo';
 }
 
@@ -1040,7 +1102,8 @@ function renderList(){
     const g = p.game;
     const matchupTxt = isPitcher ? `vs ${p.opp} · ${g.awayName} @ ${g.homeName} · ${gameTime(g)}` : `${g.awayName} @ ${g.homeName} · ${gameTime(g)}`;
     const score = scoreFor(activeTab, p);
-    const scoreDisplay = activeTab==='k' ? score : `${score}%`;
+    const scoreDisplay = isPercentTab(activeTab) ? `${score}%`
+                       : (activeTab==='k' ? score.toFixed(1) : score.toFixed(2));
     const windTemp = g.roof==='open-air'
       ? `${g.tempF!=null ? g.tempF+'°F' : ''} ${g.windMph!=null ? 'wind '+windDirLabel(g.windDeg)+' '+g.windMph+'mph' : g.weather}`.trim()
       : 'Indoor / roof closed';
