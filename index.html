@@ -621,7 +621,7 @@ const MODEL = {
     hardHitScale: 55,     // 55% hard-hit rate = full credit
 
     // Recent form: bonus/penalty applied to the tier's baseline
-    trendBonus:   4,      // "up" adds this; "down" subtracts it
+    trendBonus:   2,      // "up" adds this; "down" subtracts it
 
     // Environment: park factor / 100, then multiplied by the weather factor
     weatherMult:  { pos: 1.08, neg: 0.90, neu: 1.00 },
@@ -651,7 +651,7 @@ const MODEL = {
 
   // ---- Stolen bases: speed score, lightly damped in heavy air ----
   sb: {
-    coldWeatherMult: 0.85,
+    coldWeatherMult: 0.80,
   },
 };
 
