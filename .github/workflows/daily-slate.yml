@@ -44,9 +44,9 @@ jobs:
       - name: Build today's slate
         run: |
           if [ -n "${{ inputs.date }}" ]; then
-            node build-slate.js --date "${{ inputs.date }}" --out public/slate.json --verbose
+            node public/build-slate.js --date "${{ inputs.date }}" --out public/slate.json --verbose
           else
-            node build-slate.js --out public/slate.json --verbose
+            node public/build-slate.js --out public/slate.json --verbose
           fi
 
       # Optional: layer Statcast metrics on top. Allowed to fail without killing
