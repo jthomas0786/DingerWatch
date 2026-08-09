@@ -648,7 +648,7 @@ const MODEL = {
     weights:      { statcast: 45, form: 20, park: 25, matchup: 10 },  // must total 100
 
     // Statcast half: how barrel% and hard-hit% split the statcast weight
-    barrelWeight: 0.45,   // remainder  goes to hard-hit%
+    barrelWeight: 0.45,   // remainder goes to hard-hit%
     barrelScale:  15,     // 20% barrel rate = full credit
     hardHitScale: 45,     // 55% hard-hit rate = full credit
 
@@ -683,7 +683,7 @@ const MODEL = {
 
   // ---- Stolen bases: speed score, lightly damped in heavy air ----
   sb: {
-    coldWeatherMult: 1.5,
+    coldWeatherMult: 0.50,
   },
 };
 
@@ -1279,7 +1279,18 @@ function renderSlate(){
   pickList.querySelectorAll('.slate-card').forEach(card=>{
     card.addEventListener('click', ()=>{
       const g = games.find(x=>x.id===card.dataset.gid);
-      if(g) openGameModal(g);
+      if(!g) return;
+      // A thrown error inside the modal builder would otherwise leave the card
+      // feeling inert with no explanation — surface it instead of swallowing it.
+      try { openGameModal(g); }
+      catch(err){
+        console.error('[slate] game modal failed:', err);
+        modalBody.innerHTML = `<div class="modal-head"><button class="modal-close" id="modalClose">&times;</button>
+          <div class="modal-head-text"><div class="modal-name">${g.awayName} @ ${g.homeName}</div>
+          <div class="modal-tag" style="color:var(--hot)">Couldn't render this matchup: ${err.message}</div></div></div>`;
+        overlay.classList.add('open');
+        const c = document.getElementById('modalClose'); if(c) c.onclick = closeModal;
+      }
     });
   });
 }
@@ -1625,17 +1636,20 @@ function openBatterModal(p){
   wireTabs(p.name);
 }
 function openGameModal(g){
-  const o = g.odds;
-  const dqLabel = o.dataQuality==='sourced' ? 'Sourced (FanDuel)' : 'Modeled estimate';
-  const dqClass = o.dataQuality==='sourced' ? 'sourced' : 'modeled';
+  // g.odds is null whenever no sportsbook feed is configured (the default), so
+  // everything below must tolerate its absence — dereferencing it unguarded
+  // threw before the modal ever rendered, which made cards look unclickable.
+  const o = g.odds || null;
+  const dqLabel = o?.dataQuality==='sourced' ? 'Sourced (FanDuel)' : 'Modeled estimate';
+  const dqClass = o?.dataQuality==='sourced' ? 'sourced' : 'modeled';
   const status = g.mlbStatus || 'Preview';
   const isLive = status === 'Live';
   const isFinal = status === 'Final';
   const ls = g.liveScore || {};
-  const topHR_away = g.awayRoster ? [...g.awayRoster].sort((a,b)=>b.hrIndex-a.hrIndex)[0] : null;
-  const topHR_home = g.homeRoster ? [...g.homeRoster].sort((a,b)=>b.hrIndex-a.hrIndex)[0] : null;
-  const rlFavName = o.runline.favorite==='away' ? g.awayName : g.homeName;
-  const rlDogName = o.runline.favorite==='away' ? g.homeName : g.awayName;
+  const topHR_away = g.awayRoster?.length ? [...g.awayRoster].sort((a,b)=>b.hrIndex-a.hrIndex)[0] : null;
+  const topHR_home = g.homeRoster?.length ? [...g.homeRoster].sort((a,b)=>b.hrIndex-a.hrIndex)[0] : null;
+  const rlFavName = o?.runline?.favorite==='away' ? g.awayName : g.homeName;
+  const rlDogName = o?.runline?.favorite==='away' ? g.homeName : g.awayName;
 
   modalBody.innerHTML = `
     <div class="modal-head">
@@ -1648,7 +1662,7 @@ function openGameModal(g){
     </div>
     <div class="tabs">
       <div class="tab active" data-tab="overview">Matchup</div>
-      <div class="tab" data-tab="odds">Odds</div>
+      ${o ? '<div class="tab" data-tab="odds">Odds</div>' : ''}
     </div>
     <div class="tab-content active" data-panel="overview">
       <div class="matchup-block"><h5>Starting Pitchers</h5>
@@ -1670,7 +1684,7 @@ function openGameModal(g){
         <div class="msub">${ls.pitcher?`${ls.pitcher} pitching`:''} ${ls.batter?`vs ${ls.batter}`:''} · Count: ${ls.balls||0}-${ls.strikes||0}</div>
       </div>` : ''}
     </div>
-    <div class="tab-content" data-panel="odds">
+    ${o ? `<div class="tab-content" data-panel="odds">
       <div class="live-note" style="margin-bottom:14px;"><span class="dq-badge ${dqClass}">${dqLabel}</span> — sportsbook odds have no public live API; this is a point-in-time snapshot, not a real-time line.</div>
       <div class="odds-grid">
         <div><div class="odds-col-head">Moneyline</div>
@@ -1687,7 +1701,7 @@ function openGameModal(g){
         </div>
       </div>
       <div class="odds-source-note">Odds via FanDuel Sportsbook · for reference only, not betting advice</div>
-    </div>
+    </div>` : ''}
   `;
   overlay.classList.add('open');
   document.getElementById('modalClose').onclick = closeModal;
