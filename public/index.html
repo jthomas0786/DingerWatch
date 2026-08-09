@@ -416,7 +416,7 @@ function speedScore(season, pos) {
   const onBase = (season.h ?? 0) + (season.bb ?? 0);
   const rate = onBase > 0 ? sb / onBase : 0;
   const posBonus = ({ CF: 12, SS: 8, LF: 4, '2B': 6, RF: 0, '3B': -4, C: -14, '1B': -10, DH: -12 })[pos] ?? 0;
-  return Math.max(1, Math.min(100, Math.round(rate * 200 + 28 + posBonus)));
+  return Math.max(1, Math.min(100, Math.round(rate * 150 + 28 + posBonus)));
 }
 
 /** Recent-form trend from the last-10 log vs. season baseline. */
