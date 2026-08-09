@@ -56,7 +56,7 @@ jobs:
         continue-on-error: true
         run: |
           pip install --quiet pybaseball pandas
-          python enrich-statcast.py --slate public/slate.json
+          python public/enrich-statcast.py --slate public/slate.json
 
       - name: Sanity check output
         run: |
