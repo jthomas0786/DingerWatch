@@ -210,6 +210,30 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 .wx-wind-label{ font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; margin-top:4px; }
 .wx-wind-sub{ font-family:'Space Mono',monospace; font-size:11px; color: var(--mute); margin-top:2px; }
 .wx-diamond-note{ font-family:'Space Mono',monospace; font-size:12px; color: var(--mute); padding:10px 0; }
+.filter-bar{ background:var(--panel); border:1px solid var(--line); border-radius:12px; margin-top:14px; overflow:hidden; }
+.filter-head{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; cursor:pointer; gap:10px; }
+.filter-head:hover{ background:rgba(224,18,46,0.05); }
+.filter-title{ font-family:'Oswald',sans-serif; font-size:14px; display:flex; align-items:center; gap:8px; }
+.filter-count{ background:var(--foul); color:var(--night); font-family:'Space Mono',monospace; font-size:10px; font-weight:700; padding:2px 7px; border-radius:10px; }
+.filter-actions{ display:flex; align-items:center; gap:10px; }
+.filter-clear{ background:none; border:1px solid var(--line); color:var(--mute); font-family:'Space Mono',monospace; font-size:10px; padding:3px 9px; border-radius:10px; cursor:pointer; }
+.filter-clear:hover{ border-color:var(--hot); color:var(--hot); }
+.filter-body{ max-height:0; overflow:hidden; transition:max-height .25s ease; border-top:0 solid var(--line); }
+.filter-body.open{ max-height:900px; border-top:1px solid var(--line); }
+.filter-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); gap:12px; padding:14px 16px; }
+.filter-item{ background:var(--night2); border:1px solid var(--line); border-radius:9px; padding:10px 12px; }
+.filter-item.active{ border-color:var(--foul); }
+.filter-item-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:7px; }
+.filter-item-label{ font-family:'Oswald',sans-serif; font-size:12.5px; }
+.filter-item-val{ font-family:'Space Mono',monospace; font-size:10.5px; color:var(--foul); }
+.filter-inputs{ display:flex; align-items:center; gap:6px; }
+.filter-inputs input{ width:100%; background:var(--night); border:1px solid var(--line); color:var(--white); font-family:'Space Mono',monospace; font-size:11px; padding:4px 6px; border-radius:5px; }
+.filter-inputs input:focus{ outline:none; border-color:var(--foul); }
+.filter-inputs span{ color:var(--mute); font-size:10px; font-family:'Space Mono',monospace; }
+.filter-sort{ display:flex; align-items:center; gap:8px; padding:0 16px 14px; font-family:'Space Mono',monospace; font-size:10.5px; color:var(--mute); flex-wrap:wrap; }
+.filter-sort select{ background:var(--night2); border:1px solid var(--line); color:var(--white); font-family:'Space Mono',monospace; font-size:11px; padding:4px 8px; border-radius:6px; cursor:pointer; }
+.filter-result{ padding:0 16px 12px; font-family:'Space Mono',monospace; font-size:11px; color:var(--mute); }
+.filter-result b{ color:var(--foul); }
 .team-section{ margin-top:10px; }
 .team-section-head{
   display:flex; align-items:center; justify-content:space-between; padding: 16px 4px 8px;
@@ -784,6 +808,37 @@ validateModel();
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+// The four HR components, rendered straight from MODEL.hr.weights. Percentages,
+// bar widths, and category order all derive from that single source — editing a
+// weight (here or in model-config.json) updates the modal automatically, with
+// nothing to keep in sync by hand.
+const HR_BREAKDOWN_META = [
+  { key:'statcast', label:'Statcast Profile', color:'var(--foul)' },
+  { key:'form',     label:'Recent Form',      color:'var(--grass-bright)' },
+  { key:'park',     label:'Park + Weather',   color:'var(--cool)' },
+  { key:'matchup',  label:'Matchup',          color:'var(--hot)' },
+];
+
+function totalHRWeight(){
+  const w = MODEL.hr.weights;
+  return w.statcast + w.form + w.park + w.matchup;
+}
+
+function breakdownRowsHTML(p){
+  return HR_BREAKDOWN_META.map(({key, label, color}) => {
+    const weight = MODEL.hr.weights[key];
+    const pts = p.breakdown?.[key] ?? 0;
+    // Guard against a zero weight (a legitimate way to disable a category)
+    // producing a divide-by-zero and an invalid CSS width.
+    const pct = weight > 0 ? clamp((pts / weight) * 100, 0, 100) : 0;
+    return `<div class="breakdown-row">
+      <div class="breakdown-label">${label} <span style="color:var(--mute);">(${weight}%)</span></div>
+      <div class="breakdown-track"><div class="breakdown-fill" style="width:${pct}%;background:${color};"></div></div>
+      <div class="breakdown-pts">${pts} pts</div>
+    </div>`;
+  }).join('');
+}
+
 /**
  * Null-safe status-dot setter. The status row has been reshaped a few times as
  * data moved server-side, orphaning references to dots that no longer exist.
@@ -955,6 +1010,47 @@ function scoreFor(tabId, p){
   if(tabId==='hrr') return p.projHRR;
   if(tabId==='sb') return p.projSB;
 }
+// ============================================================================
+//  All Players — multi-filter over Statcast and season stats
+// ============================================================================
+// Each filter is an independent range. Active filters combine with AND, so
+// "barrel ≥ 10 AND exit velo ≥ 91" narrows to players clearing both bars.
+const FILTER_DEFS = [
+  { id:'barrel',   label:'Barrel %',      get:p=>p.statcast.barrel,      min:0,  max:25,  step:0.5, unit:'%'  },
+  { id:'ev',       label:'Exit Velo',     get:p=>p.statcast.ev,          min:80, max:98,  step:0.5, unit:' mph'},
+  { id:'hardHit',  label:'Hard-Hit %',    get:p=>p.statcast.hardHit,     min:0,  max:70,  step:1,   unit:'%'  },
+  { id:'xwoba',    label:'xwOBA',         get:p=>p.statcast.xwoba,       min:0.2,max:0.5, step:0.005,unit:''   },
+  { id:'xslg',     label:'xSLG',          get:p=>p.statcast.xslg,        min:0.2,max:0.8, step:0.01, unit:''   },
+  { id:'launchAngle',label:'Launch Angle',get:p=>p.statcast.launchAngle, min:0,  max:25,  step:0.5, unit:'°'  },
+  { id:'avg',      label:'AVG',           get:p=>p.avg,                  min:0.1,max:0.4, step:0.005,unit:''   },
+  { id:'hr',       label:'Season HR',     get:p=>p.hr,                   min:0,  max:50,  step:1,   unit:''   },
+  { id:'hrIndex',  label:'HR Index',      get:p=>p.hrIndex,              min:0,  max:100, step:1,   unit:'%'  },
+  { id:'speed',    label:'Speed',         get:p=>p.speed,                min:0,  max:100, step:1,   unit:''   },
+];
+
+// { barrel:{min:10}, ev:{max:95}, ... } — only keys the user has touched.
+let activeFilters = {};
+let allPlayersSort = 'hrIndex';
+
+function filteredPlayers(){
+  let list = allBatters.filter(isPlayable);
+  for(const [id, range] of Object.entries(activeFilters)){
+    const def = FILTER_DEFS.find(d=>d.id===id);
+    if(!def) continue;
+    list = list.filter(p=>{
+      const v = def.get(p);
+      if(v == null || Number.isNaN(v)) return false;   // unknown fails an explicit filter
+      if(range.min != null && v < range.min) return false;
+      if(range.max != null && v > range.max) return false;
+      return true;
+    });
+  }
+  const sortDef = FILTER_DEFS.find(d=>d.id===allPlayersSort);
+  return list.sort((a,b)=> (sortDef ? sortDef.get(b) - sortDef.get(a) : b.hrIndex - a.hrIndex));
+}
+
+function activeFilterCount(){ return Object.keys(activeFilters).length; }
+
 /** Only the HR index is a percentage; every other prop is a projected count. */
 function isPercentTab(tabId){ return tabId === 'hr'; }
 function scoreLabel(tabId){
@@ -970,7 +1066,7 @@ const SECTION_META = {
   hrr: {title:'Top 20 · Projected H+R+RBI', sub:'Hits + Runs + RBIs combined — each projected from season per-game rates, then summed.'},
   sb: {title:'Top 20 · Projected Stolen Bases', sub:'Season stolen bases per game, lightly damped in heavy air.'},
   k: {title:'Top 20 · Pitcher Strikeouts', sub:'Today\'s confirmed probable starters only, ranked by projected strikeouts from K/9 and expected innings pitched.'},
-  all: {title:'All Players', sub:'Every hitter on tonight\'s slate, grouped by team and sorted by Home Run Index.'},
+  all: {title:'All Players', sub:'Every hitter on tonight\'s slate. Combine Statcast filters to find exactly the profile you want.'},
 };
 
 const pickList = document.getElementById('pickList');
@@ -1079,6 +1175,150 @@ function scoreTierClass(tabId, score){
   return 'score-lo';
 }
 
+function filterBarHTML(shown, total){
+  const items = FILTER_DEFS.map(d=>{
+    const f = activeFilters[d.id] || {};
+    const isOn = f.min != null || f.max != null;
+    const summary = isOn
+      ? `${f.min != null ? '≥'+f.min : ''}${f.min != null && f.max != null ? ' ' : ''}${f.max != null ? '≤'+f.max : ''}${d.unit}`
+      : 'any';
+    return `<div class="filter-item ${isOn?'active':''}">
+      <div class="filter-item-head"><span class="filter-item-label">${d.label}</span><span class="filter-item-val">${summary}</span></div>
+      <div class="filter-inputs">
+        <input type="number" data-fid="${d.id}" data-bound="min" placeholder="min" step="${d.step}" value="${f.min ?? ''}">
+        <span>to</span>
+        <input type="number" data-fid="${d.id}" data-bound="max" placeholder="max" step="${d.step}" value="${f.max ?? ''}">
+      </div>
+    </div>`;
+  }).join('');
+
+  const n = activeFilterCount();
+  return `<div class="filter-bar">
+    <div class="filter-head" id="filterToggle">
+      <span class="filter-title">Filters ${n ? `<span class="filter-count">${n}</span>` : ''}</span>
+      <span class="filter-actions">
+        ${n ? '<button class="filter-clear" id="filterClear">Clear all</button>' : ''}
+        <span id="filterChevron" style="color:var(--mute);">${filterPanelOpen ? '▴' : '▾'}</span>
+      </span>
+    </div>
+    <div class="filter-body ${filterPanelOpen?'open':''}" id="filterBody">
+      <div class="filter-grid">${items}</div>
+      <div class="filter-sort">
+        <span>Sort by</span>
+        <select id="filterSort">
+          ${FILTER_DEFS.map(d=>`<option value="${d.id}" ${allPlayersSort===d.id?'selected':''}>${d.label}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="filter-result">Showing <b>${shown}</b> of ${total} hitters${n?` · ${n} filter${n>1?'s':''} active`:''}</div>
+  </div>`;
+}
+
+let filterPanelOpen = false;
+
+function renderAllPlayers(){
+  const total = allBatters.filter(isPlayable).length;
+  const list = filteredPlayers();
+  const sortDef = FILTER_DEFS.find(d=>d.id===allPlayersSort);
+
+  // Same card format as the Home Runs tab, so scanning feels identical.
+  const cards = list.map((p,i)=>{
+    const g = p.game;
+    const sortVal = sortDef ? sortDef.get(p) : p.hrIndex;
+    const display = allPlayersSort==='hrIndex' ? `${p.hrIndex}%`
+                  : (Number.isInteger(sortVal) ? sortVal : (+sortVal).toFixed(sortDef.step < 0.01 ? 3 : 1));
+    const windTemp = g.roof==='open-air'
+      ? `${g.tempF!=null ? g.tempF+'°F' : ''} ${g.windMph!=null ? 'wind '+windDirLabel(g.windDeg)+' '+g.windMph+'mph' : ''}`.trim()
+      : 'Indoor / roof closed';
+    return `
+      <div class="pick-card" data-team="${p.team}" data-pname="${p.name}">
+        <div class="pick-rank ${i===0?'':(i===1?'r2':(i===2?'r3':'r5'))}">${i+1}</div>
+        ${headshotImgTag(p.name)}
+        <div class="pick-body">
+          <div class="pick-name-row"><span class="pick-name">${p.name}</span><span class="pick-team">${p.team} · ${p.pos||''}</span></div>
+          <div class="pick-matchup">${g.awayName} @ ${g.homeName} · ${gameTime(g)}</div>
+          <div class="pick-summary">${p.narrative}</div>
+          <div class="pick-chips">
+            <span class="chip">Barrel% <b>${p.statcast.barrel}%</b></span>
+            <span class="chip">EV <b>${p.statcast.ev}</b></span>
+            <span class="chip">Hard-Hit% <b>${p.statcast.hardHit}%</b></span>
+            <span class="chip">xwOBA <b>${p.statcast.xwoba}</b></span>
+            <span class="chip">HR <b>${p.hr}</b></span>
+            ${p.statcast._derived?'<span class="chip" style="color:var(--warm);">est. Statcast</span>':''}
+          </div>
+          <div class="pick-env">
+            <div class="env-item">${ballparkIconSVG(g.roof)}<b>${g.parkShort||g.park}</b> · idx ${g.parkFactor}</div>
+            <div class="env-item">${windArrowSVG(g.roof==='open-air'?g.windDeg:null)}<b>${windTemp}</b></div>
+          </div>
+        </div>
+        <div class="pick-score">
+          <div class="pick-score-val ${allPlayersSort==='hrIndex'?scoreTierClass('hr',p.hrIndex):''}">${display}</div>
+          <div class="pick-score-label">${sortDef ? sortDef.label : 'HR IDX'}</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  pickList.innerHTML = filterBarHTML(list.length, total) +
+    (list.length ? `<div class="pick-list" style="margin-top:14px;">${cards}</div>`
+                 : `<div style="text-align:center;padding:40px 20px;color:var(--mute);font-family:'Oswald',sans-serif;font-size:14px;">
+                      No hitters match all ${activeFilterCount()} filters. Try widening a range or clearing one.
+                    </div>`);
+
+  wireFilterBar();
+  pickList.querySelectorAll('.pick-card').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      const p = allBatters.find(x=>x.team===card.dataset.team && x.name===card.dataset.pname);
+      if(p) openBatterModal(p);
+    });
+  });
+}
+
+function wireFilterBar(){
+  const toggle = document.getElementById('filterToggle');
+  if(toggle) toggle.addEventListener('click', e=>{
+    if(e.target.id === 'filterClear') return;      // handled separately
+    filterPanelOpen = !filterPanelOpen;
+    const body = document.getElementById('filterBody');
+    const chev = document.getElementById('filterChevron');
+    if(body) body.classList.toggle('open', filterPanelOpen);
+    if(chev) chev.textContent = filterPanelOpen ? '▴' : '▾';
+  });
+
+  const clear = document.getElementById('filterClear');
+  if(clear) clear.addEventListener('click', e=>{
+    e.stopPropagation();
+    activeFilters = {};
+    renderAllPlayers();
+  });
+
+  const sort = document.getElementById('filterSort');
+  if(sort) sort.addEventListener('change', e=>{
+    allPlayersSort = e.target.value;
+    renderAllPlayers();
+  });
+
+  pickList.querySelectorAll('.filter-inputs input').forEach(input=>{
+    // 'change' rather than 'input' so the list doesn't re-render (and steal
+    // focus) on every keystroke while a number is still being typed.
+    input.addEventListener('change', e=>{
+      const {fid, bound} = e.target.dataset;
+      const raw = e.target.value.trim();
+      if(raw === ''){
+        if(activeFilters[fid]){
+          delete activeFilters[fid][bound];
+          if(activeFilters[fid].min == null && activeFilters[fid].max == null) delete activeFilters[fid];
+        }
+      } else {
+        const v = parseFloat(raw);
+        if(Number.isNaN(v)) return;
+        (activeFilters[fid] ??= {})[bound] = v;
+      }
+      filterPanelOpen = true;    // keep the panel open across the re-render
+      renderAllPlayers();
+    });
+  });
+}
+
 function renderList(){
   const meta = SECTION_META[activeTab];
   sectionTitle.textContent = meta.title;
@@ -1108,24 +1348,7 @@ function renderList(){
   }
 
   if(activeTab==='all'){
-    const groups = getAllByTeam();
-    pickList.innerHTML = groups.map(g => `
-      <div class="team-section">
-        <div class="team-section-head"><h3>${g.team}</h3><span>${g.players.length} hitters</span></div>
-        ${g.players.map(p => `
-          <div class="all-row" data-team="${p.team}" data-pname="${p.name}">
-            <div class="ar-name">${p.name}</div>
-            <div class="ar-pos">${p.pos||''}</div>
-            <div class="ar-hr">${p.hr} HR</div>
-            <div class="ar-idx ${scoreTierClass('hr', p.hrIndex)}">${p.hrIndex}%</div>
-          </div>`).join('')}
-      </div>`).join('');
-    pickList.querySelectorAll('.all-row').forEach(row=>{
-      row.addEventListener('click', ()=>{
-        const p = allBatters.find(x=>x.team===row.dataset.team && x.name===row.dataset.pname);
-        openBatterModal(p);
-      });
-    });
+    renderAllPlayers();
     return;
   }
 
@@ -1867,19 +2090,8 @@ function openBatterModal(p){
         <div class="msub">${g.weatherNote}</div></div>
     </div>
     <div class="tab-content" data-panel="breakdown">
-      <div class="breakdown-row"><div class="breakdown-label">Statcast Profile <span style="color:var(--mute);">(50%)</span></div>
-        <div class="breakdown-track"><div class="breakdown-fill" style="width:${p.breakdown.statcast/50*100}%;background:var(--foul);"></div></div>
-        <div class="breakdown-pts">${p.breakdown.statcast} pts</div></div>
-      <div class="breakdown-row"><div class="breakdown-label">Recent Form <span style="color:var(--mute);">(20%)</span></div>
-        <div class="breakdown-track"><div class="breakdown-fill" style="width:${p.breakdown.form/20*100}%;background:var(--grass-bright);"></div></div>
-        <div class="breakdown-pts">${p.breakdown.form} pts</div></div>
-      <div class="breakdown-row"><div class="breakdown-label">Park + Weather <span style="color:var(--mute);">(15%)</span></div>
-        <div class="breakdown-track"><div class="breakdown-fill" style="width:${p.breakdown.park/15*100}%;background:var(--cool);"></div></div>
-        <div class="breakdown-pts">${p.breakdown.park} pts</div></div>
-      <div class="breakdown-row"><div class="breakdown-label">Matchup <span style="color:var(--mute);">(15%)</span></div>
-        <div class="breakdown-track"><div class="breakdown-fill" style="width:${p.breakdown.matchup/15*100}%;background:var(--hot);"></div></div>
-        <div class="breakdown-pts">${p.breakdown.matchup} pts</div></div>
-      <div class="narrative" style="margin-top:14px;">Total = ${p.hrIndex} / 100. Illustrative model — treat relative ranking as more meaningful than the exact number.</div>
+      ${breakdownRowsHTML(p)}
+      <div class="narrative" style="margin-top:14px;">Total = ${p.hrIndex} / ${totalHRWeight()}. Illustrative model — treat relative ranking as more meaningful than the exact number.</div>
     </div>
   `;
   overlay.classList.add('open');
