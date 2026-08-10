@@ -185,6 +185,20 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 .count-dot.out-on{ background: var(--hot); }
 .slate-matchup{ font-size:11.5px; color: var(--mute); font-family:'Space Mono',monospace; text-align:right; }
 .slate-matchup b{ color: var(--white); font-weight:600; }
+.slate-field{ display:flex; align-items:center; gap:16px; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }
+.sf-svg{ width:132px; height:110px; flex-shrink:0; }
+.sf-info{ flex:1; min-width:0; }
+.sf-wind{ font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; line-height:1.25; }
+.fw-stats{ display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
+.fw-stat{ background:var(--night2); border:1px solid var(--line); border-radius:7px; padding:4px 9px; min-width:46px; text-align:center; }
+.fw-stat-v{ font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; color:var(--white); line-height:1.1; }
+.fw-stat-l{ font-family:'Space Mono',monospace; font-size:8.5px; color:var(--mute); text-transform:uppercase; margin-top:1px; }
+.sf-note{ font-family:'Space Mono',monospace; font-size:10px; color:var(--mute); margin-top:8px; }
+@media (max-width:480px){
+  .slate-field{ gap:11px; }
+  .sf-svg{ width:104px; height:88px; }
+  .sf-wind{ font-size:12.5px; }
+}
 .linescore{ margin-top:12px; padding-top:12px; border-top:1px solid var(--line); overflow-x:auto; }
 .linescore table{ border-collapse:collapse; font-family:'Space Mono',monospace; font-size:11.5px; width:100%; min-width:max-content; }
 .linescore th, .linescore td{ padding:4px 7px; text-align:center; min-width:22px; }
@@ -1440,6 +1454,89 @@ function rescoreAllPlayers(){
   allBatters.forEach(p => scorePlayer(p, p.game));
 }
 
+/**
+ * Pre-game field graphic for the Slate tab: a ballpark seen from behind home
+ * plate, with the wind arrow rotated to blow the way it actually will relative
+ * to THIS park's orientation, plus the weather read alongside.
+ *
+ * Only shown before first pitch — once a game starts, the linescore is the more
+ * useful thing in that space.
+ */
+function slateFieldHTML(g){
+  const cfDeg = g.cfBearing;
+  const isOpen = g.roof === 'open-air';
+  const haveWind = isOpen && cfDeg != null && g.windDeg != null;
+  const rel = haveWind ? windRelativeToPark(g.windDeg, cfDeg) : null;
+
+  const sectorColor = !rel ? 'var(--mute)'
+    : rel.sector === 'out' ? 'var(--foul)'
+    : rel.sector === 'in'  ? 'var(--cool)' : 'var(--warm)';
+
+  // Wind arrow sits over the infield and points the way the ball gets pushed.
+  const arrow = haveWind ? `
+    <g transform="translate(100,104) rotate(${rel.arrowDeg})" opacity="0.95">
+      <line x1="0" y1="30" x2="0" y2="-26" stroke="${sectorColor}" stroke-width="5" stroke-linecap="round"/>
+      <path d="M0,-36 L11,-16 L-11,-16 Z" fill="${sectorColor}"/>
+      <circle cx="0" cy="30" r="3.5" fill="${sectorColor}"/>
+    </g>` : '';
+
+  const roofBadge = !isOpen
+    ? `<text x="100" y="150" text-anchor="middle" font-size="10" fill="var(--mute)" font-family="monospace">ROOF CLOSED</text>`
+    : '';
+
+  const stat = (label, value) =>
+    `<div class="fw-stat"><div class="fw-stat-v">${value}</div><div class="fw-stat-l">${label}</div></div>`;
+
+  const precip = g.precipChance != null ? g.precipChance : null;
+
+  return `
+  <div class="slate-field">
+    <svg class="sf-svg" viewBox="0 0 200 165" xmlns="http://www.w3.org/2000/svg">
+      <!-- outfield grass + warning track -->
+      <path d="M100,150 L18,86 A104,104 0 0,1 182,86 Z" fill="#16301c"/>
+      <path d="M100,150 L22,88 A98,98 0 0,1 178,88 Z" fill="#1d4326"/>
+      <!-- outfield wall -->
+      <path d="M18,86 A104,104 0 0,1 182,86" fill="none" stroke="${sectorColor}" stroke-width="2.5" opacity="0.55"/>
+      <!-- infield dirt -->
+      <path d="M100,150 L66,116 A48,48 0 0,1 134,116 Z" fill="#4a3226"/>
+      <!-- basepath diamond -->
+      <path d="M100,146 L128,118 L100,90 L72,118 Z" fill="#1d4326" stroke="#c9c2bc" stroke-width="1.4"/>
+      <!-- bases -->
+      <rect x="125.5" y="115.5" width="5" height="5" fill="#f0ece8" transform="rotate(45 128 118)"/>
+      <rect x="97.5" y="87.5" width="5" height="5" fill="#f0ece8" transform="rotate(45 100 90)"/>
+      <rect x="69.5" y="115.5" width="5" height="5" fill="#f0ece8" transform="rotate(45 72 118)"/>
+      <!-- pitcher's mound + home plate -->
+      <circle cx="100" cy="118" r="6" fill="#4a3226"/>
+      <circle cx="100" cy="118" r="1.8" fill="#f0ece8"/>
+      <path d="M97,148 L103,148 L103,151 L100,153.5 L97,151 Z" fill="#f0ece8"/>
+      <!-- foul lines -->
+      <line x1="100" y1="150" x2="20" y2="84" stroke="#f0ece8" stroke-width="1" opacity="0.45"/>
+      <line x1="100" y1="150" x2="180" y2="84" stroke="#f0ece8" stroke-width="1" opacity="0.45"/>
+      <!-- field labels -->
+      <text x="100" y="78" text-anchor="middle" font-size="9" fill="var(--mute)" font-family="monospace">CF</text>
+      <text x="34"  y="98" text-anchor="middle" font-size="9" fill="var(--mute)" font-family="monospace">LF</text>
+      <text x="166" y="98" text-anchor="middle" font-size="9" fill="var(--mute)" font-family="monospace">RF</text>
+      ${arrow}
+      ${roofBadge}
+    </svg>
+
+    <div class="sf-info">
+      <div class="sf-wind" style="color:${sectorColor};">
+        ${rel ? rel.label : (isOpen ? 'Wind data pending' : 'Indoor — no wind effect')}
+      </div>
+      <div class="fw-stats">
+        ${g.tempF != null ? stat('Temp', g.tempF + '°F') : ''}
+        ${isOpen && g.windMph != null ? stat('Wind', g.windMph + ' mph') : ''}
+        ${isOpen && g.windDeg != null ? stat('From', windDirLabel(g.windDeg)) : ''}
+        ${g.dewPoint != null ? stat('Dew', g.dewPoint + '°') : ''}
+        ${precip != null ? stat('Precip', precip + '%') : ''}
+        ${stat('Park HR', g.parkFactor)}
+      </div>
+      <div class="sf-note">${g.parkShort || g.park} · ${g.parkNote}</div>
+    </div>
+  </div>`;
+}
+
 function weatherDiagramHTML(g){
   const cfDeg = g.cfBearing;
   if(g.roof !== 'open-air' || cfDeg==null || g.windDeg==null){
@@ -1736,7 +1833,7 @@ function renderSlate(){
             <span class="slate-runs">${homeRuns}</span>
           </div>
         </div>
-        ${(isLive || isFinal) ? linescoreHTML(g) : ''}
+        ${(isLive || isFinal) ? linescoreHTML(g) : slateFieldHTML(g)}
         ${liveDetail}
       </div>`;
   }).join('');
