@@ -185,6 +185,30 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 .count-dot.out-on{ background: var(--hot); }
 .slate-matchup{ font-size:11.5px; color: var(--mute); font-family:'Space Mono',monospace; text-align:right; }
 .slate-matchup b{ color: var(--white); font-weight:600; }
+.prop-dropdown{ position:relative; display:inline-block; flex:0 0 auto; }
+.prop-menu{ position:absolute; top:calc(100% + 6px); left:0; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:5px; min-width:170px; z-index:60; display:none; box-shadow:0 8px 24px rgba(0,0,0,.5); }
+.prop-menu.open{ display:block; }
+.prop-menu-item{ display:block; width:100%; text-align:left; background:none; border:none; color:var(--mute); font-family:'Oswald',sans-serif; font-size:13px; padding:8px 12px; border-radius:6px; cursor:pointer; white-space:nowrap; }
+.prop-menu-item:hover{ background:var(--night2); color:var(--white); }
+.prop-menu-item.active{ background:var(--foul); color:var(--night); font-weight:700; }
+.tab-badge{ display:inline-block; background:var(--foul); color:var(--night); font-family:'Space Mono',monospace; font-size:9px; font-weight:700; padding:1px 5px; border-radius:9px; margin-left:6px; vertical-align:middle; }
+.prop-tab.active .tab-badge{ background:var(--night); color:var(--foul); }
+
+.feed-list{ display:flex; flex-direction:column; gap:10px; margin-top:14px; }
+.feed-item{ display:flex; gap:13px; background:var(--panel); border:1px solid var(--line); border-radius:13px; padding:14px 16px; cursor:pointer; transition:border-color .15s ease; }
+.feed-item:hover{ border-color:var(--foul); }
+.feed-item.is-new{ border-color:var(--foul); animation:feedPulse 2.2s ease-out; }
+@keyframes feedPulse{ 0%{ box-shadow:0 0 0 0 rgba(224,18,46,.55);} 100%{ box-shadow:0 0 0 14px rgba(224,18,46,0);} }
+.feed-icon{ flex-shrink:0; }
+.feed-headshot{ width:46px; height:46px; border-radius:50%; object-fit:contain; background:var(--night2); border:2px solid var(--line); padding:2px; }
+.feed-body{ flex:1; min-width:0; }
+.feed-top{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.feed-name{ font-family:'Oswald',sans-serif; font-size:16px; font-weight:600; }
+.feed-team{ font-family:'Space Mono',monospace; font-size:10.5px; color:var(--mute); }
+.feed-time{ font-family:'Space Mono',monospace; font-size:10px; color:var(--mute); margin-left:auto; }
+.feed-desc{ font-size:12.5px; color:var(--white); line-height:1.45; margin-top:4px; }
+.feed-meta{ font-family:'Space Mono',monospace; font-size:10px; color:var(--mute); margin-top:8px; }
+@media (max-width:480px){ .feed-headshot{ width:38px; height:38px; } .feed-name{ font-size:14px; } }
 .slate-field{ display:flex; align-items:center; gap:16px; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }
 .sf-svg{ width:132px; height:110px; flex-shrink:0; }
 .sf-info{ flex:1; min-width:0; }
@@ -964,13 +988,27 @@ function scorePlayer(base, game){
 }
 
 
+// Top-level nav. The six player props collapse into one dropdown so the bar
+// doesn't overflow on mobile; everything else stays a direct button.
 const PROP_TABS = [
-  {id:'slate', label:'Slate'}, {id:'firstinning', label:'1st Inning O/U'},
-  {id:'hr', label:'Home Runs'}, {id:'hits', label:'Hits'}, {id:'tb', label:'Total Bases'},
-  {id:'rbi', label:'RBIs'}, {id:'hrr', label:'H+R+RBI'}, {id:'sb', label:'Stolen Bases'}, {id:'k', label:'Strikeouts'},
-  {id:'all', label:'All Players'},
+  {id:'slate',       label:'Slate'},
+  {id:'feed',        label:'Feed'},
+  {id:'firstinning', label:'1st Inning O/U'},
+  {id:'__props__',   label:'Player Props', dropdown:true},
+  {id:'all',         label:'All Players'},
 ];
+const PROP_MENU = [
+  {id:'hr',   label:'Home Runs'},
+  {id:'hits', label:'Hits'},
+  {id:'tb',   label:'Total Bases'},
+  {id:'rbi',  label:'RBIs'},
+  {id:'hrr',  label:'H+R+RBI'},
+  {id:'sb',   label:'Stolen Bases'},
+  {id:'k',    label:'Strikeouts'},
+];
+const PROP_IDS = new Set(PROP_MENU.map(p=>p.id));
 let activeTab = 'slate';
+let propMenuOpen = false;
 const TOP_N = 20;
 
 function isPlayable(p){ return p.rosterStatus !== 'inactive'; }
@@ -1072,6 +1110,7 @@ function scoreLabel(tabId){
 }
 const SECTION_META = {
   slate: {title:'Today\'s Slate', sub:'Live scores, inning, count, and current batter/pitcher — updates automatically while games are in progress.'},
+  feed: {title:'Home Run Feed', sub:'Every homer as it happens, with exit velocity, launch angle, and distance.'},
   firstinning: {title:'1st Inning Over/Under', sub:'Modeled probability of a run scoring in the 1st inning — top-of-order contact quality vs. both starters, park, and weather.'},
   hr: {title:'Top 20 · Home Run', sub:'Ranked by Home Run Index — Statcast profile, park, weather, and matchup combined.'},
   hits: {title:'Top 20 · Projected Hits', sub:'Batting average × expected at-bats. Cards also show the chance of at least one hit.'},
@@ -1089,11 +1128,59 @@ const sectionTitle = document.getElementById('sectionTitle');
 const sectionSub = document.getElementById('sectionSub');
 
 function renderTabs(){
-  propTabsEl.innerHTML = PROP_TABS.map(t => `<button class="prop-tab ${t.id===activeTab?'active':''}" data-tab="${t.id}">${t.label}</button>`).join('');
-  propTabsEl.querySelectorAll('.prop-tab').forEach(btn=>{
-    btn.addEventListener('click', ()=>{ activeTab = btn.dataset.tab; renderTabs(); renderList(); window.scrollTo({top:0, behavior:'smooth'}); });
+  const propActive = PROP_IDS.has(activeTab);
+  propTabsEl.innerHTML = PROP_TABS.map(t => {
+    if(t.dropdown){
+      // Label reflects the current selection so you can see what's showing
+      // without opening the menu.
+      const current = propActive ? PROP_MENU.find(p=>p.id===activeTab).label : t.label;
+      const unread = activeTab!=='feed' && feedUnread>0 ? '' : '';
+      return `<div class="prop-dropdown">
+        <button class="prop-tab ${propActive?'active':''}" id="propMenuBtn">
+          ${current} <span style="opacity:.7;font-size:10px;">▾</span>
+        </button>
+        <div class="prop-menu ${propMenuOpen?'open':''}" id="propMenu">
+          ${PROP_MENU.map(p=>`<button class="prop-menu-item ${p.id===activeTab?'active':''}" data-tab="${p.id}">${p.label}</button>`).join('')}
+        </div>
+      </div>`;
+    }
+    const badge = (t.id==='feed' && feedUnread>0 && activeTab!=='feed')
+      ? `<span class="tab-badge">${feedUnread>99?'99+':feedUnread}</span>` : '';
+    return `<button class="prop-tab ${t.id===activeTab?'active':''}" data-tab="${t.id}">${t.label}${badge}</button>`;
+  }).join('');
+
+  const selectTab = id => {
+    activeTab = id;
+    propMenuOpen = false;
+    if(id==='feed') markFeedRead();
+    renderTabs();
+    renderList();
+    window.scrollTo({top:0, behavior:'smooth'});
+  };
+
+  propTabsEl.querySelectorAll('.prop-tab[data-tab]').forEach(btn=>{
+    btn.addEventListener('click', ()=> selectTab(btn.dataset.tab));
+  });
+  propTabsEl.querySelectorAll('.prop-menu-item').forEach(btn=>{
+    btn.addEventListener('click', e=>{ e.stopPropagation(); selectTab(btn.dataset.tab); });
+  });
+
+  const menuBtn = document.getElementById('propMenuBtn');
+  if(menuBtn) menuBtn.addEventListener('click', e=>{
+    e.stopPropagation();
+    propMenuOpen = !propMenuOpen;
+    const m = document.getElementById('propMenu');
+    if(m) m.classList.toggle('open', propMenuOpen);
   });
 }
+
+// Close the props menu when clicking anywhere else.
+document.addEventListener('click', ()=>{
+  if(!propMenuOpen) return;
+  propMenuOpen = false;
+  const m = document.getElementById('propMenu');
+  if(m) m.classList.remove('open');
+});
 // ---- Player headshots (real MLB.com CDN, keyed off the live player-ID map) ----
 const AVATAR_PLACEHOLDER = "data:image/svg+xml;utf8," + encodeURIComponent(`
   <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
@@ -1354,6 +1441,10 @@ function renderList(){
 
   if(activeTab==='slate'){
     renderSlate();
+    return;
+  }
+  if(activeTab==='feed'){
+    renderFeed();
     return;
   }
   if(activeTab==='firstinning'){
@@ -1921,6 +2012,131 @@ function renderFirstInning(){
   });
 }
 
+// ============================================================================
+//  HOME RUN FEED — live notifications as homers happen
+// ----------------------------------------------------------------------------
+//  Polls each in-progress game's play-by-play and surfaces every home run with
+//  its Statcast batted-ball data (exit velo, launch angle, distance), which MLB
+//  attaches to the play event itself — no separate Savant call needed.
+// ============================================================================
+let feedEvents = [];          // newest first
+let feedUnread = 0;
+const seenHRKeys = new Set(); // gamePk:atBatIndex — prevents duplicate entries
+
+function markFeedRead(){ feedUnread = 0; }
+
+async function pollHomeRunFeed(){
+  const live = games.filter(g => g.gamePk && (g.mlbStatus === 'Live' || g.mlbStatus === 'Final'));
+  if(!live.length) return;
+
+  await Promise.all(live.map(async g => {
+    try{
+      const res = await fetch(`https://statsapi.mlb.com/api/v1/game/${g.gamePk}/playByPlay`);
+      if(!res.ok) return;
+      const data = await res.json();
+      for(const play of (data.allPlays || [])){
+        if(play.result?.eventType !== 'home_run') continue;
+        const key = `${g.gamePk}:${play.atBatIndex}`;
+        if(seenHRKeys.has(key)) continue;
+        seenHRKeys.add(key);
+
+        // Statcast comes from the pitch event that ended the at-bat.
+        const hitEvent = [...(play.playEvents || [])].reverse()
+          .find(e => e.hitData && e.hitData.launchSpeed != null);
+        const hd = hitEvent?.hitData || {};
+
+        feedEvents.push({
+          key,
+          gamePk: g.gamePk,
+          batter: play.matchup?.batter?.fullName ?? 'Unknown',
+          batterId: play.matchup?.batter?.id ?? null,
+          pitcher: play.matchup?.pitcher?.fullName ?? null,
+          battingTeam: play.about?.isTopInning ? g.away : g.home,
+          opponent:    play.about?.isTopInning ? g.home : g.away,
+          inning: play.about?.inning,
+          half: play.about?.isTopInning ? 'Top' : 'Bot',
+          outs: play.count?.outs,
+          rbi: play.result?.rbi ?? 0,
+          desc: play.result?.description ?? '',
+          awayScore: play.result?.awayScore, homeScore: play.result?.homeScore,
+          exitVelo: hd.launchSpeed ?? null,
+          launchAngle: hd.launchAngle ?? null,
+          distance: hd.totalDistance ?? null,
+          hardness: hd.hardness ?? null,
+          park: g.parkShort || g.park,
+          matchupLabel: `${g.awayName} @ ${g.homeName}`,
+          ts: play.about?.endTime ? new Date(play.about.endTime).getTime() : Date.now(),
+          isNew: true,
+        });
+        if(activeTab !== 'feed') feedUnread++;
+      }
+    }catch(e){ /* a single game failing shouldn't stall the whole feed */ }
+  }));
+
+  feedEvents.sort((a,b) => b.ts - a.ts);   // newest first
+  if(feedEvents.length > 200) feedEvents.length = 200;
+}
+
+function timeAgo(ts){
+  const s = Math.round((Date.now() - ts)/1000);
+  if(s < 60) return 'just now';
+  if(s < 3600) return `${Math.round(s/60)}m ago`;
+  return `${Math.round(s/3600)}h ago`;
+}
+
+function renderFeed(){
+  if(!feedEvents.length){
+    const anyLive = games.some(g => g.mlbStatus === 'Live');
+    pickList.innerHTML = `<div style="text-align:center;padding:46px 22px;color:var(--mute);font-family:'Oswald',sans-serif;font-size:14px;line-height:1.7;">
+      <div style="font-size:34px;margin-bottom:10px;">⚾</div>
+      <div style="font-size:16px;color:var(--white);margin-bottom:8px;">No home runs yet</div>
+      ${anyLive
+        ? 'Games are underway — this updates automatically the moment one goes out.'
+        : 'Nothing has started yet. Homers will appear here live, with exit velo, launch angle, and distance.'}
+    </div>`;
+    return;
+  }
+
+  pickList.innerHTML = `<div class="feed-list">` + feedEvents.map(ev => {
+    const stat = (v, label, unit='') => v == null ? '' :
+      `<div class="fw-stat"><div class="fw-stat-v">${v}${unit}</div><div class="fw-stat-l">${label}</div></div>`;
+    return `
+      <div class="feed-item ${ev.isNew?'is-new':''}" data-batter="${ev.batter}">
+        <div class="feed-icon">${headshotImgTag(ev.batter, 'feed-headshot')}</div>
+        <div class="feed-body">
+          <div class="feed-top">
+            <span class="feed-name">${ev.batter}</span>
+            <span class="feed-team">${ev.battingTeam} vs ${ev.opponent}</span>
+            <span class="feed-time">${timeAgo(ev.ts)}</span>
+          </div>
+          <div class="feed-desc">${ev.desc}</div>
+          <div class="fw-stats">
+            ${stat(ev.exitVelo, 'Exit Velo', ' mph')}
+            ${stat(ev.launchAngle, 'Launch', '°')}
+            ${stat(ev.distance, 'Distance', ' ft')}
+            ${stat(ev.rbi, 'RBI')}
+          </div>
+          <div class="feed-meta">
+            ${ev.half} ${ev.inning} · ${ev.park}
+            ${ev.pitcher ? ` · off ${ev.pitcher}` : ''}
+            ${ev.awayScore != null ? ` · ${ev.awayScore}-${ev.homeScore}` : ''}
+            ${ev.exitVelo == null ? ' · <span style="color:var(--warm)">Statcast pending</span>' : ''}
+          </div>
+        </div>
+      </div>`;
+  }).join('') + `</div>
+  <div class="odds-source-note" style="margin-top:14px;">Live from the MLB Stats API play-by-play feed. Batted-ball data is attached by Statcast moments after each swing — occasionally it lags the play by a few seconds.</div>`;
+
+  feedEvents.forEach(ev => ev.isNew = false);   // clear highlight after one render
+
+  pickList.querySelectorAll('.feed-item').forEach(item=>{
+    item.addEventListener('click', ()=>{
+      const p = allBatters.find(x => x.name === item.dataset.batter);
+      if(p) openBatterModal(p);
+    });
+  });
+}
+
 // ---- Live player ID resolution + last-10-game logs (real MLB Stats API data) ----
 let playerIdMap = null;
 let playerIdMapPromise = null;
@@ -2326,7 +2542,9 @@ async function boot(){
   updateSlateFooter();
 
   // Live in-game state is the one thing a daily build can't cover.
-  fetchLiveGameStates().then(()=>{ if(activeTab==='slate') renderList(); });
+  fetchLiveGameStates()
+    .then(()=>{ if(activeTab==='slate') renderList(); return pollHomeRunFeed(); })
+    .then(()=>{ if(activeTab==='feed') renderList(); else renderTabs(); });
   loadPlayerIdMap().then(()=>renderList());   // headshots
 }
 
@@ -2385,7 +2603,15 @@ setInterval(fullLiveRefresh, 5*60*1000);
 // state (score/inning/count/batter/pitcher) every 20 seconds so the Slate tab
 // tracks along in near real time while games are actually being played.
 setInterval(()=>{
-  fetchLiveGameStates().then(()=>{ if(activeTab==='slate') renderList(); });
+  fetchLiveGameStates().then(()=>{
+    if(activeTab==='slate') renderList();
+    // Home runs are polled on the same cadence so the Feed and the scoreboard
+    // never disagree about what's happened.
+    return pollHomeRunFeed();
+  }).then(()=>{
+    if(activeTab==='feed') renderList();
+    else renderTabs();          // keeps the unread badge current
+  });
 }, 20*1000);
 
 // Check every 30s whether the real calendar date has rolled over; if so, relabel
