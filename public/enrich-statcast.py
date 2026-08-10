@@ -48,8 +48,7 @@ def load_cache(max_age_days):
 
 def save_cache(data):
     os.makedirs(os.path.dirname(CACHE_PATH), exist_ok=True)
-    with open(CACHE_PATH, "w") as f:
-        json.dump(data, f)
+    write_json(CACHE_PATH, data)
 
 
 def fetch_leaderboard(season):
@@ -133,6 +132,52 @@ def fetch_leaderboard(season):
 
     log(f"{len(out)} hitters in leaderboard")
     return out
+
+
+def _clean(v):
+    """
+    pandas uses NaN/NaT for missing values, and json.dump writes those as bare
+    `NaN` / `Infinity` — which are NOT valid JSON, so anything downstream
+    (Node, browsers, jq) fails to parse the whole file. Convert to None here.
+    """
+    if v is None:
+        return None
+    # NaN is the only value that isn't equal to itself.
+    if isinstance(v, float) and v != v:
+        return None
+    if isinstance(v, float) and (v == float("inf") or v == float("-inf")):
+        return None
+    # numpy / pandas scalar types -> native Python
+    if hasattr(v, "item"):
+        try:
+            v = v.item()
+        except (ValueError, AttributeError):
+            return None
+        if isinstance(v, float) and v != v:
+            return None
+    # pandas NaT and similar sentinels stringify to 'NaT'/'nan'
+    if isinstance(v, str) and v in ("nan", "NaN", "NaT", "<NA>"):
+        return None
+    return v
+
+
+def sanitize(obj):
+    """Recursively strip NaN/Inf from a nested structure before serialising."""
+    if isinstance(obj, dict):
+        return {k: sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [sanitize(v) for v in obj]
+    return _clean(obj)
+
+
+def write_json(path, payload):
+    """
+    Single place that writes JSON. allow_nan=False makes an escaped NaN raise
+    loudly here instead of silently producing a file that fails to parse in CI.
+    """
+    cleaned = sanitize(payload)
+    with open(path, "w") as f:
+        json.dump(cleaned, f, indent=2, allow_nan=False)
 
 
 def _f(v):
@@ -255,13 +300,18 @@ def fetch_batter_detail(player_ids, season, days=45):
         # --- recent batted balls, tagged by the pitcher's handedness
         points = []
         for _, r in bb.tail(60).iterrows():
+            # Every field goes through _clean: `events` is NaN on any pitch that
+            # didn't end the at-bat, which was writing a literal NaN into the JSON.
+            la = _clean(r.get("launch_angle"))
+            dist = _clean(r.get("hit_distance_sc"))
+            date = _clean(r.get("game_date"))
             points.append({
                 "ev": round(float(r["launch_speed"]), 1),
-                "la": round(float(r["launch_angle"]), 1) if r["launch_angle"] == r["launch_angle"] else None,
-                "dist": int(r["hit_distance_sc"]) if r.get("hit_distance_sc") == r.get("hit_distance_sc") and r.get("hit_distance_sc") is not None else None,
-                "hand": r.get("p_throws"),
-                "result": r.get("events"),
-                "date": str(r.get("game_date"))[:10],
+                "la": round(float(la), 1) if la is not None else None,
+                "dist": int(dist) if dist is not None else None,
+                "hand": _clean(r.get("p_throws")),
+                "result": _clean(r.get("events")),
+                "date": str(date)[:10] if date is not None else None,
             })
 
         out[str(pid)] = {
@@ -302,8 +352,7 @@ def main():
                 slate.setdefault("warnings", []).append(
                     "Statcast enrichment unavailable (scrape failed, no cache)")
                 slate["sources"]["statcast"] = "UNAVAILABLE — scrape failed"
-                with open(args.slate, "w") as f:
-                    json.dump(slate, f, indent=2)
+                write_json(args.slate, slate)
                 return 0  # non-fatal by design
             log("falling back to stale cache")
             slate.setdefault("warnings", []).append(
@@ -346,8 +395,15 @@ def main():
     slate["statcastEnrichedAt"] = datetime.utcnow().isoformat() + "Z"
     log(f"matched {matched} hitters, {missing} without Statcast data (usually low-PA callups)")
 
-    with open(args.slate, "w") as f:
-        json.dump(slate, f, indent=2)
+    # Round-trip check: parse what we're about to write with the same strictness
+    # Node will use, so a malformed file fails here rather than in CI.
+    try:
+        json.loads(json.dumps(sanitize(slate), allow_nan=False))
+    except (ValueError, TypeError) as e:
+        log(f"ABORT: produced invalid JSON ({e}) — leaving the existing slate untouched")
+        return 1
+
+    write_json(args.slate, slate)
     return 0
 
 
