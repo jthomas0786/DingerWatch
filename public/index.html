@@ -186,13 +186,31 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 .slate-matchup{ font-size:11.5px; color: var(--mute); font-family:'Space Mono',monospace; text-align:right; }
 .slate-matchup b{ color: var(--white); font-weight:600; }
 .prop-dropdown{ position:relative; display:inline-block; flex:0 0 auto; }
-/* position:fixed — NOT absolute. The .prop-tabs bar uses overflow-x:auto for
-   horizontal scrolling, which clips any absolutely-positioned descendant and
-   turns the menu into scrollable content instead of an overlay. Fixed
-   positioning escapes every clipping ancestor; coordinates are set in JS from
-   the button's bounding rect. */
-.prop-menu{ position:fixed; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:5px; min-width:170px; z-index:200; display:none; box-shadow:0 10px 30px rgba(0,0,0,.6); max-height:70vh; overflow-y:auto; }
+/* The menu is moved to <body> when opened (see openPropMenu). The tab bar uses
+   overflow-x:auto for horizontal scrolling, which clips descendants; reparenting
+   to <body> escapes that and any other containing block, on every browser. */
+.prop-menu{ position:fixed; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:5px; min-width:180px; z-index:1000; display:none; box-shadow:0 10px 30px rgba(0,0,0,.6); max-height:70vh; overflow-y:auto; }
 .prop-menu.open{ display:block; }
+.prop-menu-backdrop{ display:none; position:fixed; inset:0; background:rgba(5,7,12,.6); z-index:999; }
+.prop-menu-backdrop.open{ display:block; }
+
+/* On phones a small floating popover is easy to miss and awkward to tap, so the
+   menu becomes a full-width bottom sheet instead. */
+@media (max-width:600px){
+  .prop-menu{
+    top:auto !important; left:0 !important; right:0;
+    bottom:0; width:100%; min-width:0;
+    border-radius:16px 16px 0 0; padding:8px 8px calc(8px + env(safe-area-inset-bottom));
+    max-height:60vh; box-shadow:0 -10px 30px rgba(0,0,0,.6);
+    animation:sheetUp .18s ease-out;
+  }
+  @keyframes sheetUp{ from{ transform:translateY(100%);} to{ transform:translateY(0);} }
+  .prop-menu::before{
+    content:''; display:block; width:38px; height:4px; border-radius:2px;
+    background:var(--line); margin:2px auto 10px;
+  }
+  .prop-menu-item{ padding:13px 14px; font-size:15px; }
+}
 .prop-menu-item{ display:block; width:100%; text-align:left; background:none; border:none; color:var(--mute); font-family:'Oswald',sans-serif; font-size:13px; padding:8px 12px; border-radius:6px; cursor:pointer; white-space:nowrap; }
 .prop-menu-item:hover{ background:var(--night2); color:var(--white); }
 .prop-menu-item.active{ background:var(--foul); color:var(--night); font-weight:700; }
@@ -1014,6 +1032,7 @@ const PROP_MENU = [
 const PROP_IDS = new Set(PROP_MENU.map(p=>p.id));
 let activeTab = 'slate';
 let propMenuOpen = false;
+let propMenuBackdrop = null;   // created once, reused across re-renders
 const TOP_N = 20;
 
 function isPlayable(p){ return p.rosterStatus !== 'inactive'; }
@@ -1133,6 +1152,12 @@ const sectionTitle = document.getElementById('sectionTitle');
 const sectionSub = document.getElementById('sectionSub');
 
 function renderTabs(){
+  // If a previous menu was reparented to <body>, drop it before we write fresh
+  // tab markup — otherwise two elements would share the id #propMenu and
+  // getElementById would start returning the stale, detached one.
+  const stale = document.getElementById('propMenu');
+  if(stale && stale.parentElement === document.body) stale.remove();
+
   const propActive = PROP_IDS.has(activeTab);
   propTabsEl.innerHTML = PROP_TABS.map(t => {
     if(t.dropdown){
@@ -1156,7 +1181,7 @@ function renderTabs(){
 
   const selectTab = id => {
     activeTab = id;
-    propMenuOpen = false;
+    closePropMenu();
     if(id==='feed') markFeedRead();
     renderTabs();
     renderList();
@@ -1173,35 +1198,61 @@ function renderTabs(){
   const menuBtn = document.getElementById('propMenuBtn');
   if(menuBtn) menuBtn.addEventListener('click', e=>{
     e.stopPropagation();
-    propMenuOpen = !propMenuOpen;
-    const m = document.getElementById('propMenu');
-    if(!m) return;
-    m.classList.toggle('open', propMenuOpen);
-    if(propMenuOpen) positionPropMenu(menuBtn, m);
+    propMenuOpen ? closePropMenu() : openPropMenu(menuBtn);
   });
 }
 
 /**
- * Place the fixed-position menu directly under its trigger, keeping it inside
- * the viewport: it flips above the button when there isn't room below, and
- * shifts horizontally rather than running off either edge.
+ * Open the props menu. The element is physically moved to <body> so no ancestor
+ * (the tab bar's overflow, a stacking context, anything) can clip or hide it.
+ * Desktop gets a popover anchored to the button; phones get a bottom sheet,
+ * whose placement is handled entirely in CSS.
  */
+function openPropMenu(btn){
+  const menu = document.getElementById('propMenu');
+  if(!menu) return;
+
+  if(menu.parentElement !== document.body) document.body.appendChild(menu);
+
+  if(!propMenuBackdrop){
+    propMenuBackdrop = document.createElement('div');
+    propMenuBackdrop.id = 'propMenuBackdrop';
+    propMenuBackdrop.className = 'prop-menu-backdrop';
+    propMenuBackdrop.addEventListener('click', closePropMenu);
+    document.body.appendChild(propMenuBackdrop);
+  }
+  const backdrop = propMenuBackdrop;
+
+  propMenuOpen = true;
+  menu.classList.add('open');
+  backdrop.classList.add('open');
+
+  // Phones use the CSS bottom sheet; only the desktop popover needs coordinates.
+  if(window.innerWidth > 600) positionPropMenu(btn, menu);
+  else { menu.style.top = ''; menu.style.left = ''; menu.style.visibility = 'visible'; }
+}
+
+function closePropMenu(){
+  propMenuOpen = false;
+  const menu = document.getElementById('propMenu');
+  if(menu) menu.classList.remove('open');
+  if(propMenuBackdrop) propMenuBackdrop.classList.remove('open');
+}
+
+/** Anchor the desktop popover under its button, kept inside the viewport. */
 function positionPropMenu(btn, menu){
   const r = btn.getBoundingClientRect();
-  menu.style.visibility = 'hidden';     // measure before painting
+  menu.style.visibility = 'hidden';
   menu.style.top = '0px';
   menu.style.left = '0px';
   const mh = menu.offsetHeight || 260;
   const mw = menu.offsetWidth || 180;
-  const gap = 6;
+  const gap = 6, margin = 8;
 
   const spaceBelow = window.innerHeight - r.bottom;
-  const top = (spaceBelow < mh + gap && r.top > mh + gap)
-    ? r.top - mh - gap                  // flip above
-    : r.bottom + gap;
+  const top = (spaceBelow < mh + gap && r.top > mh + gap) ? r.top - mh - gap : r.bottom + gap;
 
   let left = r.left;
-  const margin = 8;
   if(left + mw > window.innerWidth - margin) left = window.innerWidth - mw - margin;
   if(left < margin) left = margin;
 
@@ -1210,24 +1261,17 @@ function positionPropMenu(btn, menu){
   menu.style.visibility = 'visible';
 }
 
-// A fixed-position menu doesn't travel with its trigger, so close it if the
-// page scrolls or resizes underneath it rather than leaving it stranded.
+// The desktop popover is anchored to a button that moves with the page, so close
+// it on scroll/resize. The mobile sheet is viewport-anchored and stays put.
 ['scroll','resize'].forEach(evt =>
   window.addEventListener(evt, ()=>{
-    if(!propMenuOpen) return;
-    propMenuOpen = false;
-    const m = document.getElementById('propMenu');
-    if(m) m.classList.remove('open');
+    if(propMenuOpen && window.innerWidth > 600) closePropMenu();
   }, true)
 );
 
 // Close the props menu when clicking anywhere else.
-document.addEventListener('click', ()=>{
-  if(!propMenuOpen) return;
-  propMenuOpen = false;
-  const m = document.getElementById('propMenu');
-  if(m) m.classList.remove('open');
-});
+document.addEventListener('click', ()=>{ if(propMenuOpen) closePropMenu(); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape' && propMenuOpen) closePropMenu(); });
 // ---- Player headshots (real MLB.com CDN, keyed off the live player-ID map) ----
 const AVATAR_PLACEHOLDER = "data:image/svg+xml;utf8," + encodeURIComponent(`
   <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
@@ -1737,8 +1781,10 @@ function refreshDayLabelsAndStaleness(){
   const changed = realToday !== currentDates.today;
   currentDates = { today: realToday, tomorrow: addDays(realToday, 1) };
 
-  document.querySelector('.day-toggle button[data-day="today"]').textContent = `Today · ${shortLabel(currentDates.today)}`;
-  document.querySelector('.day-toggle button[data-day="tomorrow"]').textContent = `Tomorrow · ${shortLabel(currentDates.tomorrow)}`;
+  const todayBtn = document.querySelector('.day-toggle button[data-day="today"]');
+  const tmrBtn   = document.querySelector('.day-toggle button[data-day="tomorrow"]');
+  if(todayBtn) todayBtn.textContent = `Today · ${shortLabel(currentDates.today)}`;
+  if(tmrBtn)   tmrBtn.textContent   = `Tomorrow · ${shortLabel(currentDates.tomorrow)}`;
 
   const daysStale = Math.round((new Date(realToday+'T00:00:00Z') - new Date(DATA_BUILT_FOR+'T00:00:00Z')) / 86400000);
   const note = document.getElementById('dayNote');
