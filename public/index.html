@@ -152,6 +152,70 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 .gamelog-table th{ text-align:left; font-family:'Space Mono',monospace; font-size:9.5px; color: var(--mute); text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line); }
 .gamelog-table td{ padding:7px 8px; border-bottom:1px solid var(--line); }
 .gamelog-table td.hr-cell{ color: var(--foul); font-weight:700; }
+/* --- arsenal donut --- */
+.arsenal-wrap{ display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+.arsenal-donut{ width:124px; height:124px; flex-shrink:0; }
+.arsenal-legend{ flex:1; min-width:180px; display:flex; flex-direction:column; gap:5px; }
+.ars-row{ display:flex; align-items:center; gap:8px; font-size:12px; }
+.ars-swatch{ width:10px; height:10px; border-radius:3px; flex-shrink:0; display:inline-block; }
+.ars-name{ flex:1; color:var(--white); }
+.ars-usage{ font-family:'Space Mono',monospace; font-size:11.5px; color:var(--foul); font-weight:700; }
+.ars-velo{ font-family:'Space Mono',monospace; font-size:10.5px; color:var(--mute); width:58px; text-align:right; }
+
+/* --- pitch-type performance --- */
+.pmix-table{ display:flex; flex-direction:column; gap:2px; }
+.pmix-head, .pmix-row{ display:grid; grid-template-columns:1.5fr .6fr 1.3fr .7fr .4fr; gap:8px; align-items:center; padding:7px 8px; border-radius:6px; }
+.pmix-head{ font-family:'Space Mono',monospace; font-size:9px; color:var(--mute); text-transform:uppercase; }
+.pmix-row{ background:var(--night2); font-size:12px; }
+.pmix-row.faces-tonight{ background:rgba(224,18,46,.08); }
+.pmix-name{ display:flex; align-items:center; gap:6px; color:var(--white); }
+.pmix-flag{ color:var(--foul); }
+.pmix-val{ font-family:'Space Mono',monospace; font-size:11.5px; text-align:center; color:var(--white); }
+.pmix-bar{ position:relative; height:16px; background:var(--line); border-radius:4px; overflow:hidden; display:flex; align-items:center; }
+.pmix-bar-fill{ position:absolute; left:0; top:0; bottom:0; opacity:.75; }
+.pmix-bar em{ position:relative; font-style:normal; font-family:'Space Mono',monospace; font-size:9.5px; color:var(--white); padding-left:6px; }
+.pmix-note{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); margin-top:6px; }
+
+/* --- strike zone --- */
+.zone-wrap{ display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; }
+.zone-grid-outer{ position:relative; flex-shrink:0; padding:16px 0; }
+.zone-grid{ display:grid; grid-template-columns:repeat(3,52px); grid-template-rows:repeat(3,44px); gap:3px; border:2px solid var(--line); padding:3px; border-radius:4px; }
+.zone-cell{ display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:3px; }
+.zone-avg{ font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; color:var(--white); }
+.zone-sub{ font-family:'Space Mono',monospace; font-size:8px; color:rgba(255,255,255,.65); }
+.zone-label-top,.zone-label-bottom{ position:absolute; left:0; right:0; text-align:center; font-family:'Space Mono',monospace; font-size:8.5px; color:var(--mute); }
+.zone-label-top{ top:2px; } .zone-label-bottom{ bottom:2px; }
+.zone-side{ flex:1; min-width:150px; }
+.zone-legend{ display:flex; flex-direction:column; gap:5px; font-size:11px; color:var(--mute); }
+.zone-legend span{ display:flex; align-items:center; gap:7px; }
+.zone-legend i{ width:14px; height:10px; border-radius:3px; display:inline-block; }
+.zone-stat{ margin-top:12px; }
+.zone-stat b{ font-family:'Oswald',sans-serif; font-size:20px; color:var(--white); display:block; }
+.zone-stat span{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); }
+.zone-note{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); margin-top:10px; line-height:1.5; }
+
+/* --- batted-ball scatter --- */
+.scatter-wrap{ }
+.scatter{ width:100%; max-width:340px; height:auto; }
+.scatter-legend{ display:flex; gap:12px; flex-wrap:wrap; font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); margin-top:4px; }
+.scatter-legend span{ display:flex; align-items:center; gap:5px; }
+.scatter-legend i{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+.scatter-shade{ opacity:.75; }
+
+/* --- platoon splits --- */
+.split-table{ display:flex; flex-direction:column; gap:2px; }
+.split-row{ display:grid; grid-template-columns:1.6fr .7fr .7fr .7fr .45fr .5fr; gap:6px; align-items:center; padding:8px; border-radius:6px; background:var(--night2); font-size:12px; }
+.split-head{ background:none; font-family:'Space Mono',monospace; font-size:9px; color:var(--mute); text-transform:uppercase; padding-bottom:2px; }
+.split-row.is-relevant{ background:rgba(224,18,46,.1); border:1px solid rgba(224,18,46,.35); }
+.split-label{ color:var(--white); }
+.split-label b{ color:var(--foul); font-size:9.5px; font-family:'Space Mono',monospace; }
+.split-stat{ font-family:'Space Mono',monospace; font-size:11.5px; text-align:center; color:var(--white); }
+
+@media (max-width:520px){
+  .zone-grid{ grid-template-columns:repeat(3,46px); grid-template-rows:repeat(3,38px); }
+  .pmix-head,.pmix-row{ grid-template-columns:1.4fr .6fr 1fr .6fr .4fr; font-size:11px; }
+  .ars-velo{ display:none; }
+}
 .section-mini{ font-family:'Space Mono',monospace; font-size:10px; color:var(--mute); text-transform:uppercase; letter-spacing:.08em; margin:18px 0 9px; }
 .section-mini:first-child{ margin-top:0; }
 
@@ -619,6 +683,8 @@ function adaptHitter(h, teamAbbr, game, side) {
       trend,
     },
     gameLog: h.gameLog || [],
+    splits: h.splits || null,      // season vs LHP / vs RHP
+    detail: h.detail || null,      // zone grid, pitch types, batted balls
     note: tier === 1 ? 'Elite power threat'
         : tier === 2 ? 'Consistent power bat'
         : tier === 3 ? 'Everyday pop'
@@ -683,6 +749,8 @@ function adaptGame(sg) {
       id: p.id, name: p.name, throws: p.throws || '?',
       hr9: st.hr9 ?? 1.05, k9: st.k9 ?? 9.0, bb9: st.bb9 ?? null,
       era: st.era ?? null, whip: st.whip ?? null, ip: st.ip ?? null,
+      arsenal: p.arsenal || null,
+      splits: p.splits || null,
       barrelAllowed: st.hr9 != null ? +(st.hr9 * 6.8).toFixed(1) : 7.5,
       mix: st.era != null
         ? `${st.era} ERA · ${st.whip ?? '—'} WHIP · ${st.k9 ?? '—'} K/9 · ${st.hr9 ?? '—'} HR/9`
@@ -2650,6 +2718,209 @@ function propsGridHTML(p){
   }).join('') + `</div>`;
 }
 
+// ============================================================================
+//  Matchup visualisations — arsenal, pitch-type performance, zone, batted balls
+// ============================================================================
+
+// Consistent colour per pitch family so the same pitch reads the same across
+// every chart in the modal.
+const PITCH_COLORS = {
+  FF:'#e0122e', FA:'#e0122e', SI:'#ff7043', FT:'#ff7043', FC:'#ffa726',
+  SL:'#42a5f5', ST:'#29b6f6', SV:'#26c6da', CU:'#7e57c2', KC:'#9575cd', CS:'#b39ddb',
+  CH:'#66bb6a', FS:'#26a69a', FO:'#26a69a', SC:'#8d6e63', KN:'#bdbdbd', EP:'#bdbdbd',
+};
+const PITCH_NAMES = {
+  FF:'4-Seam', FA:'Fastball', SI:'Sinker', FT:'2-Seam', FC:'Cutter',
+  SL:'Slider', ST:'Sweeper', SV:'Slurve', CU:'Curveball', KC:'Knuckle-Curve', CS:'Slow Curve',
+  CH:'Changeup', FS:'Splitter', FO:'Forkball', SC:'Screwball', KN:'Knuckleball', EP:'Eephus',
+};
+const pitchColor = c => PITCH_COLORS[c] || 'var(--mute)';
+const pitchName  = c => PITCH_NAMES[c] || c;
+
+/** Donut of the opposing starter's pitch mix, with a usage legend. */
+function arsenalDonutHTML(arsenal, pitcherName){
+  if(!arsenal || !arsenal.length) return '';
+  const R = 52, C = 62, circ = 2 * Math.PI * R;
+  let offset = 0;
+  const segs = arsenal.map(a => {
+    const frac = (a.usagePct ?? 0) / 100;
+    const seg = `<circle cx="${C}" cy="${C}" r="${R}" fill="none"
+      stroke="${pitchColor(a.code)}" stroke-width="18"
+      stroke-dasharray="${(circ*frac).toFixed(2)} ${(circ*(1-frac)).toFixed(2)}"
+      stroke-dashoffset="${(-circ*offset).toFixed(2)}"
+      transform="rotate(-90 ${C} ${C})"><title>${pitchName(a.code)} ${a.usagePct}%</title></circle>`;
+    offset += frac;
+    return seg;
+  }).join('');
+
+  const legend = arsenal.map(a => `
+    <div class="ars-row">
+      <span class="ars-swatch" style="background:${pitchColor(a.code)}"></span>
+      <span class="ars-name">${pitchName(a.code)}</span>
+      <span class="ars-usage">${a.usagePct ?? '—'}%</span>
+      <span class="ars-velo">${a.avgSpeed ? a.avgSpeed.toFixed(1)+' mph' : ''}</span>
+    </div>`).join('');
+
+  return `<div class="arsenal-wrap">
+    <svg class="arsenal-donut" viewBox="0 0 124 124">
+      ${segs}
+      <text x="${C}" y="${C-4}" text-anchor="middle" font-size="15" fill="var(--white)" font-family="Oswald, sans-serif">${arsenal.length}</text>
+      <text x="${C}" y="${C+9}" text-anchor="middle" font-size="7.5" fill="var(--mute)" font-family="monospace">PITCHES</text>
+    </svg>
+    <div class="arsenal-legend">${legend}</div>
+  </div>`;
+}
+
+/** How the hitter has actually performed against each pitch type he'll see. */
+function pitchMatchupHTML(detail, arsenal){
+  const pt = detail?.pitchTypes;
+  if(!pt || !Object.keys(pt).length) return '';
+  // Order by the opposing pitcher's usage so the pitches he'll see most come first.
+  const order = (arsenal || []).map(a => a.code).filter(Boolean);
+  const codes = Object.keys(pt).sort((a,b)=>{
+    const ia = order.indexOf(a), ib = order.indexOf(b);
+    if(ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    return (pt[b].seen||0) - (pt[a].seen||0);
+  }).slice(0, 7);
+
+  const maxEV = Math.max(...codes.map(c => pt[c].ev || 0), 95);
+  return `<div class="pmix-table">
+    <div class="pmix-head"><span>Pitch</span><span>Avg</span><span>Exit velo</span><span>Whiff%</span><span>HR</span></div>
+    ${codes.map(c=>{
+      const d = pt[c];
+      const inArsenal = order.includes(c);
+      const evPct = d.ev ? Math.max(4, ((d.ev - 70) / (maxEV - 70)) * 100) : 0;
+      return `<div class="pmix-row ${inArsenal?'faces-tonight':''}">
+        <span class="pmix-name"><span class="ars-swatch" style="background:${pitchColor(c)}"></span>${pitchName(c)}${inArsenal?'<b class="pmix-flag">•</b>':''}</span>
+        <span class="pmix-val">${d.avg != null ? d.avg.toFixed(3).replace(/^0/,'') : '—'}</span>
+        <span class="pmix-bar"><span class="pmix-bar-fill" style="width:${evPct}%;background:${pitchColor(c)}"></span><em>${d.ev ?? '—'}</em></span>
+        <span class="pmix-val">${d.whiffPct != null ? d.whiffPct+'%' : '—'}</span>
+        <span class="pmix-val">${d.hr ?? 0}</span>
+      </div>`;
+    }).join('')}
+    <div class="pmix-note">• marks a pitch tonight's starter actually throws</div>
+  </div>`;
+}
+
+/**
+ * Strike-zone heat map. Statcast numbers the zone 1-9 from the catcher's view,
+ * top-left to bottom-right, with 11-14 as the chase quadrants outside it.
+ */
+function strikeZoneHTML(detail){
+  const z = detail?.zones;
+  if(!z || !Object.keys(z).length) return '';
+  const inZone = [1,2,3,4,5,6,7,8,9];
+  const vals = inZone.map(n => z[n]?.avg).filter(v => v != null);
+  if(!vals.length) return '';
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const shade = v => {
+    if(v == null) return 'rgba(255,255,255,.04)';
+    const t = hi === lo ? .5 : (v - lo) / (hi - lo);
+    // cool (weak) → hot (strong)
+    return t > .66 ? `rgba(224,18,46,${.35 + t*.5})`
+         : t > .33 ? `rgba(244,196,48,${.25 + t*.4})`
+                   : `rgba(78,161,247,${.18 + (1-t)*.22})`;
+  };
+  const cell = n => {
+    const d = z[n] || {};
+    return `<div class="zone-cell" style="background:${shade(d.avg)}" title="Zone ${n}: ${d.hits||0}-for-${d.abs||0}${d.ev?', '+d.ev+' mph':''}">
+      <span class="zone-avg">${d.avg != null ? d.avg.toFixed(3).replace(/^0/,'') : '–'}</span>
+      <span class="zone-sub">${d.ev ? d.ev : ''}</span>
+    </div>`;
+  };
+  const chase = [11,12,13,14].map(n => z[n]).filter(Boolean);
+  const chaseAvg = chase.length
+    ? (chase.reduce((t,d)=>t+(d.hits||0),0) / Math.max(1, chase.reduce((t,d)=>t+(d.abs||0),0)))
+    : null;
+
+  return `<div class="zone-wrap">
+    <div class="zone-grid-outer">
+      <div class="zone-grid">${inZone.map(cell).join('')}</div>
+      <div class="zone-label-top">↑ up in the zone</div>
+      <div class="zone-label-bottom">↓ down in the zone</div>
+    </div>
+    <div class="zone-side">
+      <div class="zone-legend">
+        <span><i style="background:rgba(224,18,46,.7)"></i>Hot</span>
+        <span><i style="background:rgba(244,196,48,.6)"></i>Average</span>
+        <span><i style="background:rgba(78,161,247,.4)"></i>Cold</span>
+      </div>
+      <div class="zone-stat"><b>${chaseAvg != null ? chaseAvg.toFixed(3).replace(/^0/,'') : '—'}</b><span>outside the zone</span></div>
+      <div class="zone-note">Batting average by location, catcher's view. Big number is AVG, small is exit velo.</div>
+    </div>
+  </div>`;
+}
+
+/** EV vs launch-angle scatter, split by the handedness of the pitcher faced. */
+function battedBallScatterHTML(detail, opposingHand){
+  const pts = detail?.battedBalls?.filter(b => b.ev != null && b.la != null) || [];
+  if(pts.length < 5) return '';
+  const W = 300, H = 190, PAD = 26;
+  const x = ev => PAD + ((Math.min(Math.max(ev,60),120) - 60) / 60) * (W - PAD*2);
+  const y = la => H - PAD - ((Math.min(Math.max(la,-40),60) + 40) / 100) * (H - PAD*2);
+
+  // The "barrel" band — the EV/LA combination that produces extra-base damage.
+  const barrel = `<path d="M ${x(98)},${y(26)} L ${x(120)},${y(50)} L ${x(120)},${y(8)} L ${x(98)},${y(24)} Z"
+     fill="rgba(224,18,46,.14)" stroke="rgba(224,18,46,.4)" stroke-width="1"/>`;
+
+  const dots = pts.map(b=>{
+    const matches = opposingHand && b.hand === opposingHand;
+    const isHR = b.result === 'home_run';
+    return `<circle cx="${x(b.ev).toFixed(1)}" cy="${y(b.la).toFixed(1)}"
+      r="${isHR ? 4.5 : matches ? 3.4 : 2.4}"
+      fill="${isHR ? 'var(--foul)' : matches ? 'rgba(224,18,46,.75)' : 'rgba(154,132,132,.45)'}"
+      stroke="${isHR ? '#fff' : 'none'}" stroke-width="${isHR ? .8 : 0}">
+      <title>${b.ev} mph, ${b.la}° vs ${b.hand}HP${b.dist?` · ${b.dist} ft`:''}${b.result?` · ${b.result.replace(/_/g,' ')}`:''}</title></circle>`;
+  }).join('');
+
+  const vsHand = opposingHand ? pts.filter(b => b.hand === opposingHand) : [];
+  const avgEV = a => a.length ? (a.reduce((t,b)=>t+b.ev,0)/a.length).toFixed(1) : '—';
+
+  return `<div class="scatter-wrap">
+    <svg class="scatter" viewBox="0 0 ${W} ${H}">
+      <line x1="${PAD}" y1="${H-PAD}" x2="${W-PAD}" y2="${H-PAD}" stroke="var(--line)"/>
+      <line x1="${PAD}" y1="${PAD}" x2="${PAD}" y2="${H-PAD}" stroke="var(--line)"/>
+      <line x1="${PAD}" y1="${y(0)}" x2="${W-PAD}" y2="${y(0)}" stroke="var(--line)" stroke-dasharray="3 3" opacity=".6"/>
+      ${barrel}
+      ${dots}
+      <text x="${W/2}" y="${H-6}" text-anchor="middle" font-size="8.5" fill="var(--mute)" font-family="monospace">EXIT VELOCITY (mph)</text>
+      <text x="9" y="${H/2}" text-anchor="middle" font-size="8.5" fill="var(--mute)" font-family="monospace" transform="rotate(-90 9 ${H/2})">LAUNCH ANGLE</text>
+      <text x="${PAD}" y="${H-PAD+11}" font-size="7.5" fill="var(--mute)" font-family="monospace">60</text>
+      <text x="${W-PAD}" y="${H-PAD+11}" text-anchor="end" font-size="7.5" fill="var(--mute)" font-family="monospace">120</text>
+    </svg>
+    <div class="scatter-legend">
+      <span><i style="background:var(--foul)"></i>Home run</span>
+      ${opposingHand?`<span><i style="background:rgba(224,18,46,.75)"></i>vs ${opposingHand}HP (${vsHand.length})</span>`:''}
+      <span><i style="background:rgba(154,132,132,.45)"></i>Other</span>
+      <span class="scatter-shade">shaded = barrel zone</span>
+    </div>
+    ${opposingHand?`<div class="zone-note">Avg exit velo vs ${opposingHand}HP: <b style="color:var(--white)">${avgEV(vsHand)} mph</b> · overall ${avgEV(pts)} mph</div>`:''}
+  </div>`;
+}
+
+/** Season platoon splits, hitter and pitcher side by side. */
+function platoonSplitHTML(p, pitcher){
+  const hs = p.splits, ps = pitcher?.splits;
+  if(!hs && !ps) return '';
+  const hand = (pitcher?.throws || '').toUpperCase();
+  const relevant = hand === 'L' ? 'vsLHP' : hand === 'R' ? 'vsRHP' : null;
+  const row = (label, d, hi) => d ? `
+    <div class="split-row ${hi?'is-relevant':''}">
+      <span class="split-label">${label}${hi?' <b>← tonight</b>':''}</span>
+      <span class="split-stat">${d.avg != null ? d.avg.toFixed(3).replace(/^0/,'') : '—'}</span>
+      <span class="split-stat">${d.slg != null ? d.slg.toFixed(3).replace(/^0/,'') : '—'}</span>
+      <span class="split-stat">${d.ops != null ? d.ops.toFixed(3).replace(/^0/,'') : '—'}</span>
+      <span class="split-stat">${d.hr ?? '—'}</span>
+      <span class="split-stat">${d.pa ?? '—'}</span>
+    </div>` : '';
+  if(!hs) return '';
+  return `<div class="split-table">
+    <div class="split-row split-head"><span class="split-label">Hitter splits</span><span>AVG</span><span>SLG</span><span>OPS</span><span>HR</span><span>PA</span></div>
+    ${row('vs LHP', hs.vsLHP, relevant === 'vsLHP')}
+    ${row('vs RHP', hs.vsRHP, relevant === 'vsRHP')}
+  </div>`;
+}
+
 function openBatterModal(p){
   const dqLabel = p.dataQuality==='sourced' ? 'Sourced (Statcast page)' : 'Modeled (tier/role estimate)';
   const dqClass = p.dataQuality==='sourced' ? 'sourced' : 'modeled';
@@ -2672,6 +2943,7 @@ function openBatterModal(p){
       <div class="tab active" data-tab="overview">Overview</div>
       <div class="tab" data-tab="last10">Last 10 Games</div>
       <div class="tab" data-tab="statcast">Statcast Profile</div>
+      <div class="tab" data-tab="arsenal">Arsenal &amp; Zone</div>
       <div class="tab" data-tab="matchup">Matchup</div>
       <div class="tab" data-tab="breakdown">Index Breakdown</div>
     </div>
@@ -2732,6 +3004,34 @@ function openBatterModal(p){
         Percentiles are relative to the ${allBatters.filter(isPlayable).length} hitters on tonight's slate — not the whole league — so they answer "who's the best option available right now".
         ${p.statcast._derived ? '<br><span style="color:var(--warm)">These Statcast values are estimated from season rate stats; the enrichment step hasn\'t run for this player.</span>' : ''}
       </div>
+    </div>
+    <div class="tab-content" data-panel="arsenal">
+      ${(() => {
+        const sp = p.oppPitcher;
+        const hasArsenal = sp?.arsenal?.length;
+        const hasDetail  = p.detail && (Object.keys(p.detail.pitchTypes||{}).length || Object.keys(p.detail.zones||{}).length);
+        if(!hasArsenal && !hasDetail && !p.splits){
+          return `<div class="narrative">
+            Pitch-level data isn't in this slate yet. Run <code style="color:var(--foul)">build-slate.js</code> for arsenal and platoon splits,
+            then <code style="color:var(--foul)">enrich-statcast.py</code> for zone maps, pitch-type performance, and batted-ball charts.
+          </div>`;
+        }
+        return `
+        ${hasArsenal ? `<div class="section-mini">${sp.name} · arsenal${sp.throws&&sp.throws!=='?'?` (${sp.throws}HP)`:''}</div>
+          ${arsenalDonutHTML(sp.arsenal, sp.name)}` : ''}
+
+        ${p.splits ? `<div class="section-mini">Platoon splits</div>${platoonSplitHTML(p, sp)}` : ''}
+
+        ${p.detail?.pitchTypes ? `<div class="section-mini">${p.name.split(' ').slice(-1)[0]} vs pitch type · last ${p.detail.windowDays||45} days</div>
+          ${pitchMatchupHTML(p.detail, sp.arsenal)}` : ''}
+
+        ${p.detail?.zones ? `<div class="section-mini">Strike zone · where he does damage</div>
+          ${strikeZoneHTML(p.detail)}` : ''}
+
+        ${p.detail?.battedBalls ? `<div class="section-mini">Recent contact · exit velo vs launch angle</div>
+          ${battedBallScatterHTML(p.detail, sp.throws)}` : ''}
+        `;
+      })()}
     </div>
     <div class="tab-content" data-panel="matchup">
       <div class="matchup-block"><h5>Tonight's Starter</h5><p>${p.oppPitcher.name} (throws ${p.oppPitcher.throws})</p>
