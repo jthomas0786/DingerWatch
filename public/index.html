@@ -194,23 +194,21 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 .prop-menu-backdrop{ display:none; position:fixed; inset:0; background:rgba(5,7,12,.6); z-index:999; }
 .prop-menu-backdrop.open{ display:block; }
 
-/* On phones a small floating popover is easy to miss and awkward to tap, so the
-   menu becomes a full-width bottom sheet instead. */
-@media (max-width:600px){
-  .prop-menu{
-    top:auto !important; left:0 !important; right:0;
-    bottom:0; width:100%; min-width:0;
-    border-radius:16px 16px 0 0; padding:8px 8px calc(8px + env(safe-area-inset-bottom));
-    max-height:60vh; box-shadow:0 -10px 30px rgba(0,0,0,.6);
-    animation:sheetUp .18s ease-out;
-  }
-  @keyframes sheetUp{ from{ transform:translateY(100%);} to{ transform:translateY(0);} }
-  .prop-menu::before{
-    content:''; display:block; width:38px; height:4px; border-radius:2px;
-    background:var(--line); margin:2px auto 10px;
-  }
-  .prop-menu-item{ padding:13px 14px; font-size:15px; }
+/* Mobile: an in-flow expanding panel, not an overlay. Nothing is positioned,
+   so no ancestor's overflow, stacking context, or transform can hide it. */
+.prop-menu-inline{ display:none; }
+.prop-menu-inline.open{
+  display:grid; grid-template-columns:1fr 1fr; gap:8px;
+  background:var(--panel); border:1px solid var(--foul); border-radius:12px;
+  padding:10px; margin-top:10px;
 }
+.prop-menu-inline .prop-menu-item{
+  background:var(--night2); border:1px solid var(--line); border-radius:8px;
+  padding:13px 10px; font-size:14px; text-align:center; color:var(--white);
+}
+.prop-menu-inline .prop-menu-item.active{ background:var(--foul); color:var(--night); border-color:var(--foul); font-weight:700; }
+@media (min-width:601px){ .prop-menu-inline{ display:none !important; } }
+@media (max-width:600px){ .prop-menu{ display:none !important; } }
 .prop-menu-item{ display:block; width:100%; text-align:left; background:none; border:none; color:var(--mute); font-family:'Oswald',sans-serif; font-size:13px; padding:8px 12px; border-radius:6px; cursor:pointer; white-space:nowrap; }
 .prop-menu-item:hover{ background:var(--night2); color:var(--white); }
 .prop-menu-item.active{ background:var(--foul); color:var(--night); font-weight:700; }
@@ -376,6 +374,10 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 
 <main>
   <div class="prop-tabs" id="propTabs"></div>
+  <!-- Lives OUTSIDE #propTabs on purpose: that bar uses overflow-x:auto, which
+       clips its children. On mobile the props menu renders here as a normal
+       in-flow block, so there is no positioning to get clipped or mispainted. -->
+  <div id="propMenuInline"></div>
   <div class="section-head">
     <h2 id="sectionTitle">Top 20 · Home Run</h2>
     <p id="sectionSub">Ranked by Home Run Index — Statcast profile, park, weather, and matchup combined.</p>
@@ -1195,10 +1197,32 @@ function renderTabs(){
     btn.addEventListener('click', e=>{ e.stopPropagation(); selectTab(btn.dataset.tab); });
   });
 
+  renderInlinePropMenu();
+
   const menuBtn = document.getElementById('propMenuBtn');
   if(menuBtn) menuBtn.addEventListener('click', e=>{
     e.stopPropagation();
     propMenuOpen ? closePropMenu() : openPropMenu(menuBtn);
+  });
+}
+
+/** Mobile menu: plain in-flow markup, re-rendered whenever the tabs change. */
+function renderInlinePropMenu(){
+  const host = document.getElementById('propMenuInline');
+  if(!host) return;
+  host.className = 'prop-menu-inline' + (propMenuOpen ? ' open' : '');
+  host.innerHTML = propMenuOpen
+    ? PROP_MENU.map(p=>`<button class="prop-menu-item ${p.id===activeTab?'active':''}" data-tab="${p.id}">${p.label}</button>`).join('')
+    : '';
+  host.querySelectorAll('.prop-menu-item').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      e.stopPropagation();
+      activeTab = btn.dataset.tab;
+      closePropMenu();
+      renderTabs();
+      renderList();
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
   });
 }
 
@@ -1210,6 +1234,14 @@ function renderTabs(){
  */
 function openPropMenu(btn){
   const menu = document.getElementById('propMenu');
+  const isMobile = window.innerWidth <= 600;
+
+  // Mobile uses the in-flow panel only — no overlay, no reparenting.
+  if(isMobile){
+    propMenuOpen = true;
+    renderInlinePropMenu();
+    return;
+  }
   if(!menu) return;
 
   if(menu.parentElement !== document.body) document.body.appendChild(menu);
@@ -1226,6 +1258,7 @@ function openPropMenu(btn){
   propMenuOpen = true;
   menu.classList.add('open');
   backdrop.classList.add('open');
+  renderInlinePropMenu();
 
   // Phones use the CSS bottom sheet; only the desktop popover needs coordinates.
   if(window.innerWidth > 600) positionPropMenu(btn, menu);
@@ -1237,6 +1270,7 @@ function closePropMenu(){
   const menu = document.getElementById('propMenu');
   if(menu) menu.classList.remove('open');
   if(propMenuBackdrop) propMenuBackdrop.classList.remove('open');
+  renderInlinePropMenu();
 }
 
 /** Anchor the desktop popover under its button, kept inside the viewport. */
@@ -1270,7 +1304,13 @@ function positionPropMenu(btn, menu){
 );
 
 // Close the props menu when clicking anywhere else.
-document.addEventListener('click', ()=>{ if(propMenuOpen) closePropMenu(); });
+document.addEventListener('click', (e)=>{
+  if(!propMenuOpen) return;
+  // Don't close when the tap landed inside the inline panel or on the trigger.
+  const inline = document.getElementById('propMenuInline');
+  if(inline && typeof inline.contains === 'function' && inline.contains(e.target)) return;
+  closePropMenu();
+});
 document.addEventListener('keydown', e=>{ if(e.key==='Escape' && propMenuOpen) closePropMenu(); });
 // ---- Player headshots (real MLB.com CDN, keyed off the live player-ID map) ----
 const AVATAR_PLACEHOLDER = "data:image/svg+xml;utf8," + encodeURIComponent(`
