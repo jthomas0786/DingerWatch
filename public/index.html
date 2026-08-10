@@ -11,6 +11,10 @@
   --night:#0a0808; --night2:#151010; --panel:#1c1414; --line:#3a2424;
   --grass:#7a1220; --grass-bright:#3ecf6e; --foul:#e0122e;
   --white:#f5f0f0; --mute:#9a8484; --hot:#ff2d4d; --warm:#ff5533; --cool:#b8a8a8;
+  /* MLB headshots are framed head-and-shoulders, so a centred cover-crop in a
+     circle clips the top of the head. Anchoring above centre keeps the face
+     properly framed. One value, shared by every headshot size. */
+  --headshot-crop: 50% 16%;
 }
 *{box-sizing:border-box; margin:0; padding:0;}
 body{
@@ -62,10 +66,15 @@ main{ max-width:760px; margin: 8px auto 0; padding: 0 20px; }
 .pick-rank{ font-family:'Archivo Black',sans-serif; font-size:26px; color: var(--foul); width:28px; flex-shrink:0; text-align:center; padding-top:6px; }
 .pick-rank.r2{ color: var(--grass-bright); } .pick-rank.r3{ color: var(--cool); } .pick-rank.r4, .pick-rank.r5{ color: var(--mute); }
 .pick-headshot{
-  width:58px; height:58px; border-radius:50%; flex-shrink:0; object-fit:contain; object-position:center;
-  background: var(--night2); border:2px solid var(--line); padding:3px;
+  width:58px; height:58px; border-radius:50%; flex-shrink:0;
+  object-fit:cover; object-position:var(--headshot-crop);
+  background: var(--night2); border:2px solid var(--line);
 }
-.pick-headshot.placeholder{ padding:8px; object-fit:contain; opacity:0.5; }
+/* The fallback silhouette is a square SVG, so it wants contain + centring
+   rather than the photo crop. */
+.pick-headshot.placeholder,
+.feed-headshot.placeholder,
+.modal-headshot.placeholder{ object-fit:contain; object-position:center; padding:6px; opacity:0.55; }
 .pick-body{ flex:1; min-width:0; }
 .pick-name-row{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
 .pick-name{ font-family:'Oswald',sans-serif; font-weight:600; font-size:17px; }
@@ -105,7 +114,7 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
   width:88px; height:88px; border-radius:50%; flex-shrink:0;
   /* cover fills the circle; the crop is anchored high so the head stays in
      frame rather than being centred on the chest. */
-  object-fit:cover; object-position:50% 18%;
+  object-fit:cover; object-position:var(--headshot-crop);
   background: var(--night2); border:3px solid var(--line);
 }
 .modal-head-text{ flex:1; min-width:0; }
@@ -224,7 +233,7 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 .feed-item.is-new{ border-color:var(--foul); animation:feedPulse 2.2s ease-out; }
 @keyframes feedPulse{ 0%{ box-shadow:0 0 0 0 rgba(224,18,46,.55);} 100%{ box-shadow:0 0 0 14px rgba(224,18,46,0);} }
 .feed-icon{ flex-shrink:0; }
-.feed-headshot{ width:46px; height:46px; border-radius:50%; object-fit:contain; background:var(--night2); border:2px solid var(--line); padding:2px; }
+.feed-headshot{ width:46px; height:46px; border-radius:50%; object-fit:cover; object-position:var(--headshot-crop); background:var(--night2); border:2px solid var(--line); }
 .feed-body{ flex:1; min-width:0; }
 .feed-top{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
 .feed-name{ font-family:'Oswald',sans-serif; font-size:16px; font-weight:600; }
@@ -1471,7 +1480,7 @@ function renderAllPlayers(){
     return `
       <div class="pick-card" data-team="${p.team}" data-pname="${p.name}">
         <div class="pick-rank ${i===0?'':(i===1?'r2':(i===2?'r3':'r5'))}">${i+1}</div>
-        ${headshotImgTag(p.name)}
+        ${headshotImgTag(p.name, 'pick-headshot', p.team)}
         <div class="pick-body">
           <div class="pick-name-row"><span class="pick-name">${p.name}</span><span class="pick-team">${p.team} · ${p.pos||''}</span></div>
           <div class="pick-matchup">${g.awayName} @ ${g.homeName} · ${gameTime(g)}</div>
@@ -1607,6 +1616,9 @@ function renderList(){
     const isPitcher = activeTab==='k';
     const team = isPitcher ? '' : p.team;
     const g = p.game;
+    // Pitcher entries carry `opp` (who they face), so their own club is the
+    // other side of the matchup.
+    const ringTeam = isPitcher ? (p.opp === g.home ? g.away : g.home) : p.team;
     const matchupTxt = isPitcher ? `vs ${p.opp} · ${g.awayName} @ ${g.homeName} · ${gameTime(g)}` : `${g.awayName} @ ${g.homeName} · ${gameTime(g)}`;
     const score = scoreFor(activeTab, p);
     const scoreDisplay = isPercentTab(activeTab) ? `${score}%`
@@ -1617,7 +1629,7 @@ function renderList(){
     return `
       <div class="pick-card" data-tab="${activeTab}" data-idx="${i}">
         <div class="pick-rank ${rankClasses[i]}">${i+1}</div>
-        ${headshotImgTag(p.name)}
+        ${headshotImgTag(p.name, 'pick-headshot', ringTeam)}
         <div class="pick-body">
           <div class="pick-name-row"><span class="pick-name">${p.name}</span><span class="pick-team">${isPitcher ? '' : team+' · '+(p.pos||'')}</span></div>
           <div class="pick-matchup">${matchupTxt}</div>
@@ -2253,7 +2265,7 @@ function renderFeed(){
       `<div class="fw-stat"><div class="fw-stat-v">${v}${unit}</div><div class="fw-stat-l">${label}</div></div>`;
     return `
       <div class="feed-item ${ev.isNew?'is-new':''}" data-batter="${ev.batter}">
-        <div class="feed-icon">${headshotImgTag(ev.batter, 'feed-headshot')}</div>
+        <div class="feed-icon">${headshotImgTag(ev.batter, 'feed-headshot', ev.battingTeam)}</div>
         <div class="feed-body">
           <div class="feed-top">
             <span class="feed-name">${ev.batter}</span>
