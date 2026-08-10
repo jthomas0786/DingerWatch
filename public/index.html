@@ -102,8 +102,11 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 @keyframes modalIn{ from{opacity:0; transform:translateY(12px);} to{opacity:1; transform:translateY(0);} }
 .modal-head{ padding: 26px 28px 20px; background: linear-gradient(180deg, rgba(224,18,46,0.14), transparent); border-bottom:1px solid var(--line); position:relative; display:flex; gap:18px; align-items:flex-start; }
 .modal-headshot{
-  width:88px; height:88px; border-radius:50%; flex-shrink:0; object-fit:contain; object-position:center;
-  background: var(--night2); border:3px solid var(--line); padding:4px;
+  width:88px; height:88px; border-radius:50%; flex-shrink:0;
+  /* cover fills the circle; the crop is anchored high so the head stays in
+     frame rather than being centred on the chest. */
+  object-fit:cover; object-position:50% 18%;
+  background: var(--night2); border:3px solid var(--line);
 }
 .modal-head-text{ flex:1; min-width:0; }
 .modal-close{ position:absolute; top:18px; right:20px; background:none; border:none; color: var(--mute); font-size:22px; cursor:pointer; line-height:1; }
@@ -1324,13 +1327,16 @@ function headshotUrl(name){
   if(!id) return null;
   return `https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_180,q_auto:best/v1/people/${id}/headshot/67/current`;
 }
-function headshotImgTag(name, cls){
+function headshotImgTag(name, cls, teamAbbr){
   cls = cls || 'pick-headshot';
+  // Inline style beats the stylesheet's default border, so the ring can be
+  // per-player without needing 30 generated CSS classes.
+  const ring = teamAbbr ? ` style="border-color:${teamColor(teamAbbr)};"` : '';
   const url = headshotUrl(name);
   if(url){
-    return `<img class="${cls}" src="${url}" alt="${name}" onerror="this.onerror=null;this.src='${AVATAR_PLACEHOLDER}';this.classList.add('placeholder');">`;
+    return `<img class="${cls}" src="${url}"${ring} alt="${name}" onerror="this.onerror=null;this.src='${AVATAR_PLACEHOLDER}';this.classList.add('placeholder');">`;
   }
-  return `<img class="${cls} placeholder" src="${AVATAR_PLACEHOLDER}" alt="${name}">`;
+  return `<img class="${cls} placeholder" src="${AVATAR_PLACEHOLDER}"${ring} alt="${name}">`;
 }
 
 // ---- Small inline ballpark + wind icons (custom SVG — no external image dependency) ----
@@ -1917,6 +1923,18 @@ async function fetchLiveSchedule(){
 }
 
 // ---- Live scoreboard: real-time score/inning/count/batter/pitcher per game ----
+// Each club's primary identity colour, used to ring player headshots.
+const TEAM_COLORS = {
+  AZ:'#A71930',  ATL:'#CE1141', BAL:'#DF4601', BOS:'#BD3039', CHC:'#0E3386',
+  CWS:'#27251F', CIN:'#C6011F', CLE:'#00385D', COL:'#333366', DET:'#0C2340',
+  HOU:'#EB6E1F', KC:'#004687',  LAA:'#BA0021', LAD:'#005A9C', MIA:'#00A3E0',
+  MIL:'#12284B', MIN:'#002B5C', NYM:'#FF5910', NYY:'#0C2340', ATH:'#003831',
+  PHI:'#E81828', PIT:'#FDB827', SD:'#2F241D',  SF:'#FD5A1E',  SEA:'#0C2C56',
+  STL:'#C41E3A', TB:'#092C5C',  TEX:'#003278', TOR:'#134A8E', WSH:'#AB0003',
+};
+/** Falls back to the app accent for any club not in the map. */
+function teamColor(abbr){ return TEAM_COLORS[abbr] || 'var(--foul)'; }
+
 function teamLogoUrl(abbr){
   const id = TEAM_IDS[abbr];
   return id ? `https://www.mlbstatic.com/team-logos/${id}.svg` : null;
@@ -2481,7 +2499,7 @@ function openBatterModal(p){
   modalBody.innerHTML = `
     <div class="modal-head">
       <button class="modal-close" id="modalClose">&times;</button>
-      ${headshotImgTag(p.name, 'modal-headshot')}
+      ${headshotImgTag(p.name, 'modal-headshot', p.team)}
       <div class="modal-head-text">
       <div class="modal-name">${p.name} <span class="dq-badge ${dqClass}">${dqLabel}</span></div>
       <div class="modal-tag">${p.team} · ${p.pos||''} · Bats ${p.hand||'?'} · ${g.awayName} @ ${g.homeName} · ${gameTime(g)}</div>
@@ -2619,10 +2637,13 @@ function openGameModal(g){
 
 function openPitcherModal(p){
   const g = p.game;
+  // allPitchers stores the OPPONENT on `opp`, so a pitcher's own club is
+  // whichever side of this game he isn't facing.
+  const ownTeam = p.opp === g.home ? g.away : g.home;
   modalBody.innerHTML = `
     <div class="modal-head">
       <button class="modal-close" id="modalClose">&times;</button>
-      ${headshotImgTag(p.name, 'modal-headshot')}
+      ${headshotImgTag(p.name, 'modal-headshot', ownTeam)}
       <div class="modal-head-text">
       <div class="modal-name">${p.name} <span class="dq-badge modeled">Modeled</span></div>
       <div class="modal-tag">Throws ${p.throws} · vs ${p.opp} · ${g.awayName} @ ${g.homeName} · ${gameTime(g)}</div>
