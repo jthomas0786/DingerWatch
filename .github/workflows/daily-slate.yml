@@ -60,10 +60,28 @@ jobs:
 
       - name: Sanity check output
         run: |
-          # NB: package.json sets "type": "module", so require() is unavailable here.
+          # NB: public/package.json sets "type": "module", so require() is unavailable here.
           node --input-type=module -e "
             import { readFileSync } from 'node:fs';
-            const s = JSON.parse(readFileSync('./public/slate.json','utf8'));
+            const raw = readFileSync('./public/slate.json','utf8');
+            let s;
+            try {
+              s = JSON.parse(raw);
+            } catch (err) {
+              // Point at the offending text instead of just echoing a parse error.
+              // Bare NaN/Infinity from pandas is the usual culprit.
+              const m = raw.match(/:\s*(NaN|Infinity|-Infinity)/);
+              if (m) {
+                const at = raw.indexOf(m[0]);
+                console.error(`::error::slate.json contains bare ${m[1]}, which is not valid JSON.`);
+                console.error('Context: ' + raw.slice(Math.max(0,at-120), at+120).replace(/\n/g,' '));
+                console.error('Fix: enrich-statcast.py must sanitise pandas NaN before writing.');
+              } else {
+                console.error('::error::slate.json is not valid JSON: ' + err.message);
+                console.error('Context: ' + raw.slice(0, 300));
+              }
+              process.exit(1);
+            }
             if (!Array.isArray(s.games)) { console.error('malformed slate'); process.exit(1); }
             console.log(\`✓ \${s.games.length} games for \${s.date}, generated \${s.generatedAt}\`);
             const byStatus = s.games.reduce((a,g)=>((a[g.status]=(a[g.status]||0)+1),a),{});
