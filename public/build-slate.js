@@ -196,6 +196,52 @@ async function fetchPitchingStats(playerId) {
   };
 }
 
+/**
+ * Pitcher arsenal — pitch mix with per-pitch results. This lives in the MLB
+ * Stats API proper (no scraping), so it's reliable and needs no enrichment step.
+ */
+async function fetchPitchArsenal(playerId) {
+  const url = `${MLB}/people/${playerId}/stats?stats=pitchArsenal&group=pitching&season=${SEASON}&gameType=R`;
+  const data = await getJSON(url).catch(() => null);
+  const splits = data?.stats?.[0]?.splits ?? [];
+  const arsenal = splits.map(sp => ({
+    type: sp.stat?.type?.description ?? sp.stat?.type?.code ?? 'Unknown',
+    code: sp.stat?.type?.code ?? null,
+    count: num(sp.stat?.count),
+    usagePct: num(sp.stat?.percentage) != null ? +(num(sp.stat.percentage) * 100).toFixed(1) : null,
+    avgSpeed: num(sp.stat?.averageSpeed),
+    avgSpin: num(sp.stat?.averageSpin),
+  })).filter(a => a.count && a.count > 0);
+
+  const total = arsenal.reduce((t, a) => t + (a.count || 0), 0);
+  // Some seasons report raw counts without a percentage — derive it.
+  arsenal.forEach(a => { if (a.usagePct == null && total) a.usagePct = +((a.count / total) * 100).toFixed(1); });
+  return arsenal.sort((a, b) => (b.usagePct ?? 0) - (a.usagePct ?? 0));
+}
+
+/**
+ * Platoon splits — how a hitter actually performs against LHP vs RHP. The
+ * single most predictive matchup split there is, and available directly from
+ * the Stats API via sitCodes vl/vr.
+ */
+async function fetchPlatoonSplits(playerId, group = 'hitting') {
+  const url = `${MLB}/people/${playerId}/stats?stats=statSplits&sitCodes=vl,vr&group=${group}&season=${SEASON}&gameType=R`;
+  const data = await getJSON(url).catch(() => null);
+  const splits = data?.stats?.[0]?.splits ?? [];
+  const out = {};
+  for (const sp of splits) {
+    const code = sp.split?.code;          // 'vl' = vs LHP, 'vr' = vs RHP
+    if (!code) continue;
+    const st = sp.stat || {};
+    out[code === 'vl' ? 'vsLHP' : 'vsRHP'] = {
+      pa: num(st.plateAppearances), ab: num(st.atBats), h: num(st.hits),
+      hr: num(st.homeRuns), rbi: num(st.rbi), bb: num(st.baseOnBalls), so: num(st.strikeOuts),
+      avg: num(st.avg), obp: num(st.obp), slg: num(st.slg), ops: num(st.ops),
+    };
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 /** MLB reports IP as "142.1" meaning 142 and 1/3 innings — not 142.1 decimal. */
 function parseIP(ipStr) {
   if (!ipStr) return null;
@@ -320,6 +366,10 @@ async function build() {
   const forms = await mapLimit(qualified, CONCURRENCY, h => fetchLast10(h.id));
   qualified.forEach((h, i) => { h.recent = forms[i]?.__error ? null : forms[i]; });
 
+  console.log('  fetching hitter platoon splits (vs LHP / vs RHP)');
+  const hSplits = await mapLimit(qualified, CONCURRENCY, h => fetchPlatoonSplits(h.id, 'hitting'));
+  qualified.forEach((h, i) => { h.splits = hSplits[i]?.__error ? null : hSplits[i]; });
+
   const byTeam = {};
   for (const h of qualified) (byTeam[h.teamId] ||= []).push(h);
 
@@ -329,6 +379,14 @@ async function build() {
   console.log(`  ${pitcherIds.length} probable starters announced`);
   const pStats = await mapLimit(pitcherIds, CONCURRENCY, fetchPitchingStats);
   const pitcherMap = Object.fromEntries(pitcherIds.map((id, i) => [id, pStats[i]]));
+
+  console.log('  fetching pitch arsenals + pitcher platoon splits');
+  const [arsenals, pSplits] = await Promise.all([
+    mapLimit(pitcherIds, CONCURRENCY, fetchPitchArsenal),
+    mapLimit(pitcherIds, CONCURRENCY, id => fetchPlatoonSplits(id, 'pitching')),
+  ]);
+  const arsenalMap = Object.fromEntries(pitcherIds.map((id, i) => [id, arsenals[i]]));
+  const pSplitMap  = Object.fromEntries(pitcherIds.map((id, i) => [id, pSplits[i]]));
   const unannounced = schedule.filter(g => !g.away.probablePitcherId || !g.home.probablePitcherId).length;
   if (unannounced) warnings.push(`${unannounced} game(s) missing a probable starter — normal this far out`);
 
@@ -363,6 +421,8 @@ async function build() {
         throws: (s && !s.__error) ? (s.throws ?? null) : null,
         confirmed: true,
         stats: s && !s.__error ? s : null,
+        arsenal: (arsenalMap[id] && !arsenalMap[id].__error) ? arsenalMap[id] : null,
+        splits:  (pSplitMap[id]  && !pSplitMap[id].__error)  ? pSplitMap[id]  : null,
       };
     };
 
@@ -371,6 +431,7 @@ async function build() {
       .slice(0, 12)
       .map(h => ({
         id: h.id, name: h.name, pos: h.pos, bats: h.bats,
+        splits: h.splits ?? null,
         season: h.stats,
         last10: h.recent?.totals ?? null,
         gameLog: h.recent?.games ?? [],
