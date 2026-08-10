@@ -152,6 +152,42 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 .gamelog-table th{ text-align:left; font-family:'Space Mono',monospace; font-size:9.5px; color: var(--mute); text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line); }
 .gamelog-table td{ padding:7px 8px; border-bottom:1px solid var(--line); }
 .gamelog-table td.hr-cell{ color: var(--foul); font-weight:700; }
+.section-mini{ font-family:'Space Mono',monospace; font-size:10px; color:var(--mute); text-transform:uppercase; letter-spacing:.08em; margin:18px 0 9px; }
+.section-mini:first-child{ margin-top:0; }
+
+.props-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(102px,1fr)); gap:8px; }
+.prop-cell{ background:var(--night2); border:1px solid var(--line); border-radius:10px; padding:11px 10px; text-align:center; }
+.prop-cell.is-top{ border-color:var(--foul); background:rgba(224,18,46,.07); }
+.prop-cell-val{ font-family:'Archivo Black',sans-serif; font-size:19px; color:var(--white); line-height:1; }
+.prop-cell.is-top .prop-cell-val{ color:var(--foul); }
+.prop-cell-label{ font-family:'Oswald',sans-serif; font-size:11.5px; color:var(--white); margin-top:5px; }
+.prop-cell-rank{ font-family:'Space Mono',monospace; font-size:8.5px; color:var(--mute); margin-top:3px; }
+
+.edge-list{ display:flex; flex-direction:column; gap:6px; }
+.edge{ display:flex; align-items:center; gap:9px; background:var(--night2); border:1px solid var(--line); border-left-width:3px; border-radius:8px; padding:9px 12px; font-size:12.5px; }
+.edge.good{ border-left-color:var(--grass-bright); }
+.edge.bad{ border-left-color:var(--hot); }
+.edge.neutral{ border-left-color:var(--mute); }
+.edge-dot{ width:6px; height:6px; border-radius:50%; background:currentColor; flex-shrink:0; opacity:.5; }
+.edge.good .edge-dot{ background:var(--grass-bright); opacity:1; }
+.edge.bad .edge-dot{ background:var(--hot); opacity:1; }
+.edge.neutral .edge-dot{ background:var(--mute); opacity:1; }
+
+.pctl-table{ display:flex; flex-direction:column; gap:7px; }
+.pctl-row{ display:flex; align-items:center; gap:10px; }
+.pctl-label{ flex:0 0 88px; font-size:11.5px; color:var(--white); }
+.pctl-bar{ flex:1; height:8px; background:var(--line); border-radius:4px; overflow:hidden; }
+.pctl-bar-fill{ height:100%; border-radius:4px; transition:width .3s ease; }
+.pctl-val{ flex:0 0 62px; text-align:right; font-family:'Space Mono',monospace; font-size:11.5px; color:var(--white); }
+.pctl-rank{ flex:0 0 34px; text-align:right; font-family:'Space Mono',monospace; font-size:10px; color:var(--mute); }
+
+.bar-chart .bfill.blank{ background:var(--line); }
+
+@media (max-width:520px){
+  .pctl-label{ flex-basis:70px; font-size:10.5px; }
+  .pctl-val{ flex-basis:52px; font-size:10.5px; }
+  .prop-cell-val{ font-size:17px; }
+}
 .stat-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(130px,1fr)); gap:12px; margin-bottom: 16px;}
 .stat-box{ background: var(--night2); border:1px solid var(--line); border-radius:10px; padding:13px 15px; }
 .stat-box .sv{ font-family:'Oswald',sans-serif; font-size:20px; font-weight:600; }
@@ -562,7 +598,7 @@ function adaptHitter(h, teamAbbr, game, side) {
     name: h.name,
     team: teamAbbr,
     pos: h.pos,
-    hand: h.hand || '?',
+    hand: h.bats || h.hand || '?',   // batSide from the builder
     hr, pa: s.pa ?? 0, ab,
     avg: s.avg ?? 0.250,
     slg: s.slg ?? null,      // needed for projected total bases (SLG = TB/AB)
@@ -2439,18 +2475,19 @@ function pctl(val, max){ return Math.min(100, Math.round((val/max)*100)); }
 function closeModal(){ overlay.classList.remove('open'); }
 overlay.addEventListener('click', (e)=>{ if(e.target===overlay) closeModal(); });
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeModal(); });
-function wireTabs(playerName){
+function wireTabs(playerName, player){
+  wireTabs._player = player;
   modalBody.querySelectorAll('.tab').forEach(t=>{
     t.addEventListener('click', ()=>{
       modalBody.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
       modalBody.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));
       t.classList.add('active');
       modalBody.querySelector(`.tab-content[data-panel="${t.dataset.tab}"]`).classList.add('active');
-      if(t.dataset.tab==='last10' && playerName) loadLast10(playerName);
+      if(t.dataset.tab==='last10' && playerName) loadLast10(playerName, wireTabs._player);
     });
   });
 }
-async function loadLast10(name){
+async function loadLast10(name, p){
   const container = document.getElementById('last10Container');
   if(!container || container.dataset.loaded==='1') return;
   try{
@@ -2460,34 +2497,58 @@ async function loadLast10(name){
       container.dataset.loaded = '1';
       return;
     }
-    const maxAB = Math.max(...games.map(g=>g.ab), 1);
-    const bars = games.map(g => `
-      <div class="bcol">
-        <div style="font-size:9px;color:var(--foul);min-height:11px;">${g.hr>0?('🔥'.repeat(Math.min(g.hr,2))):''}</div>
-        <div class="bfill ${g.hr>0?'hr':''}" style="height:${Math.max(6,(g.h/maxAB)*100)}%;" title="${g.h}-for-${g.ab}, ${g.hr} HR"></div>
-        <div class="blabel">${g.opp||''}</div>
-      </div>`).join('');
     const totalHR = games.reduce((s,g)=>s+g.hr,0);
     const totalH = games.reduce((s,g)=>s+g.h,0);
     const totalAB = games.reduce((s,g)=>s+g.ab,0);
+    const totalRBI = games.reduce((s,g)=>s+(g.rbi||0),0);
+    const ins = gameLogInsights(games);
+
+    // Bars are scaled to total bases so a HR game visibly towers over a single.
+    const tbOf = g => (g.h||0) + (g.hr||0)*3;   // rough: HR counts 4 TB
+    const maxTB = Math.max(...games.map(tbOf), 1);
+    const bars = games.map(g => {
+      const tb = tbOf(g);
+      const cls = g.hr>0 ? 'hr' : (g.h>0 ? '' : 'blank');
+      return `<div class="bcol" title="${g.date} vs ${g.opp}: ${g.h}-for-${g.ab}, ${g.hr} HR, ${g.rbi||0} RBI">
+        <div style="font-size:9px;color:var(--foul);min-height:11px;">${g.hr>0?'●'.repeat(Math.min(g.hr,3)):''}</div>
+        <div class="bfill ${cls}" style="height:${Math.max(4,(tb/maxTB)*100)}%;"></div>
+        <div class="blabel">${g.opp||''}</div>
+      </div>`;
+    }).join('');
+
     container.innerHTML = `
-      <div class="live-note">● Live from MLB Stats API — real game-by-game hitting log, most recent ${games.length} games</div>
+      <div class="live-note">● Live from MLB Stats API — most recent ${games.length} games</div>
+
+      <div class="section-mini">Consistency · how often he delivers</div>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="sv">${ins?ins.hitRate:'—'}%</div><div class="sl">Games with a hit</div><div class="sc">floor for hit props</div></div>
+        <div class="stat-box"><div class="sv">${ins?ins.multiHitRate:'—'}%</div><div class="sl">Multi-hit games</div><div class="sc">ceiling indicator</div></div>
+        <div class="stat-box"><div class="sv">${ins?ins.rbiRate:'—'}%</div><div class="sl">Games with an RBI</div></div>
+        <div class="stat-box"><div class="sv">${ins?ins.hrRate:'—'}%</div><div class="sl">Games with a HR</div></div>
+      </div>
+
       <div class="chart-wrap">
-        <div class="chart-title">Hits per game (bar height) · HR games marked</div>
+        <div class="chart-title">Total bases per game · dots mark home runs</div>
         <div class="bar-chart">${bars}</div>
         <div class="chart-legend">
           <span><span class="legend-dot" style="background:var(--cool);"></span>Hit game</span>
           <span><span class="legend-dot" style="background:var(--foul);"></span>HR game</span>
+          <span><span class="legend-dot" style="background:var(--line);"></span>Hitless</span>
         </div>
       </div>
+
+      <div class="section-mini">Totals over this span</div>
       <div class="stat-grid">
-        <div class="stat-box"><div class="sv">${totalHR}</div><div class="sl">HR (L10)</div></div>
-        <div class="stat-box"><div class="sv">${totalH}</div><div class="sl">Hits (L10)</div></div>
-        <div class="stat-box"><div class="sv">${totalAB ? (totalH/totalAB).toFixed(3).replace(/^0/,'') : '—'}</div><div class="sl">Avg (L10)</div></div>
+        <div class="stat-box"><div class="sv">${totalHR}</div><div class="sl">HR</div></div>
+        <div class="stat-box"><div class="sv">${totalH}</div><div class="sl">Hits</div><div class="sc">${totalAB} AB</div></div>
+        <div class="stat-box"><div class="sv">${totalRBI}</div><div class="sl">RBI</div></div>
+        <div class="stat-box"><div class="sv">${totalAB ? (totalH/totalAB).toFixed(3).replace(/^0/,'') : '—'}</div><div class="sl">AVG</div>
+          <div class="sc">${p ? 'season .'+Math.round(p.avg*1000) : ''}</div></div>
       </div>
+
       <table class="gamelog-table">
         <thead><tr><th>Date</th><th>Opp</th><th>AB</th><th>H</th><th>HR</th><th>RBI</th></tr></thead>
-        <tbody>${games.slice().reverse().map(g=>`<tr><td>${g.date}</td><td>${g.opp}</td><td>${g.ab}</td><td>${g.h}</td><td class="${g.hr>0?'hr-cell':''}">${g.hr}</td><td>${g.rbi}</td></tr>`).join('')}</tbody>
+        <tbody>${games.slice().reverse().map(g=>`<tr><td>${g.date}</td><td>${g.opp}</td><td>${g.ab}</td><td>${g.h}</td><td class="${g.hr>0?'hr-cell':''}">${g.hr}</td><td>${g.rbi ?? '—'}</td></tr>`).join('')}</tbody>
       </table>
     `;
     container.dataset.loaded = '1';
@@ -2504,6 +2565,91 @@ async function loadLast10(name){
     }
   }
 }
+// ============================================================================
+//  Player modal analytics — context that actually informs a prop decision
+// ============================================================================
+
+/** Where a value sits among tonight's hitters (0-100). Rank beats a raw number:
+ *  "12% barrel" means little until you know it's 88th percentile on this slate. */
+function slatePercentile(value, accessor){
+  if(value == null) return null;
+  const pool = allBatters.filter(isPlayable).map(accessor).filter(v=>v!=null && !Number.isNaN(v));
+  if(pool.length < 5) return null;
+  const below = pool.filter(v => v < value).length;
+  return Math.round((below / pool.length) * 100);
+}
+
+/** Rank within tonight's slate for a projection (1 = best). */
+function slateRank(p, key){
+  const pool = allBatters.filter(isPlayable).filter(x=>x[key]!=null).sort((a,b)=>b[key]-a[key]);
+  const i = pool.findIndex(x => x === p);
+  return i >= 0 ? { rank: i+1, of: pool.length } : null;
+}
+
+/** Platoon edge — the single biggest matchup swing in baseball. */
+function platoonEdge(p, pitcher){
+  const bat = (p.hand || '').toUpperCase();
+  const thr = (pitcher?.throws || '').toUpperCase();
+  if(!bat || !thr || bat === '?' || thr === '?') return null;
+  if(bat === 'S' || bat === 'B') return { label:'Switch hitter — always has the platoon edge', edge:'good' };
+  if(bat !== thr) return { label:`${bat}HB vs ${thr}HP — platoon advantage`, edge:'good' };
+  return { label:`${bat}HB vs ${thr}HP — same-side matchup`, edge:'bad' };
+}
+
+/** Consistency read from the live game log: floor vs ceiling matters for props. */
+function gameLogInsights(log){
+  if(!log || log.length < 3) return null;
+  const withAB = log.filter(x => (x.ab||0) > 0);
+  if(!withAB.length) return null;
+  const hitGames = withAB.filter(x => (x.h||0) > 0).length;
+  const multiHit = withAB.filter(x => (x.h||0) >= 2).length;
+  const hrGames  = withAB.filter(x => (x.hr||0) > 0).length;
+  const rbiGames = withAB.filter(x => (x.rbi||0) > 0).length;
+  const totAB = withAB.reduce((t,x)=>t+(x.ab||0),0);
+  const totH  = withAB.reduce((t,x)=>t+(x.h||0),0);
+  return {
+    games: withAB.length,
+    hitRate: Math.round(hitGames / withAB.length * 100),
+    multiHitRate: Math.round(multiHit / withAB.length * 100),
+    hrRate: Math.round(hrGames / withAB.length * 100),
+    rbiRate: Math.round(rbiGames / withAB.length * 100),
+    avg: totAB ? (totH/totAB) : null,
+  };
+}
+
+/** A horizontal percentile bar with the raw value alongside. */
+function pctlBarHTML(label, value, pctl, suffix=''){
+  const pct = pctl == null ? 0 : pctl;
+  const color = pct >= 75 ? 'var(--grass-bright)' : pct >= 45 ? '#f4c430' : 'var(--hot)';
+  return `<div class="pctl-row">
+    <div class="pctl-label">${label}</div>
+    <div class="pctl-bar"><div class="pctl-bar-fill" style="width:${pct}%;background:${color};"></div></div>
+    <div class="pctl-val">${value ?? '—'}${suffix}</div>
+    <div class="pctl-rank">${pctl != null ? pctl + 'th' : '—'}</div>
+  </div>`;
+}
+
+/** All six props at a glance, each with its slate rank. */
+function propsGridHTML(p){
+  const rows = [
+    { label:'Home Run',    val:`${p.hrIndex}%`,            key:'hrIndex',  hint:'index' },
+    { label:'Hits',        val:p.projHits?.toFixed(2),     key:'projHits', hint:`${p.hitProb}% for 1+` },
+    { label:'Total Bases', val:p.projTB?.toFixed(2),       key:'projTB',   hint:'projected' },
+    { label:'RBI',         val:p.projRBI?.toFixed(2),      key:'projRBI',  hint:'projected' },
+    { label:'H+R+RBI',     val:p.projHRR?.toFixed(2),      key:'projHRR',  hint:'projected' },
+    { label:'Stolen Base', val:p.projSB?.toFixed(2),       key:'projSB',   hint:'projected' },
+  ];
+  return `<div class="props-grid">` + rows.map(r=>{
+    const rk = slateRank(p, r.key);
+    const top = rk && rk.rank <= Math.max(5, rk.of * 0.1);
+    return `<div class="prop-cell ${top?'is-top':''}">
+      <div class="prop-cell-val">${r.val ?? '—'}</div>
+      <div class="prop-cell-label">${r.label}</div>
+      <div class="prop-cell-rank">${rk ? `#${rk.rank} of ${rk.of}` : ''} · ${r.hint}</div>
+    </div>`;
+  }).join('') + `</div>`;
+}
+
 function openBatterModal(p){
   const dqLabel = p.dataQuality==='sourced' ? 'Sourced (Statcast page)' : 'Modeled (tier/role estimate)';
   const dqClass = p.dataQuality==='sourced' ? 'sourced' : 'modeled';
@@ -2530,13 +2676,38 @@ function openBatterModal(p){
       <div class="tab" data-tab="breakdown">Index Breakdown</div>
     </div>
     <div class="tab-content active" data-panel="overview">
+      <div class="section-mini">All props tonight · rank among ${allBatters.filter(isPlayable).length} slate hitters</div>
+      ${propsGridHTML(p)}
+
+      <div class="section-mini">Season</div>
       <div class="stat-grid">
-        <div class="stat-box"><div class="sv">${p.hr}</div><div class="sl">2026 HR</div><div class="sc">${p.pace}</div></div>
-        <div class="stat-box"><div class="sv">.${Math.round(p.avg*1000)}</div><div class="sl">Avg</div><div class="sc">${p.hitProb}% hit prob tonight</div></div>
-        <div class="stat-box"><div class="sv">${p.recentForm.last15}</div><div class="sl">Last 15 Games</div></div>
-        <div class="stat-box"><div class="sv">${p.recentForm.last30}</div><div class="sl">Last 30 Games</div><div class="sc">Trend: ${p.recentForm.trend}</div></div>
+        <div class="stat-box"><div class="sv">${p.hr}</div><div class="sl">HR</div><div class="sc">${p.pace}</div></div>
+        <div class="stat-box"><div class="sv">.${Math.round(p.avg*1000)}</div><div class="sl">AVG</div><div class="sc">${p.h ?? '—'} H / ${p.ab} AB</div></div>
+        <div class="stat-box"><div class="sv">${p.slg!=null?p.slg.toFixed(3).replace(/^0/,''):'—'}</div><div class="sl">SLG</div><div class="sc">OPS ${p.ops!=null?p.ops.toFixed(3).replace(/^0/,''):'—'}</div></div>
+        <div class="stat-box"><div class="sv">${p.rbi}</div><div class="sl">RBI</div><div class="sc">${p.g?(p.rbi/p.g).toFixed(2):'—'}/game</div></div>
+        <div class="stat-box"><div class="sv">${p.r ?? '—'}</div><div class="sl">Runs</div><div class="sc">${p.g&&p.r!=null?(p.r/p.g).toFixed(2)+'/game':''}</div></div>
+        <div class="stat-box"><div class="sv">${p.sb}</div><div class="sl">SB</div><div class="sc">${p.g?(p.sb/p.g).toFixed(2):'—'}/game</div></div>
       </div>
-      <div class="narrative">${p.narrative}</div>
+
+      <div class="section-mini">Tonight's edges</div>
+      <div class="edge-list">
+        ${(()=>{ const pl = platoonEdge(p, p.oppPitcher);
+          return pl ? `<div class="edge ${pl.edge}"><span class="edge-dot"></span>${pl.label}</div>` : ''; })()}
+        <div class="edge ${p.game.parkFactor>=103?'good':p.game.parkFactor<=94?'bad':'neutral'}">
+          <span class="edge-dot"></span>${p.game.parkShort||p.game.park} · park HR factor ${p.game.parkFactor}
+        </div>
+        <div class="edge ${p.game.weatherEffect==='pos'?'good':p.game.weatherEffect==='neg'?'bad':'neutral'}">
+          <span class="edge-dot"></span>${p.game.weatherNote}
+        </div>
+        <div class="edge ${p.oppPitcher.hr9>1.25?'good':p.oppPitcher.hr9<0.85?'bad':'neutral'}">
+          <span class="edge-dot"></span>${p.oppPitcher.name} allows ${p.oppPitcher.hr9} HR/9${p.oppPitcher.k9?` · ${p.oppPitcher.k9} K/9`:''}
+        </div>
+        <div class="edge ${p.recentForm.trend==='up'?'good':p.recentForm.trend==='down'?'bad':'neutral'}">
+          <span class="edge-dot"></span>Recent form trending ${p.recentForm.trend}
+        </div>
+      </div>
+
+      <div class="narrative" style="margin-top:14px;">${p.narrative}</div>
     </div>
     <div class="tab-content" data-panel="last10">
       <div id="last10Container">
@@ -2544,17 +2715,23 @@ function openBatterModal(p){
       </div>
     </div>
     <div class="tab-content" data-panel="statcast">
-      <div class="stat-grid">
-        <div class="stat-box"><div class="sv">${p.statcast.barrel}%</div><div class="sl">Barrel Rate</div><div class="pctl-track"><div class="pctl-fill" style="width:${pctl(p.statcast.barrel,20)}%"></div></div></div>
-        <div class="stat-box"><div class="sv">${p.statcast.ev} mph</div><div class="sl">Avg Exit Velo</div><div class="pctl-track"><div class="pctl-fill" style="width:${pctl(p.statcast.ev,96)}%"></div></div></div>
-        <div class="stat-box"><div class="sv">${p.statcast.maxEv} mph</div><div class="sl">Max Exit Velo</div></div>
-        <div class="stat-box"><div class="sv">${p.statcast.hardHit}%</div><div class="sl">Hard-Hit Rate</div><div class="pctl-track"><div class="pctl-fill" style="width:${pctl(p.statcast.hardHit,55)}%"></div></div></div>
-        <div class="stat-box"><div class="sv">${p.statcast.xwoba}</div><div class="sl">xwOBA</div></div>
-        <div class="stat-box"><div class="sv">${p.statcast.xslg}</div><div class="sl">xSLG</div></div>
-        <div class="stat-box"><div class="sv">${p.statcast.sweetSpot}%</div><div class="sl">Sweet-Spot %</div></div>
-        <div class="stat-box"><div class="sv">${p.speed}/100</div><div class="sl">Speed Score</div></div>
+      <div class="section-mini">Contact quality · percentile vs tonight's slate</div>
+      <div class="pctl-table">
+        ${pctlBarHTML('Barrel %',     p.statcast.barrel,  slatePercentile(p.statcast.barrel,  x=>x.statcast.barrel), '%')}
+        ${pctlBarHTML('Exit Velo',    p.statcast.ev,      slatePercentile(p.statcast.ev,      x=>x.statcast.ev), ' mph')}
+        ${pctlBarHTML('Max EV',       p.statcast.maxEv,   slatePercentile(p.statcast.maxEv,   x=>x.statcast.maxEv), ' mph')}
+        ${pctlBarHTML('Hard-Hit %',   p.statcast.hardHit, slatePercentile(p.statcast.hardHit, x=>x.statcast.hardHit), '%')}
+        ${pctlBarHTML('xwOBA',        p.statcast.xwoba,   slatePercentile(p.statcast.xwoba,   x=>x.statcast.xwoba))}
+        ${pctlBarHTML('xSLG',         p.statcast.xslg,    slatePercentile(p.statcast.xslg,    x=>x.statcast.xslg))}
+        ${pctlBarHTML('Sweet-Spot %', p.statcast.sweetSpot, slatePercentile(p.statcast.sweetSpot, x=>x.statcast.sweetSpot), '%')}
+        ${pctlBarHTML('Launch Angle', p.statcast.launchAngle, slatePercentile(p.statcast.launchAngle, x=>x.statcast.launchAngle), '°')}
+        ${pctlBarHTML('Pull %',       p.statcast.pull,    slatePercentile(p.statcast.pull,    x=>x.statcast.pull), '%')}
+        ${pctlBarHTML('Speed',        p.speed,            slatePercentile(p.speed,            x=>x.speed))}
       </div>
-      <div class="narrative">Percentile bars are scaled against typical qualified-hitter ranges, not a live league-wide feed.</div>
+      <div class="narrative" style="margin-top:14px;">
+        Percentiles are relative to the ${allBatters.filter(isPlayable).length} hitters on tonight's slate — not the whole league — so they answer "who's the best option available right now".
+        ${p.statcast._derived ? '<br><span style="color:var(--warm)">These Statcast values are estimated from season rate stats; the enrichment step hasn\'t run for this player.</span>' : ''}
+      </div>
     </div>
     <div class="tab-content" data-panel="matchup">
       <div class="matchup-block"><h5>Tonight's Starter</h5><p>${p.oppPitcher.name} (throws ${p.oppPitcher.throws})</p>
@@ -2572,7 +2749,7 @@ function openBatterModal(p){
   `;
   overlay.classList.add('open');
   document.getElementById('modalClose').onclick = closeModal;
-  wireTabs(p.name);
+  wireTabs(p.name, p);
 }
 function openGameModal(g){
   // g.odds is null whenever no sportsbook feed is configured (the default), so
