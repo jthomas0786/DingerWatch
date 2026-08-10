@@ -189,11 +189,99 @@ def _validate(board):
             "Check the source leaderboard columns before publishing.")
 
 
+def fetch_batter_detail(player_ids, season, days=45):
+    """
+    Per-hitter Statcast detail that only exists in the raw pitch-level data:
+      * zone grid   — performance by strike-zone location (the heat map)
+      * pitch types — how he handles FF / SL / CH / CU etc.
+      * batted balls— recent EV/LA points, split by pitcher handedness
+
+    This is the expensive call (one raw pull per hitter), so it's limited to a
+    recent window and run only for hitters actually on tonight's slate.
+    """
+    from pybaseball import statcast_batter
+    from datetime import date, timedelta
+
+    end = date.today()
+    start = end - timedelta(days=days)
+    out = {}
+
+    for n, pid in enumerate(player_ids, 1):
+        if n % 25 == 0:
+            log(f"  batter detail {n}/{len(player_ids)}")
+        try:
+            df = statcast_batter(start.isoformat(), end.isoformat(), pid)
+        except Exception as e:
+            continue
+        if df is None or df.empty:
+            continue
+
+        bb = df[df["launch_speed"].notna()]
+
+        # --- zone grid: Statcast zones 1-9 are the strike zone, 11-14 are chase
+        zones = {}
+        for z, grp in df[df["zone"].notna()].groupby("zone"):
+            hits = grp["events"].isin(["single", "double", "triple", "home_run"]).sum()
+            abs_ = grp["events"].notna().sum()
+            zbb = grp[grp["launch_speed"].notna()]
+            zones[int(z)] = {
+                "pitches": int(len(grp)),
+                "swings": int(grp["description"].str.contains("swing|foul|hit_into_play", case=False, na=False).sum()),
+                "hits": int(hits),
+                "abs": int(abs_),
+                "avg": round(hits / abs_, 3) if abs_ >= 3 else None,
+                "ev": round(float(zbb["launch_speed"].mean()), 1) if len(zbb) >= 3 else None,
+                "hr": int((grp["events"] == "home_run").sum()),
+            }
+
+        # --- performance by pitch type
+        pitches = {}
+        for pt, grp in df[df["pitch_type"].notna()].groupby("pitch_type"):
+            pbb = grp[grp["launch_speed"].notna()]
+            abs_ = grp["events"].notna().sum()
+            hits = grp["events"].isin(["single", "double", "triple", "home_run"]).sum()
+            whiffs = grp["description"].isin(["swinging_strike", "swinging_strike_blocked"]).sum()
+            swings = grp["description"].str.contains("swing|foul|hit_into_play", case=False, na=False).sum()
+            pitches[str(pt)] = {
+                "seen": int(len(grp)),
+                "abs": int(abs_),
+                "avg": round(hits / abs_, 3) if abs_ >= 5 else None,
+                "ev": round(float(pbb["launch_speed"].mean()), 1) if len(pbb) >= 3 else None,
+                "la": round(float(pbb["launch_angle"].mean()), 1) if len(pbb) >= 3 else None,
+                "hr": int((grp["events"] == "home_run").sum()),
+                "whiffPct": round(100 * whiffs / swings, 1) if swings >= 5 else None,
+            }
+
+        # --- recent batted balls, tagged by the pitcher's handedness
+        points = []
+        for _, r in bb.tail(60).iterrows():
+            points.append({
+                "ev": round(float(r["launch_speed"]), 1),
+                "la": round(float(r["launch_angle"]), 1) if r["launch_angle"] == r["launch_angle"] else None,
+                "dist": int(r["hit_distance_sc"]) if r.get("hit_distance_sc") == r.get("hit_distance_sc") and r.get("hit_distance_sc") is not None else None,
+                "hand": r.get("p_throws"),
+                "result": r.get("events"),
+                "date": str(r.get("game_date"))[:10],
+            })
+
+        out[str(pid)] = {
+            "windowDays": days,
+            "zones": zones,
+            "pitchTypes": pitches,
+            "battedBalls": points,
+        }
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--slate", default="public/slate.json")
     ap.add_argument("--max-cache-age", type=int, default=2,
                     help="days before the cached leaderboard is considered stale")
+    ap.add_argument("--detail-days", type=int, default=45,
+                    help="lookback window for per-hitter zone/pitch-type data")
+    ap.add_argument("--skip-detail", action="store_true",
+                    help="skip the slow per-hitter pitch-level pull")
     args = ap.parse_args()
 
     with open(args.slate) as f:
@@ -221,6 +309,24 @@ def main():
             slate.setdefault("warnings", []).append(
                 "Statcast metrics served from a stale cache")
 
+    # ---- per-hitter detail (zone grid, pitch types, batted balls) ----
+    slate_ids = []
+    for game in slate["games"]:
+        for side in ("away", "home"):
+            for h in game[side].get("lineup", []):
+                slate_ids.append(h["id"])
+    slate_ids = list(dict.fromkeys(slate_ids))
+
+    detail = {}
+    if not args.skip_detail:
+        log(f"fetching pitch-level detail for {len(slate_ids)} hitters (this is the slow part)…")
+        try:
+            detail = fetch_batter_detail(slate_ids, season, days=args.detail_days)
+            log(f"detail retrieved for {len(detail)} hitters")
+        except Exception as e:
+            log(f"batter detail failed ({e}) — zone/pitch-type charts will be unavailable")
+            slate.setdefault("warnings", []).append("Statcast pitch-level detail unavailable")
+
     matched = missing = 0
     for game in slate["games"]:
         for side in ("away", "home"):
@@ -232,6 +338,9 @@ def main():
                 else:
                     hitter["statcast"] = None
                     missing += 1
+                d = detail.get(str(hitter["id"]))
+                if d:
+                    hitter["detail"] = d
 
     slate["sources"]["statcast"] = f"Baseball Savant via pybaseball ({season})"
     slate["statcastEnrichedAt"] = datetime.utcnow().isoformat() + "Z"
