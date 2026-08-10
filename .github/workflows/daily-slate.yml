@@ -8,9 +8,9 @@ name: Build daily MLB slate
 
 on:
   schedule:
-    # 10:00 UTC = 6am ET / 3am PT — after overnight games finish, before first pitch.
+    # 5:00 UTC = 1am ET / 12am CT — after overnight games finish, before first pitch.
     # Note: GitHub cron is UTC and does NOT shift with daylight saving.
-    - cron: '0 10 * * *'
+    - cron: '0 5 * * *'
   workflow_dispatch:      # lets you trigger a rebuild by hand from the Actions tab
     inputs:
       date:
