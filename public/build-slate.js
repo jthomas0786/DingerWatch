@@ -140,7 +140,7 @@ async function fetchSchedule(date) {
  */
 async function fetchTeamRoster(teamId) {
   const [active, full] = await Promise.all([
-    getJSON(`${MLB}/teams/${teamId}/roster?rosterType=active&season=${SEASON}`).catch(() => ({ roster: [] })),
+    getJSON(`${MLB}/teams/${teamId}/roster?rosterType=active&season=${SEASON}&hydrate=person`).catch(() => ({ roster: [] })),
     getJSON(`${MLB}/teams/${teamId}/roster?rosterType=40Man&season=${SEASON}`).catch(() => ({ roster: [] })),
   ]);
   const activeIds = new Set((active.roster || []).map(p => p.person.id));
@@ -150,6 +150,10 @@ async function fetchTeamRoster(teamId) {
       name: p.person.fullName,
       pos: p.position?.abbreviation ?? null,
       posType: p.position?.type ?? null,
+      // Handedness drives the platoon matchup, which is the largest single
+      // matchup factor in the game — worth carrying explicitly.
+      bats:   p.person?.batSide?.code ?? null,     // L / R / S
+      throws: p.person?.pitchHand?.code ?? null,   // L / R
     })),
     inactiveIds: (full.roster || [])
       .filter(p => !activeIds.has(p.person.id))
@@ -172,12 +176,16 @@ async function fetchHittingStats(playerId) {
 }
 
 async function fetchPitchingStats(playerId) {
-  const url = `${MLB}/people/${playerId}/stats?stats=season&group=pitching&season=${SEASON}&gameType=R`;
-  const data = await getJSON(url);
-  const s = data.stats?.[0]?.splits?.[0]?.stat;
-  if (!s) return null;
+  const [statsRes, person] = await Promise.all([
+    getJSON(`${MLB}/people/${playerId}/stats?stats=season&group=pitching&season=${SEASON}&gameType=R`),
+    getJSON(`${MLB}/people/${playerId}`).catch(() => null),
+  ]);
+  const throws = person?.people?.[0]?.pitchHand?.code ?? null;
+  const s = statsRes.stats?.[0]?.splits?.[0]?.stat;
+  if (!s) return throws ? { throws } : null;
   const ip = parseIP(s.inningsPitched);
   return {
+    throws,
     gs: num(s.gamesStarted), ip,
     era: num(s.era), whip: num(s.whip),
     k: num(s.strikeOuts), bb: num(s.baseOnBalls), hr: num(s.homeRuns),
@@ -352,6 +360,7 @@ async function build() {
       const s = pitcherMap[id];
       return {
         id, name: g[side].probablePitcherName,
+        throws: (s && !s.__error) ? (s.throws ?? null) : null,
         confirmed: true,
         stats: s && !s.__error ? s : null,
       };
@@ -361,7 +370,7 @@ async function build() {
       .sort((a, b) => (b.stats.ops ?? 0) - (a.stats.ops ?? 0))
       .slice(0, 12)
       .map(h => ({
-        id: h.id, name: h.name, pos: h.pos,
+        id: h.id, name: h.name, pos: h.pos, bats: h.bats,
         season: h.stats,
         last10: h.recent?.totals ?? null,
         gameLog: h.recent?.games ?? [],
