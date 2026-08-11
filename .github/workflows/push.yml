@@ -1,0 +1,65 @@
+# .github/workflows/push.yml
+#
+# Sends home run push notifications. Runs in Actions, so it works with every
+# browser and phone app closed — that's the whole point.
+#
+# SETUP
+#   1. node gen-vapid-keys.js
+#   2. Paste the PUBLIC key into index.html as VAPID_PUBLIC_KEY
+#   3. Add repo secrets: VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_SUBJECT
+#   4. Create public/push-subscriptions.json containing: []
+#   5. Open the app, enable Alerts, copy the subscription it shows into that file
+
+name: Push home run alerts
+
+on:
+  schedule:
+    # Every 5 minutes during game hours (UTC; does not shift for DST).
+    - cron: '*/5 17-23 * * *'
+    - cron: '*/5 0-5 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Detect home runs but send nothing'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  # Two overlapping runs would double-notify.
+  group: hr-push
+  cancel-in-progress: false
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Send pushes
+        env:
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_PUBLIC_KEY:  ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_SUBJECT:     ${{ secrets.VAPID_SUBJECT }}
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            node send-push.js --dry-run
+          else
+            node send-push.js
+          fi
+
+      - name: Commit state
+        run: |
+          git config user.name  'push-bot'
+          git config user.email 'actions@github.com'
+          git add public/latest-hr.json public/pushed-hrs.json public/push-subscriptions.json 2>/dev/null || true
+          git diff --staged --quiet && echo "no changes" && exit 0
+          git commit -m "push: $(date -u +%Y-%m-%dT%H:%M)"
+          git pull --rebase --autostash origin ${{ github.ref_name }} || true
+          git push
