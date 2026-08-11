@@ -132,6 +132,26 @@ async function fetchSchedule(date) {
   }));
 }
 
+/**
+ * Confirmed batting order, once a team posts its lineup card.
+ *
+ * This is the single most predictive input for runs and RBI that isn't a rate
+ * stat: a leadoff hitter gets ~0.7 more plate appearances per game than the
+ * nine-hole, and the 3-4-5 spots come up with runners on far more often.
+ * Returns null before lineups are posted (usually a few hours pre-game).
+ */
+async function fetchBattingOrder(gamePk) {
+  const data = await getJSON(`${MLB}/game/${gamePk}/boxscore`).catch(() => null);
+  if (!data) return null;
+  const out = {};
+  for (const side of ['away', 'home']) {
+    const team = data.teams?.[side];
+    if (!team?.battingOrder?.length) continue;
+    team.battingOrder.forEach((pid, i) => { out[pid] = i + 1; });
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 // ---------------------------------------------------------------- rosters
 /**
  * Active roster = who can actually play today. Comparing against the 40-man
@@ -167,13 +187,47 @@ async function fetchHittingStats(playerId) {
   const data = await getJSON(url);
   const s = data.stats?.[0]?.splits?.[0]?.stat;
   if (!s) return null;
+  const pa = num(s.plateAppearances), ab = num(s.atBats);
+  const h = num(s.hits), hr = num(s.homeRuns), so = num(s.strikeOuts), bb = num(s.baseOnBalls);
+  const sf = num(s.sacFlies) || 0;
+  const go = num(s.groundOuts), ao = num(s.airOuts);
+  const sb = num(s.stolenBases), cs = num(s.caughtStealing) || 0;
+
   return {
-    g: num(s.gamesPlayed), pa: num(s.plateAppearances), ab: num(s.atBats),
-    h: num(s.hits), r: num(s.runs), hr: num(s.homeRuns), rbi: num(s.rbi), sb: num(s.stolenBases),
-    bb: num(s.baseOnBalls), so: num(s.strikeOuts),
+    g: num(s.gamesPlayed), pa, ab,
+    h, r: num(s.runs), hr, rbi: num(s.rbi), sb, cs,
+    bb, so, doubles: num(s.doubles), triples: num(s.triples),
     avg: num(s.avg), obp: num(s.obp), slg: num(s.slg), ops: num(s.ops),
+
+    // --- derived rates: the actually predictive layer ---
+    // Strikeout rate caps every contact-dependent prop — a 32% K hitter simply
+    // puts far fewer balls in play than a 15% one, regardless of how hard he hits.
+    kPct:  pa ? round((so / pa) * 100, 1) : null,
+    bbPct: pa ? round((bb / pa) * 100, 1) : null,
+
+    // Isolated power — slugging with singles stripped out. Cleaner power signal
+    // than SLG, which is inflated by batting average.
+    iso: (slgNum(s) != null && num(s.avg) != null) ? round(slgNum(s) - num(s.avg), 3) : null,
+
+    // BABIP flags luck: well above ~.300 suggests regression down, below suggests up.
+    babip: (ab && (ab - so - hr + sf) > 0)
+      ? round((h - hr) / (ab - so - hr + sf), 3) : null,
+
+    // Ground/air split. You cannot homer on a ground ball, so a hitter's air
+    // rate gates his home run and extra-base upside.
+    gbFb: (go != null && ao) ? round(go / ao, 2) : null,
+    airPct: (go != null && ao != null && (go + ao) > 0) ? round((ao / (go + ao)) * 100, 1) : null,
+
+    // Steal profile: attempt rate matters more than raw totals, and a poor
+    // success rate means the manager stops sending him.
+    sbAttempts: sb + cs,
+    sbSuccess: (sb + cs) > 0 ? round(sb / (sb + cs), 3) : null,
+    sbRate: (h + bb) > 0 ? round((sb + cs) / (h + bb), 3) : null,   // attempts per time on base
   };
 }
+
+/** slg arrives as a string like ".512" — Number() handles it, but guard nulls. */
+function slgNum(s) { return num(s.slg); }
 
 async function fetchPitchingStats(playerId) {
   const [statsRes, person] = await Promise.all([
@@ -184,9 +238,25 @@ async function fetchPitchingStats(playerId) {
   const s = statsRes.stats?.[0]?.splits?.[0]?.stat;
   if (!s) return throws ? { throws } : null;
   const ip = parseIP(s.inningsPitched);
+  const bf = num(s.battersFaced);
+  const pso = num(s.strikeOuts), pbb = num(s.baseOnBalls);
+  const pgo = num(s.groundOuts), pao = num(s.airOuts);
+
   return {
     throws,
     gs: num(s.gamesStarted), ip,
+
+    // Rate versions are comparable across workloads in a way K/9 isn't.
+    kPct:  bf ? round((pso / bf) * 100, 1) : null,
+    bbPct: bf ? round((pbb / bf) * 100, 1) : null,
+    // A ground-ball pitcher suppresses home runs structurally, not just by luck.
+    gbFb: (pgo != null && pao) ? round(pgo / pao, 2) : null,
+    airPct: (pgo != null && pao != null && (pgo + pao) > 0)
+      ? round((pao / (pgo + pao)) * 100, 1) : null,
+    avgAgainst: num(s.avg),
+    whipRaw: num(s.whip),
+    // Baserunners allowed drives RBI/run opportunity for the opposing lineup.
+    bfPerStart: (bf && num(s.gamesStarted)) ? round(bf / num(s.gamesStarted), 1) : null,
     era: num(s.era), whip: num(s.whip),
     k: num(s.strikeOuts), bb: num(s.baseOnBalls), hr: num(s.homeRuns),
     // Derived rates — these are what the HR/K models actually consume.
@@ -390,6 +460,14 @@ async function build() {
   const unannounced = schedule.filter(g => !g.away.probablePitcherId || !g.home.probablePitcherId).length;
   if (unannounced) warnings.push(`${unannounced} game(s) missing a probable starter — normal this far out`);
 
+  // 4b. Batting order, where posted
+  console.log('  checking for posted lineups');
+  const orders = await mapLimit(schedule, CONCURRENCY, g => fetchBattingOrder(g.gamePk));
+  const orderByGame = Object.fromEntries(schedule.map((g, i) => [g.gamePk, orders[i]]));
+  const postedCount = orders.filter(o => o && !o.__error).length;
+  console.log(`  ${postedCount}/${schedule.length} lineups posted`);
+  if (postedCount === 0) warnings.push('No lineups posted yet — batting order unavailable, RBI/run projections use role estimates');
+
   // 5. Venue coords + weather
   const venueIds = [...new Set(schedule.map(g => g.venueId))];
   const coordList = await mapLimit(venueIds, CONCURRENCY, fetchVenueCoords);
@@ -426,11 +504,13 @@ async function build() {
       };
     };
 
-    const mkLineup = teamId => (byTeam[teamId] || [])
+    const order = orderByGame[g.gamePk];
+    const mkLineup = (teamId, side) => (byTeam[teamId] || [])
       .sort((a, b) => (b.stats.ops ?? 0) - (a.stats.ops ?? 0))
       .slice(0, 12)
       .map(h => ({
         id: h.id, name: h.name, pos: h.pos, bats: h.bats,
+        battingOrder: order?.[side]?.[h.id] ?? null,
         splits: h.splits ?? null,
         season: h.stats,
         last10: h.recent?.totals ?? null,
@@ -446,8 +526,8 @@ async function build() {
       gameNumber: g.gameNumber,
       venue: { id: g.venueId, name: g.venueName, ...(park || {}) },
       weather,
-      away: { ...g.away, pitcher: mkPitcher('away'), lineup: mkLineup(g.away.id) },
-      home: { ...g.home, pitcher: mkPitcher('home'), lineup: mkLineup(g.home.id) },
+      away: { ...g.away, pitcher: mkPitcher('away'), lineup: mkLineup(g.away.id, 'away') },
+      home: { ...g.home, pitcher: mkPitcher('home'), lineup: mkLineup(g.home.id, 'home') },
     };
   });
 

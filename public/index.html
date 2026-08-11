@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+	<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -719,6 +719,27 @@ function adaptHitter(h, teamAbbr, game, side) {
     r:   s.r ?? null,        // runs scored — needed for the H+R+RBI combo
     h:   s.h ?? null,        // hits and walks feed the on-base fallback for runs
     bb:  s.bb ?? null,
+    so:  s.so ?? null,
+    tb:  s.tb ?? null,          // exact total bases — better than deriving from SLG
+    cs:  s.cs ?? 0,             // SB attempts = sb + cs
+    babip: s.babip ?? null,
+    iso: s.iso ?? null,
+    kPct: s.kPct ?? null,
+    bbPct: s.bbPct ?? null,
+    hrPerFly: s.hrPerFly ?? null,
+    gbFbRatio: s.gbFbRatio ?? null,
+    battingOrder: h.battingOrder ?? null,
+    // --- predictive rate stats ---
+    kPct: s.kPct ?? null,        // strikeout rate — caps every contact prop
+    bbPct: s.bbPct ?? null,
+    iso: s.iso ?? null,          // power with singles stripped out
+    babip: s.babip ?? null,      // luck indicator
+    airPct: s.airPct ?? null,    // can't homer on grounders
+    gbFb: s.gbFb ?? null,
+    sbAttempts: s.sbAttempts ?? null,
+    sbSuccess: s.sbSuccess ?? null,
+    sbRate: s.sbRate ?? null,
+    battingOrder: h.battingOrder ?? null,
     obp: s.obp ?? null,
     ops: s.ops ?? null,
     g:   s.g ?? null,        // needed for per-game RBI / SB rates
@@ -801,6 +822,11 @@ function adaptGame(sg) {
       era: st.era ?? null, whip: st.whip ?? null, ip: st.ip ?? null,
       arsenal: p.arsenal || null,
       splits: p.splits || null,
+      kPct: st.kPct ?? null,
+      bbPct: st.bbPct ?? null,
+      gbFb: st.gbFb ?? null,       // ground-ball pitchers structurally suppress HR
+      airPct: st.airPct ?? null,
+      avgAgainst: st.avgAgainst ?? null,
       barrelAllowed: st.hr9 != null ? +(st.hr9 * 6.8).toFixed(1) : 7.5,
       mix: st.era != null
         ? `${st.era} ERA · ${st.whip ?? '—'} WHIP · ${st.k9 ?? '—'} K/9 · ${st.hr9 ?? '—'} HR/9`
@@ -938,11 +964,46 @@ const MODEL = {
     // Matchup: opposing starter's HR/9 relative to league average
     leagueHR9:    1.10,   // ~average HR/9; above this = favorable matchup
     matchupCap:   1.50,   // don't let one bad pitcher run away with it
+
+    // Batted-ball profile. A hitter who pounds the ball into the ground can't
+    // homer no matter how hard he hits it, and a ground-ball pitcher suppresses
+    // home runs structurally rather than by luck.
+    airWeight:    0.30,   // how much the hitter's air rate scales the HR index
+    leagueAirPct: 62,     // league-average share of outs in the air
+    pitcherGbWeight: 0.20,// how much the pitcher's ground tendency suppresses
+    leagueGbFb:   1.15,   // league-average pitcher GB/FB
   },
 
-  // ---- Hits: P(at least one hit) = 1 - (1 - AVG)^atBats ----
+  // ---- Hits ----
+  //  Base is AVG x expected AB, then adjusted for the things that actually move
+  //  a single game's hit total: how often he strikes out, how often the pitcher
+  //  strikes people out, and whether his BABIP suggests he's been lucky.
   hits: {
-    expectedAB:   4,      // typical AB per game; 4.3 for leadoff-heavy modeling
+    expectedAB:   4,      // league-average AB per game
+    kSensitivity: 0.55,   // weight on the batter-vs-pitcher strikeout mismatch
+    leagueKPct:   22.5,   // league-average strikeout rate, both sides
+    babipWeight:  0.25,   // pull toward .300 — 0 disables regression entirely
+    leagueBabip:  0.300,
+  },
+
+  // ---- Batting order ----
+  //  Lineup slot changes plate appearances and run/RBI context more than any
+  //  rate stat. Multipliers are relative to an average slot.
+  order: {
+    // PA share by slot: leadoff sees ~4.7 PA/game, the nine-hole ~3.9.
+    paMult:  [1.09, 1.07, 1.05, 1.03, 1.00, 0.97, 0.95, 0.92, 0.90],
+    // Runs: top-of-order hitters are driven in by the big bats behind them.
+    runMult: [1.22, 1.18, 1.10, 1.02, 0.96, 0.92, 0.88, 0.85, 0.88],
+    // RBI: the 3-4-5 spots bat with runners on far more often.
+    rbiMult: [0.78, 0.92, 1.18, 1.24, 1.16, 1.02, 0.92, 0.85, 0.80],
+  },
+
+  // ---- Stolen bases ----
+  //  Raw SB totals hide opportunity. Attempt rate per time on base plus success
+  //  rate is far more predictive of a steal *tonight*.
+  steal: {
+    attemptWeight: 0.6,   // weight on attempts-per-time-on-base vs raw SB/game
+    successFloor:  0.65,  // below this success rate managers stop sending him
   },
 
   // ---- Total Bases ----
@@ -1100,12 +1161,25 @@ function scorePlayer(base, game){
   // Environment — park factor scaled by tonight's wind/weather.
   const parkScore = clamp(Math.round(W.park * (game.parkFactor/100) * weatherMult), 0, W.park);
 
-  // Matchup — how homer-prone tonight's starter has been.
-  const matchupScore = clamp(Math.round(W.matchup *
-      Math.min(M.matchupCap, base.oppPitcher.hr9 / M.leagueHR9)), 0, W.matchup);
+  // Matchup — how homer-prone tonight's starter has been, scaled by whether he
+  // keeps the ball on the ground. A 1.30 HR/9 flyball arm is a very different
+  // proposition from a 1.30 HR/9 sinkerballer.
+  let matchupRatio = Math.min(M.matchupCap, base.oppPitcher.hr9 / M.leagueHR9);
+  if(base.oppPitcher.gbFb != null){
+    const gbSkew = base.oppPitcher.gbFb / M.leagueGbFb;        // >1 = more grounders
+    matchupRatio *= 1 - (gbSkew - 1) * M.pitcherGbWeight;
+  }
+  const matchupScore = clamp(Math.round(W.matchup * Math.max(0, matchupRatio)), 0, W.matchup);
 
   base.breakdown = { statcast: statcastScore, form: formScore, park: parkScore, matchup: matchupScore };
-  base.hrIndex = statcastScore + formScore + parkScore + matchupScore;
+  let hrRaw = statcastScore + formScore + parkScore + matchupScore;
+
+  // Air-ball gate: elite exit velocity on the ground produces singles, not homers.
+  if(base.airPct != null){
+    const airSkew = base.airPct / M.leagueAirPct;
+    hrRaw *= 1 + (airSkew - 1) * M.airWeight;
+  }
+  base.hrIndex = clamp(Math.round(hrRaw), 0, 100);
 
   // ---- other props: PROJECTED COUNTS, not index scores ----
   // Each of these is a real rate stat multiplied by expected playing time, so
@@ -1115,22 +1189,46 @@ function scorePlayer(base, game){
   //   SLG = TB/AB  → total bases per AB   (this identity is exact)
   //   RBI/G, SB/G  → per-game rates from season totals
   const H = MODEL.hits;
+
   const ab = H.expectedAB;
 
-  // Projected hits = expected AB × batting average.
-  base.projHits = +(ab * base.avg).toFixed(2);
-  // Probability of at least one hit, kept for the card's supporting detail.
-  base.hitProb = Math.round(100 * (1 - Math.pow(1 - base.avg, ab)));
+  // Start from AVG, then regress toward league BABIP — a hitter running a .380
+  // BABIP has been getting lucky and is likely to come back toward the pack.
+  let effAvg = base.avg;
+  if(base.babip != null && H.babipWeight > 0){
+    const babipDrag = (H.leagueBabip - base.babip) * H.babipWeight;
+    effAvg = clamp(effAvg + babipDrag, 0.12, 0.42);
+  }
+
+  // Strikeout mismatch: a contact hitter vs a low-K pitcher puts far more balls
+  // in play than a high-K hitter vs a power arm, which AVG alone doesn't capture.
+  if(base.kPct != null){
+    const oppK = base.oppPitcher.kPct ?? H.leagueKPct;
+    const combined = (base.kPct + oppK) / 2;
+    const kEdge = (H.leagueKPct - combined) / H.leagueKPct;   // >0 = more contact
+    effAvg *= 1 + kEdge * H.kSensitivity;
+  }
+  base.effAvg = +effAvg.toFixed(3);
+
+  // Lineup slot changes how many times he actually bats.
+  const slot = base.battingOrder;
+  const paMult = slot ? (MODEL.order.paMult[slot - 1] ?? 1) : 1;
+  const effAB = ab * paMult;
+  base.effAB = +effAB.toFixed(2);
+
+  base.projHits = +(effAB * effAvg).toFixed(2);
+  base.hitProb = Math.round(100 * (1 - Math.pow(1 - effAvg, Math.round(effAB))));
 
   // Projected total bases = expected AB × SLG, nudged by tonight's park.
   // Prefer xSLG when real Statcast is present (it's more predictive than SLG),
   // blended per MODEL.tb.xslgWeight.
   const T = MODEL.tb;
-  const slgActual = base.slg ?? base.avg * 1.6;
+  // Prefer the exact TB/AB rate; SLG is the same thing but rounded.
+  const slgActual = (base.tb != null && base.ab) ? base.tb / base.ab : (base.slg ?? base.avg * 1.6);
   const slgExpect = base.statcast?.xslg ?? slgActual;
   const slgBlend = slgExpect * T.xslgWeight + slgActual * (1 - T.xslgWeight);
   const parkTB = 1 + ((game.parkFactor - 100) / 100) * T.parkSensitivity;
-  base.projTB = +(ab * slgBlend * parkTB * weatherMult ** T.weatherExponent).toFixed(2);
+  base.projTB = +(effAB * slgBlend * parkTB * weatherMult ** T.weatherExponent).toFixed(2);
 
   // Projected RBI = season RBI/game, adjusted for park run environment and form.
   const R = MODEL.rbi;
@@ -1138,7 +1236,8 @@ function scorePlayer(base, game){
   const rbiPerGame = (base.rbi ?? 0) / gp;
   const parkRuns = 1 + ((game.parkFactor - 100) / 100) * R.parkSensitivity;
   const formAdj = 1 + (trendAdj / M.trendBonus) * R.formSensitivity;
-  base.projRBI = +(rbiPerGame * parkRuns * formAdj).toFixed(2);
+  const rbiSlot = slot ? (MODEL.order.rbiMult[slot - 1] ?? 1) : 1;
+  base.projRBI = +(rbiPerGame * parkRuns * formAdj * rbiSlot).toFixed(2);
 
   // Projected runs scored = season R/game, adjusted for park run environment.
   // Older slates lack `r`; fall back to an on-base-derived estimate and flag it
@@ -1152,7 +1251,8 @@ function scorePlayer(base, game){
     runsPerGame = onBasePerGame * HRR.runsFromOnBaseRate;
     runsDerived = true;
   }
-  base.projRuns = +(runsPerGame * (1 + ((game.parkFactor - 100) / 100) * HRR.parkSensitivity)).toFixed(2);
+  const runSlot = slot ? (MODEL.order.runMult[slot - 1] ?? 1) : 1;
+  base.projRuns = +(runsPerGame * (1 + ((game.parkFactor - 100) / 100) * HRR.parkSensitivity) * runSlot).toFixed(2);
   base.runsDerived = runsDerived;
 
   // HRR = Hits + Runs + RBIs, the standard combo prop.
@@ -1160,8 +1260,21 @@ function scorePlayer(base, game){
 
   // Projected SB = season SB/game, lightly damped in heavy air.
   const S = MODEL.sb;
+  // Blend raw SB/game with attempts-per-time-on-base: a fast player who reaches
+  // base often has more chances than his season total alone suggests.
+  const ST = MODEL.steal;
   const sbPerGame = (base.sb ?? 0) / gp;
-  base.projSB = +(sbPerGame * (game.weatherEffect === 'neg' ? S.coldWeatherMult : 1)).toFixed(2);
+  let sbProj = sbPerGame;
+  if(base.sbRate != null && base.obp != null){
+    const timesOnPerGame = base.obp * (effAB / Math.max(0.01, base.avg || 0.25)) / gp || 0;
+    const opportunity = base.sbRate * Math.min(2.2, timesOnPerGame || 1);
+    sbProj = sbPerGame * (1 - ST.attemptWeight) + opportunity * ST.attemptWeight;
+  }
+  // A poor success rate means the manager stops giving him the green light.
+  if(base.sbSuccess != null && base.sbSuccess < ST.successFloor){
+    sbProj *= base.sbSuccess / ST.successFloor;
+  }
+  base.projSB = +(sbProj * (game.weatherEffect === 'neg' ? S.coldWeatherMult : 1)).toFixed(2);
 
   // Legacy 0-100 indexes retained so the All Players view and any older code
   // paths keep working; the prop tabs now display the projections above.
@@ -2370,7 +2483,7 @@ function isStandalone(){
 // ---------------------------------------------------------------- web push
 // Paste the public key printed by gen-vapid-keys.js. While it's blank, the app
 // falls back to in-page notifications only (which need the tab open).
-const VAPID_PUBLIC_KEY = '';
+const VAPID_PUBLIC_KEY = 'BJCnO_3lUrfY_7UuaSltPEjfwjHmk10hALxiwUzOmqLQTCy344RxaaLJXQkoZaBBAZilI5Pw54uuOR29ZCeHlBU';
 
 let swRegistration = null;
 
