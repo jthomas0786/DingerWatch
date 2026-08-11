@@ -1,4 +1,4 @@
-	<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1058,23 +1058,28 @@ const MODEL = {
  */
 async function loadModelOverrides(){
   try{
-    const res = await fetch('./model-config.json', { cache: 'no-cache' });
+    const res = await fetch('model-config.json', { cache: 'no-cache' });
     if(!res.ok) return false;                 // absent is fine — defaults stand
     const overrides = await res.json();
     deepMerge(MODEL, overrides);
     validateModel();
-    console.info('[model] applied overrides from model-config.json:', overrides);
+    // Log only the keys that actually differ — dumping the whole config buries
+    // the signal every page load.
+    const changed = Object.keys(overrides).filter(k => !k.startsWith('//'));
+    console.info('[model] model-config.json applied · sections:', changed.join(', '));
     return true;
   }catch(e){
     // A malformed override should not take the whole page down.
     if(!(e instanceof SyntaxError)) return false;
-    console.warn('[model] model-config.json is not valid JSON — using defaults.', e.message);
+    console.warn('[model] model-config.json is not valid JSON — using defaults. Check for a trailing comma.', e.message);
     return false;
   }
 }
 
 function deepMerge(target, src){
   for(const [k, v] of Object.entries(src || {})){
+    // "//" keys are documentation for whoever edits the file — never merge them.
+    if(k.startsWith('//')) continue;
     if(v && typeof v === 'object' && !Array.isArray(v)){
       target[k] = deepMerge(target[k] && typeof target[k] === 'object' ? target[k] : {}, v);
     } else if(v !== undefined){

@@ -1,43 +1,103 @@
 {
-  "_comment": "Optional. Rename to model-config.json and place next to index.html. Deep-merged over the app defaults at load, so your tuning survives any app rebuild. Include only the keys you want to change.",
+  "//": "Dinger Watch model weights. Deep-merged over the app defaults at load, so this file survives any rebuild of index.html. Delete any key to fall back to its default. Place next to index.html (public/model-config.json).",
+  "// hr.weights": "The four HR Index components. MUST total 100 — a console warning fires if not.",
+  "// hr": "HOME RUN INDEX (0-100). weights must total 100. Each *Scale is the input value that earns full marks — lower it to make a category easier to max out.",
   "hr": {
     "weights": {
-      "statcast": 40,
+      "statcast": 50,
       "form": 20,
-      "park": 20,
-      "matchup": 20
+      "park": 15,
+      "matchup": 15
     },
-    "barrelWeight": 0.50,
-    "barrelScale": 17,
-    "hardHitScale": 47,
-    "trendBonus": 6,
+    "barrelWeight": 0.6,
+    "barrelScale": 20,
+    "hardHitScale": 55,
+    "trendBonus": 4,
     "weatherMult": {
       "pos": 1.08,
       "neg": 0.9,
-      "neu": 1.0
+      "neu": 1
     },
     "leagueHR9": 1.1,
-    "matchupCap": 1.5
+    "matchupCap": 1.5,
+    "airWeight": 0.3,
+    "leagueAirPct": 62,
+    "pitcherGbWeight": 0.2,
+    "leagueGbFb": 1.15
   },
+  "// hits": "PROJECTED HITS = expected AB x AVG, adjusted. babipWeight pulls a lucky/unlucky hitter back toward .300 (0 disables). kSensitivity weights the batter-vs-pitcher strikeout mismatch.",
   "hits": {
-    "expectedAB": 4.2
+    "expectedAB": 4,
+    "kSensitivity": 0.55,
+    "leagueKPct": 22.5,
+    "babipWeight": 0.25,
+    "leagueBabip": 0.3
   },
+  "// order": "BATTING ORDER multipliers, index 0 = leadoff. Applied only when MLB has posted the lineup. Biggest single precision gain in the model.",
+  "order": {
+    "paMult": [
+      1.09,
+      1.07,
+      1.05,
+      1.03,
+      1,
+      0.97,
+      0.95,
+      0.92,
+      0.9
+    ],
+    "runMult": [
+      1.22,
+      1.18,
+      1.1,
+      1.02,
+      0.96,
+      0.92,
+      0.88,
+      0.85,
+      0.88
+    ],
+    "rbiMult": [
+      0.78,
+      0.92,
+      1.18,
+      1.24,
+      1.16,
+      1.02,
+      0.92,
+      0.85,
+      0.8
+    ]
+  },
+  "// steal": "STEAL OPPORTUNITY. attemptWeight favours attempts-per-time-on-base over raw SB/game. Below successFloor, managers stop sending the runner and the projection is damped.",
+  "steal": {
+    "attemptWeight": 0.6,
+    "successFloor": 0.65
+  },
+  "// tb": "PROJECTED TOTAL BASES = expected AB x blended SLG x park x weather. SLG is total bases per at-bat by definition, so the base identity is exact.",
   "tb": {
-    "xslgWeight": 0.4,
-    "parkSensitivity": 0.45,
-    "weatherExponent": 0.45,
-    "xslgScale": 0.65,
-    "avgScale": 0.3
+    "xslgWeight": 0.45,
+    "parkSensitivity": 0.5,
+    "weatherExponent": 0.5,
+    "xslgScale": 0.75,
+    "avgScale": 0.35
   },
+  "// rbi": "PROJECTED RBI = season RBI/game x park run environment x recent form.",
   "rbi": {
     "parkSensitivity": 0.6,
     "formSensitivity": 0.12,
-    "trendMultiplier": 3,
+    "trendMultiplier": 2,
     "parkDivisor": 3
   },
+  "// hrr": "H+R+RBI. Components are projected separately and summed, matching how the sportsbook market counts them.",
+  "hrr": {
+    "runsFromOnBaseRate": 0.33,
+    "parkSensitivity": 0.6
+  },
+  "// sb": "STOLEN BASE speed score. posBonus shifts the score by position; rateMultiplier controls how hard SB rate drives it.",
   "sb": {
     "coldWeatherMult": 0.95,
-    "rateMultiplier": 125,
+    "rateMultiplier": 120,
     "baseline": 28,
     "posBonus": {
       "CF": 12,
