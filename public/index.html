@@ -356,6 +356,18 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 .tab-badge{ display:inline-block; background:var(--foul); color:var(--night); font-family:'Space Mono',monospace; font-size:9px; font-weight:700; padding:1px 5px; border-radius:9px; margin-left:6px; vertical-align:middle; }
 .prop-tab.active .tab-badge{ background:var(--night); color:var(--foul); }
 
+.sub-modal{ position:fixed; inset:0; background:rgba(5,7,12,.8); z-index:2000; display:flex; align-items:center; justify-content:center; padding:20px; }
+.sub-card{ background:var(--panel); border:1px solid var(--foul); border-radius:14px; padding:22px; max-width:520px; width:100%; }
+.sub-card h3{ font-family:'Oswald',sans-serif; font-size:17px; margin-bottom:10px; }
+.sub-card p{ font-size:12.5px; color:var(--mute); line-height:1.6; margin-bottom:12px; }
+.sub-card code{ color:var(--foul); }
+.sub-card textarea{ width:100%; height:120px; background:var(--night); border:1px solid var(--line); border-radius:8px;
+  color:var(--white); font-family:'Space Mono',monospace; font-size:10px; padding:10px; resize:vertical; }
+.sub-actions{ display:flex; gap:10px; margin-top:12px; }
+.sub-actions button{ flex:1; background:var(--night2); border:1px solid var(--line); color:var(--white);
+  font-family:'Oswald',sans-serif; font-size:13px; padding:9px; border-radius:8px; cursor:pointer; }
+.sub-actions button:hover{ border-color:var(--foul); }
+.sub-note{ margin-top:12px !important; margin-bottom:0 !important; font-size:11px !important; }
 .ios-hint{ display:flex; gap:10px; align-items:flex-start; background:var(--night2); border:1px solid var(--foul);
   border-radius:12px; padding:13px 15px; margin-top:14px; font-size:12.5px; line-height:1.55; color:var(--white); }
 .ios-hint b{ color:var(--foul); }
@@ -502,6 +514,7 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
     <div class="brand-text">DINGER<span>WATCH</span></div>
   </div>
   <h1>Who's Going <span>Deep</span></h1>
+  <div class="eyebrow">Sunday, August 9, 2026</div>
   <div class="subhead">Top MLB prop picks ranked by Statcast contact quality, park factor, live weather, and pitching matchups.</div>
   <div class="day-toggle" id="dayToggle">
     <button class="active" data-day="today">Today · Aug 9</button>
@@ -2344,6 +2357,90 @@ function isStandalone(){
   return window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true;
 }
 
+// ---------------------------------------------------------------- web push
+// Paste the public key printed by gen-vapid-keys.js. While it's blank, the app
+// falls back to in-page notifications only (which need the tab open).
+const VAPID_PUBLIC_KEY = '';
+
+let swRegistration = null;
+
+function urlB64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+const pushSupported = () =>
+  'serviceWorker' in navigator && 'PushManager' in window && VAPID_PUBLIC_KEY;
+
+async function registerServiceWorker(){
+  if(!('serviceWorker' in navigator)) return null;
+  try{
+    swRegistration = await navigator.serviceWorker.register('sw.js');
+    // The worker asks us to open the Feed when a notification is tapped.
+    navigator.serviceWorker.addEventListener('message', e => {
+      if(e.data?.type === 'open-feed'){
+        activeTab = 'feed'; markFeedRead(); renderTabs(); renderList();
+      }
+    });
+    return swRegistration;
+  }catch(e){
+    console.warn('[push] service worker registration failed:', e.message);
+    return null;
+  }
+}
+
+/**
+ * Subscribe this device for background push. The resulting subscription must
+ * reach the sender — with no backend, that means adding it to the repo, so we
+ * show it for copying.
+ */
+async function subscribeToPush(){
+  if(!pushSupported()) return null;
+  const reg = swRegistration || await registerServiceWorker();
+  if(!reg) return null;
+  try{
+    const existing = await reg.pushManager.getSubscription();
+    if(existing) return existing;
+    return await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+  }catch(e){
+    console.warn('[push] subscribe failed:', e.message);
+    return null;
+  }
+}
+
+/** Show the subscription JSON so it can be added to push-subscriptions.json. */
+function showSubscriptionForCopy(sub){
+  const json = JSON.stringify(sub.toJSON());
+  const box = document.createElement('div');
+  box.className = 'sub-modal';
+  box.innerHTML = `
+    <div class="sub-card">
+      <h3>One more step for background alerts</h3>
+      <p>This device is subscribed. To finish, add the line below to
+         <code>public/push-subscriptions.json</code> in your repo (it's a JSON array —
+         add this as a new item), then commit.</p>
+      <textarea readonly id="subJson">${json}</textarea>
+      <div class="sub-actions">
+        <button id="subCopy">Copy</button>
+        <button id="subClose">Done</button>
+      </div>
+      <p class="sub-note">Until it's committed, alerts still work while the app is open —
+         they just won't arrive when it's closed.</p>
+    </div>`;
+  document.body.appendChild(box);
+  document.getElementById('subCopy').onclick = async () => {
+    try{ await navigator.clipboard.writeText(json); document.getElementById('subCopy').textContent = 'Copied'; }
+    catch{ document.getElementById('subJson').select(); }
+  };
+  document.getElementById('subClose').onclick = () => box.remove();
+  box.onclick = e => { if(e.target === box) box.remove(); };
+}
+
 async function toggleNotifications(){
   if(!notifySupported()){
     if(isIOS() && !isStandalone()){
@@ -2367,10 +2464,21 @@ async function toggleNotifications(){
   if(perm === 'granted'){
     notifyEnabled = true;
     store.set('dw_notify', '1');
+    const bg = pushSupported();
     new Notification('Dinger Watch', {
-      body: "You'll get a notification for every home run while this page is open.",
+      body: bg
+        ? "Alerts are on. Background delivery activates once this device is registered."
+        : "You'll get a notification for every home run while this page is open.",
       icon: NOTIFY_ICON, badge: NOTIFY_BADGE, tag: 'dw-test',
     });
+    if(bg){
+      const sub = await subscribeToPush();
+      // Only prompt once per device — the subscription is stable after that.
+      if(sub && store.get('dw_sub_shown') !== '1'){
+        store.set('dw_sub_shown', '1');
+        showSubscriptionForCopy(sub);
+      }
+    }
   } else if(perm === 'denied'){
     alert('Notifications are blocked for this site.\n\nRe-enable them in your browser settings (the padlock or ⓘ icon next to the address bar), then try again.');
   }
@@ -3372,6 +3480,7 @@ async function boot(){
   }
   renderNotifyBtn();
   document.getElementById('notifyBtn')?.addEventListener('click', toggleNotifications);
+  registerServiceWorker();
 
   // Must land before loadSlate(), since every player is scored during adaptation.
   await loadModelOverrides();

@@ -65,6 +65,52 @@ game logs · weather + wind-relative-to-park
   real FanDuel lines. Until you add that, keep any odds in the UI clearly
   labeled as estimates rather than real market prices.
 
+## Background push notifications (app closed)
+
+In-page alerts need the tab open. For notifications with everything closed you
+need **Web Push**, which is three parts:
+
+| Part | Where it lives |
+|---|---|
+| Service worker (receives the push) | `public/sw.js` |
+| Subscription store | `public/push-subscriptions.json` |
+| Sender (polls MLB, sends pushes) | GitHub Actions |
+
+### Design note
+
+Pushes are sent **bare** — no payload. Encrypting a Web Push payload needs
+aes128gcm + ECDH, a lot of hand-rolled crypto that fails in subtle ways. A bare
+push only needs a VAPID JWT signature. The service worker treats it as a wake-up
+call and fetches `latest-hr.json` for the details, so what it displays is
+current at display time rather than whenever the message was queued.
+
+### Setup
+
+```bash
+node gen-vapid-keys.js
+```
+
+1. Paste the **public** key into `index.html` as `VAPID_PUBLIC_KEY`
+2. Add repo secrets `VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_SUBJECT`
+3. Create `public/push-subscriptions.json` containing `[]`
+4. Copy `push.yml` to `.github/workflows/`
+5. Open the app → **Alerts** → copy the subscription JSON it shows → add it to
+   `push-subscriptions.json` and commit
+
+Step 5 is manual because GitHub Pages serves static files only — there is no
+endpoint to POST a subscription to. For a handful of devices this is fine. To
+automate it, host a tiny function (Cloudflare Workers/Vercel free tier) that
+accepts the POST and appends to the file.
+
+### Constraints worth knowing
+
+- **iOS 16.4+ only, and only for installed apps.** Add to Home Screen first.
+- **GitHub Actions cron is best-effort** and often runs late under load, so a
+  5-minute schedule can drift. Alerts may lag the actual home run by minutes.
+- Expired subscriptions (404/410) are pruned automatically.
+- Cold start records the day's backlog without pushing, so enabling mid-slate
+  doesn't blast every homer at once.
+
 ## Troubleshooting
 
 ### Wrong or tiny slate?
@@ -85,6 +131,24 @@ Common causes:
 | Only 2-4 games | Either a genuine light slate (All-Star break, early April) or the wrong date |
 | Mock `Player 6xxxxx` names | `slate.example.json` got copied to `slate.json` — delete and rebuild |
 | 0 games | Off-day, or the API returned a different date bucket (logged as a warning) |
+
+### Barrel rates look absurd (60-95%)
+
+Real barrel rates are **4-16%**. If you see values near 90, the enrichment step
+read a *percentile* column instead of a *rate* column.
+
+`statcast_batter_percentile_ranks` returns percentiles (0-100) in **every**
+column — `brl_percent` there is the percentile of barrel rate, not the rate.
+Actual rates come from `statcast_batter_exitvelo_barrels`.
+
+Both layers now guard against this:
+
+- `enrich-statcast.py` range-checks each metric and logs a warning if the
+  distribution looks like percentiles
+- the frontend rejects out-of-range values and falls back to derived estimates,
+  logging to the browser console
+
+So a repeat of this bug degrades to slightly-wrong numbers rather than absurd ones.
 
 **Date handling:** MLB game dates follow US convention — a 10pm ET game belongs to
 that calendar day, not the next UTC day. The builder anchors to US Eastern for
