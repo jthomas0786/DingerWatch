@@ -520,7 +520,7 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
     <button class="active" data-day="today">Today · Aug 9</button>
     <button data-day="tomorrow">Tomorrow · Aug 10</button>
   </div>
-  <div class="day-note" id="dayNote">15 games on today's slate</div>
+  <div class="day-note" id="dayNote">Loading slate…</div>
   <div class="refresh-row">
     <span id="lastUpdated">Updated just now</span>
     <button id="refreshBtn" title="Refresh live data now">↻ Refresh</button>
@@ -1963,7 +1963,15 @@ function weatherDiagramHTML(g){
 }
 
 // ---- Real-clock date handling (so "today"/"tomorrow" always track the actual date) ----
-const DATA_BUILT_FOR = '2026-08-09'; // the date this game slate/roster snapshot was curated for
+/**
+ * The date the loaded slate is actually for, read from slate.json rather than
+ * hardcoded. This used to be a constant baked into the page, which meant the
+ * staleness warning kept naming whatever date the file was last hand-edited —
+ * not the date the data was really built for.
+ *
+ * Falls back to today so a slate that hasn't loaded yet doesn't read as stale.
+ */
+function slateDate(){ return slateMeta.date || realTodayStr(); }
 function ymd(d){ return d.toISOString().slice(0,10); }
 function addDays(dateStr, n){ const d = new Date(dateStr+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+n); return ymd(d); }
 function shortLabel(dateStr){
@@ -1998,16 +2006,18 @@ function refreshDayLabelsAndStaleness(){
   if(todayBtn) todayBtn.textContent = `Today · ${shortLabel(currentDates.today)}`;
   if(tmrBtn)   tmrBtn.textContent   = `Tomorrow · ${shortLabel(currentDates.tomorrow)}`;
 
-  const daysStale = Math.round((new Date(realToday+'T00:00:00Z') - new Date(DATA_BUILT_FOR+'T00:00:00Z')) / 86400000);
+  const builtFor = slateDate();
+  const daysStale = Math.round((new Date(realToday+'T00:00:00Z') - new Date(builtFor+'T00:00:00Z')) / 86400000);
   const note = document.getElementById('dayNote');
   if(daysStale > 1 || (daysStale === 1 && selectedDay==='tomorrow')){
-    note.innerHTML = `<span style="color:var(--hot)">This slate was built for ${shortLabel(DATA_BUILT_FOR)} and is ${daysStale+(selectedDay==='tomorrow'?1:0)} day(s) stale</span> — ask to regenerate for today's real games`;
+    const n = daysStale + (selectedDay==='tomorrow' ? 1 : 0);
+    note.innerHTML = `<span style="color:var(--hot)">Slate is for ${shortLabel(builtFor)} — ${n} day${n===1?'':'s'} old</span> · rerun the daily build workflow for today's games`;
   } else if(daysStale === 1 && selectedDay === 'today'){
     note.innerHTML = 'Auto-rolled to today\'s date · <span style="color:var(--warm)">showing yesterday\'s projected slate — matchups/pitchers may be outdated</span>';
   } else if(selectedDay === 'tomorrow'){
     note.innerHTML = 'Real matchups &amp; start times for tomorrow · <span style="color:var(--warm)">probable pitchers confirm live as MLB posts them — unconfirmed starters are hidden from Strikeouts</span>';
   } else {
-    note.textContent = "15 games on today's slate";
+    updateSlateFooter();   // healthy slate — show provenance instead
   }
   return changed;
 }
@@ -2360,7 +2370,7 @@ function isStandalone(){
 // ---------------------------------------------------------------- web push
 // Paste the public key printed by gen-vapid-keys.js. While it's blank, the app
 // falls back to in-page notifications only (which need the tab open).
-const VAPID_PUBLIC_KEY = 'BJCnO_3lUrfY_7UuaSltPEjfwjHmk10hALxiwUzOmqLQTCy344RxaaLJXQkoZaBBAZilI5Pw54uuOR29ZCeHlBU';
+const VAPID_PUBLIC_KEY = '';
 
 let swRegistration = null;
 
