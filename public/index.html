@@ -4,13 +4,22 @@
 <meta charset="UTF-8">
 <title>Dinger Watch</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="manifest" href="./manifest.webmanifest">
+<link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0a0808">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Dinger Watch">
-<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<!-- iOS Home Screen icons. iOS reads these <link> tags, not the manifest, and
+     falls back to a generated letter tile if none of them resolve. Several sizes
+     are supplied so no device has to downscale. -->
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="167x167" href="apple-touch-icon-167.png">
+<link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152.png">
+<link rel="apple-touch-icon" sizes="120x120" href="apple-touch-icon-120.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="shortcut icon" href="icon-192.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
@@ -2371,8 +2380,8 @@ async function toggleNotifications(){
 
 // App icon, shared by notifications and the installed-app shortcut. Relative
 // path so it resolves wherever the site is hosted.
-const NOTIFY_ICON = './icon-192.png';
-const NOTIFY_BADGE = './icon-192.png';   // Android status-bar glyph
+const NOTIFY_ICON = 'icon-192.png';
+const NOTIFY_BADGE = 'icon-192.png';   // Android status-bar glyph
 
 /**
  * Fire a notification for a home run. Uses the event key as the tag so a
