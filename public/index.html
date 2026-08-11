@@ -2412,7 +2412,38 @@ function renderNotifyBtn(){
 
 let feedEvents = [];          // newest first
 let feedUnread = 0;
-const seenHRKeys = new Set(); // gamePk:atBatIndex — prevents duplicate entries
+/**
+ * gamePk:atBatIndex for every home run we've already surfaced.
+ *
+ * This MUST persist across page loads. When it lived only in memory, every
+ * reload started empty and re-notified for the entire day's home runs.
+ * Keyed by date so it self-clears overnight instead of growing forever.
+ */
+const seenHRKeys = new Set();
+let notifiedKeys = new Set();          // separate: what we've actually alerted on
+let feedPrimed = false;                // false until the first poll completes
+
+function seenStorageKey(){ return 'dw_notified_' + (slateMeta.date || 'today'); }
+
+function loadNotifiedKeys(){
+  try{
+    const raw = store.get(seenStorageKey());
+    notifiedKeys = new Set(raw ? JSON.parse(raw) : []);
+  }catch{ notifiedKeys = new Set(); }
+
+  // Drop any previous day's ledgers so localStorage doesn't accumulate.
+  try{
+    for(let i = localStorage.length - 1; i >= 0; i--){
+      const k = localStorage.key(i);
+      if(k?.startsWith('dw_notified_') && k !== seenStorageKey()) localStorage.removeItem(k);
+    }
+  }catch{}
+}
+
+function rememberNotified(key){
+  notifiedKeys.add(key);
+  try{ store.set(seenStorageKey(), JSON.stringify([...notifiedKeys].slice(-500))); }catch{}
+}
 
 function markFeedRead(){ feedUnread = 0; }
 
@@ -2430,6 +2461,7 @@ async function pollHomeRunFeed(){
         const key = `${g.gamePk}:${play.atBatIndex}`;
         if(seenHRKeys.has(key)) continue;
         seenHRKeys.add(key);
+        const alreadyNotified = notifiedKeys.has(key);
 
         // Statcast comes from the pitch event that ended the at-bat.
         const hitEvent = [...(play.playEvents || [])].reverse()
@@ -2459,14 +2491,32 @@ async function pollHomeRunFeed(){
           ts: play.about?.endTime ? new Date(play.about.endTime).getTime() : Date.now(),
           isNew: true,
         });
-        if(activeTab !== 'feed') feedUnread++;
-        notifyHomeRun(feedEvents[feedEvents.length - 1]);
+        const justAdded = feedEvents[feedEvents.length - 1];
+
+        // Only alert on home runs that happen while the page is open.
+        //   - feedPrimed=false  → this is the first poll after load, so every HR
+        //     found is pre-existing backlog. Record it, don't alert.
+        //   - alreadyNotified   → a previous session already alerted on it.
+        // Without both guards, reloading the page replays the whole day.
+        const isBacklog = !feedPrimed || alreadyNotified;
+        justAdded.isNew = !isBacklog;
+
+        if(isBacklog){
+          rememberNotified(key);
+        } else {
+          if(activeTab !== 'feed') feedUnread++;
+          notifyHomeRun(justAdded);
+          rememberNotified(key);
+        }
       }
     }catch(e){ /* a single game failing shouldn't stall the whole feed */ }
   }));
 
   feedEvents.sort((a,b) => b.ts - a.ts);   // newest first
   if(feedEvents.length > 200) feedEvents.length = 200;
+
+  // Everything found from here on is genuinely live.
+  feedPrimed = true;
 }
 
 function timeAgo(ts){
@@ -3333,6 +3383,10 @@ async function boot(){
   refreshDayLabelsAndStaleness();
   renderList();
   updateSlateFooter();
+
+  // Must run after loadSlate (it needs slateMeta.date) and before the first
+  // home-run poll, so previously-alerted homers aren't announced again.
+  loadNotifiedKeys();
 
   // Live in-game state is the one thing a daily build can't cover.
   fetchLiveGameStates()
