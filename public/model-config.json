@@ -4,15 +4,15 @@
   "// hr": "HOME RUN INDEX (0-100). weights must total 100. Each *Scale is the input value that earns full marks — lower it to make a category easier to max out.",
   "hr": {
     "weights": {
-      "statcast": 50,
-      "form": 20,
+      "statcast": 40,
+      "form": 25,
       "park": 15,
-      "matchup": 15
+      "matchup": 20
     },
-    "barrelWeight": 0.6,
-    "barrelScale": 20,
-    "hardHitScale": 55,
-    "trendBonus": 4,
+    "barrelWeight": 0.5,
+    "barrelScale": 15,
+    "hardHitScale": 45,
+    "trendBonus": 6,
     "weatherMult": {
       "pos": 1.08,
       "neg": 0.9,
@@ -27,7 +27,7 @@
   },
   "// hits": "PROJECTED HITS = expected AB x AVG, adjusted. babipWeight pulls a lucky/unlucky hitter back toward .300 (0 disables). kSensitivity weights the batter-vs-pitcher strikeout mismatch.",
   "hits": {
-    "expectedAB": 4,
+    "expectedAB": 3.7,
     "kSensitivity": 0.55,
     "leagueKPct": 22.5,
     "babipWeight": 0.25,
