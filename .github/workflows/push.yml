@@ -49,9 +49,9 @@ jobs:
           VAPID_SUBJECT:     ${{ secrets.VAPID_SUBJECT }}
         run: |
           if [ "${{ inputs.dry_run }}" = "true" ]; then
-            node send-push.js --dry-run
+            node public/send-push.js --dry-run
           else
-            node send-push.js
+            node public/send-push.js
           fi
 
       - name: Commit state
