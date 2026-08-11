@@ -9,7 +9,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Dinger Watch">
-<link rel="apple-touch-icon" href="./dinger-watch-avatar.png">
+<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
@@ -2360,7 +2361,7 @@ async function toggleNotifications(){
     store.set('dw_notify', '1');
     new Notification('Dinger Watch', {
       body: "You'll get a notification for every home run while this page is open.",
-      icon: NOTIFY_ICON, tag: 'dw-test',
+      icon: NOTIFY_ICON, badge: NOTIFY_BADGE, tag: 'dw-test',
     });
   } else if(perm === 'denied'){
     alert('Notifications are blocked for this site.\n\nRe-enable them in your browser settings (the padlock or ⓘ icon next to the address bar), then try again.');
@@ -2368,14 +2369,10 @@ async function toggleNotifications(){
   renderNotifyBtn();
 }
 
-// Inline SVG icon — no external request, so it renders even offline.
-const NOTIFY_ICON = 'data:image/svg+xml,' + encodeURIComponent(
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-     <circle cx="50" cy="50" r="50" fill="#0a0808"/>
-     <circle cx="50" cy="50" r="30" fill="#f5f0f0"/>
-     <path d="M32 26 Q42 50 32 74" stroke="#e0122e" stroke-width="4" fill="none"/>
-     <path d="M68 26 Q58 50 68 74" stroke="#e0122e" stroke-width="4" fill="none"/>
-   </svg>`);
+// App icon, shared by notifications and the installed-app shortcut. Relative
+// path so it resolves wherever the site is hosted.
+const NOTIFY_ICON = './icon-192.png';
+const NOTIFY_BADGE = './icon-192.png';   // Android status-bar glyph
 
 /**
  * Fire a notification for a home run. Uses the event key as the tag so a
@@ -2392,6 +2389,7 @@ function notifyHomeRun(ev){
       body: [bits.join(' · '), `${ev.half} ${ev.inning} · ${ev.battingTeam} vs ${ev.opponent}`]
               .filter(Boolean).join('\n'),
       icon: NOTIFY_ICON,
+      badge: NOTIFY_BADGE,
       tag: ev.key,               // dedupe
       renotify: false,
       silent: false,
