@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>Dinger Watch</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
@@ -47,6 +48,12 @@ h1 span{ color:var(--foul); font-weight:700;}
   font-size:10.5px; padding:4px 10px; border-radius:14px; cursor:pointer; transition: all .15s ease;
 }
 #refreshBtn:hover{ border-color: var(--foul); color: var(--white); }
+#exportBtn{
+  background: var(--panel); border:1px solid var(--line); color: var(--mute); font-family:'Space Mono',monospace;
+  font-size:10.5px; padding:4px 10px; border-radius:14px; cursor:pointer; transition: all .15s ease;
+}
+#exportBtn:hover{ border-color: var(--foul); color: var(--white); }
+#exportBtn.busy{ color: var(--foul); border-color: var(--foul); }
 #refreshBtn.spinning{ color: var(--foul); border-color: var(--foul); }
 
 main{ max-width:760px; margin: 8px auto 0; padding: 0 20px; }
@@ -477,6 +484,7 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
   <div class="refresh-row">
     <span id="lastUpdated">Updated just now</span>
     <button id="refreshBtn" title="Refresh live data now">↻ Refresh</button>
+    <button id="exportBtn" title="Download every player's prop projections as an Excel workbook">⬇ Excel</button>
   </div>
   <div class="live-status">
     <span><span class="dot pending" id="dotSlate"></span>Slate data (slate.json)</span>
@@ -3209,6 +3217,180 @@ function updateSlateFooter(){
 
 boot();
 loadActiveRosters().then(rosterData => { applyActiveStatus(rosterData); renderList(); });
+
+// ============================================================================
+//  EXCEL EXPORT
+// ----------------------------------------------------------------------------
+//  Writes a real .xlsx workbook (via SheetJS) with one sheet per prop plus a
+//  combined sheet, so the numbers can be sorted/filtered/modelled outside the app.
+// ============================================================================
+
+/** Round for display without turning a number into a string — Excel must still
+ *  see these as numeric so sorting and formulas work. */
+const xnum = (v, dp = 2) => (v == null || Number.isNaN(v)) ? null : +Number(v).toFixed(dp);
+
+function exportRows(){
+  return allBatters.filter(isPlayable).map(p => {
+    const g = p.game;
+    const sp = p.oppPitcher || {};
+    return {
+      Player: p.name,
+      Team: p.team,
+      Pos: p.pos || '',
+      Bats: p.hand || '',
+      Game: `${g.awayName} @ ${g.homeName}`,
+      'First Pitch': gameTime(g),
+      Ballpark: g.parkShort || g.park,
+      'Park HR Idx': xnum(g.parkFactor, 0),
+      'Opp SP': sp.name || '',
+      'SP Throws': sp.throws && sp.throws !== '?' ? sp.throws : '',
+      'SP HR/9': xnum(sp.hr9),
+      'SP K/9': xnum(sp.k9),
+      'Temp F': xnum(g.tempF, 0),
+      'Wind mph': xnum(g.windMph, 0),
+      'Wind Dir': g.windDeg != null ? windDirLabel(g.windDeg) : '',
+      'Wind Effect': g.windLabel || (g.roof !== 'open-air' ? 'Indoor' : ''),
+
+      // --- projections ---
+      'HR Index %': xnum(p.hrIndex, 0),
+      'Proj Hits': xnum(p.projHits),
+      '1+ Hit %': xnum(p.hitProb, 0),
+      'Proj TB': xnum(p.projTB),
+      'Proj RBI': xnum(p.projRBI),
+      'Proj Runs': xnum(p.projRuns),
+      'Proj H+R+RBI': xnum(p.projHRR),
+      'Proj SB': xnum(p.projSB),
+
+      // --- inputs behind them ---
+      HR: xnum(p.hr, 0),
+      AB: xnum(p.ab, 0),
+      AVG: xnum(p.avg, 3),
+      SLG: xnum(p.slg, 3),
+      OPS: xnum(p.ops, 3),
+      RBI: xnum(p.rbi, 0),
+      Runs: xnum(p.r, 0),
+      SB: xnum(p.sb, 0),
+      G: xnum(p.g, 0),
+      'Barrel %': xnum(p.statcast.barrel, 1),
+      'Exit Velo': xnum(p.statcast.ev, 1),
+      'Hard-Hit %': xnum(p.statcast.hardHit, 1),
+      xwOBA: xnum(p.statcast.xwoba, 3),
+      xSLG: xnum(p.statcast.xslg, 3),
+      'Launch Angle': xnum(p.statcast.launchAngle, 1),
+      'Speed Score': xnum(p.speed, 0),
+      Trend: p.recentForm?.trend || '',
+      'Statcast Source': p.statcast._derived ? 'Estimated' : 'Measured',
+    };
+  });
+}
+
+/** Widths sized to the header text, so nothing opens as "#####". */
+function fitColumns(rows){
+  if(!rows.length) return [];
+  return Object.keys(rows[0]).map(k => {
+    const longest = rows.reduce((m, r) => Math.max(m, String(r[k] ?? '').length), k.length);
+    return { wch: Math.min(30, Math.max(9, longest + 2)) };
+  });
+}
+
+function exportToExcel(){
+  const btn = document.getElementById('exportBtn');
+  if(typeof XLSX === 'undefined'){
+    alert("Excel library didn't load — check your connection and try again.");
+    return;
+  }
+  const rows = exportRows();
+  if(!rows.length){ alert('No player data loaded yet.'); return; }
+
+  if(btn){ btn.classList.add('busy'); btn.textContent = '⬇ Building…'; }
+
+  try{
+    const wb = XLSX.utils.book_new();
+
+    // One tab per prop, pre-sorted best-first so the sheet is useful on open.
+    const sheets = [
+      { name:'Home Runs',   key:'HR Index %',    dp:0 },
+      { name:'Hits',        key:'Proj Hits' },
+      { name:'Total Bases', key:'Proj TB' },
+      { name:'RBIs',        key:'Proj RBI' },
+      { name:'H+R+RBI',     key:'Proj H+R+RBI' },
+      { name:'Stolen Bases',key:'Proj SB' },
+    ];
+
+    // Columns that stay on every prop sheet, plus that prop's own metric.
+    const idCols = ['Player','Team','Pos','Bats','Game','First Pitch','Ballpark','Park HR Idx',
+                    'Opp SP','SP Throws','SP HR/9','Wind Effect'];
+    const ctxCols = ['HR','AB','AVG','SLG','OPS','Barrel %','Exit Velo','Hard-Hit %','Trend','Statcast Source'];
+
+    for(const sh of sheets){
+      const sorted = [...rows].sort((a,b) => (b[sh.key] ?? -1) - (a[sh.key] ?? -1));
+      const slim = sorted.map((r,i) => {
+        const o = { Rank: i+1 };
+        idCols.forEach(c => o[c] = r[c]);
+        o[sh.key] = r[sh.key];
+        if(sh.name === 'Hits') o['1+ Hit %'] = r['1+ Hit %'];
+        ctxCols.forEach(c => o[c] = r[c]);
+        return o;
+      });
+      const ws = XLSX.utils.json_to_sheet(slim);
+      ws['!cols'] = fitColumns(slim);
+      ws['!autofilter'] = { ref: ws['!ref'] };
+      ws['!freeze'] = { xSplit: 1, ySplit: 1 };
+      XLSX.utils.book_append_sheet(wb, ws, sh.name);
+    }
+
+    // Everything, every column — for pivot tables and custom models.
+    const allSorted = [...rows].sort((a,b) => (b['HR Index %'] ?? -1) - (a['HR Index %'] ?? -1));
+    const wsAll = XLSX.utils.json_to_sheet(allSorted);
+    wsAll['!cols'] = fitColumns(allSorted);
+    wsAll['!autofilter'] = { ref: wsAll['!ref'] };
+    XLSX.utils.book_append_sheet(wb, wsAll, 'All Data');
+
+    // Pitchers get their own sheet — different shape entirely.
+    if(allPitchers.length){
+      const pRows = [...allPitchers].sort((a,b)=>b.projK-a.projK).map((p,i)=>({
+        Rank: i+1, Pitcher: p.name, Throws: p.throws,
+        Game: `${p.game.awayName} @ ${p.game.homeName}`,
+        'First Pitch': gameTime(p.game), Opponent: p.opp,
+        Ballpark: p.game.parkShort || p.game.park,
+        'Proj K': xnum(p.projK, 1), 'Proj IP': xnum(p.expIP, 1),
+        'K/9': xnum(p.k9), 'HR/9': xnum(p.hr9),
+        ERA: xnum(p.era), WHIP: xnum(p.whip),
+      }));
+      const wsP = XLSX.utils.json_to_sheet(pRows);
+      wsP['!cols'] = fitColumns(pRows);
+      wsP['!autofilter'] = { ref: wsP['!ref'] };
+      XLSX.utils.book_append_sheet(wb, wsP, 'Pitcher Ks');
+    }
+
+    // Provenance sheet — so a saved file can always be traced back.
+    const meta = [
+      { Field:'Slate date',        Value: slateMeta.date || '' },
+      { Field:'Slate generated',   Value: slateMeta.generatedAt || '' },
+      { Field:'Exported',          Value: new Date().toISOString() },
+      { Field:'Games',             Value: games.length },
+      { Field:'Hitters',           Value: rows.length },
+      { Field:'Statcast source',   Value: slateMeta.sources?.statcast || 'unknown' },
+      { Field:'HR weights',        Value: JSON.stringify(MODEL.hr.weights) },
+      { Field:'Expected AB',       Value: MODEL.hits.expectedAB },
+      { Field:'Note',              Value: 'Projections are modelled estimates, not sportsbook lines. Not betting advice.' },
+    ];
+    (slateMeta.warnings || []).forEach((w,i) => meta.push({ Field:`Warning ${i+1}`, Value:w }));
+    const wsM = XLSX.utils.json_to_sheet(meta);
+    wsM['!cols'] = [{wch:20},{wch:80}];
+    XLSX.utils.book_append_sheet(wb, wsM, 'About');
+
+    const date = slateMeta.date || new Date().toISOString().slice(0,10);
+    XLSX.writeFile(wb, `dinger-watch-props-${date}.xlsx`);
+  }catch(err){
+    console.error('[export] failed:', err);
+    alert('Export failed: ' + err.message);
+  }finally{
+    if(btn){ btn.classList.remove('busy'); btn.textContent = '⬇ Excel'; }
+  }
+}
+
+document.getElementById('exportBtn')?.addEventListener('click', exportToExcel);
 
 // ---------------- Auto-update: live data refresh + day-change detection ----------------
 let lastUpdatedAt = Date.now();
