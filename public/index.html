@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <title>Dinger Watch</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#0a0808">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Dinger Watch">
+<link rel="apple-touch-icon" href="./dinger-watch-avatar.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
@@ -54,6 +60,12 @@ h1 span{ color:var(--foul); font-weight:700;}
 }
 #exportBtn:hover{ border-color: var(--foul); color: var(--white); }
 #exportBtn.busy{ color: var(--foul); border-color: var(--foul); }
+#notifyBtn{
+  background: var(--panel); border:1px solid var(--line); color: var(--mute); font-family:'Space Mono',monospace;
+  font-size:10.5px; padding:4px 10px; border-radius:14px; cursor:pointer; transition: all .15s ease;
+}
+#notifyBtn:hover{ border-color: var(--foul); color: var(--white); }
+#notifyBtn.active{ border-color: var(--grass-bright); color: var(--grass-bright); }
 #refreshBtn.spinning{ color: var(--foul); border-color: var(--foul); }
 
 main{ max-width:760px; margin: 8px auto 0; padding: 0 20px; }
@@ -334,6 +346,12 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 .tab-badge{ display:inline-block; background:var(--foul); color:var(--night); font-family:'Space Mono',monospace; font-size:9px; font-weight:700; padding:1px 5px; border-radius:9px; margin-left:6px; vertical-align:middle; }
 .prop-tab.active .tab-badge{ background:var(--night); color:var(--foul); }
 
+.ios-hint{ display:flex; gap:10px; align-items:flex-start; background:var(--night2); border:1px solid var(--foul);
+  border-radius:12px; padding:13px 15px; margin-top:14px; font-size:12.5px; line-height:1.55; color:var(--white); }
+.ios-hint b{ color:var(--foul); }
+.ios-hint-body{ flex:1; }
+.ios-hint-x{ background:none; border:none; color:var(--mute); font-size:20px; line-height:1; cursor:pointer; padding:0 2px; }
+.ios-hint-x:hover{ color:var(--white); }
 .feed-list{ display:flex; flex-direction:column; gap:10px; margin-top:14px; }
 .feed-item{ display:flex; gap:13px; background:var(--panel); border:1px solid var(--line); border-radius:13px; padding:14px 16px; cursor:pointer; transition:border-color .15s ease; }
 .feed-item:hover{ border-color:var(--foul); }
@@ -485,6 +503,7 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
     <span id="lastUpdated">Updated just now</span>
     <button id="refreshBtn" title="Refresh live data now">↻ Refresh</button>
     <button id="exportBtn" title="Download every player's prop projections as an Excel workbook">⬇ Excel</button>
+    <button id="notifyBtn" title="Get a notification for every home run">🔔 Alerts</button>
   </div>
   <div class="live-status">
     <span><span class="dot pending" id="dotSlate"></span>Slate data (slate.json)</span>
@@ -506,8 +525,9 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 </main>
 
 <footer>
-  All game, roster, player, pitcher, and weather data is loaded from <b>slate.json</b>, rebuilt each morning by <code>build-slate.js</code> against the MLB Stats API and Open-Meteo. Because it's server-generated and served same-origin, it doesn't depend on the browser making cross-origin calls — and stats, trades, and injuries self-correct daily rather than needing manual updates.
-  Live in-game score, inning, count, and batter/pitcher still poll the MLB Stats API directly, since a daily build can't cover in-progress games.
+  All game, roster, player, pitcher, and weather data is loaded from <b>slate.json</b>, rebuilt each morning by <code>build-slate.js</code> against the MLB Stats API and Open-Meteo. Because it is server-generated and served same-origin, it does not depend on the browser making cross-origin calls — and stats, trades, and injuries self-correct daily.
+  Live in-game score, inning, count, batter/pitcher, and the home run feed poll the MLB Stats API directly.
+  <b>Home run alerts</b> use your browser notifications and fire only while this page is open — there is no push server, so nothing arrives with the tab closed. On iPhone and iPad, add the site to your Home Screen first; iOS only permits notifications from installed apps.
   Statcast metrics appear when the optional enrichment step has run; otherwise contact-quality values are derived from season rate stats and are flagged as such.
   Odds are not included — no free public sportsbook feed exists. Everything here is modeled and directional, for entertainment only, not betting advice.
 </footer>
@@ -2294,6 +2314,104 @@ function renderFirstInning(){
 //  its Statcast batted-ball data (exit velo, launch angle, distance), which MLB
 //  attaches to the play event itself — no separate Savant call needed.
 // ============================================================================
+// ---------------------------------------------------------------- notifications
+// Uses the Web Notifications API, which needs three things: HTTPS, explicit user
+// permission, and the page to be open. There's no push server here, so nothing
+// fires with the tab fully closed — that would require a service worker plus a
+// backend to push to it.
+let notifyEnabled = false;
+
+/** localStorage throws in some sandboxed frames; never let that break the app. */
+const store = {
+  get(k, d = null){ try { return localStorage.getItem(k) ?? d; } catch { return d; } },
+  set(k, v){ try { localStorage.setItem(k, v); } catch {} },
+};
+
+const notifySupported = () => typeof Notification !== 'undefined';
+
+/** iOS only allows notifications once the site is installed to the Home Screen. */
+function isIOS(){ return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream; }
+function isStandalone(){
+  return window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true;
+}
+
+async function toggleNotifications(){
+  if(!notifySupported()){
+    if(isIOS() && !isStandalone()){
+      alert('On iPhone or iPad, notifications work only after you add this site to your Home Screen.\n\nTap the Share button, choose "Add to Home Screen", then open it from there and turn notifications on again.');
+    } else {
+      alert("This browser doesn't support notifications.");
+    }
+    return;
+  }
+
+  if(notifyEnabled){                       // turning off
+    notifyEnabled = false;
+    store.set('dw_notify', '0');
+    renderNotifyBtn();
+    return;
+  }
+
+  let perm = Notification.permission;
+  if(perm === 'default') perm = await Notification.requestPermission();
+
+  if(perm === 'granted'){
+    notifyEnabled = true;
+    store.set('dw_notify', '1');
+    new Notification('Dinger Watch', {
+      body: "You'll get a notification for every home run while this page is open.",
+      icon: NOTIFY_ICON, tag: 'dw-test',
+    });
+  } else if(perm === 'denied'){
+    alert('Notifications are blocked for this site.\n\nRe-enable them in your browser settings (the padlock or ⓘ icon next to the address bar), then try again.');
+  }
+  renderNotifyBtn();
+}
+
+// Inline SVG icon — no external request, so it renders even offline.
+const NOTIFY_ICON = 'data:image/svg+xml,' + encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+     <circle cx="50" cy="50" r="50" fill="#0a0808"/>
+     <circle cx="50" cy="50" r="30" fill="#f5f0f0"/>
+     <path d="M32 26 Q42 50 32 74" stroke="#e0122e" stroke-width="4" fill="none"/>
+     <path d="M68 26 Q58 50 68 74" stroke="#e0122e" stroke-width="4" fill="none"/>
+   </svg>`);
+
+/**
+ * Fire a notification for a home run. Uses the event key as the tag so a
+ * re-poll can never surface the same homer twice.
+ */
+function notifyHomeRun(ev){
+  if(!notifyEnabled || !notifySupported() || Notification.permission !== 'granted') return;
+  const bits = [];
+  if(ev.exitVelo) bits.push(`${ev.exitVelo} mph`);
+  if(ev.distance) bits.push(`${ev.distance} ft`);
+  if(ev.launchAngle != null) bits.push(`${ev.launchAngle}°`);
+  try{
+    const n = new Notification(`💣 ${ev.batter} — HOME RUN`, {
+      body: [bits.join(' · '), `${ev.half} ${ev.inning} · ${ev.battingTeam} vs ${ev.opponent}`]
+              .filter(Boolean).join('\n'),
+      icon: NOTIFY_ICON,
+      tag: ev.key,               // dedupe
+      renotify: false,
+      silent: false,
+    });
+    n.onclick = () => { window.focus(); activeTab = 'feed'; markFeedRead(); renderTabs(); renderList(); n.close(); };
+    setTimeout(() => n.close(), 20000);
+  }catch(e){ /* some browsers throw on tag reuse — not worth surfacing */ }
+}
+
+function renderNotifyBtn(){
+  const btn = document.getElementById('notifyBtn');
+  if(!btn) return;
+  const blocked = notifySupported() && Notification.permission === 'denied';
+  btn.textContent = notifyEnabled ? '🔔 On' : (blocked ? '🔕 Blocked' : '🔔 Alerts');
+  btn.classList.toggle('active', notifyEnabled);
+  btn.title = notifyEnabled
+    ? 'Home run notifications are on — click to turn off'
+    : blocked ? 'Blocked in browser settings' : 'Get a notification for every home run';
+}
+
 let feedEvents = [];          // newest first
 let feedUnread = 0;
 const seenHRKeys = new Set(); // gamePk:atBatIndex — prevents duplicate entries
@@ -2344,6 +2462,7 @@ async function pollHomeRunFeed(){
           isNew: true,
         });
         if(activeTab !== 'feed') feedUnread++;
+        notifyHomeRun(feedEvents[feedEvents.length - 1]);
       }
     }catch(e){ /* a single game failing shouldn't stall the whole feed */ }
   }));
@@ -2359,10 +2478,21 @@ function timeAgo(ts){
   return `${Math.round(s/3600)}h ago`;
 }
 
+function iosInstallHintHTML(){
+  if(!isIOS() || isStandalone() || store.get('dw_ios_hint_dismissed') === '1') return '';
+  return `<div class="ios-hint" id="iosHint">
+    <div class="ios-hint-body">
+      <b>Want home run alerts on your iPhone?</b>
+      iOS only allows notifications from installed apps. Tap <b>Share</b> → <b>Add to Home Screen</b>, then open Dinger Watch from your Home Screen and turn on Alerts.
+    </div>
+    <button class="ios-hint-x" id="iosHintX" aria-label="Dismiss">&times;</button>
+  </div>`;
+}
+
 function renderFeed(){
   if(!feedEvents.length){
     const anyLive = games.some(g => g.mlbStatus === 'Live');
-    pickList.innerHTML = `<div style="text-align:center;padding:46px 22px;color:var(--mute);font-family:'Oswald',sans-serif;font-size:14px;line-height:1.7;">
+    pickList.innerHTML = iosInstallHintHTML() + `<div style="text-align:center;padding:46px 22px;color:var(--mute);font-family:'Oswald',sans-serif;font-size:14px;line-height:1.7;">
       <div style="font-size:34px;margin-bottom:10px;">⚾</div>
       <div style="font-size:16px;color:var(--white);margin-bottom:8px;">No home runs yet</div>
       ${anyLive
@@ -2372,7 +2502,7 @@ function renderFeed(){
     return;
   }
 
-  pickList.innerHTML = `<div class="feed-list">` + feedEvents.map(ev => {
+  pickList.innerHTML = iosInstallHintHTML() + `<div class="feed-list">` + feedEvents.map(ev => {
     const stat = (v, label, unit='') => v == null ? '' :
       `<div class="fw-stat"><div class="fw-stat-v">${v}${unit}</div><div class="fw-stat-l">${label}</div></div>`;
     return `
@@ -2403,6 +2533,12 @@ function renderFeed(){
   <div class="odds-source-note" style="margin-top:14px;">Live from the MLB Stats API play-by-play feed. Batted-ball data is attached by Statcast moments after each swing — occasionally it lags the play by a few seconds.</div>`;
 
   feedEvents.forEach(ev => ev.isNew = false);   // clear highlight after one render
+
+  document.getElementById('iosHintX')?.addEventListener('click', e=>{
+    e.stopPropagation();
+    store.set('dw_ios_hint_dismissed', '1');
+    document.getElementById('iosHint')?.remove();
+  });
 
   pickList.querySelectorAll('.feed-item').forEach(item=>{
     item.addEventListener('click', ()=>{
@@ -3172,6 +3308,14 @@ function openPitcherModal(p){
 async function boot(){
   renderTabs();
   renderList();                       // paint the shell immediately
+
+  // Restore the notification preference. Permission can be revoked in browser
+  // settings between visits, so re-check it rather than trusting the flag alone.
+  if(notifySupported() && Notification.permission === 'granted' && store.get('dw_notify') === '1'){
+    notifyEnabled = true;
+  }
+  renderNotifyBtn();
+  document.getElementById('notifyBtn')?.addEventListener('click', toggleNotifications);
 
   // Must land before loadSlate(), since every player is scored during adaptation.
   await loadModelOverrides();
