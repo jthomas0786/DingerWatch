@@ -662,7 +662,7 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 <footer>
   All game, roster, player, pitcher, and weather data is loaded from <b>slate.json</b>, rebuilt each morning by <code>build-slate.js</code> against the MLB Stats API and Open-Meteo. Because it is server-generated and served same-origin, it does not depend on the browser making cross-origin calls — and stats, trades, and injuries self-correct daily.
   Live in-game score, inning, count, batter/pitcher, and the home run feed poll the MLB Stats API directly.
-  <b>Home run alerts</b> use your browser notifications and fire only while this page is open — there is no push server, so nothing arrives with the tab closed. On iPhone and iPad, add the site to your Home Screen first; iOS only permits notifications from installed apps.
+  <b>Home run alerts</b> use your browser notifications. With Web Push configured (service worker plus the scheduled sender), they arrive even when the app is closed; without it they fire only while this page is open. On iPhone and iPad, add the site to your Home Screen first — iOS only permits notifications from installed apps.
   Statcast metrics appear when the optional enrichment step has run; otherwise contact-quality values are derived from season rate stats and are flagged as such.
   Odds are not included — no free public sportsbook feed exists. Everything here is modeled and directional, for entertainment only, not betting advice.
 </footer>
@@ -2855,7 +2855,7 @@ function isStandalone(){
 // ---------------------------------------------------------------- web push
 // Paste the public key printed by gen-vapid-keys.js. While it's blank, the app
 // falls back to in-page notifications only (which need the tab open).
-const VAPID_PUBLIC_KEY = '';
+const VAPID_PUBLIC_KEY = 'BEY26FqtYMS_-69aFB0zG1aIVv4j3sTrE7DzrNcfXB04WpArVE13gHETbn7U_3H_KUCJanA5Dp3QGV4uXNqiMKU';
 
 let swRegistration = null;
 
