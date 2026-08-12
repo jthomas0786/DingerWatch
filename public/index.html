@@ -1068,10 +1068,16 @@ const MODEL = {
     // 'absolute'   = grade on fixed probability thresholds in `cuts` below.
     mode: 'percentile',
 
-    // Minimum slate percentile for each letter. With these values roughly
-    // 5% earn A+, 15% A, 20% B+, 20% B, 15% C+, 15% C, and the rest D.
-    // Raise aPlus to make the top grade rarer.
+    // Minimum slate percentile for each letter — applies to EVERY prop.
+    // With these values roughly 5% earn A+, 15% A, 20% B+, 20% B, 15% C+,
+    // 15% C, and the rest D. Raise aPlus to make the top grade rarer.
     percentiles: { aPlus: 95, a: 80, bPlus: 60, b: 40, cPlus: 25, c: 10 },
+
+    // Optional per-prop overrides. Only the letters you list are changed;
+    // everything else inherits from `percentiles` above. Example — make A+
+    // rare for home runs but ordinary for hits:
+    //   byProp: { hr: { aPlus: 98 }, hits: { aPlus: 90, a: 70 } }
+    byProp: {},
 
     // Used when mode is 'absolute', or when a slate is too small to rank.
     // e = elite (A+), g = good (B+), f = fair (C+).
@@ -3699,7 +3705,7 @@ function platoonSplitHTML(p, pitcher){
 // 4,000 runs keeps the margin of error under ~1 percentage point — well below
 // the precision the model itself justifies — while cutting a full-slate sort
 // from ~2.8s to well under a second. Raise it if you want steadier decimals.
-const SIM_RUNS = 10000;
+const SIM_RUNS = 4000;
 
 /** Per-PA outcome rates for tonight, from season rates × matchup adjustments. */
 function paRates(p){
@@ -3890,7 +3896,10 @@ const gradeFor = (prop, pct) => {
   if(G.mode === 'percentile'){
     const pctl = percentileOf(prop, pct);
     if(pctl != null){
-      const P = G.percentiles;
+      // Per-prop overrides layer on top of the global block, so you can make
+      // one prop stricter without touching the others. Any letter left out of
+      // an override falls back to the global value.
+      const P = { ...G.percentiles, ...((G.byProp || {})[prop] || {}) };
       if(pctl >= P.aPlus) return { g:'A+', cls:'grade-a' };
       if(pctl >= P.a)     return { g:'A',  cls:'grade-a' };
       if(pctl >= P.bPlus) return { g:'B+', cls:'grade-b' };
