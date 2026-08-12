@@ -45,17 +45,17 @@ async function checkLocal() {
 
   // Which build is deployed? The old one states it can't do background push.
   // Detect by capability, not by footer prose — copy drifts, code doesn't.
-  // The pre-push build states its own limitation in the footer, which makes it
-  // trivially identifiable — and it's the single most common cause of "my
-  // notifications don't work when the app is closed".
-  if(idx.includes('nothing arrives with the tab closed')){
-    fail('Build vintage',
-         'index.html is the OLD build — in-page notifications only',
-         'That footer text exists only in the pre-push version.\n' +
-         'Background push was added later. Upload the current index.html.');
-  }
-
+  // Version is judged from CODE, never from footer copy — the footer text
+  // lagged behind the implementation and produced false positives.
   const hasPushCode = idx.includes('registerServiceWorker') && idx.includes('pushManager.subscribe');
+
+  // Flag stale footer copy separately: it misleads anyone reading the page,
+  // but it does NOT mean push is missing.
+  if(hasPushCode && idx.includes('nothing arrives with the tab closed')){
+    warn('Footer copy out of date',
+         'page claims notifications need the tab open, but this build supports push',
+         'Cosmetic only — update the footer text so the page stops contradicting itself.');
+  }
   if (hasPushCode) {
     ok('Build version', 'current build with Web Push support');
   } else {
