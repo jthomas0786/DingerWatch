@@ -239,7 +239,7 @@ async function checkDeployed(base) {
 // ---------------------------------------------------------------- report
 function report() {
   const icon = { ok:'✓', warn:'!', fail:'✗' };
-  const pad = Math.max(...results.map(r => r.name.length));  
+  const pad = Math.max(...results.map(r => r.name.length));
   console.log('');
   for (const r of results) {
     console.log(`  ${icon[r.level]} ${r.name.padEnd(pad)}  ${r.detail}`);
