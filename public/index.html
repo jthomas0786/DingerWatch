@@ -2859,8 +2859,12 @@ function isStandalone(){
 }
 
 // ---------------------------------------------------------------- web push
-// Paste the public key printed by gen-vapid-keys.js. While it's blank, the app
-// falls back to in-page notifications only (which need the tab open).
+// The PUBLIC half of the VAPID keypair. Safe to ship in the page — browsers
+// need it to subscribe. The matching PRIVATE key must stay a repo secret
+// (VAPID_PRIVATE_KEY); it signs pushes and must never appear here.
+//
+// If this is ever blank the app silently falls back to in-page notifications,
+// which only fire while the tab is open.
 const VAPID_PUBLIC_KEY = 'BEY26FqtYMS_-69aFB0zG1aIVv4j3sTrE7DzrNcfXB04WpArVE13gHETbn7U_3H_KUCJanA5Dp3QGV4uXNqiMKU';
 
 let swRegistration = null;
