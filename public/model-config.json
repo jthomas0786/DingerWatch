@@ -1,6 +1,6 @@
 {
   "//": "Dinger Watch model config. Deep-merged over the app defaults at load, so this survives any rebuild of index.html. Delete any key to fall back to its default. Place next to index.html.",
-  "// grading": "GRADES. mode 'percentile' grades on RANK within tonight's slate — percentiles.aPlus:95 means only the top 5% get A+. Raise it to make A+ rarer, lower it to hand out more. mode 'absolute' uses the fixed probability thresholds in cuts instead.",
+  "// grading": "GRADES — edit here, never in index.html. percentiles = one setting for ALL props: aPlus 95 means only the top 5% of tonight's slate earn A+. Raise it for rarer A+, lower it for more. byProp = optional per-prop overrides layered on top, e.g. {\"hr\":{\"aPlus\":98},\"sb\":{\"aPlus\":85}} makes HR strict and SB lenient; letters you omit inherit from percentiles. mode 'absolute' ignores both and uses the fixed probability thresholds in cuts instead.",
   "grading": {
     "mode": "percentile",
     "percentiles": {
@@ -11,6 +11,7 @@
       "cPlus": 25,
       "c": 10
     },
+    "byProp": {},
     "cuts": {
       "hr": {
         "e": 27,
@@ -77,12 +78,12 @@
   "// hr": "HOME RUN INDEX (0-100). weights must total 100. Each *Scale is the input value that earns full marks.",
   "hr": {
     "weights": {
-      "statcast": 60,
-      "form": 10,
+      "statcast": 50,
+      "form": 20,
       "park": 15,
       "matchup": 15
     },
-    "barrelWeight": 0.45,
+    "barrelWeight": 0.5,
     "barrelScale": 15,
     "hardHitScale": 40,
     "trendBonus": 2.5,
@@ -95,7 +96,7 @@
     "matchupCap": 1.5,
     "airWeight": 0.35,
     "leagueAirPct": 62,
-    "pitcherGbWeight": 0.18,
+    "pitcherGbWeight": 0.17,
     "leagueGbFb": 1.35
   },
   "// hits": "PROJECTED HITS. babipWeight pulls a lucky/unlucky hitter back toward .300 (0 disables). kSensitivity weights the batter-vs-pitcher strikeout mismatch.",
