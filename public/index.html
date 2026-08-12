@@ -1061,6 +1061,36 @@ const TIER_RANGES = {
 // ============================================================================
 const MODEL = {
 
+  // ---- Grading ----
+  //  How letter grades are assigned to prop probabilities.
+  grading: {
+    // 'percentile' = grade on rank within tonight's slate (recommended).
+    // 'absolute'   = grade on fixed probability thresholds in `cuts` below.
+    mode: 'percentile',
+
+    // Minimum slate percentile for each letter. With these values roughly
+    // 5% earn A+, 15% A, 20% B+, 20% B, 15% C+, 15% C, and the rest D.
+    // Raise aPlus to make the top grade rarer.
+    percentiles: { aPlus: 95, a: 80, bPlus: 60, b: 40, cPlus: 25, c: 10 },
+
+    // Used when mode is 'absolute', or when a slate is too small to rank.
+    // e = elite (A+), g = good (B+), f = fair (C+).
+    cuts: {
+      hr:   { e:27, g:23, f:16 },
+      hits: { e:77, g:74, f:70 },
+      tb:   { e:53, g:50, f:47 },
+      rbi:  { e:53, g:49, f:42 },
+      hrr:  { e:66, g:62, f:56 },
+      sb:   { e:9,  g:8,  f:5  },
+      hits15:  { e:33, g:28, f:22 },
+      tb25:    { e:33, g:28, f:22 },
+      hrr25:   { e:45, g:39, f:32 },
+      singles: { e:62, g:56, f:48 },
+      doubles: { e:20, g:16, f:12 },
+      runs:    { e:47, g:42, f:36 },
+    },
+  },
+
   // ---- Home Run Index (the four bars in the player modal) ----
   hr: {
     weights:      { statcast: 50, form: 20, park: 15, matchup: 15 },  // must total 100
@@ -2300,6 +2330,7 @@ function deriveWeatherEffect(g){
 function rescoreAllPlayers(){
   games.forEach(g => deriveWeatherEffect(g));
   allBatters.forEach(p => scorePlayer(p, p.game));
+  invalidateGradeCache();   // ranks shift whenever probabilities change
 }
 
 /**
@@ -3812,20 +3843,66 @@ function simulatePlayer(p){
  * Anchoring to the distribution is what makes an A+ mean something — a fixed
  * threshold below the median grades the whole slate A+.
  */
-const GRADE_CUTS = {
-  hr:   { e:27, g:23, f:16 },
-  hits: { e:77, g:74, f:70 },
-  tb:   { e:53, g:50, f:47 },
-  rbi:  { e:53, g:49, f:42 },
-  hrr:  { e:66, g:62, f:56 },
-  sb:   { e:9,  g:8,  f:5  },
-  // Secondary lines, scaled from their primary.
-  hits15:{ e:33, g:28, f:22 }, tb25:{ e:33, g:28, f:22 },
-  hrr25:{ e:45, g:39, f:32 }, singles:{ e:62, g:56, f:48 },
-  doubles:{ e:20, g:16, f:12 }, runs:{ e:47, g:42, f:36 },
-};
+/**
+ * Grading. Two modes, switchable in model-config.json:
+ *
+ *   MODEL.grading.mode = 'percentile'  (default)
+ *     A player's grade depends on where he RANKS among tonight's hitters for
+ *     that prop. The share of the slate earning each letter is fixed by
+ *     MODEL.grading.percentiles, so "A+" always means "top N%" no matter how
+ *     hot or cold the overall slate is.
+ *
+ *   MODEL.grading.mode = 'absolute'
+ *     Grades come from fixed probability thresholds in MODEL.grading.cuts.
+ *     An A+ then means "cleared this number", which can grade the whole slate
+ *     A+ on a good night and nobody on a bad one.
+ *
+ * Percentile mode is the default because it does what you actually want from a
+ * grade: separate tonight's best plays from the rest.
+ */
+
+/** Cache of sorted slate values per prop, rebuilt whenever scores change. */
+let _gradeDist = {};
+function gradeDistribution(prop){
+  if(_gradeDist[prop]) return _gradeDist[prop];
+  const key = (TAB_SIM[prop] || {}).key || prop;
+  const vals = allBatters.filter(isPlayable)
+    .map(p => { const s = simulatePlayer(p); return s[key] ? s[key].pct : null; })
+    .filter(v => v != null)
+    .sort((a, b) => a - b);
+  _gradeDist[prop] = vals;
+  return vals;
+}
+function invalidateGradeCache(){ _gradeDist = {}; }
+
+/** Share of the slate scoring at or below this value. */
+function percentileOf(prop, pct){
+  const vals = gradeDistribution(prop);
+  if(vals.length < 8) return null;              // too few to rank meaningfully
+  let below = 0;
+  for(const v of vals){ if(v < pct) below++; else break; }
+  return (below / vals.length) * 100;
+}
+
 const gradeFor = (prop, pct) => {
-  const c = GRADE_CUTS[prop] || { e:60, g:45, f:30 };
+  const G = MODEL.grading;
+
+  if(G.mode === 'percentile'){
+    const pctl = percentileOf(prop, pct);
+    if(pctl != null){
+      const P = G.percentiles;
+      if(pctl >= P.aPlus) return { g:'A+', cls:'grade-a' };
+      if(pctl >= P.a)     return { g:'A',  cls:'grade-a' };
+      if(pctl >= P.bPlus) return { g:'B+', cls:'grade-b' };
+      if(pctl >= P.b)     return { g:'B',  cls:'grade-b' };
+      if(pctl >= P.cPlus) return { g:'C+', cls:'grade-c' };
+      if(pctl >= P.c)     return { g:'C',  cls:'grade-c' };
+      return { g:'D', cls:'grade-d' };
+    }
+    // Fall through to absolute if the slate is too small to rank.
+  }
+
+  const c = G.cuts[prop] || { e:60, g:45, f:30 };
   return propGrade(pct, c.e, c.g, c.f);
 };
 
@@ -3909,9 +3986,10 @@ function matchupVerdictHTML(p){
   if(sp.hr9) bits.push(`${sp.hr9} HR/9 allowed by ${surname(sp.name || 'the starter')}`);
   if(p.game.parkFactor !== 100) bits.push(`${p.game.parkShort} at ${p.game.parkFactor} park factor`);
 
-  const verdict = sim.hr.pct >= GRADE_CUTS.hr.e ? 'ELITE SETUP'
-                : sim.hr.pct >= GRADE_CUTS.hr.g ? 'STRONG SPOT'
-                : sim.hr.pct >= GRADE_CUTS.hr.f ? 'PLAYABLE' : 'TOUGH DRAW';
+  // Verdict follows the grade, so the words and the letter never disagree.
+  const verdict = gr.g === 'A+' ? 'ELITE SETUP'
+                : gr.g.startsWith('A') ? 'STRONG SPOT'
+                : gr.g.startsWith('B') ? 'PLAYABLE' : 'TOUGH DRAW';
 
   return `<div class="verdict">
     <div class="verdict-ring ${gr.cls}">

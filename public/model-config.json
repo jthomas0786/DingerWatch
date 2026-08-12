@@ -1,39 +1,112 @@
 {
-  "//": "Dinger Watch model weights. Deep-merged over the app defaults at load, so this file survives any rebuild of index.html. Delete any key to fall back to its default. Place next to index.html (public/model-config.json).",
-  "// hr.weights": "The four HR Index components. MUST total 100 — a console warning fires if not.",
-  "// hr": "HOME RUN INDEX (0-100). weights must total 100. Each *Scale is the input value that earns full marks — lower it to make a category easier to max out.",
+  "//": "Dinger Watch model config. Deep-merged over the app defaults at load, so this survives any rebuild of index.html. Delete any key to fall back to its default. Place next to index.html.",
+  "// grading": "GRADES. mode 'percentile' grades on RANK within tonight's slate — percentiles.aPlus:95 means only the top 5% get A+. Raise it to make A+ rarer, lower it to hand out more. mode 'absolute' uses the fixed probability thresholds in cuts instead.",
+  "grading": {
+    "mode": "percentile",
+    "percentiles": {
+      "aPlus": 95,
+      "a": 80,
+      "bPlus": 60,
+      "b": 40,
+      "cPlus": 25,
+      "c": 10
+    },
+    "cuts": {
+      "hr": {
+        "e": 27,
+        "g": 23,
+        "f": 16
+      },
+      "hits": {
+        "e": 77,
+        "g": 74,
+        "f": 70
+      },
+      "tb": {
+        "e": 53,
+        "g": 50,
+        "f": 47
+      },
+      "rbi": {
+        "e": 53,
+        "g": 49,
+        "f": 42
+      },
+      "hrr": {
+        "e": 66,
+        "g": 62,
+        "f": 56
+      },
+      "sb": {
+        "e": 9,
+        "g": 8,
+        "f": 5
+      },
+      "hits15": {
+        "e": 33,
+        "g": 28,
+        "f": 22
+      },
+      "tb25": {
+        "e": 33,
+        "g": 28,
+        "f": 22
+      },
+      "hrr25": {
+        "e": 45,
+        "g": 39,
+        "f": 32
+      },
+      "singles": {
+        "e": 62,
+        "g": 56,
+        "f": 48
+      },
+      "doubles": {
+        "e": 20,
+        "g": 16,
+        "f": 12
+      },
+      "runs": {
+        "e": 47,
+        "g": 42,
+        "f": 36
+      }
+    }
+  },
+  "// hr": "HOME RUN INDEX (0-100). weights must total 100. Each *Scale is the input value that earns full marks.",
   "hr": {
     "weights": {
       "statcast": 50,
-      "form": 15,
+      "form": 20,
       "park": 15,
-      "matchup": 20
+      "matchup": 15
     },
-    "barrelWeight": 0.45,
-    "barrelScale": 17,
-    "hardHitScale": 41,
-    "trendBonus": 2.5,
+    "barrelWeight": 0.6,
+    "barrelScale": 20,
+    "hardHitScale": 55,
+    "trendBonus": 4,
     "weatherMult": {
-      "pos": 1.09,
-      "neg": 0.91,
+      "pos": 1.08,
+      "neg": 0.9,
       "neu": 1
     },
-    "leagueHR9": 1.2,
+    "leagueHR9": 1.1,
     "matchupCap": 1.5,
-    "airWeight": 0.35,
+    "airWeight": 0.3,
     "leagueAirPct": 62,
-    "pitcherGbWeight": 0.16,
-    "leagueGbFb": 1.2
+    "pitcherGbWeight": 0.2,
+    "leagueGbFb": 1.15
   },
-  "// hits": "PROJECTED HITS = expected AB x AVG, adjusted. babipWeight pulls a lucky/unlucky hitter back toward .300 (0 disables). kSensitivity weights the batter-vs-pitcher strikeout mismatch.",
+  "// hits": "PROJECTED HITS. babipWeight pulls a lucky/unlucky hitter back toward .300 (0 disables). kSensitivity weights the batter-vs-pitcher strikeout mismatch.",
   "hits": {
-    "expectedAB": 3.7,
+    "expectedAB": 4,
     "kSensitivity": 0.55,
     "leagueKPct": 22.5,
     "babipWeight": 0.25,
     "leagueBabip": 0.3
   },
-  "// order": "BATTING ORDER multipliers, index 0 = leadoff. Applied only when MLB has posted the lineup. Biggest single precision gain in the model.",
+  "// order": "BATTING ORDER multipliers, index 0 = leadoff. Applied only when MLB has posted the lineup.",
   "order": {
     "paMult": [
       1.09,
@@ -69,12 +142,12 @@
       0.8
     ]
   },
-  "// steal": "STEAL OPPORTUNITY. attemptWeight favours attempts-per-time-on-base over raw SB/game. Below successFloor, managers stop sending the runner and the projection is damped.",
+  "// steal": "STEAL OPPORTUNITY. Below successFloor, managers stop sending the runner and the projection is damped.",
   "steal": {
     "attemptWeight": 0.6,
     "successFloor": 0.65
   },
-  "// tb": "PROJECTED TOTAL BASES = expected AB x blended SLG x park x weather. SLG is total bases per at-bat by definition, so the base identity is exact.",
+  "// tb": "PROJECTED TOTAL BASES = expected AB x blended SLG x park x weather.",
   "tb": {
     "xslgWeight": 0.45,
     "parkSensitivity": 0.5,
@@ -89,12 +162,12 @@
     "trendMultiplier": 2,
     "parkDivisor": 3
   },
-  "// hrr": "H+R+RBI. Components are projected separately and summed, matching how the sportsbook market counts them.",
+  "// hrr": "H+R+RBI. Components projected separately and summed, matching the sportsbook market.",
   "hrr": {
     "runsFromOnBaseRate": 0.33,
     "parkSensitivity": 0.6
   },
-  "// sb": "STOLEN BASE speed score. posBonus shifts the score by position; rateMultiplier controls how hard SB rate drives it.",
+  "// sb": "STOLEN BASE speed score. posBonus shifts by position.",
   "sb": {
     "coldWeatherMult": 0.95,
     "rateMultiplier": 120,
