@@ -119,6 +119,9 @@ main{ max-width:760px; margin: 8px auto 0; padding: 0 20px; }
 .env-icon{ width:18px; height:18px; flex-shrink:0; opacity:0.85; }
 .wind-arrow{ width:14px; height:14px; flex-shrink:0; }
 .pick-score{ flex:0 0 60px; text-align:center; padding-top:6px; }
+.pick-grade{ font-family:'Archivo Black',sans-serif; font-size:15px; line-height:1; margin-bottom:2px; }
+.pick-grade.grade-a{ color:var(--grass-bright); } .pick-grade.grade-b{ color:#f4c430; }
+.pick-grade.grade-c{ color:var(--warm); }        .pick-grade.grade-d{ color:var(--mute); }
 .pick-score-val{ font-family:'Archivo Black',sans-serif; font-size:24px; line-height:1;}
 .pick-score-val.score-hi{ color: var(--grass-bright); }
 .pick-score-val.score-mid{ color: #f4c430; }
@@ -154,6 +157,16 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 .dq-badge{ font-family:'Space Mono',monospace; font-size:9.5px; padding:2px 8px; border-radius:20px; text-transform:uppercase; margin-left:8px; }
 .dq-badge.sourced{ background:rgba(74,156,90,0.18); color:var(--grass-bright); border:1px solid rgba(74,156,90,0.4); }
 .dq-badge.modeled{ background:rgba(184,168,168,0.15); color:var(--cool); border:1px solid rgba(184,168,168,0.35); }
+.modal-grade{ font-family:'Archivo Black',sans-serif; font-size:30px; line-height:1; padding-right:14px;
+  border-right:1px solid var(--line); }
+.modal-grade.grade-a{ color:var(--grass-bright); } .modal-grade.grade-b{ color:#f4c430; }
+.modal-grade.grade-c{ color:var(--warm); }        .modal-grade.grade-d{ color:var(--mute); }
+.modal-index-num.grade-a{ color:var(--grass-bright); } .modal-index-num.grade-b{ color:#f4c430; }
+.modal-index-num.grade-c{ color:var(--warm); }        .modal-index-num.grade-d{ color:var(--mute); }
+.modal-index-fill.grade-a{ background:var(--grass-bright); } .modal-index-fill.grade-b{ background:#f4c430; }
+.modal-index-fill.grade-c{ background:var(--warm); }        .modal-index-fill.grade-d{ background:var(--mute); }
+.mi-label{ font-size:10.5px; color:var(--mute); margin-bottom:6px; font-family:'Space Mono',monospace; letter-spacing:.06em; }
+.mi-sub{ font-family:'Space Mono',monospace; font-size:9px; color:var(--mute); margin-top:5px; }
 .modal-index{ display:flex; align-items:center; gap:18px; margin-top:16px; }
 .modal-index-num{ font-family:'Archivo Black',sans-serif; font-size:42px; color: var(--foul); }
 .modal-index-bar{ flex:1; }
@@ -1399,7 +1412,8 @@ function getTop5(tabId){
     return pool.sort((a,b)=>b.projK-a.projK).slice(0,TOP_N);
   }
   let sorted;
-  if(tabId==='hr') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.hrIndex-a.hrIndex);
+  if(tabId==='hr') sorted=[...allBatters].filter(isPlayable)
+      .sort((a,b)=>simulatePlayer(b).hr.pct - simulatePlayer(a).hr.pct);
   else if(tabId==='hits') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.projHits-a.projHits);
   else if(tabId==='tb') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.projTB-a.projTB);
   else if(tabId==='rbi') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.projRBI-a.projRBI);
@@ -1428,7 +1442,7 @@ function chipsFor(tabId, p){
 }
 function scoreFor(tabId, p){
   if(tabId==='k') return p.projK;
-  if(tabId==='hr') return p.hrIndex;      // genuinely a probability — stays a %
+  if(tabId==='hr') return simulatePlayer(p).hr.pct;   // same number the modal shows
   if(tabId==='hits') return p.projHits;   // projected counts below
   if(tabId==='tb') return p.projTB;
   if(tabId==='rbi') return p.projRBI;
@@ -1479,7 +1493,7 @@ function activeFilterCount(){ return Object.keys(activeFilters).length; }
 /** Only the HR index is a percentage; every other prop is a projected count. */
 function isPercentTab(tabId){ return tabId === 'hr'; }
 function scoreLabel(tabId){
-  return ({ k:'PROJ K', hits:'PROJ HITS', tb:'PROJ TB', rbi:'PROJ RBI', hrr:'PROJ H+R+RBI', sb:'PROJ SB', hr:'HR IDX' })[tabId] || '';
+  return ({ k:'PROJ K', hits:'PROJ HITS', tb:'PROJ TB', rbi:'PROJ RBI', hrr:'PROJ H+R+RBI', sb:'PROJ SB', hr:'HR CHANCE' })[tabId] || '';
 }
 const SECTION_META = {
   slate: {title:'Today\'s Slate', sub:'Live scores, inning, count, and current batter/pitcher — updates automatically while games are in progress.'},
@@ -1741,7 +1755,7 @@ function propSummary(tabId, p){
  * get bands calibrated to what a strong single-game projection actually is.
  */
 const SCORE_BANDS = {
-  hr:   { hi: 90,   mid: 75   },   // index points
+  hr:   { hi: 22,   mid: 13   },   // simulated HR probability (%)
   hits: { hi: 1.20, mid: 1.00 },   // projected hits
   tb:   { hi: 2.00, mid: 1.60 },   // projected total bases
   rbi:  { hi: 0.80, mid: 0.60 },   // projected RBI
@@ -1976,6 +1990,7 @@ function renderList(){
           </div>
         </div>
         <div class="pick-score">
+          ${activeTab==='hr' ? `<div class="pick-grade ${propGrade(score,22,13,8).cls}">${propGrade(score,22,13,8).g}</div>` : ''}
           <div class="pick-score-val ${scoreTierClass(activeTab, score)}">${scoreDisplay}</div>
           <div class="pick-score-label">${scoreLabel(activeTab)}</div>
         </div>
@@ -3392,7 +3407,10 @@ function platoonSplitHTML(p, pitcher){
 //  rolling each event independently and letting a single PA be both a single
 //  and a homer.
 // ============================================================================
-const SIM_RUNS = 10000;
+// 4,000 runs keeps the margin of error under ~1 percentage point — well below
+// the precision the model itself justifies — while cutting a full-slate sort
+// from ~2.8s to well under a second. Raise it if you want steadier decimals.
+const SIM_RUNS = 4000;
 
 /** Per-PA outcome rates for tonight, from season rates × matchup adjustments. */
 function paRates(p){
@@ -3637,11 +3655,22 @@ function openBatterModal(p){
       <div class="modal-head-text">
       <div class="modal-name">${p.name} <span class="dq-badge ${dqClass}">${dqLabel}</span></div>
       <div class="modal-tag">${p.team} · ${p.pos||''} · Bats ${p.hand||'?'} · ${g.awayName} @ ${g.homeName} · ${gameTime(g)}</div>
-      <div class="modal-index">
-        <div class="modal-index-num">${p.hrIndex}%</div>
-        <div class="modal-index-bar"><div style="font-size:11px;color:var(--mute);margin-bottom:6px;font-family:'Space Mono',monospace;">HOME RUN INDEX TONIGHT</div>
-        <div class="modal-index-track"><div class="modal-index-fill" style="width:${p.hrIndex}%"></div></div></div>
-      </div>
+      ${(() => {
+        // Header now reports the simulated HR probability and its grade, which
+        // is the same number shown on the tiles below. The old raw index was an
+        // internal 0-100 score, not a probability, so the two disagreed.
+        const sim = simulatePlayer(p);
+        const gr = propGrade(sim.hr.pct, 22, 13, 8);
+        return `<div class="modal-index">
+          <div class="modal-grade ${gr.cls}">${gr.g}</div>
+          <div class="modal-index-num ${gr.cls}">${sim.hr.pct}%</div>
+          <div class="modal-index-bar">
+            <div class="mi-label">HOME RUN · OVER 0.5</div>
+            <div class="modal-index-track"><div class="modal-index-fill ${gr.cls}" style="width:${Math.min(100, sim.hr.pct * 3)}%"></div></div>
+            <div class="mi-sub">index ${p.hrIndex} · ${SIM_RUNS.toLocaleString()} sims</div>
+          </div>
+        </div>`;
+      })()}
       </div>
     </div>
     <div class="tabs">
