@@ -281,6 +281,57 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 .verdict-body p{ font-size:12.5px; color:var(--white); line-height:1.55; margin-top:6px; }
 
 /* --- graded prop tiles --- */
+/* --- prop switcher + grade header --- */
+.prop-switch{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
+.ps-btn{ background:var(--night2); border:1px solid var(--line); color:var(--mute);
+  font-family:'Oswald',sans-serif; font-size:12px; padding:7px 13px; border-radius:18px; cursor:pointer;
+  transition:all .15s ease; }
+.ps-btn:hover{ border-color:var(--foul); color:var(--white); }
+.ps-btn.active{ background:var(--foul); border-color:var(--foul); color:var(--night); font-weight:700; }
+
+.prop-head{ display:flex; align-items:center; gap:14px; background:var(--night2); border:1px solid var(--line);
+  border-left-width:4px; border-radius:12px; padding:14px 16px; margin-bottom:14px; }
+.prop-head.grade-a{ border-left-color:var(--grass-bright); }
+.prop-head.grade-b{ border-left-color:#f4c430; }
+.prop-head.grade-c{ border-left-color:var(--warm); }
+.prop-head.grade-d{ border-left-color:var(--mute); }
+.ph-grade{ font-family:'Archivo Black',sans-serif; font-size:30px; line-height:1; }
+.grade-a .ph-grade, .grade-a .ph-pct{ color:var(--grass-bright); }
+.grade-b .ph-grade, .grade-b .ph-pct{ color:#f4c430; }
+.grade-c .ph-grade, .grade-c .ph-pct{ color:var(--warm); }
+.grade-d .ph-grade, .grade-d .ph-pct{ color:var(--mute); }
+.ph-mid{ flex:1; min-width:0; }
+.ph-label{ font-family:'Oswald',sans-serif; font-size:14px; color:var(--white); letter-spacing:.03em; }
+.ph-label span{ color:var(--mute); font-size:11px; font-family:'Space Mono',monospace; }
+.ph-sub{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); margin-top:3px; }
+.ph-pct{ font-family:'Archivo Black',sans-serif; font-size:26px; }
+
+/* --- factor list --- */
+.factor-list{ display:flex; flex-direction:column; gap:4px; }
+.fac-head{ display:grid; grid-template-columns:1.5fr 1.4fr .6fr; gap:12px; padding:0 12px 6px;
+  font-family:'Space Mono',monospace; font-size:9px; color:var(--mute); text-transform:uppercase; letter-spacing:.06em; }
+.fac-row{ display:grid; grid-template-columns:1.5fr 1.4fr .6fr; gap:12px; align-items:center;
+  background:var(--night2); border:1px solid var(--line); border-radius:9px; padding:10px 12px; }
+.fac-label{ font-family:'Oswald',sans-serif; font-size:13px; color:var(--white); }
+.fac-detail{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); margin-top:2px; }
+/* Bars grow out from a centre line so direction is readable at a glance. */
+.fac-track{ position:relative; height:8px; background:var(--line); border-radius:4px; }
+.fac-track::before{ content:''; position:absolute; left:50%; top:-2px; bottom:-2px; width:1px; background:var(--mute); opacity:.5; }
+.fac-fill{ height:100%; border-radius:4px; }
+.fac-fill.fac-pos{ background:var(--grass-bright); }
+.fac-fill.fac-neg{ background:var(--hot); }
+.fac-fill.fac-neu{ background:var(--mute); opacity:.5; }
+.fac-verdict{ font-family:'Space Mono',monospace; font-size:10px; text-align:right; }
+.fac-verdict.fac-pos{ color:var(--grass-bright); }
+.fac-verdict.fac-neg{ color:var(--hot); }
+.fac-verdict.fac-neu{ color:var(--mute); }
+.fac-foot{ font-family:'Space Mono',monospace; font-size:9px; color:var(--mute); margin-top:8px; text-align:center; }
+
+@media (max-width:520px){
+  .fac-head, .fac-row{ grid-template-columns:1.4fr 1fr .55fr; gap:8px; }
+  .fac-label{ font-size:11.5px; }
+  .ph-grade{ font-size:24px; } .ph-pct{ font-size:21px; }
+}
 .prop-tiles{ display:grid; grid-template-columns:repeat(auto-fit,minmax(108px,1fr)); gap:8px; }
 .prop-tile{ background:var(--night2); border:1px solid var(--line); border-radius:10px; padding:11px 8px;
   text-align:center; border-top-width:3px; }
@@ -356,12 +407,6 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 .stat-box .sc{ font-size:10.5px; color: var(--mute); margin-top:5px; }
 .pctl-track{ height:5px; background: var(--line); border-radius:3px; margin-top:8px; overflow:hidden; }
 .pctl-fill{ height:100%; background: var(--grass-bright); }
-.breakdown-row{ display:flex; align-items:center; gap:12px; padding: 9px 0; border-bottom: 1px solid var(--line); }
-.breakdown-row:last-child{ border-bottom:none; }
-.breakdown-label{ flex: 0 0 150px; font-size:12.5px; }
-.breakdown-track{ flex:1; height:7px; background: var(--line); border-radius:4px; overflow:hidden; }
-.breakdown-fill{ height:100%; border-radius:4px; }
-.breakdown-pts{ flex:0 0 55px; text-align:right; font-family:'Space Mono',monospace; font-size:12px; color: var(--foul); font-weight:700; }
 .matchup-block{ background: var(--night2); border:1px solid var(--line); border-radius:10px; padding:15px 17px; margin-bottom:11px; }
 .matchup-block h5{ font-family:'Oswald',sans-serif; font-size:13.5px; margin-bottom:7px; color: var(--foul); }
 .matchup-block p{ font-size:12.5px; color: var(--white); line-height:1.6; }
@@ -1177,42 +1222,202 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 // bar widths, and category order all derive from that single source — editing a
 // weight (here or in model-config.json) updates the modal automatically, with
 // nothing to keep in sync by hand.
-const HR_BREAKDOWN_META = [
-  { key:'statcast', label:'Statcast Profile', color:'var(--foul)' },
-  { key:'form',     label:'Recent Form',      color:'var(--grass-bright)' },
-  { key:'park',     label:'Park + Weather',   color:'var(--cool)' },
-  { key:'matchup',  label:'Matchup',          color:'var(--hot)' },
-];
-
-function totalHRWeight(){
-  const w = MODEL.hr.weights;
-  return w.statcast + w.form + w.park + w.matchup;
-}
-
-function breakdownRowsHTML(p){
-  return HR_BREAKDOWN_META.map(({key, label, color}) => {
-    const weight = MODEL.hr.weights[key];
-    const pts = p.breakdown?.[key] ?? 0;
-    // Guard against a zero weight (a legitimate way to disable a category)
-    // producing a divide-by-zero and an invalid CSS width.
-    const pct = weight > 0 ? clamp((pts / weight) * 100, 0, 100) : 0;
-    return `<div class="breakdown-row">
-      <div class="breakdown-label">${label} <span style="color:var(--mute);">(${weight}%)</span></div>
-      <div class="breakdown-track"><div class="breakdown-fill" style="width:${pct}%;background:${color};"></div></div>
-      <div class="breakdown-pts">${pts} pts</div>
-    </div>`;
-  }).join('');
-}
-
 /**
- * Null-safe status-dot setter. The status row has been reshaped a few times as
- * data moved server-side, orphaning references to dots that no longer exist.
- * A missing indicator must never break the feature it was reporting on, so this
- * silently no-ops instead of throwing.
+ * "What helps and hurts" — the factor list that replaced the old points
+ * breakdown. Each row reports the factor in its OWN units (HR/9, park index,
+ * barrel percentile) rather than as an abstract score, so it explains the grade
+ * instead of competing with it.
+ *
+ * Magnitude is derived from the same MODEL weights that drive the scoring, so
+ * tuning a weight still changes what this shows.
  */
-function setDot(id, state){
-  const el = document.getElementById(id);
-  if(el) el.className = 'dot ' + state;
+function factorListHTML(p, prop){
+  const g = p.game, sp = p.oppPitcher || {};
+  const M = MODEL.hr;
+  const rows = [];
+
+  // --- shared context every prop cares about ---
+  // Environment matters enormously for home runs, moderately for extra bases,
+  // barely for singles, and not at all for steals. Weighting it per prop stops
+  // "the park helps" appearing on a stolen-base card where it's meaningless.
+  const envWeight = { hr:1, tb:0.6, hrr:0.35, hits:0.25, rbi:0.4, sb:0 }[prop] ?? 0.5;
+
+  if(envWeight > 0){
+    const parkDelta = g.parkFactor - 100;
+    rows.push({
+      label: 'Ballpark',
+      detail: `${g.parkShort || g.park} · ${parkDelta >= 0 ? '+' : ''}${parkDelta}%`,
+      impact: clamp(parkDelta / 12, -1, 1) * envWeight,
+    });
+
+    if(g.roof !== 'open-air'){
+      rows.push({ label:'Conditions', detail:'Indoor — no wind factor', impact:0 });
+    } else if(g.windLabel){
+      const sector = g.windLabel.toLowerCase();
+      rows.push({
+        label: 'Wind',
+        detail: `${g.windMph ?? '?'} mph · ${g.windLabel}`,
+        impact: (sector.includes('out') ? 0.55 : sector.includes('in') ? -0.55 : 0) * envWeight,
+      });
+    }
+  }
+
+  const trend = p.recentForm?.trend;
+  if(trend){
+    rows.push({
+      label: 'Recent form',
+      detail: p.recentForm.last15 !== '—' ? `${p.recentForm.last15} · trending ${trend}` : `Trending ${trend}`,
+      impact: trend === 'up' ? 0.45 : trend === 'down' ? -0.45 : 0,
+    });
+  }
+
+  const platoon = platoonEdge(p, sp);
+  if(platoon){
+    rows.push({
+      label: 'Platoon',
+      detail: platoon.label.replace(/ — .*/, ''),
+      impact: (platoon.edge === 'good' ? 0.5 : -0.4) * (prop === 'sb' ? 0.3 : 1),
+    });
+  }
+
+  if(p.battingOrder){
+    const mult = (prop === 'rbi' ? MODEL.order.rbiMult : prop === 'runs' ? MODEL.order.runMult : MODEL.order.paMult)[p.battingOrder - 1] ?? 1;
+    rows.push({
+      label: 'Lineup spot',
+      detail: `Batting ${p.battingOrder}${['st','nd','rd'][p.battingOrder-1] || 'th'}`,
+      impact: clamp((mult - 1) * 4, -1, 1),
+    });
+  }
+
+  // --- prop-specific drivers ---
+  if(prop === 'hr'){
+    if(sp.hr9 != null){
+      rows.push({
+        label: 'The pitcher',
+        detail: `${sp.name || 'Starter'} · ${sp.hr9} HR/9 allowed`,
+        impact: clamp((sp.hr9 - M.leagueHR9) / 0.5, -1, 1),
+      });
+    }
+    const brlPctl = slatePercentile(p.statcast.barrel, x => x.statcast.barrel);
+    rows.push({
+      label: 'Contact quality',
+      detail: `${p.statcast.barrel}% barrel${brlPctl != null ? ` · ${brlPctl}th pct` : ''}`,
+      impact: clamp((p.statcast.barrel - 8) / 8, -1, 1),
+    });
+    if(p.airPct != null){
+      rows.push({
+        label: 'Ball in the air',
+        detail: `${p.airPct}% of outs airborne`,
+        impact: clamp((p.airPct - M.leagueAirPct) / 15, -1, 1),
+      });
+    }
+  }
+
+  if(prop === 'hits'){
+    rows.push({
+      label: 'Contact rate',
+      detail: `.${Math.round(p.avg*1000)} AVG${p.effAvg ? ` · .${Math.round(p.effAvg*1000)} adjusted` : ''}`,
+      impact: clamp((p.avg - 0.250) / 0.045, -1, 1),
+    });
+    if(p.kPct != null){
+      rows.push({
+        label: 'Strikeouts',
+        detail: `${p.kPct}% K rate`,
+        impact: clamp((MODEL.hits.leagueKPct - p.kPct) / 8, -1, 1),
+      });
+    }
+    if(sp.k9 != null){
+      rows.push({
+        label: 'Pitcher swing-and-miss',
+        detail: `${sp.name || 'Starter'} · ${sp.k9} K/9`,
+        impact: clamp((8.8 - sp.k9) / 2.5, -1, 1),
+      });
+    }
+    if(p.babip != null){
+      const luck = p.babip - MODEL.hits.leagueBabip;
+      rows.push({
+        label: 'Batted-ball luck',
+        detail: `.${Math.round(p.babip*1000)} BABIP · ${Math.abs(luck) < 0.02 ? 'neutral' : luck > 0 ? 'running hot' : 'running cold'}`,
+        impact: clamp(-luck / 0.05, -1, 1),   // regression cuts against recent luck
+      });
+    }
+  }
+
+  if(prop === 'tb'){
+    rows.push({
+      label: 'Power output',
+      detail: `.${Math.round((p.slg ?? 0)*1000)} SLG${p.iso ? ` · .${Math.round(p.iso*1000)} ISO` : ''}`,
+      impact: clamp(((p.slg ?? 0.400) - 0.410) / 0.09, -1, 1),
+    });
+    rows.push({
+      label: 'Expected power',
+      detail: `${p.statcast.xslg} xSLG`,
+      impact: clamp((p.statcast.xslg - 0.410) / 0.09, -1, 1),
+    });
+    if(sp.hr9 != null){
+      rows.push({
+        label: 'Pitcher contact allowed',
+        detail: `${sp.hr9} HR/9`,
+        impact: clamp((sp.hr9 - M.leagueHR9) / 0.5, -1, 1),
+      });
+    }
+  }
+
+  if(prop === 'rbi' || prop === 'hrr'){
+    rows.push({
+      label: 'Run production',
+      detail: `${p.rbi ?? 0} RBI in ${p.g ?? '—'} games`,
+      impact: clamp(((p.rbi ?? 0) / Math.max(1, p.g ?? 1) - 0.5) / 0.25, -1, 1),
+    });
+    rows.push({
+      label: 'Reaching base',
+      detail: `.${Math.round((p.obp ?? 0.320)*1000)} OBP`,
+      impact: clamp(((p.obp ?? 0.320) - 0.320) / 0.05, -1, 1),
+    });
+  }
+
+  if(prop === 'sb'){
+    rows.push({
+      label: 'Attempt rate',
+      detail: `${p.sb ?? 0} SB, ${p.cs ?? 0} CS in ${p.g ?? '—'} games`,
+      impact: clamp(((p.sb ?? 0) / Math.max(1, p.g ?? 1) - 0.08) / 0.12, -1, 1),
+    });
+    if(p.sbSuccess != null){
+      rows.push({
+        label: 'Success rate',
+        detail: `${Math.round(p.sbSuccess * 100)}% of attempts`,
+        impact: clamp((p.sbSuccess - 0.72) / 0.15, -1, 1),
+      });
+    }
+    rows.push({
+      label: 'Speed',
+      detail: `${p.speed}/100 speed score`,
+      impact: clamp((p.speed - 50) / 30, -1, 1),
+    });
+  }
+
+  // Strongest signals first — that's what a reader wants at the top.
+  rows.sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact));
+
+  const bar = imp => {
+    const pct = Math.min(100, Math.abs(imp) * 100);
+    const cls = imp > 0.12 ? 'fac-pos' : imp < -0.12 ? 'fac-neg' : 'fac-neu';
+    const side = imp >= 0 ? 'right' : 'left';
+    return `<div class="fac-track"><div class="fac-fill ${cls}" style="width:${pct/2}%;margin-${side === 'right' ? 'left' : 'right'}:50%;"></div></div>`;
+  };
+  const verdict = imp => imp > 0.35 ? 'helps' : imp > 0.12 ? 'slight help'
+                       : imp < -0.35 ? 'hurts' : imp < -0.12 ? 'slight drag' : 'neutral';
+
+  return `<div class="factor-list">
+    <div class="fac-head"><span>Factor</span><span></span><span>Effect</span></div>
+    ${rows.map(r => `
+      <div class="fac-row">
+        <div class="fac-label">${r.label}<div class="fac-detail">${r.detail}</div></div>
+        ${bar(r.impact)}
+        <div class="fac-verdict ${r.impact > 0.12 ? 'fac-pos' : r.impact < -0.12 ? 'fac-neg' : 'fac-neu'}">${verdict(r.impact)}</div>
+      </div>`).join('')}
+    <div class="fac-foot">Bars show direction and strength relative to a league-average matchup.</div>
+  </div>`;
 }
 
 function scorePlayer(base, game){
@@ -1990,7 +2195,7 @@ function renderList(){
           </div>
         </div>
         <div class="pick-score">
-          ${activeTab==='hr' ? `<div class="pick-grade ${propGrade(score,22,13,8).cls}">${propGrade(score,22,13,8).g}</div>` : ''}
+          ${activeTab==='hr' ? `<div class="pick-grade ${gradeFor('hr',score).cls}">${gradeFor('hr',score).g}</div>` : ''}
           <div class="pick-score-val ${scoreTierClass(activeTab, score)}">${scoreDisplay}</div>
           <div class="pick-score-label">${scoreLabel(activeTab)}</div>
         </div>
@@ -2566,7 +2771,7 @@ function isStandalone(){
 // ---------------------------------------------------------------- web push
 // Paste the public key printed by gen-vapid-keys.js. While it's blank, the app
 // falls back to in-page notifications only (which need the tab open).
-const VAPID_PUBLIC_KEY = 'BJCnO_3lUrfY_7UuaSltPEjfwjHmk10hALxiwUzOmqLQTCy344RxaaLJXQkoZaBBAZilI5Pw54uuOR29ZCeHlBU';
+const VAPID_PUBLIC_KEY = '';
 
 let swRegistration = null;
 
@@ -3548,6 +3753,29 @@ function simulatePlayer(p){
   return p._sim;
 }
 
+/**
+ * Grade cutoffs per prop, calibrated to the real spread across a full slate:
+ *   elite ≈ 90th percentile, good ≈ 75th, fair ≈ 50th.
+ * Anchoring to the distribution is what makes an A+ mean something — a fixed
+ * threshold below the median grades the whole slate A+.
+ */
+const GRADE_CUTS = {
+  hr:   { e:27, g:23, f:16 },
+  hits: { e:77, g:74, f:70 },
+  tb:   { e:53, g:50, f:47 },
+  rbi:  { e:53, g:49, f:42 },
+  hrr:  { e:66, g:62, f:56 },
+  sb:   { e:9,  g:8,  f:5  },
+  // Secondary lines, scaled from their primary.
+  hits15:{ e:33, g:28, f:22 }, tb25:{ e:33, g:28, f:22 },
+  hrr25:{ e:45, g:39, f:32 }, singles:{ e:62, g:56, f:48 },
+  doubles:{ e:20, g:16, f:12 }, runs:{ e:47, g:42, f:36 },
+};
+const gradeFor = (prop, pct) => {
+  const c = GRADE_CUTS[prop] || { e:60, g:45, f:30 };
+  return propGrade(pct, c.e, c.g, c.f);
+};
+
 /** Letter grade from a probability, relative to what's realistic for that prop. */
 function propGrade(pct, elite, good, fair){
   if(pct >= elite) return { g:'A+', cls:'grade-a' };
@@ -3566,17 +3794,17 @@ function propGrade(pct, elite, good, fair){
 function propsGridHTML(p){
   const sim = simulatePlayer(p);
   const tiles = [
-    { key:'HR',      label:'HR',       line:'over 0.5', d:sim.hr,      e:22, g:13, f:8  },
-    { key:'2 HRR',   label:'H+R+RBI',  line:'over 1.5', d:sim.hrr15,   e:60, g:48, f:38 },
-    { key:'2 TB',    label:'TOTAL BASES', line:'over 1.5', d:sim.tb15, e:50, g:40, f:30 },
-    { key:'1 HIT',   label:'HITS',     line:'over 0.5', d:sim.hits05,  e:72, g:62, f:52 },
-    { key:'1 RBI',   label:'RBI',      line:'over 0.5', d:sim.rbi,     e:42, g:32, f:24 },
-    { key:'DOUBLE',  label:'DOUBLE',   line:'over 0.5', d:sim.doubles, e:22, g:15, f:10 },
-    { key:'2 HIT',   label:'HITS',     line:'over 1.5', d:sim.hits15,  e:35, g:26, f:18 },
-    { key:'RUN',     label:'RUN',      line:'over 0.5', d:sim.runs,    e:45, g:35, f:26 },
+    { label:'HR',          line:'over 0.5', d:sim.hr,      k:'hr' },
+    { label:'H+R+RBI',     line:'over 1.5', d:sim.hrr15,   k:'hrr' },
+    { label:'TOTAL BASES', line:'over 1.5', d:sim.tb15,    k:'tb' },
+    { label:'HITS',        line:'over 0.5', d:sim.hits05,  k:'hits' },
+    { label:'RBI',         line:'over 0.5', d:sim.rbi,     k:'rbi' },
+    { label:'DOUBLE',      line:'over 0.5', d:sim.doubles, k:'doubles' },
+    { label:'HITS',        line:'over 1.5', d:sim.hits15,  k:'hits15' },
+    { label:'RUN',         line:'over 0.5', d:sim.runs,    k:'runs' },
   ];
   return `<div class="prop-tiles">` + tiles.map(t => {
-    const gr = propGrade(t.d.pct, t.e, t.g, t.f);
+    const gr = gradeFor(t.k, t.d.pct);
     return `<div class="prop-tile ${gr.cls}">
       <div class="pt-key">${t.label}</div>
       <div class="pt-grade">${gr.g}</div>
@@ -3590,21 +3818,21 @@ function propsGridHTML(p){
 function propProbabilitiesHTML(p){
   const sim = simulatePlayer(p);
   const rows = [
-    ['HOME RUN',    'over 0.5', sim.hr,      22, 13, 8],
-    ['HITS',        'over 0.5', sim.hits05,  72, 62, 52],
-    ['HITS',        'over 1.5', sim.hits15,  35, 26, 18],
-    ['SINGLES',     'over 0.5', sim.singles, 60, 50, 40],
-    ['DOUBLES',     'over 0.5', sim.doubles, 22, 15, 10],
-    ['RUNS SCORED', 'over 0.5', sim.runs,    45, 35, 26],
-    ['RBIS',        'over 0.5', sim.rbi,     42, 32, 24],
-    ['TOTAL BASES', 'over 1.5', sim.tb15,    50, 40, 30],
-    ['TOTAL BASES', 'over 2.5', sim.tb25,    32, 22, 15],
-    ['H+R+RBI',     'over 1.5', sim.hrr15,   60, 48, 38],
-    ['H+R+RBI',     'over 2.5', sim.hrr25,   38, 28, 20],
-    ['STOLEN BASE', 'over 0.5', sim.sb,      25, 15, 8],
+    ['HOME RUN',    'over 0.5', sim.hr,      'hr'],
+    ['HITS',        'over 0.5', sim.hits05,  'hits'],
+    ['HITS',        'over 1.5', sim.hits15,  'hits15'],
+    ['SINGLES',     'over 0.5', sim.singles, 'singles'],
+    ['DOUBLES',     'over 0.5', sim.doubles, 'doubles'],
+    ['RUNS SCORED', 'over 0.5', sim.runs,    'runs'],
+    ['RBIS',        'over 0.5', sim.rbi,     'rbi'],
+    ['TOTAL BASES', 'over 1.5', sim.tb15,    'tb'],
+    ['TOTAL BASES', 'over 2.5', sim.tb25,    'tb25'],
+    ['H+R+RBI',     'over 1.5', sim.hrr15,   'hrr'],
+    ['H+R+RBI',     'over 2.5', sim.hrr25,   'hrr25'],
+    ['STOLEN BASE', 'over 0.5', sim.sb,      'sb'],
   ];
-  return `<div class="prob-list">` + rows.map(([name, line, d, e, g, f]) => {
-    const gr = propGrade(d.pct, e, g, f);
+  return `<div class="prob-list">` + rows.map(([name, line, d, key]) => {
+    const gr = gradeFor(key, d.pct);
     return `<div class="prob-row">
       <div class="prob-name">${name} <span>${line}</span>
         <div class="prob-sub">p50: ${d.p50} · ceiling: ${d.ceiling}</div>
@@ -3620,7 +3848,7 @@ function propProbabilitiesHTML(p){
 function matchupVerdictHTML(p){
   const sim = simulatePlayer(p);
   const sp = p.oppPitcher || {};
-  const gr = propGrade(sim.hr.pct, 22, 13, 8);
+  const gr = gradeFor('hr', sim.hr.pct);
   const last = surname(p.name);
 
   const bits = [];
@@ -3628,9 +3856,9 @@ function matchupVerdictHTML(p){
   if(sp.hr9) bits.push(`${sp.hr9} HR/9 allowed by ${surname(sp.name || 'the starter')}`);
   if(p.game.parkFactor !== 100) bits.push(`${p.game.parkShort} at ${p.game.parkFactor} park factor`);
 
-  const verdict = sim.hr.pct >= 20 ? 'ELITE SETUP'
-                : sim.hr.pct >= 13 ? 'STRONG SPOT'
-                : sim.hr.pct >= 8  ? 'PLAYABLE' : 'TOUGH DRAW';
+  const verdict = sim.hr.pct >= GRADE_CUTS.hr.e ? 'ELITE SETUP'
+                : sim.hr.pct >= GRADE_CUTS.hr.g ? 'STRONG SPOT'
+                : sim.hr.pct >= GRADE_CUTS.hr.f ? 'PLAYABLE' : 'TOUGH DRAW';
 
   return `<div class="verdict">
     <div class="verdict-ring ${gr.cls}">
@@ -3642,6 +3870,30 @@ function matchupVerdictHTML(p){
       <p>${sim.hr.pct}% home run shot for ${last}. ${bits.join(' · ')}.</p>
     </div>
   </div>`;
+}
+
+/** Grade header plus the factor list for a single prop. */
+function propFactorBlockHTML(p, prop){
+  const sim = simulatePlayer(p);
+  const cfg = {
+    hr:   { d:sim.hr,     line:'over 0.5', label:'HOME RUN'    },
+    hits: { d:sim.hits05, line:'over 0.5', label:'HITS'        },
+    tb:   { d:sim.tb15,   line:'over 1.5', label:'TOTAL BASES' },
+    rbi:  { d:sim.rbi,    line:'over 0.5', label:'RBI'         },
+    hrr:  { d:sim.hrr15,  line:'over 1.5', label:'H+R+RBI'     },
+    sb:   { d:sim.sb,     line:'over 0.5', label:'STOLEN BASE' },
+  }[prop];
+  const gr = gradeFor(prop, cfg.d.pct);
+  return `
+    <div class="prop-head ${gr.cls}">
+      <div class="ph-grade">${gr.g}</div>
+      <div class="ph-mid">
+        <div class="ph-label">${cfg.label} <span>${cfg.line}</span></div>
+        <div class="ph-sub">median ${cfg.d.p50} · ceiling ${cfg.d.ceiling}</div>
+      </div>
+      <div class="ph-pct">${cfg.d.pct}%</div>
+    </div>
+    ${factorListHTML(p, prop)}`;
 }
 
 function openBatterModal(p){
@@ -3660,7 +3912,7 @@ function openBatterModal(p){
         // is the same number shown on the tiles below. The old raw index was an
         // internal 0-100 score, not a probability, so the two disagreed.
         const sim = simulatePlayer(p);
-        const gr = propGrade(sim.hr.pct, 22, 13, 8);
+        const gr = gradeFor('hr', sim.hr.pct);
         return `<div class="modal-index">
           <div class="modal-grade ${gr.cls}">${gr.g}</div>
           <div class="modal-index-num ${gr.cls}">${sim.hr.pct}%</div>
@@ -3679,7 +3931,7 @@ function openBatterModal(p){
       <div class="tab" data-tab="statcast">Statcast Profile</div>
       <div class="tab" data-tab="arsenal">Arsenal &amp; Zone</div>
       <div class="tab" data-tab="matchup">Matchup</div>
-      <div class="tab" data-tab="breakdown">Index Breakdown</div>
+      <div class="tab" data-tab="breakdown">Why</div>
     </div>
     <div class="tab-content active" data-panel="overview">
       ${matchupVerdictHTML(p)}
@@ -3782,13 +4034,27 @@ function openBatterModal(p){
         <div class="msub">${g.weatherNote}</div></div>
     </div>
     <div class="tab-content" data-panel="breakdown">
-      ${breakdownRowsHTML(p)}
-      <div class="narrative" style="margin-top:14px;">Total = ${p.hrIndex} / ${totalHRWeight()}. Illustrative model — treat relative ranking as more meaningful than the exact number.</div>
+      <div class="section-mini">Pick a prop to see what drives it</div>
+      <div class="prop-switch" id="propSwitch">
+        ${[['hr','Home Run'],['hits','Hits'],['tb','Total Bases'],['rbi','RBI'],['hrr','H+R+RBI'],['sb','Stolen Base']]
+          .map(([k,l],i)=>`<button class="ps-btn ${i===0?'active':''}" data-prop="${k}">${l}</button>`).join('')}
+      </div>
+      <div id="factorHost">${propFactorBlockHTML(p, 'hr')}</div>
     </div>
   `;
   overlay.classList.add('open');
   document.getElementById('modalClose').onclick = closeModal;
   wireTabs(p.name, p);
+
+  // Prop switcher inside the Why tab — re-renders the grade + factors in place.
+  modalBody.querySelectorAll('#propSwitch .ps-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      modalBody.querySelectorAll('#propSwitch .ps-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const host = document.getElementById('factorHost');
+      if(host) host.innerHTML = propFactorBlockHTML(p, btn.dataset.prop);
+    });
+  });
 }
 function openGameModal(g){
   // g.odds is null whenever no sportsbook feed is configured (the default), so
