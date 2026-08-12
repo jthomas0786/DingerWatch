@@ -248,6 +248,61 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 .section-mini{ font-family:'Space Mono',monospace; font-size:10px; color:var(--mute); text-transform:uppercase; letter-spacing:.08em; margin:18px 0 9px; }
 .section-mini:first-child{ margin-top:0; }
 
+/* --- verdict header --- */
+.verdict{ display:flex; gap:16px; align-items:center; background:var(--night2); border:1px solid var(--line);
+  border-radius:14px; padding:16px 18px; }
+.verdict-ring{ width:92px; height:92px; border-radius:50%; flex-shrink:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; border:3px solid var(--line); }
+.verdict-ring.grade-a{ border-color:var(--grass-bright); }
+.verdict-ring.grade-b{ border-color:#f4c430; }
+.verdict-ring.grade-c{ border-color:var(--warm); }
+.verdict-ring.grade-d{ border-color:var(--mute); }
+.vr-grade{ font-family:'Archivo Black',sans-serif; font-size:26px; line-height:1; }
+.grade-a .vr-grade, .verdict-title.grade-a{ color:var(--grass-bright); }
+.grade-b .vr-grade, .verdict-title.grade-b{ color:#f4c430; }
+.grade-c .vr-grade, .verdict-title.grade-c{ color:var(--warm); }
+.grade-d .vr-grade, .verdict-title.grade-d{ color:var(--mute); }
+.vr-sub{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); margin-top:3px; }
+.verdict-body{ flex:1; min-width:0; }
+.verdict-title{ font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; letter-spacing:.05em; }
+.verdict-body p{ font-size:12.5px; color:var(--white); line-height:1.55; margin-top:6px; }
+
+/* --- graded prop tiles --- */
+.prop-tiles{ display:grid; grid-template-columns:repeat(auto-fit,minmax(108px,1fr)); gap:8px; }
+.prop-tile{ background:var(--night2); border:1px solid var(--line); border-radius:10px; padding:11px 8px;
+  text-align:center; border-top-width:3px; }
+.prop-tile.grade-a{ border-top-color:var(--grass-bright); }
+.prop-tile.grade-b{ border-top-color:#f4c430; }
+.prop-tile.grade-c{ border-top-color:var(--warm); }
+.prop-tile.grade-d{ border-top-color:var(--mute); }
+.pt-key{ font-family:'Space Mono',monospace; font-size:8.5px; color:var(--mute); text-transform:uppercase; letter-spacing:.06em; }
+.pt-grade{ font-family:'Archivo Black',sans-serif; font-size:22px; line-height:1.1; margin-top:3px; }
+.grade-a .pt-grade{ color:var(--grass-bright); } .grade-b .pt-grade{ color:#f4c430; }
+.grade-c .pt-grade{ color:var(--warm); }        .grade-d .pt-grade{ color:var(--mute); }
+.pt-pct{ font-family:'Oswald',sans-serif; font-size:13px; color:var(--white); }
+.pt-line{ font-family:'Space Mono',monospace; font-size:8px; color:var(--mute); margin-top:2px; }
+
+/* --- probability list --- */
+.prob-list{ display:flex; flex-direction:column; gap:5px; }
+.prob-row{ display:flex; align-items:center; gap:11px; background:var(--night2); border:1px solid var(--line);
+  border-radius:9px; padding:9px 12px; }
+.prob-name{ flex:0 0 150px; font-family:'Oswald',sans-serif; font-size:12.5px; color:var(--white); }
+.prob-name span{ color:var(--mute); font-size:10px; font-family:'Space Mono',monospace; }
+.prob-sub{ font-family:'Space Mono',monospace; font-size:8.5px; color:var(--mute); margin-top:2px; }
+.prob-bar{ flex:1; height:7px; background:var(--line); border-radius:4px; overflow:hidden; }
+.prob-bar-fill{ height:100%; border-radius:4px; }
+.prob-bar-fill.grade-a{ background:var(--grass-bright); } .prob-bar-fill.grade-b{ background:#f4c430; }
+.prob-bar-fill.grade-c{ background:var(--warm); }        .prob-bar-fill.grade-d{ background:var(--mute); }
+.prob-pct{ flex:0 0 44px; text-align:right; font-family:'Archivo Black',sans-serif; font-size:15px; }
+.prob-pct.grade-a{ color:var(--grass-bright); } .prob-pct.grade-b{ color:#f4c430; }
+.prob-pct.grade-c{ color:var(--warm); }        .prob-pct.grade-d{ color:var(--mute); }
+.prob-foot{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); margin-top:10px; text-align:center; }
+
+@media (max-width:520px){
+  .prob-name{ flex-basis:112px; font-size:11px; }
+  .verdict-ring{ width:74px; height:74px; }
+  .vr-grade{ font-size:21px; }
+}
 .props-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(102px,1fr)); gap:8px; }
 .prop-cell{ background:var(--night2); border:1px solid var(--line); border-radius:10px; padding:11px 10px; text-align:center; }
 .prop-cell.is-top{ border-color:var(--foul); background:rgba(224,18,46,.07); }
@@ -721,6 +776,8 @@ function adaptHitter(h, teamAbbr, game, side) {
     bb:  s.bb ?? null,
     so:  s.so ?? null,
     tb:  s.tb ?? null,          // exact total bases — better than deriving from SLG
+    doubles: s.doubles ?? null, // the simulator needs the hit-type breakdown to
+    triples: s.triples ?? null, // resolve each PA into a specific outcome
     cs:  s.cs ?? 0,             // SB attempts = sb + cs
     babip: s.babip ?? null,
     iso: s.iso ?? null,
@@ -1220,6 +1277,11 @@ function scorePlayer(base, game){
   const paMult = slot ? (MODEL.order.paMult[slot - 1] ?? 1) : 1;
   const effAB = ab * paMult;
   base.effAB = +effAB.toFixed(2);
+  // Plate appearances ≈ at-bats plus walks/HBP/sacs. The simulator needs PA,
+  // since a walk is a plate appearance that can still score a run.
+  const pa = Math.max(1, base.pa || 1);
+  const nonAbShare = clamp(1 - (base.ab ?? pa) / pa, 0.05, 0.20);
+  base.expPA = +(effAB / (1 - nonAbShare)).toFixed(2);
 
   base.projHits = +(effAB * effAvg).toFixed(2);
   base.hitProb = Math.round(100 * (1 - Math.pow(1 - effAvg, Math.round(effAB))));
@@ -1294,6 +1356,7 @@ function scorePlayer(base, game){
       (game.weatherEffect==='neg' ? S.coldWeatherMult : 1.0)), 0, 100);
 
   base.index = base.hrIndex;
+  delete base._sim;   // invalidate cached simulation — inputs just changed
 }
 
 
@@ -3134,32 +3197,9 @@ function pctlBarHTML(label, value, pctl, suffix=''){
 }
 
 /** All six props at a glance, each with its slate rank. */
-function propsGridHTML(p){
-  const rows = [
-    { label:'Home Run',    val:`${p.hrIndex}%`,            key:'hrIndex',  hint:'index' },
-    { label:'Hits',        val:p.projHits?.toFixed(2),     key:'projHits', hint:`${p.hitProb}% for 1+` },
-    { label:'Total Bases', val:p.projTB?.toFixed(2),       key:'projTB',   hint:'projected' },
-    { label:'RBI',         val:p.projRBI?.toFixed(2),      key:'projRBI',  hint:'projected' },
-    { label:'H+R+RBI',     val:p.projHRR?.toFixed(2),      key:'projHRR',  hint:'projected' },
-    { label:'Stolen Base', val:p.projSB?.toFixed(2),       key:'projSB',   hint:'projected' },
-  ];
-  return `<div class="props-grid">` + rows.map(r=>{
-    const rk = slateRank(p, r.key);
-    const top = rk && rk.rank <= Math.max(5, rk.of * 0.1);
-    return `<div class="prop-cell ${top?'is-top':''}">
-      <div class="prop-cell-val">${r.val ?? '—'}</div>
-      <div class="prop-cell-label">${r.label}</div>
-      <div class="prop-cell-rank">${rk ? `#${rk.rank} of ${rk.of}` : ''} · ${r.hint}</div>
-    </div>`;
-  }).join('') + `</div>`;
-}
-
 // ============================================================================
 //  Matchup visualisations — arsenal, pitch-type performance, zone, batted balls
 // ============================================================================
-
-// Consistent colour per pitch family so the same pitch reads the same across
-// every chart in the modal.
 const PITCH_COLORS = {
   FF:'#e0122e', FA:'#e0122e', SI:'#ff7043', FT:'#ff7043', FC:'#ffa726',
   SL:'#42a5f5', ST:'#29b6f6', SV:'#26c6da', CU:'#7e57c2', KC:'#9575cd', CS:'#b39ddb',
@@ -3174,7 +3214,7 @@ const pitchColor = c => PITCH_COLORS[c] || 'var(--mute)';
 const pitchName  = c => PITCH_NAMES[c] || c;
 
 /** Donut of the opposing starter's pitch mix, with a usage legend. */
-function arsenalDonutHTML(arsenal, pitcherName){
+function arsenalDonutHTML(arsenal){
   if(!arsenal || !arsenal.length) return '';
   const R = 52, C = 62, circ = 2 * Math.PI * R;
   let offset = 0;
@@ -3188,7 +3228,6 @@ function arsenalDonutHTML(arsenal, pitcherName){
     offset += frac;
     return seg;
   }).join('');
-
   const legend = arsenal.map(a => `
     <div class="ars-row">
       <span class="ars-swatch" style="background:${pitchColor(a.code)}"></span>
@@ -3196,10 +3235,8 @@ function arsenalDonutHTML(arsenal, pitcherName){
       <span class="ars-usage">${a.usagePct ?? '—'}%</span>
       <span class="ars-velo">${a.avgSpeed ? a.avgSpeed.toFixed(1)+' mph' : ''}</span>
     </div>`).join('');
-
   return `<div class="arsenal-wrap">
-    <svg class="arsenal-donut" viewBox="0 0 124 124">
-      ${segs}
+    <svg class="arsenal-donut" viewBox="0 0 124 124">${segs}
       <text x="${C}" y="${C-4}" text-anchor="middle" font-size="15" fill="var(--white)" font-family="Oswald, sans-serif">${arsenal.length}</text>
       <text x="${C}" y="${C+9}" text-anchor="middle" font-size="7.5" fill="var(--mute)" font-family="monospace">PITCHES</text>
     </svg>
@@ -3207,18 +3244,16 @@ function arsenalDonutHTML(arsenal, pitcherName){
   </div>`;
 }
 
-/** How the hitter has actually performed against each pitch type he'll see. */
+/** How the hitter has performed against each pitch type he'll see tonight. */
 function pitchMatchupHTML(detail, arsenal){
   const pt = detail?.pitchTypes;
   if(!pt || !Object.keys(pt).length) return '';
-  // Order by the opposing pitcher's usage so the pitches he'll see most come first.
   const order = (arsenal || []).map(a => a.code).filter(Boolean);
   const codes = Object.keys(pt).sort((a,b)=>{
     const ia = order.indexOf(a), ib = order.indexOf(b);
     if(ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
     return (pt[b].seen||0) - (pt[a].seen||0);
   }).slice(0, 7);
-
   const maxEV = Math.max(...codes.map(c => pt[c].ev || 0), 95);
   return `<div class="pmix-table">
     <div class="pmix-head"><span>Pitch</span><span>Avg</span><span>Exit velo</span><span>Whiff%</span><span>HR</span></div>
@@ -3238,10 +3273,7 @@ function pitchMatchupHTML(detail, arsenal){
   </div>`;
 }
 
-/**
- * Strike-zone heat map. Statcast numbers the zone 1-9 from the catcher's view,
- * top-left to bottom-right, with 11-14 as the chase quadrants outside it.
- */
+/** Strike-zone heat map — Statcast zones 1-9, catcher's view. */
 function strikeZoneHTML(detail){
   const z = detail?.zones;
   if(!z || !Object.keys(z).length) return '';
@@ -3252,10 +3284,9 @@ function strikeZoneHTML(detail){
   const shade = v => {
     if(v == null) return 'rgba(255,255,255,.04)';
     const t = hi === lo ? .5 : (v - lo) / (hi - lo);
-    // cool (weak) → hot (strong)
     return t > .66 ? `rgba(224,18,46,${.35 + t*.5})`
          : t > .33 ? `rgba(244,196,48,${.25 + t*.4})`
-                   : `rgba(78,161,247,${.18 + (1-t)*.22})`;
+                   : `rgba(120,140,170,${.18 + (1-t)*.22})`;
   };
   const cell = n => {
     const d = z[n] || {};
@@ -3268,7 +3299,6 @@ function strikeZoneHTML(detail){
   const chaseAvg = chase.length
     ? (chase.reduce((t,d)=>t+(d.hits||0),0) / Math.max(1, chase.reduce((t,d)=>t+(d.abs||0),0)))
     : null;
-
   return `<div class="zone-wrap">
     <div class="zone-grid-outer">
       <div class="zone-grid">${inZone.map(cell).join('')}</div>
@@ -3279,7 +3309,7 @@ function strikeZoneHTML(detail){
       <div class="zone-legend">
         <span><i style="background:rgba(224,18,46,.7)"></i>Hot</span>
         <span><i style="background:rgba(244,196,48,.6)"></i>Average</span>
-        <span><i style="background:rgba(78,161,247,.4)"></i>Cold</span>
+        <span><i style="background:rgba(120,140,170,.4)"></i>Cold</span>
       </div>
       <div class="zone-stat"><b>${chaseAvg != null ? chaseAvg.toFixed(3).replace(/^0/,'') : '—'}</b><span>outside the zone</span></div>
       <div class="zone-note">Batting average by location, catcher's view. Big number is AVG, small is exit velo.</div>
@@ -3287,18 +3317,15 @@ function strikeZoneHTML(detail){
   </div>`;
 }
 
-/** EV vs launch-angle scatter, split by the handedness of the pitcher faced. */
+/** EV vs launch-angle scatter, highlighting balls hit off this handedness. */
 function battedBallScatterHTML(detail, opposingHand){
   const pts = detail?.battedBalls?.filter(b => b.ev != null && b.la != null) || [];
   if(pts.length < 5) return '';
   const W = 300, H = 190, PAD = 26;
   const x = ev => PAD + ((Math.min(Math.max(ev,60),120) - 60) / 60) * (W - PAD*2);
   const y = la => H - PAD - ((Math.min(Math.max(la,-40),60) + 40) / 100) * (H - PAD*2);
-
-  // The "barrel" band — the EV/LA combination that produces extra-base damage.
   const barrel = `<path d="M ${x(98)},${y(26)} L ${x(120)},${y(50)} L ${x(120)},${y(8)} L ${x(98)},${y(24)} Z"
      fill="rgba(224,18,46,.14)" stroke="rgba(224,18,46,.4)" stroke-width="1"/>`;
-
   const dots = pts.map(b=>{
     const matches = opposingHand && b.hand === opposingHand;
     const isHR = b.result === 'home_run';
@@ -3306,23 +3333,18 @@ function battedBallScatterHTML(detail, opposingHand){
       r="${isHR ? 4.5 : matches ? 3.4 : 2.4}"
       fill="${isHR ? 'var(--foul)' : matches ? 'rgba(224,18,46,.75)' : 'rgba(154,132,132,.45)'}"
       stroke="${isHR ? '#fff' : 'none'}" stroke-width="${isHR ? .8 : 0}">
-      <title>${b.ev} mph, ${b.la}° vs ${b.hand}HP${b.dist?` · ${b.dist} ft`:''}${b.result?` · ${b.result.replace(/_/g,' ')}`:''}</title></circle>`;
+      <title>${b.ev} mph, ${b.la}° vs ${b.hand}HP${b.dist?` · ${b.dist} ft`:''}</title></circle>`;
   }).join('');
-
   const vsHand = opposingHand ? pts.filter(b => b.hand === opposingHand) : [];
   const avgEV = a => a.length ? (a.reduce((t,b)=>t+b.ev,0)/a.length).toFixed(1) : '—';
-
   return `<div class="scatter-wrap">
     <svg class="scatter" viewBox="0 0 ${W} ${H}">
       <line x1="${PAD}" y1="${H-PAD}" x2="${W-PAD}" y2="${H-PAD}" stroke="var(--line)"/>
       <line x1="${PAD}" y1="${PAD}" x2="${PAD}" y2="${H-PAD}" stroke="var(--line)"/>
       <line x1="${PAD}" y1="${y(0)}" x2="${W-PAD}" y2="${y(0)}" stroke="var(--line)" stroke-dasharray="3 3" opacity=".6"/>
-      ${barrel}
-      ${dots}
+      ${barrel}${dots}
       <text x="${W/2}" y="${H-6}" text-anchor="middle" font-size="8.5" fill="var(--mute)" font-family="monospace">EXIT VELOCITY (mph)</text>
       <text x="9" y="${H/2}" text-anchor="middle" font-size="8.5" fill="var(--mute)" font-family="monospace" transform="rotate(-90 9 ${H/2})">LAUNCH ANGLE</text>
-      <text x="${PAD}" y="${H-PAD+11}" font-size="7.5" fill="var(--mute)" font-family="monospace">60</text>
-      <text x="${W-PAD}" y="${H-PAD+11}" text-anchor="end" font-size="7.5" fill="var(--mute)" font-family="monospace">120</text>
     </svg>
     <div class="scatter-legend">
       <span><i style="background:var(--foul)"></i>Home run</span>
@@ -3334,10 +3356,10 @@ function battedBallScatterHTML(detail, opposingHand){
   </div>`;
 }
 
-/** Season platoon splits, hitter and pitcher side by side. */
+/** Season platoon splits, with tonight's relevant row highlighted. */
 function platoonSplitHTML(p, pitcher){
-  const hs = p.splits, ps = pitcher?.splits;
-  if(!hs && !ps) return '';
+  const hs = p.splits;
+  if(!hs) return '';
   const hand = (pitcher?.throws || '').toUpperCase();
   const relevant = hand === 'L' ? 'vsLHP' : hand === 'R' ? 'vsRHP' : null;
   const row = (label, d, hi) => d ? `
@@ -3349,11 +3371,258 @@ function platoonSplitHTML(p, pitcher){
       <span class="split-stat">${d.hr ?? '—'}</span>
       <span class="split-stat">${d.pa ?? '—'}</span>
     </div>` : '';
-  if(!hs) return '';
   return `<div class="split-table">
     <div class="split-row split-head"><span class="split-label">Hitter splits</span><span>AVG</span><span>SLG</span><span>OPS</span><span>HR</span><span>PA</span></div>
     ${row('vs LHP', hs.vsLHP, relevant === 'vsLHP')}
     ${row('vs RHP', hs.vsRHP, relevant === 'vsRHP')}
+  </div>`;
+}
+
+// ============================================================================
+//  MONTE CARLO — per-prop probabilities, p50, and ceiling
+// ----------------------------------------------------------------------------
+//  Point estimates ("1.04 projected hits") can't answer the question that
+//  actually matters for a prop: what are the odds he clears 0.5, or 1.5? Those
+//  need a distribution, so we simulate the night's plate appearances thousands
+//  of times and count outcomes.
+//
+//  Each PA resolves to exactly one outcome via a cumulative draw, using rates
+//  derived from the player's season line adjusted for tonight's matchup. That
+//  keeps outcomes mutually exclusive — a common way these models go wrong is
+//  rolling each event independently and letting a single PA be both a single
+//  and a homer.
+// ============================================================================
+const SIM_RUNS = 10000;
+
+/** Per-PA outcome rates for tonight, from season rates × matchup adjustments. */
+function paRates(p){
+  const g = p.game;
+  const pa = Math.max(1, p.pa || 1);
+
+  // Season per-PA baselines.
+  const bb   = (p.bb ?? 0) / pa;
+  const k    = (p.so ?? 0) / pa;
+  const hr   = (p.hr ?? 0) / pa;
+  const dbl  = (p.doubles ?? 0) / pa;
+  const trp  = (p.triples ?? 0) / pa;
+  const hits = (p.h ?? 0) / pa;
+  const sgl  = Math.max(0, hits - hr - dbl - trp);
+
+  // Tonight's environment. hrIndex already folds in park, weather, barrel
+  // quality and the pitcher's HR tendency, so use it as the HR multiplier
+  // rather than re-deriving those factors and double-counting them.
+  const hrMult = clamp((p.hrIndex ?? 50) / 50, 0.45, 2.10);
+
+  // Extra-base hits move with the park too, but less sharply than homers.
+  const parkXB = 1 + ((g.parkFactor - 100) / 100) * 0.35;
+
+  // Strikeouts scale with the opposing starter relative to league average.
+  const kMult = clamp((p.oppPitcher?.k9 ?? 8.8) / 8.8, 0.75, 1.35);
+
+  let rHR  = hr * hrMult;
+  let rDbl = dbl * parkXB;
+  let rTrp = trp * parkXB;
+  let rSgl = sgl;
+  let rBB  = bb;
+  let rK   = k * kMult;
+
+  // Everything left over is a non-strikeout out.
+  const used = rHR + rDbl + rTrp + rSgl + rBB + rK;
+  if(used >= 0.98){                       // renormalise if adjustments overshoot
+    const scale = 0.98 / used;
+    rHR*=scale; rDbl*=scale; rTrp*=scale; rSgl*=scale; rBB*=scale; rK*=scale;
+  }
+  const rOut = Math.max(0.02, 1 - (rHR + rDbl + rTrp + rSgl + rBB + rK));
+
+  return { hr:rHR, dbl:rDbl, trp:rTrp, sgl:rSgl, bb:rBB, k:rK, out:rOut };
+}
+
+/**
+ * Simulate the game SIM_RUNS times. Returns, for every prop, the share of
+ * simulations clearing each line plus the median and 90th-percentile outcome.
+ */
+function simulatePlayer(p){
+  if(p._sim) return p._sim;                       // cached per scoring pass
+
+  const r = paRates(p);
+  // Cumulative thresholds — one draw picks exactly one outcome.
+  const cHR = r.hr, cDbl = cHR + r.dbl, cTrp = cDbl + r.trp,
+        cSgl = cTrp + r.sgl, cBB = cSgl + r.bb, cK = cBB + r.k;
+
+  const expPA = p.expPA || 4.3;
+  // RBI opportunity. Homers are handled separately below, so this rate covers
+  // only non-HR run production — otherwise the HR-driven RBI get counted twice
+  // and the season total no longer reconciles.
+  const hrRbi = (p.hr ?? 0) * 1.6;                       // ~1.6 RBI per homer
+  const nonHrRbi = Math.max(0, (p.rbi ?? 0) - hrRbi);
+  // Every ball in play is an RBI chance — hits, sac flies, fielder's choices
+  // and productive groundouts all drive runs in.
+  const ballsInPlay = Math.max(1, (p.ab ?? p.pa ?? 1) - (p.so ?? 0));
+  let rbiRate = p.g ? clamp(nonHrRbi / ballsInPlay, 0.02, 0.40) : 0.12;
+  // Runners-on context varies enormously by lineup slot; the 3-4-5 hitters bat
+  // with men aboard far more than the bottom of the order.
+  const rbiSlot = p.battingOrder ? (MODEL.order.rbiMult[p.battingOrder - 1] ?? 1) : 1;
+  rbiRate = clamp(rbiRate * rbiSlot * 1.35, 0.02, 0.45);
+  const runRate = p.g ? (p.r   ?? 0) / p.g / expPA : 0.13;
+  const sbPerG  = p.projSB ?? 0;
+
+  const tally = { hr:[], hits:[], tb:[], rbi:[], runs:[], sb:[], sgl:[], dbl:[], hrr:[] };
+
+  for(let i = 0; i < SIM_RUNS; i++){
+    // Plate appearances vary game to game; a lineup can turn over an extra time.
+    const pa = Math.random() < (expPA % 1) ? Math.ceil(expPA) : Math.floor(expPA);
+    let hr=0, h=0, tb=0, rbi=0, runs=0, sgl=0, dbl=0;
+
+    for(let a = 0; a < pa; a++){
+      const roll = Math.random();
+      let hadHR = false;
+      if(roll < cHR)      { hr++; h++; tb+=4; runs++; hadHR = true; }  // his own HR scores him
+      else if(roll < cDbl){ h++; tb+=2; dbl++; }
+      else if(roll < cTrp){ h++; tb+=3; }
+      else if(roll < cSgl){ h++; tb+=1; sgl++; }
+      else if(roll < cBB) { /* walk — no AB, no TB */ }
+      else if(roll < cK)  { /* strikeout */ }
+
+      // Driving in other runners, and scoring after reaching base.
+      if(roll >= cHR && roll < cBB){                 // reached base, not via HR
+        if(Math.random() < runRate * 2.2) runs++;
+      }
+      // A homer always drives in at least himself; additional RBI depend on
+      // runners aboard. Non-HR plate appearances use the base RBI rate.
+      if(hadHR){
+        rbi += 1 + (Math.random() < 0.55 ? 1 : 0);   // ~1.6 RBI per HR league-wide
+      } else if(roll < cSgl){
+        // Extra-base hits clear the bases more often than singles.
+        const xbh = roll >= cHR && roll < cTrp;
+        if(Math.random() < rbiRate * (xbh ? 1.5 : 1)) rbi += (Math.random() < 0.25 ? 2 : 1);
+      } else if(roll >= cK){
+        // Outs in play — sac flies and RBI groundouts.
+        if(Math.random() < rbiRate * 0.55) rbi++;
+      }
+    }
+
+    const sb = Math.random() < sbPerG ? 1 : 0;
+    tally.hr.push(hr); tally.hits.push(h); tally.tb.push(tb);
+    tally.rbi.push(rbi); tally.runs.push(runs); tally.sb.push(sb);
+    tally.sgl.push(sgl); tally.dbl.push(dbl);
+    tally.hrr.push(h + runs + rbi);
+  }
+
+  const pct = (arr, line) => Math.round(100 * arr.filter(v => v > line).length / arr.length);
+  const quant = (arr, q) => { const s=[...arr].sort((a,b)=>a-b); return s[Math.floor(q*(s.length-1))]; };
+  const stat = (arr, line) => ({ pct: pct(arr, line), p50: quant(arr,0.5), ceiling: quant(arr,0.9) });
+
+  p._sim = {
+    hr:      stat(tally.hr, 0.5),
+    hits05:  stat(tally.hits, 0.5),
+    hits15:  stat(tally.hits, 1.5),
+    singles: stat(tally.sgl, 0.5),
+    doubles: stat(tally.dbl, 0.5),
+    runs:    stat(tally.runs, 0.5),
+    rbi:     stat(tally.rbi, 0.5),
+    tb15:    stat(tally.tb, 1.5),
+    tb25:    stat(tally.tb, 2.5),
+    hrr15:   stat(tally.hrr, 1.5),
+    hrr25:   stat(tally.hrr, 2.5),
+    sb:      stat(tally.sb, 0.5),
+    rates: r,
+  };
+  return p._sim;
+}
+
+/** Letter grade from a probability, relative to what's realistic for that prop. */
+function propGrade(pct, elite, good, fair){
+  if(pct >= elite) return { g:'A+', cls:'grade-a' };
+  if(pct >= elite*0.85) return { g:'A', cls:'grade-a' };
+  if(pct >= good) return { g:'B+', cls:'grade-b' };
+  if(pct >= good*0.8) return { g:'B', cls:'grade-b' };
+  if(pct >= fair) return { g:'C+', cls:'grade-c' };
+  if(pct >= fair*0.75) return { g:'C', cls:'grade-c' };
+  return { g:'D', cls:'grade-d' };
+}
+
+/**
+ * Graded prop tiles — the headline read. Each shows a letter grade, the
+ * simulated probability, and the line it refers to.
+ */
+function propsGridHTML(p){
+  const sim = simulatePlayer(p);
+  const tiles = [
+    { key:'HR',      label:'HR',       line:'over 0.5', d:sim.hr,      e:22, g:13, f:8  },
+    { key:'2 HRR',   label:'H+R+RBI',  line:'over 1.5', d:sim.hrr15,   e:60, g:48, f:38 },
+    { key:'2 TB',    label:'TOTAL BASES', line:'over 1.5', d:sim.tb15, e:50, g:40, f:30 },
+    { key:'1 HIT',   label:'HITS',     line:'over 0.5', d:sim.hits05,  e:72, g:62, f:52 },
+    { key:'1 RBI',   label:'RBI',      line:'over 0.5', d:sim.rbi,     e:42, g:32, f:24 },
+    { key:'DOUBLE',  label:'DOUBLE',   line:'over 0.5', d:sim.doubles, e:22, g:15, f:10 },
+    { key:'2 HIT',   label:'HITS',     line:'over 1.5', d:sim.hits15,  e:35, g:26, f:18 },
+    { key:'RUN',     label:'RUN',      line:'over 0.5', d:sim.runs,    e:45, g:35, f:26 },
+  ];
+  return `<div class="prop-tiles">` + tiles.map(t => {
+    const gr = propGrade(t.d.pct, t.e, t.g, t.f);
+    return `<div class="prop-tile ${gr.cls}">
+      <div class="pt-key">${t.label}</div>
+      <div class="pt-grade">${gr.g}</div>
+      <div class="pt-pct">${t.d.pct}%</div>
+      <div class="pt-line">${t.line}</div>
+    </div>`;
+  }).join('') + `</div>`;
+}
+
+/** Full probability table with median and ceiling for every line. */
+function propProbabilitiesHTML(p){
+  const sim = simulatePlayer(p);
+  const rows = [
+    ['HOME RUN',    'over 0.5', sim.hr,      22, 13, 8],
+    ['HITS',        'over 0.5', sim.hits05,  72, 62, 52],
+    ['HITS',        'over 1.5', sim.hits15,  35, 26, 18],
+    ['SINGLES',     'over 0.5', sim.singles, 60, 50, 40],
+    ['DOUBLES',     'over 0.5', sim.doubles, 22, 15, 10],
+    ['RUNS SCORED', 'over 0.5', sim.runs,    45, 35, 26],
+    ['RBIS',        'over 0.5', sim.rbi,     42, 32, 24],
+    ['TOTAL BASES', 'over 1.5', sim.tb15,    50, 40, 30],
+    ['TOTAL BASES', 'over 2.5', sim.tb25,    32, 22, 15],
+    ['H+R+RBI',     'over 1.5', sim.hrr15,   60, 48, 38],
+    ['H+R+RBI',     'over 2.5', sim.hrr25,   38, 28, 20],
+    ['STOLEN BASE', 'over 0.5', sim.sb,      25, 15, 8],
+  ];
+  return `<div class="prob-list">` + rows.map(([name, line, d, e, g, f]) => {
+    const gr = propGrade(d.pct, e, g, f);
+    return `<div class="prob-row">
+      <div class="prob-name">${name} <span>${line}</span>
+        <div class="prob-sub">p50: ${d.p50} · ceiling: ${d.ceiling}</div>
+      </div>
+      <div class="prob-bar"><div class="prob-bar-fill ${gr.cls}" style="width:${Math.min(100,d.pct)}%"></div></div>
+      <div class="prob-pct ${gr.cls}">${d.pct}%</div>
+    </div>`;
+  }).join('') + `</div>
+  <div class="prob-foot">Based on ${SIM_RUNS.toLocaleString()} simulated games · p50 = median outcome · ceiling = 90th percentile</div>`;
+}
+
+/** Plain-language summary of why this matchup grades the way it does. */
+function matchupVerdictHTML(p){
+  const sim = simulatePlayer(p);
+  const sp = p.oppPitcher || {};
+  const gr = propGrade(sim.hr.pct, 22, 13, 8);
+  const last = surname(p.name);
+
+  const bits = [];
+  if(p.statcast?.barrel) bits.push(`${p.statcast.barrel}% barrel rate`);
+  if(sp.hr9) bits.push(`${sp.hr9} HR/9 allowed by ${surname(sp.name || 'the starter')}`);
+  if(p.game.parkFactor !== 100) bits.push(`${p.game.parkShort} at ${p.game.parkFactor} park factor`);
+
+  const verdict = sim.hr.pct >= 20 ? 'ELITE SETUP'
+                : sim.hr.pct >= 13 ? 'STRONG SPOT'
+                : sim.hr.pct >= 8  ? 'PLAYABLE' : 'TOUGH DRAW';
+
+  return `<div class="verdict">
+    <div class="verdict-ring ${gr.cls}">
+      <div class="vr-grade">${gr.g}</div>
+      <div class="vr-sub">${sim.hr.pct}% HR</div>
+    </div>
+    <div class="verdict-body">
+      <div class="verdict-title ${gr.cls}">${verdict}</div>
+      <p>${sim.hr.pct}% home run shot for ${last}. ${bits.join(' · ')}.</p>
+    </div>
   </div>`;
 }
 
@@ -3384,8 +3653,13 @@ function openBatterModal(p){
       <div class="tab" data-tab="breakdown">Index Breakdown</div>
     </div>
     <div class="tab-content active" data-panel="overview">
-      <div class="section-mini">All props tonight · rank among ${allBatters.filter(isPlayable).length} slate hitters</div>
+      ${matchupVerdictHTML(p)}
+
+      <div class="section-mini">Tonight's props · graded</div>
       ${propsGridHTML(p)}
+
+      <div class="section-mini">Full probabilities</div>
+      ${propProbabilitiesHTML(p)}
 
       <div class="section-mini">Season</div>
       <div class="stat-grid">
@@ -3454,7 +3728,7 @@ function openBatterModal(p){
         }
         return `
         ${hasArsenal ? `<div class="section-mini">${sp.name} · arsenal${sp.throws&&sp.throws!=='?'?` (${sp.throws}HP)`:''}</div>
-          ${arsenalDonutHTML(sp.arsenal, sp.name)}` : ''}
+          ${arsenalDonutHTML(sp.arsenal)}` : ''}
 
         ${p.splits ? `<div class="section-mini">Platoon splits</div>${platoonSplitHTML(p, sp)}` : ''}
 
