@@ -3699,7 +3699,7 @@ function platoonSplitHTML(p, pitcher){
 // 4,000 runs keeps the margin of error under ~1 percentage point — well below
 // the precision the model itself justifies — while cutting a full-slate sort
 // from ~2.8s to well under a second. Raise it if you want steadier decimals.
-const SIM_RUNS = 4000;
+const SIM_RUNS = 10000;
 
 /** Per-PA outcome rates for tonight, from season rates × matchup adjustments. */
 function paRates(p){
