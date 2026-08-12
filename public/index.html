@@ -1617,13 +1617,11 @@ function getTop5(tabId){
     return pool.sort((a,b)=>b.projK-a.projK).slice(0,TOP_N);
   }
   let sorted;
-  if(tabId==='hr') sorted=[...allBatters].filter(isPlayable)
-      .sort((a,b)=>simulatePlayer(b).hr.pct - simulatePlayer(a).hr.pct);
-  else if(tabId==='hits') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.projHits-a.projHits);
-  else if(tabId==='tb') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.projTB-a.projTB);
-  else if(tabId==='rbi') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.projRBI-a.projRBI);
-  else if(tabId==='hrr') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.projHRR-a.projHRR);
-  else if(tabId==='sb') sorted=[...allBatters].filter(isPlayable).sort((a,b)=>b.projSB-a.projSB);
+  if(TAB_SIM[tabId]){
+    const k = TAB_SIM[tabId].key;
+    sorted = [...allBatters].filter(isPlayable)
+      .sort((a,b)=>simulatePlayer(b)[k].pct - simulatePlayer(a)[k].pct);
+  }
   else return [];
   return sorted.slice(0,TOP_N);
 }
@@ -1637,22 +1635,44 @@ function getAllByTeam(){
 }
 function chipsFor(tabId, p){
   if(tabId==='k') return [`<span class="chip">K/9 <b>${p.k9}</b></span>`,`<span class="chip">Proj IP <b>${p.expIP}</b></span>`,`<span class="chip">Throws <b>${p.throws}</b></span>`];
-  if(tabId==='hr') return [`<span class="chip">Barrel% <b>${p.statcast.barrel}%</b></span>`,`<span class="chip">Park <b>${p.game.parkFactor}</b></span>`,`<span class="chip">Opp HR/9 <b>${p.oppPitcher.hr9}</b></span>`];
-  if(tabId==='hits') return [`<span class="chip">Avg <b>.${Math.round(p.avg*1000)}</b></span>`,`<span class="chip">1+ hit <b>${p.hitProb}%</b></span>`,`<span class="chip">Form <b>${p.recentForm.trend}</b></span>`];
-  if(tabId==='tb') return [`<span class="chip">SLG <b>${p.slg!=null?p.slg.toFixed(3).replace(/^0/,''):'—'}</b></span>`,`<span class="chip">xSLG <b>${p.statcast.xslg}</b></span>`,`<span class="chip">Park <b>${p.game.parkFactor}</b></span>`];
-  if(tabId==='rbi') return [`<span class="chip">Season RBI <b>${p.rbi}</b></span>`,`<span class="chip">RBI/G <b>${p.g?(p.rbi/p.g).toFixed(2):'—'}</b></span>`,`<span class="chip">Park <b>${p.game.parkFactor}</b></span>`];
-  if(tabId==='hrr') return [`<span class="chip">H <b>${p.projHits.toFixed(2)}</b></span>`,`<span class="chip">R <b>${p.projRuns.toFixed(2)}</b></span>`,`<span class="chip">RBI <b>${p.projRBI.toFixed(2)}</b></span>`];
-  if(tabId==='sb') return [`<span class="chip">Season SB <b>${p.sb}</b></span>`,`<span class="chip">SB/G <b>${p.g?(p.sb/p.g).toFixed(2):'—'}</b></span>`,`<span class="chip">Pos <b>${p.pos}</b></span>`];
+  const cfg = TAB_SIM[tabId];
+  if(cfg){
+    const d = simulatePlayer(p)[cfg.key];
+    // Median and ceiling come first — they say what the probability actually
+    // means in outcomes — then the two inputs most responsible for it.
+    const base = [`<span class="chip">Median <b>${d.p50}</b></span>`,
+                  `<span class="chip">Ceiling <b>${d.ceiling}</b></span>`];
+    const extra = {
+      hr:   [`<span class="chip">Barrel% <b>${p.statcast.barrel}%</b></span>`, `<span class="chip">Opp HR/9 <b>${p.oppPitcher.hr9}</b></span>`],
+      hits: [`<span class="chip">AVG <b>.${Math.round(p.avg*1000)}</b></span>`, `<span class="chip">Opp K/9 <b>${p.oppPitcher.k9 ?? '—'}</b></span>`],
+      tb:   [`<span class="chip">SLG <b>${p.slg!=null?p.slg.toFixed(3).replace(/^0/,''):'—'}</b></span>`, `<span class="chip">Park <b>${p.game.parkFactor}</b></span>`],
+      rbi:  [`<span class="chip">RBI/G <b>${p.g?(p.rbi/p.g).toFixed(2):'—'}</b></span>`, `<span class="chip">Slot <b>${p.battingOrder ?? '—'}</b></span>`],
+      hrr:  [`<span class="chip">OBP <b>${p.obp!=null?p.obp.toFixed(3).replace(/^0/,''):'—'}</b></span>`, `<span class="chip">RBI/G <b>${p.g?(p.rbi/p.g).toFixed(2):'—'}</b></span>`],
+      sb:   [`<span class="chip">SB/G <b>${p.g?(p.sb/p.g).toFixed(2):'—'}</b></span>`, `<span class="chip">Success <b>${p.sbSuccess!=null?Math.round(p.sbSuccess*100)+'%':'—'}</b></span>`],
+    }[tabId] || [];
+    return base.concat(extra);
+  }
   return [];
 }
+/**
+ * Which simulated line each tab ranks by. Keeping the tab, the modal and the
+ * grade on one number is what stops the app quoting three different figures
+ * for the same player.
+ */
+const TAB_SIM = {
+  hr:   { key:'hr',     grade:'hr',   line:'over 0.5' },
+  hits: { key:'hits05', grade:'hits', line:'over 0.5' },
+  tb:   { key:'tb15',   grade:'tb',   line:'over 1.5' },
+  rbi:  { key:'rbi',    grade:'rbi',  line:'over 0.5' },
+  hrr:  { key:'hrr15',  grade:'hrr',  line:'over 1.5' },
+  sb:   { key:'sb',     grade:'sb',   line:'over 0.5' },
+};
+
 function scoreFor(tabId, p){
   if(tabId==='k') return p.projK;
-  if(tabId==='hr') return simulatePlayer(p).hr.pct;   // same number the modal shows
-  if(tabId==='hits') return p.projHits;   // projected counts below
-  if(tabId==='tb') return p.projTB;
-  if(tabId==='rbi') return p.projRBI;
-  if(tabId==='hrr') return p.projHRR;
-  if(tabId==='sb') return p.projSB;
+  const cfg = TAB_SIM[tabId];
+  if(!cfg) return 0;
+  return simulatePlayer(p)[cfg.key].pct;
 }
 // ============================================================================
 //  All Players — multi-filter over Statcast and season stats
@@ -1674,7 +1694,21 @@ const FILTER_DEFS = [
 
 // { barrel:{min:10}, ev:{max:95}, ... } — only keys the user has touched.
 let activeFilters = {};
-let allPlayersSort = 'hrIndex';
+let allPlayersSort = 'sim_hr';
+
+// Sort options for All Players: the six graded props first, then raw stats.
+const ALL_SORTS = [
+  { id:'sim_hr',   label:'HR probability',      sim:'hr'   },
+  { id:'sim_hits', label:'Hits probability',    sim:'hits' },
+  { id:'sim_tb',   label:'Total Bases prob.',   sim:'tb'   },
+  { id:'sim_rbi',  label:'RBI probability',     sim:'rbi'  },
+  { id:'sim_hrr',  label:'H+R+RBI probability', sim:'hrr'  },
+  { id:'sim_sb',   label:'Stolen Base prob.',   sim:'sb'   },
+];
+const simSortCfg = id => {
+  const o = ALL_SORTS.find(x => x.id === id);
+  return o ? TAB_SIM[o.sim] : null;
+};
 
 function filteredPlayers(){
   let list = allBatters.filter(isPlayable);
@@ -1689,6 +1723,10 @@ function filteredPlayers(){
       return true;
     });
   }
+  const simCfg = simSortCfg(allPlayersSort);
+  if(simCfg){
+    return list.sort((a,b)=> simulatePlayer(b)[simCfg.key].pct - simulatePlayer(a)[simCfg.key].pct);
+  }
   const sortDef = FILTER_DEFS.find(d=>d.id===allPlayersSort);
   return list.sort((a,b)=> (sortDef ? sortDef.get(b) - sortDef.get(a) : b.hrIndex - a.hrIndex));
 }
@@ -1698,20 +1736,24 @@ function activeFilterCount(){ return Object.keys(activeFilters).length; }
 /** Only the HR index is a percentage; every other prop is a projected count. */
 function isPercentTab(tabId){ return tabId === 'hr'; }
 function scoreLabel(tabId){
-  return ({ k:'PROJ K', hits:'PROJ HITS', tb:'PROJ TB', rbi:'PROJ RBI', hrr:'PROJ H+R+RBI', sb:'PROJ SB', hr:'HR CHANCE' })[tabId] || '';
+  if(tabId === 'k') return 'PROJ K';
+  const cfg = TAB_SIM[tabId];
+  if(!cfg) return '';
+  const name = { hr:'HR', hits:'HITS', tb:'TB', rbi:'RBI', hrr:'H+R+RBI', sb:'SB' }[tabId] || '';
+  return `${name} ${cfg.line.replace('over ','')}+`;
 }
 const SECTION_META = {
   slate: {title:'Today\'s Slate', sub:'Live scores, inning, count, and current batter/pitcher — updates automatically while games are in progress.'},
   feed: {title:'Home Run Feed', sub:'Every homer as it happens, with exit velocity, launch angle, and distance.'},
   firstinning: {title:'1st Inning Over/Under', sub:'Modeled probability of a run scoring in the 1st inning — top-of-order contact quality vs. both starters, park, and weather.'},
-  hr: {title:'Top 20 · Home Run', sub:'Ranked by Home Run Index — Statcast profile, park, weather, and matchup combined.'},
+  hr: {title:'Top 20 · Home Run', sub:'Probability of going deep tonight, graded against the slate. From 4,000 simulated games per player.'},
   hits: {title:'Top 20 · Projected Hits', sub:'Batting average × expected at-bats. Cards also show the chance of at least one hit.'},
   tb: {title:'Top 20 · Projected Total Bases', sub:'Slugging (blended with xSLG) × expected at-bats, adjusted for park and weather.'},
   rbi: {title:'Top 20 · Projected RBIs', sub:'Season RBI per game, adjusted for tonight\'s park run environment and recent form.'},
-  hrr: {title:'Top 20 · Projected H+R+RBI', sub:'Hits + Runs + RBIs combined — each projected from season per-game rates, then summed.'},
+  hrr: {title:'Top 20 · H+R+RBI', sub:'Probability of clearing 1.5 combined hits, runs and RBIs.'},
   sb: {title:'Top 20 · Projected Stolen Bases', sub:'Season stolen bases per game, lightly damped in heavy air.'},
   k: {title:'Top 20 · Pitcher Strikeouts', sub:'Today\'s confirmed probable starters only, ranked by projected strikeouts from K/9 and expected innings pitched.'},
-  all: {title:'All Players', sub:'Every hitter on tonight\'s slate. Combine Statcast filters to find exactly the profile you want.'},
+  all: {title:'All Players', sub:'Every hitter tonight. Sort by any graded prop or raw stat, and stack Statcast filters.'},
 };
 
 const pickList = document.getElementById('pickList');
@@ -1960,15 +2002,12 @@ function propSummary(tabId, p){
  * get bands calibrated to what a strong single-game projection actually is.
  */
 const SCORE_BANDS = {
-  hr:   { hi: 22,   mid: 13   },   // simulated HR probability (%)
-  hits: { hi: 1.20, mid: 1.00 },   // projected hits
-  tb:   { hi: 2.00, mid: 1.60 },   // projected total bases
-  rbi:  { hi: 0.80, mid: 0.60 },   // projected RBI
-  hrr:  { hi: 2.40, mid: 1.90 },   // projected H+R+RBI combined
-  sb:   { hi: 0.25, mid: 0.12 },   // projected steals
-  k:    null,                       // no colouring
+  k: null,                          // raw projected K count — no grade colouring
 };
 function scoreTierClass(tabId, score){
+  // Prop tabs grade against the calibrated cutoffs, so the colour on a card
+  // always agrees with the letter in the modal.
+  if(TAB_SIM[tabId]) return gradeFor(TAB_SIM[tabId].grade, score).cls;
   const b = SCORE_BANDS[tabId];
   if(!b) return '';
   if(score >= b.hi) return 'score-hi';
@@ -2007,7 +2046,12 @@ function filterBarHTML(shown, total){
       <div class="filter-sort">
         <span>Sort by</span>
         <select id="filterSort">
-          ${FILTER_DEFS.map(d=>`<option value="${d.id}" ${allPlayersSort===d.id?'selected':''}>${d.label}</option>`).join('')}
+          <optgroup label="Graded props">
+            ${ALL_SORTS.map(o=>`<option value="${o.id}" ${allPlayersSort===o.id?'selected':''}>${o.label}</option>`).join('')}
+          </optgroup>
+          <optgroup label="Raw stats">
+            ${FILTER_DEFS.map(d=>`<option value="${d.id}" ${allPlayersSort===d.id?'selected':''}>${d.label}</option>`).join('')}
+          </optgroup>
         </select>
       </div>
     </div>
@@ -2020,13 +2064,21 @@ let filterPanelOpen = false;
 function renderAllPlayers(){
   const total = allBatters.filter(isPlayable).length;
   const list = filteredPlayers();
+  const simCfg = simSortCfg(allPlayersSort);
   const sortDef = FILTER_DEFS.find(d=>d.id===allPlayersSort);
+  const sortLabel = simCfg
+    ? ALL_SORTS.find(o=>o.id===allPlayersSort).label
+    : (sortDef ? sortDef.label : 'HR Index');
 
   // Same card format as the Home Runs tab, so scanning feels identical.
   const cards = list.map((p,i)=>{
     const g = p.game;
-    const sortVal = sortDef ? sortDef.get(p) : p.hrIndex;
-    const display = allPlayersSort==='hrIndex' ? `${p.hrIndex}%`
+    // When sorting by a prop, the headline is that prop's graded probability;
+    // otherwise it's the raw stat being sorted on.
+    const simData = simCfg ? simulatePlayer(p)[simCfg.key] : null;
+    const gr = simCfg ? gradeFor(simCfg.grade, simData.pct) : null;
+    const sortVal = simCfg ? simData.pct : (sortDef ? sortDef.get(p) : p.hrIndex);
+    const display = simCfg ? `${simData.pct}%`
                   : (Number.isInteger(sortVal) ? sortVal : (+sortVal).toFixed(sortDef.step < 0.01 ? 3 : 1));
     const windTemp = g.roof==='open-air'
       ? `${g.tempF!=null ? g.tempF+'°F' : ''} ${g.windMph!=null ? 'wind '+windDirLabel(g.windDeg)+' '+g.windMph+'mph' : ''}`.trim()
@@ -2040,10 +2092,10 @@ function renderAllPlayers(){
           <div class="pick-matchup">${g.awayName} @ ${g.homeName} · ${gameTime(g)}</div>
           <div class="pick-summary">${p.narrative}</div>
           <div class="pick-chips">
+            ${simData ? `<span class="chip">Median <b>${simData.p50}</b></span>
+            <span class="chip">Ceiling <b>${simData.ceiling}</b></span>` : ''}
             <span class="chip">Barrel% <b>${p.statcast.barrel}%</b></span>
             <span class="chip">EV <b>${p.statcast.ev}</b></span>
-            <span class="chip">Hard-Hit% <b>${p.statcast.hardHit}%</b></span>
-            <span class="chip">xwOBA <b>${p.statcast.xwoba}</b></span>
             <span class="chip">HR <b>${p.hr}</b></span>
             ${p.statcast._derived?'<span class="chip" style="color:var(--warm);">est. Statcast</span>':''}
           </div>
@@ -2053,8 +2105,9 @@ function renderAllPlayers(){
           </div>
         </div>
         <div class="pick-score">
-          <div class="pick-score-val ${allPlayersSort==='hrIndex'?scoreTierClass('hr',p.hrIndex):''}">${display}</div>
-          <div class="pick-score-label">${sortDef ? sortDef.label : 'HR IDX'}</div>
+          ${gr ? `<div class="pick-grade ${gr.cls}">${gr.g}</div>` : ''}
+          <div class="pick-score-val ${gr ? gr.cls : ''}">${display}</div>
+          <div class="pick-score-label">${simCfg ? simCfg.line : sortLabel}</div>
         </div>
       </div>`;
   }).join('');
@@ -2175,8 +2228,8 @@ function renderList(){
     const ringTeam = isPitcher ? (p.opp === g.home ? g.away : g.home) : p.team;
     const matchupTxt = isPitcher ? `vs ${p.opp} · ${g.awayName} @ ${g.homeName} · ${gameTime(g)}` : `${g.awayName} @ ${g.homeName} · ${gameTime(g)}`;
     const score = scoreFor(activeTab, p);
-    const scoreDisplay = isPercentTab(activeTab) ? `${score}%`
-                       : (activeTab==='k' ? score.toFixed(1) : score.toFixed(2));
+    // Every prop is now a probability; only the pitcher K tab is a raw count.
+    const scoreDisplay = activeTab==='k' ? score.toFixed(1) : `${score}%`;
     const windTemp = g.roof==='open-air'
       ? `${g.tempF!=null ? g.tempF+'°F' : ''} ${g.windMph!=null ? 'wind '+windDirLabel(g.windDeg)+' '+g.windMph+'mph' : g.weather}`.trim()
       : 'Indoor / roof closed';
@@ -2195,7 +2248,7 @@ function renderList(){
           </div>
         </div>
         <div class="pick-score">
-          ${activeTab==='hr' ? `<div class="pick-grade ${gradeFor('hr',score).cls}">${gradeFor('hr',score).g}</div>` : ''}
+          ${TAB_SIM[activeTab] ? `<div class="pick-grade ${gradeFor(TAB_SIM[activeTab].grade, score).cls}">${gradeFor(TAB_SIM[activeTab].grade, score).g}</div>` : ''}
           <div class="pick-score-val ${scoreTierClass(activeTab, score)}">${scoreDisplay}</div>
           <div class="pick-score-label">${scoreLabel(activeTab)}</div>
         </div>
