@@ -3863,10 +3863,10 @@ function renderBetslipBar(){
     </div>
     <div class="bs-body ${betslipOpen?'open':''}">
       <div class="bs-legs">${legs}</div>
-      <div class="bs-note">Gambly has no public betslip link format, so this copies your picks as text — paste it into Gambly chat or text GamblyBot and it builds the slip.</div>
+      <div class="bs-note" id="bsNote">Copies your picks and opens Gambly. If the box isn't already filled, paste — it's on your clipboard.</div>
       <div class="bs-actions">
-        <button class="bs-btn primary" id="bsCopy">Copy for Gambly</button>
-        <button class="bs-btn" id="bsOpen">Open Gambly</button>
+        <button class="bs-btn primary" id="bsBuild">Build on Gambly</button>
+        <button class="bs-btn" id="bsText">Text GamblyBot</button>
         <button class="bs-btn ghost" id="bsClear">Clear</button>
       </div>
     </div>`;
@@ -3880,23 +3880,53 @@ function renderBetslipBar(){
     betslip.splice(+b.dataset.i, 1);
     saveBetslip(); renderBetslipBar(); syncAddButtons();
   });
-  const copyBtn = document.getElementById('bsCopy');
-  if(copyBtn) copyBtn.onclick = async () => {
+  /**
+   * One-click handoff. Two things happen together:
+   *   1. the slip text goes on the clipboard (always works)
+   *   2. Gambly opens with the text as a query parameter (best effort)
+   *
+   * A page cannot type into another origin — the same-origin policy forbids it,
+   * and no browser permits scripting a third-party site's input. So the query
+   * parameter is the only prefill mechanism available. Gambly publishes no
+   * documented parameter, so this tries the common ones; if none are honoured
+   * the chat simply opens empty and the text is already copied, which is no
+   * worse than before.
+   */
+  const buildBtn = document.getElementById('bsBuild');
+  if(buildBtn) buildBtn.onclick = async () => {
     const txt = betslipText();
-    try{
-      await navigator.clipboard.writeText(txt);
-      copyBtn.textContent = 'Copied ✓';
-      setTimeout(()=>{ copyBtn.textContent = 'Copy for Gambly'; }, 1800);
-    }catch{
-      // Clipboard API needs a secure context; fall back to a selectable box.
-      const ta = document.createElement('textarea');
-      ta.value = txt; ta.className = 'bs-fallback';
-      document.getElementById('bsCopy').after(ta);
-      ta.select();
+
+    // Copy first — this is the part that reliably works, so never let the
+    // popup open before the clipboard write has been attempted.
+    let copied = false;
+    try{ await navigator.clipboard.writeText(txt); copied = true; }
+    catch{ copied = false; }
+
+    const url = 'https://gambly.com/chat?q=' + encodeURIComponent(txt);
+    const win = window.open(url, '_blank', 'noopener');
+
+    const note = document.getElementById('bsNote');
+    if(!win){
+      if(note) note.innerHTML = '<b style="color:var(--hot)">Popup blocked.</b> Allow popups for this site, or use Text GamblyBot.';
+    } else if(copied){
+      buildBtn.textContent = 'Opened ✓';
+      if(note) note.textContent = 'Gambly opened. If the box is empty, paste (⌘V / Ctrl+V) — your slip is on the clipboard.';
+      setTimeout(()=>{ buildBtn.textContent = 'Build on Gambly'; }, 2600);
+    } else {
+      // Clipboard needs a secure context; offer the text for manual selection.
+      if(note) note.innerHTML = 'Copy failed — select and copy this:<textarea class="bs-fallback" readonly>' + txt + '</textarea>';
     }
   };
-  const openBtn = document.getElementById('bsOpen');
-  if(openBtn) openBtn.onclick = () => window.open('https://gambly.com/chat', '_blank', 'noopener');
+
+  // GamblyBot over SMS accepts the same phrasing and prefills reliably,
+  // because sms: links are a documented, cross-app standard.
+  const textBtn = document.getElementById('bsText');
+  if(textBtn) textBtn.onclick = () => {
+    const body = encodeURIComponent('GamblyBot ' + betslipText());
+    // iOS wants &body=, Android/others want ?body= — this form works on both.
+    window.location.href = `sms:+13058572288${/iPhone|iPad|Mac/.test(navigator.userAgent) ? '&' : '?'}body=${body}`;
+  };
+
   const clearBtn = document.getElementById('bsClear');
   if(clearBtn) clearBtn.onclick = () => { betslip = []; saveBetslip(); renderBetslipBar(); syncAddButtons(); };
 }
