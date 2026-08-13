@@ -697,6 +697,7 @@ body:has(.betslip-bar) main{ padding-bottom:70px; }
 .feed-team{ font-family:'Space Mono',monospace; font-size:10.5px; color:var(--mute); }
 .feed-time{ font-family:'Space Mono',monospace; font-size:10px; color:var(--mute); margin-left:auto; }
 .feed-desc{ font-size:12.5px; color:var(--white); line-height:1.45; margin-top:4px; }
+.feed-rx{ margin-top:10px; justify-content:flex-start; }
 .feed-meta{ font-family:'Space Mono',monospace; font-size:10px; color:var(--mute); margin-top:8px; }
 @media (max-width:480px){ .feed-headshot{ width:38px; height:38px; } .feed-name{ font-size:14px; } }
 .slate-field{ display:flex; align-items:center; gap:16px; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }
@@ -2428,9 +2429,19 @@ function primeVisibleReactions(){
     .map(el => el.dataset.propkey).filter(Boolean);
   if(!keys.length) return;
   s.primeReactions([...new Set(keys)], () => {
+    // Each surface has its own strip layout, so repaint with the matching
+    // renderer rather than flattening them all into the prop version.
     document.querySelectorAll('.rx-strip').forEach(el => {
       const k = el.dataset.propkey;
-      if(k) el.outerHTML = reactionStripHTML(k);
+      if(!k) return;
+      if(el.classList.contains('feed-rx')){
+        const ev = feedEvents.find(x => `hr|${x.key}` === k);
+        if(ev) el.outerHTML = hrReactionStripHTML(ev);
+      } else if(el.classList.contains('compact')){
+        el.outerHTML = reactionStripCompactHTML(k);
+      } else {
+        el.outerHTML = reactionStripHTML(k);
+      }
     });
   });
 }
@@ -3444,6 +3455,7 @@ function renderFeed(){
             ${stat(ev.distance, 'Distance', ' ft')}
             ${stat(ev.rbi, 'RBI')}
           </div>
+          ${hrReactionStripHTML(ev)}
           <div class="feed-meta">
             ${ev.half} ${ev.inning} · ${ev.park}
             ${ev.pitcher ? ` · off ${ev.pitcher}` : ''}
@@ -3456,6 +3468,7 @@ function renderFeed(){
   <div class="odds-source-note" style="margin-top:14px;">Live from the MLB Stats API play-by-play feed. Batted-ball data is attached by Statcast moments after each swing — occasionally it lags the play by a few seconds.</div>`;
 
   feedEvents.forEach(ev => ev.isNew = false);   // clear highlight after one render
+  primeVisibleReactions();
 
   document.getElementById('iosHintX')?.addEventListener('click', e=>{
     e.stopPropagation();
@@ -4446,7 +4459,14 @@ function reactionStripHTML(key){
 /** Re-render just the strips for one prop, after an optimistic toggle. */
 function renderReactionsFor(key){
   document.querySelectorAll(`.rx-strip[data-propkey="${CSS.escape(key)}"]`).forEach(strip => {
-    strip.outerHTML = reactionStripHTML(key);
+    if(strip.classList.contains('feed-rx')){
+      const ev = feedEvents.find(x => `hr|${x.key}` === key);
+      if(ev) strip.outerHTML = hrReactionStripHTML(ev);
+    } else if(strip.classList.contains('compact')){
+      strip.outerHTML = reactionStripCompactHTML(key);
+    } else {
+      strip.outerHTML = reactionStripHTML(key);
+    }
   });
 }
 
@@ -4648,6 +4668,25 @@ function wireOnlineBar(){
 
 // ---------------------------------------------------------------- profiles
 const STATUS_EMOJI = ['🔥','💯','😂','🤝','💀'];
+const HR_EMOJI = ['🔥','💣','🚀','😱','🫡'];
+
+/**
+ * Reactions on a home run. Keyed by the play itself (gamePk:atBatIndex) rather
+ * than by date and player, so it stays correct when a hitter goes deep twice in
+ * one game — two homers are two separate things to react to.
+ */
+function hrReactionStripHTML(ev){
+  const s = social();
+  if(!s || !s.socialReady) return '';
+  const key = `hr|${ev.key}`;
+  const counts = s.reactionsFor ? s.reactionsFor(key) : {};
+  return `<div class="rx-strip feed-rx" data-propkey="${key}">` +
+    HR_EMOJI.map(e => {
+      const c = counts[e];
+      return `<button class="rx ${c?.mine?'mine':''}" data-emoji="${e}"
+        title="${c?.count || 0} reaction${c?.count === 1 ? '' : 's'}">${e}${c?.count?`<b>${c.count}</b>`:''}</button>`;
+    }).join('') + `</div>`;
+}
 
 function statusHTML(st, canDelete){
   const s = social();
@@ -5685,8 +5724,8 @@ setInterval(()=>{
     // never disagree about what's happened.
     return pollHomeRunFeed();
   }).then(()=>{
-    if(activeTab==='feed') renderList();
-    else renderTabs();          // keeps the unread badge current
+    if(activeTab==='feed') renderList();   // renderFeed primes reactions itself
+    else renderTabs();                     // keeps the unread badge current
   });
 }, 20*1000);
 
