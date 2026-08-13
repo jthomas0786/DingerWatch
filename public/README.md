@@ -154,6 +154,15 @@ the slip and are skipped on placement rather than silently dropped.
 
 ## Troubleshooting
 
+### Workflow push rejected ("fetch first")
+
+The job checked out the repo, then something else pushed before it finished.
+Both workflows now rebase and retry up to five times, so this should self-heal.
+
+If it still fails, the rebase hit a real conflict in `public/slate.json` —
+usually because two runs overlapped. Resolve it locally, or just re-run the
+workflow, since the slate is regenerated from scratch each time anyway.
+
 ### Wrong or tiny slate?
 
 ```bash
