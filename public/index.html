@@ -4362,15 +4362,30 @@ function openAuthModal(mode = 'signin'){
   document.getElementById('dwCancel').onclick = close;
   document.getElementById('dwSwitch').onclick = () => { close(); openAuthModal(isUp ? 'signin' : 'signup'); };
 
-  document.getElementById('dwGo').onclick = async () => {
+  const goBtn = document.getElementById('dwGo');
+  goBtn.onclick = async () => {
     const err = document.getElementById('dwErr');
     const email = document.getElementById('dwEmail').value.trim();
     const pass = document.getElementById('dwPass').value;
+    err.textContent = '';
     if(!email || !pass){ err.textContent = 'Email and password are required.'; return; }
 
-    const res = isUp
-      ? await s.signUp(email, pass, document.getElementById('dwUser').value.trim())
-      : await s.signIn(email, pass);
+    // Disable while in flight so a double-tap can't fire two sign-ins.
+    goBtn.disabled = true;
+    const label = goBtn.textContent;
+    goBtn.textContent = isUp ? 'Creating…' : 'Signing in…';
+
+    let res;
+    try{
+      res = isUp
+        ? await s.signUp(email, pass, document.getElementById('dwUser').value.trim())
+        : await s.signIn(email, pass);
+    }catch(ex){
+      // A thrown error used to leave the modal open with no message at all.
+      res = { error: ex?.message || 'Something went wrong. Check the console.' };
+    }
+    goBtn.disabled = false;
+    goBtn.textContent = label;
 
     if(res.error){ err.textContent = res.error; return; }
     if(res.needsConfirm){
@@ -4380,6 +4395,12 @@ function openAuthModal(mode = 'signin'){
         `<h3>Check your email</h3><p>We sent a confirmation link to <b>${email}</b>. ` +
         `Click it, then sign in.</p><div class="dw-actions"><button class="primary" id="dwOk">Got it</button></div>`;
       document.getElementById('dwOk').onclick = close;
+      return;
+    }
+    // Only close once we can actually see a signed-in user; otherwise the modal
+    // vanishing is indistinguishable from a silent failure.
+    if(!s.getUser?.()){
+      err.textContent = 'Signed in, but your profile didn\'t load. Refresh and try again.';
       return;
     }
     close();
@@ -4887,6 +4908,12 @@ async function boot(){
       else openAuthModal('signin');
     });
   };
+  // Repaint whenever auth settles, including sign-ins completed in another tab.
+  window.addEventListener('dw-auth-changed', () => {
+    renderAuthButton();
+    refreshSocialUI();
+  });
+
   if(window.DW_SOCIAL) startSocial();
   else window.addEventListener('dw-social-ready', startSocial, { once: true });
 

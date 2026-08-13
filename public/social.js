@@ -10,13 +10,16 @@
  *   2. Run supabase-schema.sql in the SQL editor
  *   3. Fill in the two constants below from Settings → API
  *
- * The anon key is PUBLIC by design — it identifies your project, it doesn't
- * grant privileges. Row Level Security in the schema is what actually protects
- * the data. Never put the service_role key here.
+ * The anon key below is PUBLIC by design — it identifies the project and grants
+ * no privileges on its own. Row Level Security in supabase-schema.sql is what
+ * actually protects the data, so those policies must stay enabled.
+ *
+ * Never replace it with the service_role key: that one bypasses RLS entirely
+ * and would let any visitor read or delete every row in the database.
  */
 
-const SUPABASE_URL = 'https://hjhfbhpuuxnrexddplxd.supabase.co';       // https://xxxxx.supabase.co
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhqaGZiaHB1dXhucmV4ZGRwbHhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0OTY5ODQsImV4cCI6MjEwMjA3Mjk4NH0.6URv-aSJgFupp1dkO65AsTqPpZF_aUckczhxJZBWVJ0';  // eyJhbGci...
+const SUPABASE_URL = 'https://hjhfbhpuuxnrexddplxd.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhqaGZiaHB1dXhucmV4ZGRwbHhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0OTY5ODQsImV4cCI6MjEwMjA3Mjk4NH0.6URv-aSJgFupp1dkO65AsTqPpZF_aUckczhxJZBWVJ0';
 
 let sb = null;                 // Supabase client
 let currentUser = null;        // { id, username, avatar_seed }
@@ -34,11 +37,20 @@ async function initSocial(){
     const { data: { session } } = await sb.auth.getSession();
     if(session) await loadProfile(session.user.id);
 
-    sb.auth.onAuthStateChange(async (_event, session) => {
-      if(session) await loadProfile(session.user.id);
-      else currentUser = null;
-      renderAuthButton();
-      refreshSocialUI();
+    // IMPORTANT: this callback must not await a Supabase call. The client holds
+    // an internal lock while it runs, and querying from inside can deadlock —
+    // the await never resolves, so the profile never loads and the UI still
+    // looks signed out. Defer the work outside the callback instead.
+    sb.auth.onAuthStateChange((_event, session) => {
+      if(!session){
+        currentUser = null;
+        notifyAuthChanged();
+        return;
+      }
+      setTimeout(async () => {
+        await loadProfile(session.user.id);
+        notifyAuthChanged();
+      }, 0);
     });
 
     socialReady = true;
@@ -51,8 +63,19 @@ async function initSocial(){
 
 async function loadProfile(userId){
   const { data, error } = await sb.from('profiles').select('*').eq('id', userId).single();
-  if(error){ console.warn('[social] profile load failed:', error.message); return; }
+  if(error){
+    console.warn('[social] profile load failed:', error.message);
+    // The signup trigger may not have committed yet on a brand-new account.
+    // Fall back to a minimal identity so the user isn't stuck looking signed out.
+    currentUser = { id: userId, username: 'you', avatar_seed: userId.slice(0, 12) };
+    return;
+  }
   currentUser = data;
+}
+
+/** Let the page repaint whenever auth state settles. */
+function notifyAuthChanged(){
+  try{ window.dispatchEvent(new CustomEvent('dw-auth-changed')); }catch{}
 }
 
 // ---------------------------------------------------------------- auth
@@ -64,22 +87,44 @@ async function signUp(email, password, username){
   const { data: taken } = await sb.from('profiles').select('id').eq('username', username).maybeSingle();
   if(taken) return { error: 'That username is taken.' };
 
-  const { error } = await sb.auth.signUp({
+  const { data, error } = await sb.auth.signUp({
     email, password,
     options: { data: { username } },   // the DB trigger reads this
   });
   if(error) return { error: error.message };
+
+  // When email confirmation is disabled in the project, signUp returns a live
+  // session and the user is already in. Only claim "check your email" when
+  // there genuinely is no session.
+  if(data?.session?.user){
+    await loadProfile(data.session.user.id);
+    notifyAuthChanged();
+    return { ok: true, needsConfirm: false };
+  }
   return { ok: true, needsConfirm: true };
 }
 
 async function signIn(email, password){
-  const { error } = await sb.auth.signInWithPassword({ email, password });
-  return error ? { error: error.message } : { ok: true };
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if(error){
+    // Supabase's default wording here is vague; name the common cause.
+    const msg = /email not confirmed/i.test(error.message)
+      ? 'Check your email and click the confirmation link first.'
+      : error.message;
+    return { error: msg };
+  }
+  // Load the profile before resolving, so the caller can render a signed-in UI
+  // immediately instead of racing the auth listener.
+  if(data?.user) await loadProfile(data.user.id);
+  notifyAuthChanged();
+  return { ok: true };
 }
 
 async function signOut(){
   await sb.auth.signOut();
   currentUser = null;
+  notifyAuthChanged();
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------- reactions
