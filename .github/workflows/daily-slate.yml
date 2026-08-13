@@ -44,9 +44,9 @@ jobs:
       - name: Build today's slate
         run: |
           if [ -n "${{ inputs.date }}" ]; then
-            node build-slate.js --date "${{ inputs.date }}" --out public/slate.json --verbose
+            node public/build-slate.js --date "${{ inputs.date }}" --out public/slate.json --verbose
           else
-            node build-slate.js --out public/slate.json --verbose
+            node public/build-slate.js --out public/slate.json --verbose
           fi
 
       # Real odds + one-tap betslip deep links. Allowed to fail: without it the
@@ -125,4 +125,4 @@ jobs:
   #   if: github.event_name == 'schedule'
   #   steps:
   #     - uses: actions/checkout@v4
-  #     - run: node build-live.js --out public/live.json
+  #     - run: node public/build-live.js --out public/live.json
