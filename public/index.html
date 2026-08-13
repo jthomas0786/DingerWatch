@@ -1452,6 +1452,19 @@ validateModel();
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+/**
+ * True when a click landed on an interactive control inside a card — a reaction
+ * button, a betslip +, a username, a comment toggle. Card handlers check this
+ * so tapping a control never also opens the card's modal behind it.
+ *
+ * Defined here, above every consumer, because it is called from five separate
+ * click handlers; keeping it adjacent to any one feature makes it easy to
+ * delete by accident.
+ */
+function isInteractiveClick(e){
+  return !!e.target?.closest?.('.rx, .add-leg, .chat-user, .status-comments, .status-del, .feed-share, button');
+}
+
 // The four HR components, rendered straight from MODEL.hr.weights. Percentages,
 // bar widths, and category order all derive from that single source — editing a
 // weight (here or in model-config.json) updates the modal automatically, with
