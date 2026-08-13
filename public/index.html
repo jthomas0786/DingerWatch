@@ -2227,17 +2227,24 @@ const AVATAR_PLACEHOLDER = "data:image/svg+xml;utf8," + encodeURIComponent(`
     <circle cx='50' cy='38' r='19' fill='#3a2424'/>
     <path d='M14,92 Q50,58 86,92 Z' fill='#3a2424'/>
   </svg>`);
-function headshotUrl(name){
-  const id = resolvePlayerId(name);
+/**
+ * Prefer the MLBAM id that slate.json already carries. Resolving by NAME is
+ * ambiguous — MLB has had two active players called Max Muncy (LAD and ATH),
+ * and a name-keyed map can only hold one of them, so both showed the same face.
+ * The id is unique by construction; the name lookup is only a fallback for
+ * surfaces that don't have one.
+ */
+function headshotUrl(name, playerId){
+  const id = playerId || resolvePlayerId(name);
   if(!id) return null;
   return `https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_180,q_auto:best/v1/people/${id}/headshot/67/current`;
 }
-function headshotImgTag(name, cls, teamAbbr){
+function headshotImgTag(name, cls, teamAbbr, playerId){
   cls = cls || 'pick-headshot';
   // Inline style beats the stylesheet's default border, so the ring can be
   // per-player without needing 30 generated CSS classes.
   const ring = teamAbbr ? ` style="border-color:${teamColor(teamAbbr)};"` : '';
-  const url = headshotUrl(name);
+  const url = headshotUrl(name, playerId);
   if(url){
     return `<img class="${cls}" src="${url}"${ring} alt="${name}" onerror="this.onerror=null;this.src='${AVATAR_PLACEHOLDER}';this.classList.add('placeholder');">`;
   }
@@ -2386,7 +2393,7 @@ function renderAllPlayers(){
     return `
       <div class="pick-card" data-team="${p.team}" data-pname="${p.name}">
         <div class="pick-rank ${i===0?'':(i===1?'r2':(i===2?'r3':'r5'))}">${i+1}</div>
-        ${headshotImgTag(p.name, 'pick-headshot', p.team)}
+        ${headshotImgTag(p.name, 'pick-headshot', p.team, p.id)}
         <div class="pick-body">
           <div class="pick-name-row"><span class="pick-name">${p.name}</span><span class="pick-team">${p.team} · ${p.pos||''}</span></div>
           <div class="pick-matchup">${g.awayName} @ ${g.homeName} · ${gameTime(g)}</div>
@@ -2568,7 +2575,7 @@ function renderList(){
     return `
       <div class="pick-card" data-tab="${activeTab}" data-idx="${i}">
         <div class="pick-rank ${rankClasses[i]}">${i+1}</div>
-        ${headshotImgTag(p.name, 'pick-headshot', ringTeam)}
+        ${headshotImgTag(p.name, 'pick-headshot', ringTeam, p.id)}
         <div class="pick-body">
           <div class="pick-name-row"><span class="pick-name">${p.name}</span><span class="pick-team">${isPitcher ? '' : team+' · '+(p.pos||'')}</span></div>
           <div class="pick-matchup">${matchupTxt}</div>
@@ -3505,7 +3512,7 @@ function renderFeed(){
       `<div class="fw-stat"><div class="fw-stat-v">${v}${unit}</div><div class="fw-stat-l">${label}</div></div>`;
     return `
       <div class="feed-item ${ev.isNew?'is-new':''}" data-batter="${ev.batter}">
-        <div class="feed-icon">${headshotImgTag(ev.batter, 'feed-headshot', ev.battingTeam)}</div>
+        <div class="feed-icon">${headshotImgTag(ev.batter, 'feed-headshot', ev.battingTeam, ev.batterId)}</div>
         <div class="feed-body">
           <div class="feed-top">
             <span class="feed-name">${ev.batter}</span>
@@ -3583,9 +3590,14 @@ function resolvePlayerId(name){
   for(const full in playerIdMap){ if(norm(full)===target) return playerIdMap[full]; }
   return null;
 }
-async function fetchLast10(name){
-  await loadPlayerIdMap();
-  const id = resolvePlayerId(name);
+async function fetchLast10(name, playerId){
+  // Same ambiguity as headshots: two active players can share a name, so use
+  // the MLBAM id when we have it rather than looking one up by name.
+  let id = playerId;
+  if(!id){
+    await loadPlayerIdMap();
+    id = resolvePlayerId(name);
+  }
   if(!id) throw new Error('Player ID not found in live roster feed');
   const url = `https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=gameLog&group=hitting&season=2026&gameType=R`;
   const res = await fetch(url);
@@ -3698,7 +3710,7 @@ async function loadLast10(name, p){
   const container = document.getElementById('last10Container');
   if(!container || container.dataset.loaded==='1') return;
   try{
-    const games = await fetchLast10(name);
+    const games = await fetchLast10(name, p?.id);
     if(!games.length){
       container.innerHTML = `<div class="live-note err">No live game log rows found for ${name} yet this season.</div>`;
       container.dataset.loaded = '1';
@@ -5373,7 +5385,7 @@ function openBatterModal(p){
   modalBody.innerHTML = `
     <div class="modal-head">
       <button class="modal-close" id="modalClose">&times;</button>
-      ${headshotImgTag(p.name, 'modal-headshot', p.team)}
+      ${headshotImgTag(p.name, 'modal-headshot', p.team, p.id)}
       <div class="modal-head-text">
       <div class="modal-name">${p.name} <span class="dq-badge ${dqClass}">${dqLabel}</span></div>
       <div class="modal-tag">${p.team} · ${p.pos||''} · Bats ${p.hand||'?'} · ${g.awayName} @ ${g.homeName} · ${gameTime(g)}</div>
@@ -5607,7 +5619,7 @@ function openPitcherModal(p){
   modalBody.innerHTML = `
     <div class="modal-head">
       <button class="modal-close" id="modalClose">&times;</button>
-      ${headshotImgTag(p.name, 'modal-headshot', ownTeam)}
+      ${headshotImgTag(p.name, 'modal-headshot', ownTeam, p.id)}
       <div class="modal-head-text">
       <div class="modal-name">${p.name} <span class="dq-badge modeled">Modeled</span></div>
       <div class="modal-tag">Throws ${p.throws} · vs ${p.opp} · ${g.awayName} @ ${g.homeName} · ${gameTime(g)}</div>
