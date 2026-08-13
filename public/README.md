@@ -111,6 +111,47 @@ accepts the POST and appends to the file.
 - Cold start records the day's backlog without pushing, so enabling mid-slate
   doesn't blast every homer at once.
 
+## One-tap betslips
+
+`fetch-odds.js` attaches real prices and sportsbook deep links to slate.json,
+so tapping **Place bet** opens the wager already loaded — no copy/paste, no bot.
+
+### Setup
+
+1. Get a key at [the-odds-api.com](https://the-odds-api.com) (free tier available)
+2. Add repo secret `ODDS_API_KEY`
+3. The daily workflow runs it automatically after build-slate.js
+
+```bash
+node fetch-odds.js --slate public/slate.json     # all configured books
+node fetch-odds.js --books fanduel               # single book
+node fetch-odds.js --markets batter_home_runs    # single market, cheapest
+node fetch-odds.js --dry-run                     # verify name matching first
+```
+
+### How the links work
+
+The API returns a deep link per outcome:
+
+```
+https://sportsbook.fanduel.com/addToBetslip?marketId=42.448600011&selectionId=29165
+```
+
+Sportsbooks accept one selection per URL, so a parlay opens a tab per leg — they
+accumulate in the same betslip because the book tracks slip state per session.
+A single-leg pick is genuinely one tap.
+
+### Cost
+
+Player-prop markets bill **per event per market**. A 15-game slate across six
+prop markets is roughly 90 credits per run. The free tier is 500/month, so run
+once daily and trim `--markets` if you need to stretch it.
+
+### When a prop has no line
+
+Bench players and late callups often aren't priced. Those legs show "no line" in
+the slip and are skipped on placement rather than silently dropped.
+
 ## Troubleshooting
 
 ### Wrong or tiny slate?

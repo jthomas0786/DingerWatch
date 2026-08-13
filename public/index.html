@@ -361,6 +361,8 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 .bs-leg{ display:flex; align-items:center; gap:10px; background:var(--night2); border:1px solid var(--line);
   border-radius:8px; padding:9px 12px; }
 .bs-leg-txt{ flex:1; font-size:12.5px; color:var(--white); }
+.bs-price{ font-family:'Space Mono',monospace; font-size:12px; color:var(--grass-bright); font-weight:700; }
+.bs-price.unpriced{ color:var(--mute); font-weight:400; font-size:10px; }
 .bs-remove{ background:none; border:none; color:var(--mute); font-size:18px; line-height:1; cursor:pointer; padding:0 3px; }
 .bs-remove:hover{ color:var(--hot); }
 .bs-note{ padding:12px 18px 0; font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); line-height:1.6; }
@@ -912,6 +914,7 @@ function adaptHitter(h, teamAbbr, game, side) {
       trend,
     },
     gameLog: h.gameLog || [],
+    odds: h.odds || null,          // real prices + one-tap betslip deep links
     splits: h.splits || null,      // season vs LHP / vs RHP
     detail: h.detail || null,      // zone grid, pitch types, batted balls
     note: tier === 1 ? 'Elite power threat'
@@ -1026,7 +1029,7 @@ function adaptGame(sg) {
     weather: wx && !wx.indoor
       ? `${wx.tempF}°F, wind ${wx.windMph} mph — ${wx.wind?.label ?? 'direction n/a'}${wx.precipChance > 30 ? `, ${wx.precipChance}% precip` : ''}`
       : 'Indoor / roof closed',
-    odds: null,   // no free live odds feed — see README
+    firstInningOdds: sg.firstInningOdds || null,   // 1st-inning total, with links
   };
 
   g.awayPitcher = mkPitcher('away');
@@ -3777,6 +3780,22 @@ function saveBetslip(){
 }
 
 /** Stable identity for a pick, so the same leg can't be added twice. */
+const fmtAmerican = p => p == null ? '' : (p > 0 ? `+${p}` : `${p}`);
+
+/** Prop key used by the odds fetcher, per app tab. */
+const ODDS_KEY = { hr:'hr', hits:'hits', tb:'tb', rbi:'rbi', hrr:null, sb:'sb', runs:'runs' };
+
+/**
+ * Best available offer for a player's prop, if the odds step has run.
+ * Returns null when unpriced, which every caller must handle — bench players
+ * and short-notice callups frequently have no market.
+ */
+function propOdds(p, prop){
+  const k = ODDS_KEY[prop];
+  if(!k || !p.odds || !p.odds[k]) return null;
+  return p.odds[k];
+}
+
 const legId = (player, market, line) => `${player}|${market}|${line}`;
 const inSlip = id => betslip.some(l => l.id === id);
 
@@ -3849,9 +3868,11 @@ function renderBetslipBar(){
     bar.className = 'betslip-bar';
     document.body.appendChild(bar);
   }
+  const priced = betslip.filter(l => l.link).length;
   const legs = betslip.map((l,i) => `
     <div class="bs-leg">
       <span class="bs-leg-txt">${legToText(l)}</span>
+      ${l.price != null ? `<span class="bs-price">${fmtAmerican(l.price)}</span>` : '<span class="bs-price unpriced">no line</span>'}
       <button class="bs-remove" data-i="${i}" title="Remove">&times;</button>
     </div>`).join('');
 
@@ -3863,9 +3884,13 @@ function renderBetslipBar(){
     </div>
     <div class="bs-body ${betslipOpen?'open':''}">
       <div class="bs-legs">${legs}</div>
-      <div class="bs-note" id="bsNote">Copies your picks and opens Gambly. If the box isn't already filled, paste — it's on your clipboard.</div>
+      <div class="bs-note" id="bsNote">${priced === betslip.length && priced > 0
+        ? 'Every leg has a live line — this opens the betslip already loaded.'
+        : priced > 0
+          ? `${priced} of ${betslip.length} legs have live lines; the rest will be skipped.`
+          : 'No live lines in this slate. Run fetch-odds.js for one-tap betslips.'}</div>
       <div class="bs-actions">
-        <button class="bs-btn primary" id="bsBuild">Build on Gambly</button>
+        <button class="bs-btn primary" id="bsBuild">${priced ? 'Place bet' : 'Send picks'}</button>
         <button class="bs-btn" id="bsText">Text GamblyBot</button>
         <button class="bs-btn ghost" id="bsClear">Clear</button>
       </div>
@@ -3881,49 +3906,57 @@ function renderBetslipBar(){
     saveBetslip(); renderBetslipBar(); syncAddButtons();
   });
   /**
-   * One-click handoff. Two things happen together:
-   *   1. the slip text goes on the clipboard (always works)
-   *   2. Gambly opens with the text as a query parameter (best effort)
+   * Place the slip.
    *
-   * A page cannot type into another origin — the same-origin policy forbids it,
-   * and no browser permits scripting a third-party site's input. So the query
-   * parameter is the only prefill mechanism available. Gambly publishes no
-   * documented parameter, so this tries the common ones; if none are honoured
-   * the chat simply opens empty and the text is already copied, which is no
-   * worse than before.
+   * When the odds step has run, each leg carries a sportsbook deep link that
+   * opens the bet already loaded — no assistant, no copy/paste, no round trip.
+   *
+   * Sportsbooks accept one selection per addToBetslip URL, so a parlay opens
+   * a tab per leg. They land in the same betslip because the book keeps slip
+   * state server-side per session. A single-leg slip is therefore a true
+   * one-tap bet, and a parlay is one tap per leg.
    */
   const buildBtn = document.getElementById('bsBuild');
   if(buildBtn) buildBtn.onclick = async () => {
-    const txt = betslipText();
-
-    // Copy first — this is the part that reliably works, so never let the
-    // popup open before the clipboard write has been attempted.
-    let copied = false;
-    try{ await navigator.clipboard.writeText(txt); copied = true; }
-    catch{ copied = false; }
-
-    const url = 'https://gambly.com/chat?q=' + encodeURIComponent(txt);
-    const win = window.open(url, '_blank', 'noopener');
-
     const note = document.getElementById('bsNote');
-    if(!win){
-      if(note) note.innerHTML = '<b style="color:var(--hot)">Popup blocked.</b> Allow popups for this site, or use Text GamblyBot.';
-    } else if(copied){
-      buildBtn.textContent = 'Opened ✓';
-      if(note) note.textContent = 'Gambly opened. If the box is empty, paste (⌘V / Ctrl+V) — your slip is on the clipboard.';
-      setTimeout(()=>{ buildBtn.textContent = 'Build on Gambly'; }, 2600);
-    } else {
-      // Clipboard needs a secure context; offer the text for manual selection.
-      if(note) note.innerHTML = 'Copy failed — select and copy this:<textarea class="bs-fallback" readonly>' + txt + '</textarea>';
+    const withLinks = betslip.filter(l => l.link);
+    const noLinks   = betslip.filter(l => !l.link);
+
+    if(withLinks.length){
+      // Open the first immediately — inside the click handler, so it is never
+      // treated as an unsolicited popup. Stagger the rest slightly.
+      window.open(withLinks[0].link, '_blank', 'noopener');
+      withLinks.slice(1).forEach((l, i) => setTimeout(() => window.open(l.link, '_blank', 'noopener'), (i + 1) * 350));
+
+      buildBtn.textContent = withLinks.length > 1 ? `Opening ${withLinks.length} legs…` : 'Opened ✓';
+      setTimeout(()=>{ buildBtn.textContent = 'Place bet'; }, 2600);
+
+      if(note){
+        note.textContent = withLinks.length > 1
+          ? `${withLinks.length} tabs opened — each leg loads into the same betslip at ${withLinks[0].book}. Allow popups if some are blocked.`
+          : `Loaded at ${withLinks[0].book}. Review the stake and confirm.`;
+        if(noLinks.length) note.textContent += ` ${noLinks.length} leg(s) had no market and were skipped.`;
+      }
+      return;
+    }
+
+    // Nothing priced: fall back to the text handoff.
+    const txt = betslipText();
+    let copied = false;
+    try{ await navigator.clipboard.writeText(txt); copied = true; }catch{}
+    const win = window.open('https://gambly.com/chat?q=' + encodeURIComponent(txt), '_blank', 'noopener');
+    if(note){
+      note.innerHTML = win
+        ? 'No live prices in this slate yet, so these picks were sent as text.' +
+          (copied ? ' They are also on your clipboard — paste if the box is empty.' : '') +
+          '<br><span style="color:var(--warm)">Run fetch-odds.js to enable one-tap betslips.</span>'
+        : '<b style="color:var(--hot)">Popup blocked.</b> Allow popups for this site.';
     }
   };
 
-  // GamblyBot over SMS accepts the same phrasing and prefills reliably,
-  // because sms: links are a documented, cross-app standard.
   const textBtn = document.getElementById('bsText');
   if(textBtn) textBtn.onclick = () => {
     const body = encodeURIComponent('GamblyBot ' + betslipText());
-    // iOS wants &body=, Android/others want ?body= — this form works on both.
     window.location.href = `sms:+13058572288${/iPhone|iPad|Mac/.test(navigator.userAgent) ? '&' : '?'}body=${body}`;
   };
 
@@ -4188,15 +4221,18 @@ function propsGridHTML(p){
   ];
   return `<div class="prop-tiles">` + tiles.map(t => {
     const gr = gradeFor(t.k, t.d.pct);
+    const od = propOdds(p, t.k);
     const leg = { id: legId(p.name, t.label, t.line.replace('over ','')), kind:'prop',
                   player:p.name, market:t.label, line:t.line.replace('over ',''),
-                  pct:t.d.pct, grade:gr.g, game:`${p.game.awayName} @ ${p.game.homeName}` };
+                  pct:t.d.pct, grade:gr.g, game:`${p.game.awayName} @ ${p.game.homeName}`,
+                  price: od?.best?.price ?? null, link: od?.best?.link ?? null,
+                  book: od?.best?.bookTitle ?? null };
     return `<div class="prop-tile ${gr.cls}">
       ${addLegBtn(leg)}
       <div class="pt-key">${t.label}</div>
       <div class="pt-grade">${gr.g}</div>
       <div class="pt-pct">${t.d.pct}%</div>
-      <div class="pt-line">${t.line}</div>
+      <div class="pt-line">${od?.best?.price != null ? fmtAmerican(od.best.price) : t.line}</div>
     </div>`;
   }).join('') + `</div>`;
 }
