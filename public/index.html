@@ -400,6 +400,52 @@ body:has(.betslip-bar) main{ padding-bottom:70px; }
 #authBtn:hover{ border-color:var(--foul); color:var(--white); }
 #authBtn.signed-in{ border-color:var(--grass-bright); color:var(--grass-bright); }
 
+.gate{ position:fixed; inset:0; z-index:3000; background:var(--night);
+  display:flex; align-items:flex-start; justify-content:center; overflow-y:auto; padding:24px 18px 40px; }
+/* Stop the app scrolling behind the gate. */
+body.gated{ overflow:hidden; }
+.gate-card{ max-width:520px; width:100%; margin-top:min(6vh, 50px); }
+.gate-brand{ display:flex; align-items:center; gap:14px; margin-bottom:22px; }
+.gate-logo{ width:56px; height:56px; border-radius:14px; flex-shrink:0; }
+.gate-title{ font-family:'Archivo Black',sans-serif; font-size:26px; letter-spacing:-.02em; line-height:1; }
+.gate-title span{ color:var(--foul); }
+.gate-tag{ font-family:'Oswald',sans-serif; font-size:13px; color:var(--mute); margin-top:4px; }
+
+.gate-disclaimer{ background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--foul);
+  border-radius:12px; padding:18px 20px; }
+.gate-disclaimer h3{ font-family:'Oswald',sans-serif; font-size:15px; margin-bottom:12px; letter-spacing:.03em; }
+.gate-disclaimer ul{ list-style:none; display:flex; flex-direction:column; gap:11px; }
+.gate-disclaimer li{ font-size:12.5px; color:var(--mute); line-height:1.6; padding-left:16px; position:relative; }
+.gate-disclaimer li::before{ content:''; position:absolute; left:0; top:8px; width:5px; height:5px;
+  border-radius:50%; background:var(--foul); opacity:.7; }
+.gate-disclaimer b{ color:var(--white); font-weight:600; }
+.gate-disclaimer a{ color:var(--foul); }
+
+.gate-auth{ background:var(--panel); border:1px solid var(--line); border-radius:12px;
+  padding:18px 20px; margin-top:14px; }
+.gate-auth-head{ display:flex; gap:8px; margin-bottom:14px; }
+.gate-tab{ flex:1; background:var(--night2); border:1px solid var(--line); color:var(--mute);
+  font-family:'Oswald',sans-serif; font-size:13px; padding:9px; border-radius:8px; cursor:pointer; }
+.gate-tab.active{ background:var(--foul); border-color:var(--foul); color:var(--night); font-weight:700; }
+.gate-auth input[type=email], .gate-auth input[type=password], .gate-auth input:not([type]){
+  width:100%; background:var(--night); border:1px solid var(--line); color:var(--white);
+  font-family:'Space Mono',monospace; font-size:13px; padding:11px 13px; border-radius:8px; margin-bottom:9px; }
+.gate-auth input:focus{ outline:none; border-color:var(--foul); }
+.gate-check{ display:flex; align-items:flex-start; gap:9px; margin:12px 0 14px; cursor:pointer; }
+.gate-check input{ margin-top:2px; flex-shrink:0; width:16px; height:16px; accent-color:var(--foul); }
+.gate-check span{ font-size:12px; color:var(--mute); line-height:1.55; }
+.gate-go{ width:100%; background:var(--foul); border:none; color:var(--night);
+  font-family:'Oswald',sans-serif; font-size:15px; font-weight:700; padding:13px;
+  border-radius:9px; cursor:pointer; }
+.gate-go:disabled{ opacity:.6; cursor:default; }
+.gate-offline{ font-size:12.5px; color:var(--warm); line-height:1.6; margin-bottom:4px; }
+
+@media (max-width:520px){
+  .gate-card{ margin-top:12px; }
+  .gate-title{ font-size:22px; }
+  .gate-logo{ width:46px; height:46px; }
+  .gate-disclaimer{ padding:15px 16px; }
+}
 .dw-modal{ position:fixed; inset:0; background:rgba(5,7,12,.82); z-index:1500; display:flex;
   align-items:center; justify-content:center; padding:20px; }
 .dw-card{ background:var(--panel); border:1px solid var(--foul); border-radius:14px; padding:24px;
@@ -4521,6 +4567,160 @@ document.addEventListener('click', e => {
   if(s.toggleReaction) s.toggleReaction(key, btn.dataset.emoji);
 }, true);
 
+// ---------------------------------------------------------------- gate
+/**
+ * First-run gate: responsible-gambling disclaimer, then sign-in.
+ *
+ * The account requirement is an onboarding decision, not a security boundary —
+ * slate.json is served publicly, so this gates the experience, not the data.
+ *
+ * It deliberately fails OPEN when Supabase is unreachable: locking everyone out
+ * of a working app because an optional backend is down would be worse than
+ * letting them in without an account.
+ */
+const GATE_ACK_KEY = 'dw_disclaimer_ack_v1';
+
+function gateHTML(mode){
+  const acked = store.get(GATE_ACK_KEY) === '1';
+  const s = social();
+  const canAuth = !!(s && s.socialEnabled() && !s.needsSchema?.());
+
+  return `<div class="gate" id="gate">
+    <div class="gate-card">
+      <div class="gate-brand">
+        <img src="icon-192.png" alt="" class="gate-logo" onerror="this.style.display='none'">
+        <div>
+          <div class="gate-title">DINGER<span>WATCH</span></div>
+          <div class="gate-tag">Who's Going Deep</div>
+        </div>
+      </div>
+
+      <div class="gate-disclaimer">
+        <h3>Before you start</h3>
+        <ul>
+          <li><b>These are projections, not predictions.</b> Every grade comes from a
+              statistical model. A 38% home run chance means it usually doesn't happen.</li>
+          <li><b>No one can guarantee a win.</b> Dinger Watch doesn't, and anyone who
+              tells you otherwise is selling something.</li>
+          <li><b>Only bet what you can afford to lose</b> — treat it as the price of
+              entertainment, not an investment or a way to make money back.</li>
+          <li><b>Chasing losses is the warning sign.</b> If you're betting to recover,
+              stop for the day.</li>
+          <li>21+ where legal. If gambling stops being fun, call
+              <a href="tel:18004262537">1-800-GAMBLER</a> — free, confidential, 24/7.</li>
+        </ul>
+      </div>
+
+      ${canAuth ? `
+        <div class="gate-auth" id="gateAuth">
+          <div class="gate-auth-head">
+            <button class="gate-tab ${mode==='signin'?'active':''}" data-mode="signin">Sign in</button>
+            <button class="gate-tab ${mode==='signup'?'active':''}" data-mode="signup">Create account</button>
+          </div>
+          ${mode==='signup' ? '<input id="gUser" placeholder="username" autocomplete="username" maxlength="20">' : ''}
+          <input id="gEmail" type="email" placeholder="email" autocomplete="email">
+          <input id="gPass" type="password" placeholder="password"
+                 autocomplete="${mode==='signup'?'new-password':'current-password'}">
+          <label class="gate-check">
+            <input type="checkbox" id="gAck" ${acked?'checked':''}>
+            <span>I'm 21+ and I understand these are projections with no guaranteed outcome.</span>
+          </label>
+          <button class="gate-go" id="gGo">${mode==='signup'?'Create account & enter':'Sign in & enter'}</button>
+          <div class="dw-err" id="gErr"></div>
+        </div>`
+      : `
+        <div class="gate-auth">
+          <div class="gate-offline">Accounts are unavailable right now, so you can continue without one.</div>
+          <label class="gate-check">
+            <input type="checkbox" id="gAck" ${acked?'checked':''}>
+            <span>I'm 21+ and I understand these are projections with no guaranteed outcome.</span>
+          </label>
+          <button class="gate-go" id="gGo">Continue</button>
+          <div class="dw-err" id="gErr"></div>
+        </div>`}
+    </div>
+  </div>`;
+}
+
+function showGate(mode = 'signin'){
+  const existing = document.getElementById('gate');
+  if(existing) existing.remove();
+  document.body.insertAdjacentHTML('beforeend', gateHTML(mode));
+  document.body.classList.add('gated');
+
+  const s = social();
+  const canAuth = !!(s && s.socialEnabled() && !s.needsSchema?.());
+
+  document.querySelectorAll('.gate-tab').forEach(b => {
+    b.onclick = () => showGate(b.dataset.mode);
+  });
+
+  const go = document.getElementById('gGo');
+  const err = document.getElementById('gErr');
+  const ack = document.getElementById('gAck');
+
+  go.onclick = async () => {
+    err.textContent = '';
+    if(!ack.checked){ err.textContent = 'Please confirm you\'ve read the above.'; return; }
+    store.set(GATE_ACK_KEY, '1');
+
+    if(!canAuth){ dismissGate(); return; }
+
+    const email = document.getElementById('gEmail').value.trim();
+    const pass = document.getElementById('gPass').value;
+    if(!email || !pass){ err.textContent = 'Email and password are required.'; return; }
+
+    go.disabled = true;
+    const label = go.textContent;
+    go.textContent = mode === 'signup' ? 'Creating…' : 'Signing in…';
+
+    let res;
+    try{
+      res = mode === 'signup'
+        ? await s.signUp(email, pass, document.getElementById('gUser').value.trim())
+        : await s.signIn(email, pass);
+    }catch(ex){ res = { error: ex?.message || 'Something went wrong.' }; }
+
+    go.disabled = false;
+    go.textContent = label;
+
+    if(res.error){ err.textContent = res.error; return; }
+    if(res.needsConfirm){
+      err.innerHTML = '<span style="color:var(--grass-bright)">Account created. Check your email for the confirmation link, then sign in.</span>';
+      return;
+    }
+    if(!s.getUser?.()){ err.textContent = 'Signed in, but your profile didn\'t load. Reload and try again.'; return; }
+    dismissGate();
+  };
+
+  // Enter submits.
+  document.querySelectorAll('#gateAuth input').forEach(i => {
+    i.onkeydown = e => { if(e.key === 'Enter') go.click(); };
+  });
+}
+
+function dismissGate(){
+  document.getElementById('gate')?.remove();
+  document.body.classList.remove('gated');
+  renderAuthButton();
+  refreshExportVisibility();
+  refreshSocialUI();
+}
+
+/** Decide whether the gate is needed. Called once social has settled. */
+function evaluateGate(){
+  const s = social();
+  const canAuth = !!(s && s.socialEnabled() && !s.needsSchema?.());
+  const signedIn = !!s?.getUser?.();
+  const acked = store.get(GATE_ACK_KEY) === '1';
+
+  // Signed in and already acknowledged: nothing to show.
+  if(signedIn && acked){ dismissGate(); return; }
+  // Backend unavailable and already acknowledged: don't block a working app.
+  if(!canAuth && acked){ dismissGate(); return; }
+  showGate(signedIn ? 'signin' : 'signup');
+}
+
 // ---------------------------------------------------------------- auth UI
 function renderAuthButton(){
   const btn = document.getElementById('authBtn');
@@ -4916,6 +5116,7 @@ function openProfileEditor(prof){
     close();
     renderAuthButton();
     refreshSocialUI();
+    evaluateGate();      // account required, so return to the gate
   };
   document.getElementById('peSave').onclick = async () => {
     const err = document.getElementById('peErr');
@@ -5453,10 +5654,11 @@ async function boot(){
   // Social is optional: if the module didn't load, everything above still works.
   const startSocial = async () => {
     const s = social();
-    if(!s) return;
+    if(!s){ evaluateGate(); return; }
     await s.initSocial();
     renderAuthButton();
     refreshExportVisibility();
+    evaluateGate();
     document.getElementById('authBtn')?.addEventListener('click', () => {
       const u = s.getUser?.();
       // Signed in, the button is your profile; sign-out lives inside the editor.
@@ -5472,7 +5674,12 @@ async function boot(){
   });
 
   if(window.DW_SOCIAL) startSocial();
-  else window.addEventListener('dw-social-ready', startSocial, { once: true });
+  else {
+    window.addEventListener('dw-social-ready', startSocial, { once: true });
+    // social.js may be absent or blocked; don't leave the user staring at data
+    // they never agreed to terms for, and don't hang forever either.
+    setTimeout(() => { if(!window.DW_SOCIAL) evaluateGate(); }, 2500);
+  }
 
   // Must land before loadSlate(), since every player is scored during adaptation.
   await loadModelOverrides();
