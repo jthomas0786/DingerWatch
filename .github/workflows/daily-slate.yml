@@ -70,7 +70,7 @@ jobs:
         continue-on-error: true
         run: |
           pip install --quiet pybaseball pandas
-          python enrich-statcast.py --slate public/slate.json
+          python public/enrich-statcast.py --slate public/slate.json
 
       - name: Sanity check output
         run: |
@@ -89,7 +89,7 @@ jobs:
                 const at = raw.indexOf(m[0]);
                 console.error(`::error::slate.json contains bare ${m[1]}, which is not valid JSON.`);
                 console.error('Context: ' + raw.slice(Math.max(0,at-120), at+120).replace(/\n/g,' '));
-                console.error('Fix: enrich-statcast.py must sanitise pandas NaN before writing.');
+                console.error('Fix: public/enrich-statcast.py must sanitise pandas NaN before writing.');
               } else {
                 console.error('::error::slate.json is not valid JSON: ' + err.message);
                 console.error('Context: ' + raw.slice(0, 300));
