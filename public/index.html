@@ -824,11 +824,9 @@ body:has(.betslip-bar) main{ padding-bottom:70px; }
     <div class="brand-text">DINGER<span>WATCH</span></div>
   </div>
   <h1>Who's Going <span>Deep</span></h1>
-  <div class="eyebrow">Sunday, August 9, 2026</div>
   <div class="subhead">Top MLB prop picks ranked by Statcast contact quality, park factor, live weather, and pitching matchups.</div>
   <div class="day-toggle" id="dayToggle">
-    <button class="active" data-day="today">Today · Aug 9</button>
-    <button data-day="tomorrow">Tomorrow · Aug 10</button>
+    <button class="active" data-day="today" id="todayBtn">Today</button>
   </div>
   <div class="day-note" id="dayNote">Loading slate…</div>
   <div class="refresh-row">
@@ -1845,7 +1843,7 @@ function getTop5(tabId){
     // Only today's confirmed probable starters — no relievers, and no showing
     // yesterday's pitchers as if they're starting again on a different date.
     let pool = [...allPitchers].filter(isPlayable);
-    if(selectedDay !== 'today'){
+    if(false){   // pitcher-confirmation filter only applied on a future slate
       // For a future date, only trust starters MLB has actually posted and we've
       // live-confirmed — not the previous day's starters carried over by default.
       pool = pool.filter(p => p.liveConfirmed);
@@ -2445,17 +2443,6 @@ function renderList(){
   // Tomorrow is a genuinely different slate (different matchups entirely, not just
   // different times), and this build only carries today's curated game data. Rather
   // than show today's games mislabeled as tomorrow's, say so plainly.
-  if(selectedDay === 'tomorrow'){
-    pickList.innerHTML = `<div style="text-align:center; padding:44px 22px; color:var(--mute); font-family:'Oswald',sans-serif; font-size:14px; line-height:1.7;">
-      <div style="font-size:17px; color:var(--white); margin-bottom:10px;">Tomorrow's slate isn't loaded</div>
-      Tomorrow (Aug 10) is a completely different set of matchups — new series begin, and only about 10 games are scheduled versus today's 15.
-      This build carries curated player, park, and pitcher data for <b style="color:var(--foul);">today's games only</b>.<br><br>
-      Showing today's games here would be inaccurate, so the lists are intentionally blank.
-      Ask to regenerate for tomorrow's slate and I'll rebuild it with the correct matchups.
-    </div>`;
-    return;
-  }
-
   if(activeTab==='slate'){
     renderSlate();
     return;
@@ -2482,7 +2469,7 @@ function renderList(){
 
   const top5 = getTop5(activeTab);
   if(top5.length === 0){
-    const emptyMsg = (activeTab==='k' && selectedDay!=='today')
+    const emptyMsg = false
       ? `Tomorrow's probable starters haven't been officially posted by MLB yet — check back closer to game time, or switch to Today for confirmed starters.`
       : `No qualifying players found for this list right now.`;
     pickList.innerHTML = `<div style="text-align:center; padding:40px 20px; color:var(--mute); font-family:'Oswald',sans-serif; font-size:14px;">${emptyMsg}</div>`;
@@ -2713,10 +2700,30 @@ function shortLabel(dateStr){
   const d = new Date(dateStr+'T12:00:00Z');
   return d.toLocaleDateString('en-US', {month:'short', day:'numeric', timeZone:'UTC'});
 }
-function realTodayStr(){ return ymd(new Date()); }
+/**
+ * Today's date in US Central. `toISOString()` is UTC, which flips at 7pm CDT /
+ * 6pm CST — so the app would advance to "tomorrow" while that evening's games
+ * were still being played. Anchoring to Chicago makes the rollover happen at
+ * local midnight, and handles daylight saving automatically.
+ */
+function realTodayStr(){
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Chicago',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());          // en-CA formats as YYYY-MM-DD
+}
 
-let selectedDay = 'today';
-function gameTime(g){ return (selectedDay==='tomorrow' ? g.timeTomorrow : g.timeToday) || g.timeToday; }
+/** Full label for the single Today button, e.g. "Today · Sun, Aug 9". */
+function todayLabel(){
+  const d = new Date(realTodayStr() + 'T12:00:00Z');
+  return 'Today · ' + d.toLocaleDateString('en-US',
+    { weekday:'short', month:'short', day:'numeric', timeZone:'UTC' });
+}
+
+// The app shows one day: today. Kept as a constant so any straggling reference
+// still reads correctly rather than becoming an undefined variable.
+const selectedDay = 'today';
+function gameTime(g){ return g.timeToday; }
 function timeToMinutes(timeStr){
   const m = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
   if(!m) return 9999;
@@ -2729,28 +2736,23 @@ function sortedGames(){
   return [...games].sort((a,b) => timeToMinutes(gameTime(a)) - timeToMinutes(gameTime(b)));
 }
 function fmtOdds(n){ return n>0 ? `+${n}` : `${n}`; }
-let currentDates = { today: realTodayStr(), tomorrow: addDays(realTodayStr(), 1) };
+let currentDates = { today: realTodayStr() };
 
 function refreshDayLabelsAndStaleness(){
   const realToday = realTodayStr();
   const changed = realToday !== currentDates.today;
-  currentDates = { today: realToday, tomorrow: addDays(realToday, 1) };
+  currentDates = { today: realToday };
 
-  const todayBtn = document.querySelector('.day-toggle button[data-day="today"]');
-  const tmrBtn   = document.querySelector('.day-toggle button[data-day="tomorrow"]');
-  if(todayBtn) todayBtn.textContent = `Today · ${shortLabel(currentDates.today)}`;
-  if(tmrBtn)   tmrBtn.textContent   = `Tomorrow · ${shortLabel(currentDates.tomorrow)}`;
+  const todayBtn = document.getElementById('todayBtn');
+  if(todayBtn) todayBtn.textContent = todayLabel();
 
   const builtFor = slateDate();
   const daysStale = Math.round((new Date(realToday+'T00:00:00Z') - new Date(builtFor+'T00:00:00Z')) / 86400000);
   const note = document.getElementById('dayNote');
-  if(daysStale > 1 || (daysStale === 1 && selectedDay==='tomorrow')){
-    const n = daysStale + (selectedDay==='tomorrow' ? 1 : 0);
-    note.innerHTML = `<span style="color:var(--hot)">Slate is for ${shortLabel(builtFor)} — ${n} day${n===1?'':'s'} old</span> · rerun the daily build workflow for today's games`;
-  } else if(daysStale === 1 && selectedDay === 'today'){
-    note.innerHTML = 'Auto-rolled to today\'s date · <span style="color:var(--warm)">showing yesterday\'s projected slate — matchups/pitchers may be outdated</span>';
-  } else if(selectedDay === 'tomorrow'){
-    note.innerHTML = 'Real matchups &amp; start times for tomorrow · <span style="color:var(--warm)">probable pitchers confirm live as MLB posts them — unconfirmed starters are hidden from Strikeouts</span>';
+  if(daysStale > 1){
+    note.innerHTML = `<span style="color:var(--hot)">Slate is for ${shortLabel(builtFor)} — ${daysStale} days old</span> · rerun the daily build workflow for today's games`;
+  } else if(daysStale === 1){
+    note.innerHTML = 'Auto-rolled to today\'s date · <span style="color:var(--warm)">showing yesterday\'s slate — rerun the build for tonight\'s games</span>';
   } else {
     updateSlateFooter();   // healthy slate — show provenance instead
   }
@@ -2764,7 +2766,7 @@ async function fetchLiveWeather(){ return true; }
 async function _legacyFetchLiveWeather(){
   const dot = document.getElementById('dotWeather'); // may be absent — guarded below
   try{
-    const dayIdx = selectedDay==='tomorrow' ? 1 : 0;
+    const dayIdx = 0;
     const entries = Object.entries(STADIUM_COORDS);
     const results = await Promise.all(entries.map(async ([id, s]) => {
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${s.lat}&longitude=${s.lon}&hourly=temperature_2m,wind_speed_10m,wind_direction_10m,relative_humidity_2m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=2`;
@@ -2792,7 +2794,7 @@ async function _legacyFetchLiveWeather(){
 async function fetchLiveSchedule(){
   const dot = document.getElementById('dotSchedule');
   try{
-    const date = selectedDay==='tomorrow' ? currentDates.tomorrow : currentDates.today;
+    const date = currentDates.today;
     const url = `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${date}&hydrate=probablePitcher,linescore`;
     const res = await fetch(url);
     if(!res.ok) throw new Error('bad response');
@@ -3589,16 +3591,10 @@ function _legacyApplyActiveStatus(rosterData){
   });
 }
 
+// One button now, so this only refreshes live data — there is no day to switch.
 document.getElementById('dayToggle').addEventListener('click', (e)=>{
-  const btn = e.target.closest('button'); if(!btn) return;
-  selectedDay = btn.dataset.day;
-  document.querySelectorAll('.day-toggle button').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
+  if(!e.target.closest('button')) return;
   refreshDayLabelsAndStaleness();
-  rescoreAllPlayers();
-  renderList();
-  setDot('dotSlate', 'pending');
-  setDot('dotSchedule', 'pending');
   fetchLiveWeather().then(()=>{ rescoreAllPlayers(); renderList(); });
   fetchLiveSchedule().then(ok=>{ if(ok){ rescoreAllPlayers(); renderList(); } });
 });
