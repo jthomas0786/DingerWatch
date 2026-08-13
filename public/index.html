@@ -2036,12 +2036,17 @@ function scoreLabel(tabId){
   const name = { hr:'HR', hits:'HITS', tb:'TB', rbi:'RBI', hrr:'H+R+RBI', sb:'SB' }[tabId] || '';
   return `${name} ${cfg.line.replace('over ','')}+`;
 }
+// Simulations per player. Higher is steadier but slower; the whole slate is
+// simulated once on first use and cached, so this cost is paid on load rather
+// than on every interaction. 10,000 keeps run-to-run variance around 1 point.
+const SIM_RUNS = 10000;
+
 const SECTION_META = {
   slate: {title:'Today\'s Slate', sub:'Live scores, inning, count, and current batter/pitcher — updates automatically while games are in progress.'},
   chat: {title:'Chat', sub:'Talk through tonight\'s slate. Sign in to post and react.'},
   feed: {title:'Home Run Feed', sub:'Every homer as it happens, with exit velocity, launch angle, and distance.'},
   firstinning: {title:'1st Inning Over/Under', sub:'Modeled probability of a run scoring in the 1st inning — top-of-order contact quality vs. both starters, park, and weather.'},
-  hr: {title:'Top 20 · Home Run', sub:'Probability of going deep tonight, graded against the slate. From 4,000 simulated games per player.'},
+  hr: {title:'Top 20 · Home Run', sub:`Probability of going deep tonight, graded against the slate. From ${SIM_RUNS.toLocaleString()} simulated games per player.`},
   hits: {title:'Top 20 · Projected Hits', sub:'Batting average × expected at-bats. Cards also show the chance of at least one hit.'},
   tb: {title:'Top 20 · Projected Total Bases', sub:'Slugging (blended with xSLG) × expected at-bats, adjusted for park and weather.'},
   rbi: {title:'Top 20 · Projected RBIs', sub:'Season RBI per game, adjusted for tonight\'s park run environment and recent form.'},
@@ -4243,10 +4248,6 @@ let betslipOpen = false;
 //  rolling each event independently and letting a single PA be both a single
 //  and a homer.
 // ============================================================================
-// 4,000 runs keeps the margin of error under ~1 percentage point — well below
-// the precision the model itself justifies — while cutting a full-slate sort
-// from ~2.8s to well under a second. Raise it if you want steadier decimals.
-const SIM_RUNS = 4000;
 
 /** Per-PA outcome rates for tonight, from season rates × matchup adjustments. */
 function paRates(p){
