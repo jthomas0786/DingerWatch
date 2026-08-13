@@ -2363,7 +2363,8 @@ function renderAllPlayers(){
 
   wireFilterBar();
   pickList.querySelectorAll('.pick-card').forEach(card=>{
-    card.addEventListener('click', ()=>{
+    card.addEventListener('click', (e)=>{
+      if(isInteractiveClick(e)) return;
       const p = allBatters.find(x=>x.team===card.dataset.team && x.name===card.dataset.pname);
       if(p) openBatterModal(p);
     });
@@ -2534,7 +2535,8 @@ function renderList(){
   }).join('');
 
   pickList.querySelectorAll('.pick-card').forEach(card=>{
-    card.addEventListener('click', ()=>{
+    card.addEventListener('click', (e)=>{
+      if(isInteractiveClick(e)) return;
       const top5cur = getTop5(activeTab);
       const p = top5cur[parseInt(card.dataset.idx)];
       if(activeTab==='k') openPitcherModal(p); else openBatterModal(p);
@@ -2990,7 +2992,8 @@ function renderSlate(){
   }).join('');
   pickList.innerHTML = `<div class="slate-list">${cards}</div>`;
   pickList.querySelectorAll('.slate-card').forEach(card=>{
-    card.addEventListener('click', ()=>{
+    card.addEventListener('click', (e)=>{
+      if(isInteractiveClick(e)) return;
       const g = games.find(x=>x.id===card.dataset.gid);
       if(!g) return;
       // A thrown error inside the modal builder would otherwise leave the card
@@ -3071,7 +3074,8 @@ function renderFirstInning(){
   pickList.innerHTML = `<div class="pick-list">${cards}</div>
     <div class="odds-source-note" style="margin-top:14px;">Modeled from top-order contact quality, starter HR/9 &amp; K/9, park factor, and live weather — not a sportsbook line. "Over 0.5" = probability at least one run scores in the 1st inning (top or bottom).</div>`;
   pickList.querySelectorAll('.pick-card').forEach(card=>{
-    card.addEventListener('click', ()=>{
+    card.addEventListener('click', (e)=>{
+      if(isInteractiveClick(e)) return;
       const g = games.find(x=>x.id===card.dataset.gid);
       if(g) openGameModal(g);
     });
@@ -3458,7 +3462,8 @@ function renderFeed(){
   });
 
   pickList.querySelectorAll('.feed-item').forEach(item=>{
-    item.addEventListener('click', ()=>{
+    item.addEventListener('click', (e)=>{
+      if(isInteractiveClick(e)) return;
       const p = allBatters.find(x => x.name === item.dataset.batter);
       if(p) openBatterModal(p);
     });
@@ -4016,7 +4021,14 @@ function addLegBtn(leg, label){
     title="${on?'Remove from slip: ':'Add to slip: '}${what}">${face}</button>`;
 }
 
-/** Delegated click handling — survives every re-render. */
+/**
+ * Delegated click handling — survives every re-render.
+ *
+ * Registered in the CAPTURE phase (the trailing `true`). A listener on document
+ * during bubbling runs LAST, after the card's own handler has already opened the
+ * modal, so stopPropagation there is too late. Capturing lets us intercept the
+ * click on the way down and stop it before any card sees it.
+ */
 document.addEventListener('click', e => {
   const btn = e.target.closest?.('.add-leg');
   if(!btn) return;
@@ -4024,7 +4036,7 @@ document.addEventListener('click', e => {
   e.preventDefault();
   try{ toggleLeg(JSON.parse(decodeURIComponent(btn.dataset.leg))); }
   catch(err){ console.warn('[betslip] bad leg payload', err); }
-});
+}, true);
 
 /** One line of natural language per leg, in the phrasing GamblyBot parses. */
 function legToText(l){
@@ -4443,20 +4455,33 @@ function renderReactionsFor(key){
 }
 
 // Delegated so it survives every re-render.
-// Any @username opens that profile.
+// Any @username opens that profile, and never the card behind it.
 document.addEventListener('click', e => {
   const u = e.target.closest?.('.chat-user');
-  if(u?.dataset.username){ e.stopPropagation(); openProfile(u.dataset.username); }
-});
+  if(!u?.dataset.username) return;
+  e.stopPropagation();
+  e.preventDefault();
+  openProfile(u.dataset.username);
+}, true);
 
+// Capture phase, same reason as above: the card's own click handler would
+// otherwise already have fired by the time this runs.
 document.addEventListener('click', e => {
   const btn = e.target.closest?.('.rx');
   if(!btn) return;
-  e.stopPropagation();
+
   const strip = btn.closest('.rx-strip');
   const key = strip?.dataset.propkey;
+
+  // Status reactions live in .status-rx and are wired directly on the button.
+  // Only claim the event when this is a PROP reaction, or those would be
+  // swallowed here and never reach their own handler.
+  if(!key) return;
+
+  e.stopPropagation();
+  e.preventDefault();
   const s = social();
-  if(!key || !s) return;
+  if(!s) return;
 
   // The "+" swaps the compact strip for the full picker in place.
   if(btn.dataset.more){
@@ -4465,7 +4490,7 @@ document.addEventListener('click', e => {
     return;
   }
   if(s.toggleReaction) s.toggleReaction(key, btn.dataset.emoji);
-});
+}, true);
 
 // ---------------------------------------------------------------- auth UI
 function renderAuthButton(){
