@@ -21,6 +21,14 @@
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="shortcut icon" href="icon-192.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script type="module">
+  // Social features live in their own module and attach to window so the main
+  // script can call them. Everything degrades to a no-op when Supabase isn't
+  // configured, so the app never depends on them.
+  import('./social.js')
+    .then(m => { window.DW_SOCIAL = m; window.dispatchEvent(new Event('dw-social-ready')); })
+    .catch(() => { /* not configured — app runs unchanged */ });
+</script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
@@ -377,6 +385,60 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 /* Keep the tray from covering the last row of content. */
 body:has(.betslip-bar) main{ padding-bottom:70px; }
 @media (max-width:520px){ .bs-leg-txt{ font-size:11.5px; } }
+/* --- emoji reactions --- */
+.rx-strip{ display:flex; gap:3px; justify-content:center; margin-top:7px; flex-wrap:wrap; }
+.rx{ background:var(--night); border:1px solid var(--line); border-radius:11px; padding:2px 6px;
+  font-size:11px; cursor:pointer; line-height:1.4; display:flex; align-items:center; gap:3px;
+  transition:all .12s ease; }
+.rx:hover{ border-color:var(--foul); transform:translateY(-1px); }
+.rx.mine{ background:rgba(224,18,46,.16); border-color:var(--foul); }
+.rx b{ font-family:'Space Mono',monospace; font-size:9px; color:var(--white); font-weight:700; }
+
+/* --- auth + chat --- */
+#authBtn{ background:var(--panel); border:1px solid var(--line); color:var(--mute);
+  font-family:'Space Mono',monospace; font-size:10.5px; padding:4px 10px; border-radius:14px; cursor:pointer; }
+#authBtn:hover{ border-color:var(--foul); color:var(--white); }
+#authBtn.signed-in{ border-color:var(--grass-bright); color:var(--grass-bright); }
+
+.dw-modal{ position:fixed; inset:0; background:rgba(5,7,12,.82); z-index:1500; display:flex;
+  align-items:center; justify-content:center; padding:20px; }
+.dw-card{ background:var(--panel); border:1px solid var(--foul); border-radius:14px; padding:24px;
+  max-width:400px; width:100%; }
+.dw-card h3{ font-family:'Oswald',sans-serif; font-size:18px; margin-bottom:6px; }
+.dw-card p{ font-size:12.5px; color:var(--mute); line-height:1.6; margin-bottom:14px; }
+.dw-card input{ width:100%; background:var(--night); border:1px solid var(--line); color:var(--white);
+  font-family:'Space Mono',monospace; font-size:13px; padding:10px 12px; border-radius:8px; margin-bottom:9px; }
+.dw-card input:focus{ outline:none; border-color:var(--foul); }
+.dw-actions{ display:flex; gap:8px; margin-top:6px; }
+.dw-actions button{ flex:1; background:var(--night2); border:1px solid var(--line); color:var(--white);
+  font-family:'Oswald',sans-serif; font-size:13px; padding:10px; border-radius:8px; cursor:pointer; }
+.dw-actions button.primary{ background:var(--foul); border-color:var(--foul); color:var(--night); font-weight:700; }
+.dw-err{ color:var(--hot); font-size:11.5px; margin-top:8px; min-height:15px; }
+.dw-switch{ text-align:center; margin-top:12px; font-size:11.5px; color:var(--mute); }
+.dw-switch a{ color:var(--foul); cursor:pointer; text-decoration:underline; }
+
+.chat-list{ display:flex; flex-direction:column; gap:8px; margin-top:14px; }
+.chat-msg{ display:flex; gap:10px; background:var(--night2); border:1px solid var(--line);
+  border-radius:10px; padding:10px 13px; }
+.chat-av{ width:30px; height:30px; border-radius:50%; flex-shrink:0; background:var(--foul);
+  display:flex; align-items:center; justify-content:center; font-family:'Archivo Black',sans-serif;
+  font-size:12px; color:var(--night); }
+.chat-body{ flex:1; min-width:0; }
+.chat-top{ display:flex; align-items:baseline; gap:8px; }
+.chat-user{ font-family:'Oswald',sans-serif; font-size:13px; color:var(--white); cursor:pointer; }
+.chat-user:hover{ color:var(--foul); }
+.chat-time{ font-family:'Space Mono',monospace; font-size:9px; color:var(--mute); }
+.chat-follow{ margin-left:auto; background:none; border:1px solid var(--line); color:var(--mute);
+  font-family:'Space Mono',monospace; font-size:9px; padding:2px 8px; border-radius:10px; cursor:pointer; }
+.chat-follow.following{ border-color:var(--grass-bright); color:var(--grass-bright); }
+.chat-txt{ font-size:12.5px; color:var(--white); margin-top:3px; line-height:1.5; word-break:break-word; }
+.chat-compose{ display:flex; gap:8px; margin-top:14px; position:sticky; bottom:0; background:var(--night);
+  padding:10px 0; }
+.chat-compose input{ flex:1; background:var(--night2); border:1px solid var(--line); color:var(--white);
+  font-size:13px; padding:11px 13px; border-radius:9px; }
+.chat-compose input:focus{ outline:none; border-color:var(--foul); }
+.chat-compose button{ background:var(--foul); border:none; color:var(--night); font-family:'Oswald',sans-serif;
+  font-size:13px; padding:11px 18px; border-radius:9px; cursor:pointer; font-weight:700; }
 .prop-tiles{ display:grid; grid-template-columns:repeat(auto-fit,minmax(108px,1fr)); gap:8px; }
 .prop-tile{ background:var(--night2); border:1px solid var(--line); border-radius:10px; padding:11px 8px;
   text-align:center; border-top-width:3px; }
@@ -684,6 +746,7 @@ body:has(.betslip-bar) main{ padding-bottom:70px; }
     <button id="refreshBtn" title="Refresh live data now">↻ Refresh</button>
     <button id="exportBtn" title="Download every player's prop projections as an Excel workbook">⬇ Excel</button>
     <button id="notifyBtn" title="Get a notification for every home run">🔔 Alerts</button>
+    <button id="authBtn" title="Sign in to react and chat">Sign in</button>
   </div>
   <div class="live-status">
     <span><span class="dot pending" id="dotSlate"></span>Slate data (slate.json)</span>
@@ -1665,6 +1728,7 @@ function scorePlayer(base, game){
 const PROP_TABS = [
   {id:'slate',       label:'Slate'},
   {id:'feed',        label:'Feed'},
+  {id:'chat',        label:'Chat'},
   {id:'firstinning', label:'1st Inning O/U'},
   {id:'__props__',   label:'Player Props', dropdown:true},
   {id:'all',         label:'All Players'},
@@ -1826,6 +1890,7 @@ function scoreLabel(tabId){
 }
 const SECTION_META = {
   slate: {title:'Today\'s Slate', sub:'Live scores, inning, count, and current batter/pitcher — updates automatically while games are in progress.'},
+  chat: {title:'Chat', sub:'Talk through tonight\'s slate. Sign in to post and react.'},
   feed: {title:'Home Run Feed', sub:'Every homer as it happens, with exit velocity, launch angle, and distance.'},
   firstinning: {title:'1st Inning Over/Under', sub:'Modeled probability of a run scoring in the 1st inning — top-of-order contact quality vs. both starters, park, and weather.'},
   hr: {title:'Top 20 · Home Run', sub:'Probability of going deep tonight, graded against the slate. From 4,000 simulated games per player.'},
@@ -2288,6 +2353,12 @@ function renderList(){
     renderFeed();
     return;
   }
+  if(activeTab==='chat'){
+    renderChat();
+    return;
+  }
+  // Leaving chat should drop the realtime subscription rather than leak it.
+  if(chatUnsub){ chatUnsub(); chatUnsub = null; }
   if(activeTab==='firstinning'){
     renderFirstInning();
     return;
@@ -4207,6 +4278,199 @@ function propGrade(pct, elite, good, fair){
  * Graded prop tiles — the headline read. Each shows a letter grade, the
  * simulated probability, and the line it refers to.
  */
+// ---------------------------------------------------------------- social glue
+// These are thin wrappers so the main app never has to care whether the social
+// module loaded. Each returns empty / no-ops when it hasn't.
+const social = () => (typeof window !== 'undefined' ? window.DW_SOCIAL : null);
+
+function propKeyFor(p, market, line){
+  return `${slateMeta.date || 'today'}|${p.name}|${market}|${line}`;
+}
+
+const REACTION_SET = ['🔥','💣','🔒','👀'];
+
+/** Emoji row under a prop. Renders nothing until social is available. */
+function reactionStripHTML(key){
+  const s = social();
+  if(!s || !s.socialReady) return '';
+  const counts = s.reactionsFor ? s.reactionsFor(key) : {};
+  return `<div class="rx-strip" data-propkey="${key}">` +
+    REACTION_SET.map(e => {
+      const c = counts[e];
+      return `<button class="rx ${c?.mine ? 'mine' : ''}" data-emoji="${e}"
+        title="${c?.count || 0} reaction${c?.count === 1 ? '' : 's'}">${e}${c?.count ? `<b>${c.count}</b>` : ''}</button>`;
+    }).join('') + `</div>`;
+}
+
+/** Re-render just the strips for one prop, after an optimistic toggle. */
+function renderReactionsFor(key){
+  document.querySelectorAll(`.rx-strip[data-propkey="${CSS.escape(key)}"]`).forEach(strip => {
+    strip.outerHTML = reactionStripHTML(key);
+  });
+}
+
+// Delegated so it survives every re-render.
+document.addEventListener('click', e => {
+  const btn = e.target.closest?.('.rx');
+  if(!btn) return;
+  e.stopPropagation();
+  const key = btn.closest('.rx-strip')?.dataset.propkey;
+  const s = social();
+  if(key && s?.toggleReaction) s.toggleReaction(key, btn.dataset.emoji);
+});
+
+// ---------------------------------------------------------------- auth UI
+function renderAuthButton(){
+  const btn = document.getElementById('authBtn');
+  if(!btn) return;
+  const s = social();
+  if(!s || !s.socialEnabled()){ btn.style.display = 'none'; return; }
+  btn.style.display = '';
+  const u = s.getUser?.();
+  btn.textContent = u ? `@${u.username}` : 'Sign in';
+  btn.classList.toggle('signed-in', !!u);
+}
+
+function promptSignIn(){ openAuthModal('signin'); }
+
+function openAuthModal(mode = 'signin'){
+  const s = social();
+  if(!s) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'dw-modal';
+  const isUp = mode === 'signup';
+  wrap.innerHTML = `
+    <div class="dw-card">
+      <h3>${isUp ? 'Create an account' : 'Sign in'}</h3>
+      <p>${isUp ? 'Pick a handle — it shows on your reactions, picks, and messages.'
+                : 'React to props, post picks, and join the chat.'}</p>
+      ${isUp ? '<input id="dwUser" placeholder="username" autocomplete="username" maxlength="20">' : ''}
+      <input id="dwEmail" type="email" placeholder="email" autocomplete="email">
+      <input id="dwPass" type="password" placeholder="password" autocomplete="${isUp?'new-password':'current-password'}">
+      <div class="dw-actions">
+        <button class="primary" id="dwGo">${isUp ? 'Create account' : 'Sign in'}</button>
+        <button id="dwCancel">Cancel</button>
+      </div>
+      <div class="dw-err" id="dwErr"></div>
+      <div class="dw-switch">${isUp ? 'Already have an account? <a id="dwSwitch">Sign in</a>'
+                                    : 'New here? <a id="dwSwitch">Create an account</a>'}</div>
+    </div>`;
+  document.body.appendChild(wrap);
+
+  const close = () => wrap.remove();
+  wrap.onclick = e => { if(e.target === wrap) close(); };
+  document.getElementById('dwCancel').onclick = close;
+  document.getElementById('dwSwitch').onclick = () => { close(); openAuthModal(isUp ? 'signin' : 'signup'); };
+
+  document.getElementById('dwGo').onclick = async () => {
+    const err = document.getElementById('dwErr');
+    const email = document.getElementById('dwEmail').value.trim();
+    const pass = document.getElementById('dwPass').value;
+    if(!email || !pass){ err.textContent = 'Email and password are required.'; return; }
+
+    const res = isUp
+      ? await s.signUp(email, pass, document.getElementById('dwUser').value.trim())
+      : await s.signIn(email, pass);
+
+    if(res.error){ err.textContent = res.error; return; }
+    if(res.needsConfirm){
+      // Supabase sends a confirmation email by default; say so rather than
+      // leaving the user wondering why nothing happened.
+      wrap.querySelector('.dw-card').innerHTML =
+        `<h3>Check your email</h3><p>We sent a confirmation link to <b>${email}</b>. ` +
+        `Click it, then sign in.</p><div class="dw-actions"><button class="primary" id="dwOk">Got it</button></div>`;
+      document.getElementById('dwOk').onclick = close;
+      return;
+    }
+    close();
+    renderAuthButton();
+    refreshSocialUI();
+  };
+}
+
+/** Repaint anything that depends on who's signed in. */
+function refreshSocialUI(){
+  if(activeTab === 'chat') renderList();
+  document.querySelectorAll('.rx-strip').forEach(strip => {
+    const k = strip.dataset.propkey;
+    if(k) strip.outerHTML = reactionStripHTML(k);
+  });
+}
+
+// ---------------------------------------------------------------- chat tab
+let chatUnsub = null;
+
+function chatMsgHTML(m){
+  const name = m.profiles?.username || 'unknown';
+  const initial = name[0]?.toUpperCase() || '?';
+  const t = new Date(m.created_at);
+  const ago = timeAgo(t.getTime());
+  return `<div class="chat-msg">
+    <div class="chat-av">${initial}</div>
+    <div class="chat-body">
+      <div class="chat-top">
+        <span class="chat-user" data-uid="${m.user_id}">@${name}</span>
+        <span class="chat-time">${ago}</span>
+      </div>
+      <div class="chat-txt">${escapeHTML(m.body)}</div>
+    </div>
+  </div>`;
+}
+
+// Chat is user-generated, so it must never be injected as markup.
+function escapeHTML(str){
+  return String(str).replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+async function renderChat(){
+  const s = social();
+  if(!s || !s.socialEnabled()){
+    pickList.innerHTML = `<div style="text-align:center;padding:46px 22px;color:var(--mute);
+      font-family:'Oswald',sans-serif;font-size:14px;line-height:1.7;">
+      <div style="font-size:16px;color:var(--white);margin-bottom:8px;">Chat isn't set up yet</div>
+      Add your Supabase URL and anon key to <code style="color:var(--foul)">social.js</code>,
+      then run <code style="color:var(--foul)">supabase-schema.sql</code>.</div>`;
+    return;
+  }
+
+  const msgs = await s.loadChat('general');
+  const signedIn = !!s.getUser?.();
+
+  pickList.innerHTML = `
+    <div class="chat-list" id="chatList">${msgs.map(chatMsgHTML).join('') ||
+      '<div style="text-align:center;padding:30px;color:var(--mute);font-size:13px;">No messages yet — say something.</div>'}</div>
+    <div class="chat-compose">
+      <input id="chatInput" placeholder="${signedIn ? 'Message the room…' : 'Sign in to chat'}"
+             maxlength="500" ${signedIn ? '' : 'disabled'}>
+      <button id="chatSend" ${signedIn ? '' : 'disabled'}>Send</button>
+    </div>`;
+
+  if(!signedIn){
+    document.getElementById('chatInput').onclick = promptSignIn;
+  }
+
+  const input = document.getElementById('chatInput');
+  const send = async () => {
+    const body = input.value;
+    if(!body.trim()) return;
+    input.value = '';
+    const res = await s.sendMessage(body, 'general');
+    if(res.error && res.error !== 'not signed in') input.value = body;   // give it back
+  };
+  document.getElementById('chatSend').onclick = send;
+  input.onkeydown = e => { if(e.key === 'Enter') send(); };
+
+  // Live updates while the tab is open.
+  if(chatUnsub) chatUnsub();
+  chatUnsub = s.subscribeChat('general', m => {
+    const list = document.getElementById('chatList');
+    if(!list) return;
+    list.insertAdjacentHTML('beforeend', chatMsgHTML(m));
+    list.scrollTop = list.scrollHeight;
+  });
+}
+
 function propsGridHTML(p){
   const sim = simulatePlayer(p);
   const tiles = [
@@ -4233,6 +4497,7 @@ function propsGridHTML(p){
       <div class="pt-grade">${gr.g}</div>
       <div class="pt-pct">${t.d.pct}%</div>
       <div class="pt-line">${od?.best?.price != null ? fmtAmerican(od.best.price) : t.line}</div>
+      ${reactionStripHTML(propKeyFor(p, t.label, t.line.replace('over ','')))}
     </div>`;
   }).join('') + `</div>`;
 }
@@ -4609,6 +4874,21 @@ async function boot(){
 
   loadBetslip();
   renderBetslipBar();
+
+  // Social is optional: if the module didn't load, everything above still works.
+  const startSocial = async () => {
+    const s = social();
+    if(!s) return;
+    await s.initSocial();
+    renderAuthButton();
+    document.getElementById('authBtn')?.addEventListener('click', () => {
+      const u = s.getUser?.();
+      if(u){ s.signOut().then(()=>{ renderAuthButton(); refreshSocialUI(); }); }
+      else openAuthModal('signin');
+    });
+  };
+  if(window.DW_SOCIAL) startSocial();
+  else window.addEventListener('dw-social-ready', startSocial, { once: true });
 
   // Must land before loadSlate(), since every player is scored during adaptation.
   await loadModelOverrides();
