@@ -43,6 +43,15 @@ const VERBOSE = process.argv.includes('--verbose');
 const OUT = arg('--out', 'public/slate.json');
 const CONCURRENCY = 6; // be a polite API citizen
 
+// Max hitters carried per team. High enough to include every position player on
+// a 26-man roster; the cap only bounds file size, it is not a quality filter.
+const LINEUP_CAP = Number(arg('--lineup-cap', 18));
+
+// Minimum plate appearances to be included. Set low so September callups and
+// platoon players still appear — the model regresses small samples rather than
+// hiding those players.
+const MIN_PA = Number(arg('--min-pa', 15));
+
 // ---------------------------------------------------------------- utilities
 async function getJSON(url, { retries = 3, timeoutMs = 15000 } = {}) {
   for (let attempt = 1; attempt <= retries; attempt++) {
@@ -431,8 +440,20 @@ async function build() {
   // Keep only hitters with enough PA to be meaningful, then attach last-10 form.
   const qualified = hitters
     .map((h, i) => ({ ...h, stats: hitterStats[i] }))
-    .filter(h => h.stats && h.stats.pa >= 50);
-  console.log(`  ${qualified.length} qualified (50+ PA) — fetching recent form`);
+    .filter(h => h.stats && h.stats.pa >= MIN_PA);
+  console.log(`  ${qualified.length} of ${hitters.length} hitters have ${MIN_PA}+ PA — fetching recent form`);
+
+  // Name anyone excluded, so a missing player is traceable instead of a mystery.
+  const excluded = hitters
+    .map((h, i) => ({ ...h, stats: hitterStats[i] }))
+    .filter(h => !h.stats || h.stats.pa < MIN_PA);
+  if (excluded.length) {
+    console.log(`  excluded (under ${MIN_PA} PA or no stats):`);
+    for (const h of excluded.slice(0, 40)) {
+      console.log(`    · ${h.name} (${h.pos ?? '?'}) — ${h.stats ? h.stats.pa + ' PA' : 'no stats returned'}`);
+    }
+    if (excluded.length > 40) console.log(`    · …and ${excluded.length - 40} more`);
+  }
   const forms = await mapLimit(qualified, CONCURRENCY, h => fetchLast10(h.id));
   qualified.forEach((h, i) => { h.recent = forms[i]?.__error ? null : forms[i]; });
 
@@ -505,17 +526,43 @@ async function build() {
     };
 
     const order = orderByGame[g.gamePk];
-    const mkLineup = (teamId, side) => (byTeam[teamId] || [])
-      .sort((a, b) => (b.stats.ops ?? 0) - (a.stats.ops ?? 0))
-      .slice(0, 12)
-      .map(h => ({
-        id: h.id, name: h.name, pos: h.pos, bats: h.bats,
-        battingOrder: order?.[side]?.[h.id] ?? null,
-        splits: h.splits ?? null,
-        season: h.stats,
-        last10: h.recent?.totals ?? null,
-        gameLog: h.recent?.games ?? [],
-      }));
+    /**
+     * Which hitters to include for a team.
+     *
+     * Previously this sorted by OPS and kept the top 12, which silently dropped
+     * real starters: a regular in a slump ranks below a bench bat with a hot
+     * 60-PA sample, so the everyday player disappeared from the site entirely.
+     *
+     * Now: anyone in the posted batting order is always included, then the rest
+     * of the roster by OPS up to a much higher cap. The cap exists only to keep
+     * slate.json from ballooning, not to make a judgement about who matters.
+     */
+    const mkLineup = (teamId, side) => {
+      const roster = byTeam[teamId] || [];
+      const inOrder = new Set(
+        Object.keys((order && order[side]) || {}).map(Number)
+      );
+
+      return roster
+        .slice()
+        .sort((a, b) => {
+          // Posted starters first, in batting order.
+          const ao = order?.[side]?.[a.id], bo = order?.[side]?.[b.id];
+          if (ao && bo) return ao - bo;
+          if (ao) return -1;
+          if (bo) return 1;
+          return (b.stats.ops ?? 0) - (a.stats.ops ?? 0);
+        })
+        .filter((h, i) => inOrder.has(h.id) || i < LINEUP_CAP)
+        .map(h => ({
+          id: h.id, name: h.name, pos: h.pos, bats: h.bats,
+          battingOrder: order?.[side]?.[h.id] ?? null,
+          splits: h.splits ?? null,
+          season: h.stats,
+          last10: h.recent?.totals ?? null,
+          gameLog: h.recent?.games ?? [],
+        }));
+    };
 
     return {
       gamePk: g.gamePk,

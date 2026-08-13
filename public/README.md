@@ -154,6 +154,32 @@ the slip and are skipped on placement rather than silently dropped.
 
 ## Troubleshooting
 
+### A player is missing from the site
+
+```bash
+node verify-players.js --player "Jarren Duran"
+node verify-players.js                    # full report, grouped by cause
+node verify-players.js --team BOS
+```
+
+It compares slate.json against MLB's live active rosters and names the cause for
+every gap. Common ones:
+
+| Cause | Meaning |
+|---|---|
+| below the PA minimum | Under `--min-pa` (default 15). Raise it or lower the flag. |
+| cut by the per-team cap | Roster deeper than `--lineup-cap` (default 18). |
+| no season hitting stats | Hasn't batted this year — pitcher or fresh callup. |
+| not on any active roster | On the IL, in the minors, or his team isn't playing. |
+
+Anyone in a **posted batting order is always included**, regardless of the cap —
+an everyday starter in a slump used to be dropped in favour of a bench bat with
+a hot 60-PA sample, which is why regulars sometimes vanished.
+
+```bash
+node build-slate.js --lineup-cap 26 --min-pa 1   # include essentially everyone
+```
+
 ### Workflow push rejected ("fetch first")
 
 The job checked out the repo, then something else pushed before it finished.
