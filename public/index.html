@@ -1331,6 +1331,17 @@ const MODEL = {
     regressionPA: 220,    // PA at which player and league are weighted 50/50
     leagueIso:    0.164,  // league-average ISO to regress toward
     lowSamplePA:  150,    // below this, the card is flagged as small-sample
+
+    // League-average per-plate-appearance rates, the target the simulation
+    // regresses toward. Roughly 2024 MLB. Adjust if the run environment shifts.
+    leagueRates: {
+      hr:   0.0317,   // ~19 HR per 600 PA
+      hits: 0.2250,   // ~135 H per 600 PA
+      dbl:  0.0433,
+      trp:  0.0033,
+      bb:   0.0867,
+      k:    0.2250,
+    },
   },
 
   // ---- Grading ----
@@ -4295,13 +4306,29 @@ function paRates(p){
   const g = p.game;
   const pa = Math.max(1, p.pa || 1);
 
-  // Season per-PA baselines.
-  const bb   = (p.bb ?? 0) / pa;
-  const k    = (p.so ?? 0) / pa;
-  const hr   = (p.hr ?? 0) / pa;
-  const dbl  = (p.doubles ?? 0) / pa;
-  const trp  = (p.triples ?? 0) / pa;
-  const hits = (p.h ?? 0) / pa;
+  /**
+   * Regress every per-PA rate toward league average by sample size.
+   *
+   * This is the number that actually drives the rankings — hrIndex only scales
+   * it afterwards. Previously these came straight from raw season totals, so a
+   * callup with 5 HR in 60 PA showed an 8.3% per-PA home run rate (2.6x league)
+   * and outranked established sluggers no matter how the model weights were
+   * tuned. Regressing here is what fixes that; regressing the derived Statcast
+   * alone could not.
+   */
+  const R = MODEL.regression;
+  const w = pa / (pa + R.regressionPA);        // 0 = all league, 1 = all player
+  const reg = (rate, leagueRate) => rate * w + leagueRate * (1 - w);
+
+  // League-average per-PA baselines, used as the regression target.
+  const LG = R.leagueRates;
+
+  const bb   = reg((p.bb ?? 0) / pa,  LG.bb);
+  const k    = reg((p.so ?? 0) / pa,  LG.k);
+  const hr   = reg((p.hr ?? 0) / pa,  LG.hr);
+  const dbl  = reg((p.doubles ?? 0) / pa, LG.dbl);
+  const trp  = reg((p.triples ?? 0) / pa, LG.trp);
+  const hits = reg((p.h ?? 0) / pa,   LG.hits);
   const sgl  = Math.max(0, hits - hr - dbl - trp);
 
   // Tonight's environment. hrIndex already folds in park, weather, barrel
