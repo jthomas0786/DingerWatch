@@ -24,6 +24,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 let sb = null;                 // Supabase client
 let currentUser = null;        // { id, username, avatar_seed }
 let socialReady = false;
+let profileError = null;   // surfaced in the UI when a profile can't be made
 
 const socialEnabled = () => !!(SUPABASE_URL && SUPABASE_ANON_KEY);
 
@@ -63,14 +64,39 @@ async function initSocial(){
 
 async function loadProfile(userId){
   const { data, error } = await sb.from('profiles').select('*').eq('id', userId).single();
-  if(error){
-    console.warn('[social] profile load failed:', error.message);
-    // The signup trigger may not have committed yet on a brand-new account.
-    // Fall back to a minimal identity so the user isn't stuck looking signed out.
-    currentUser = { id: userId, username: 'you', avatar_seed: userId.slice(0, 12) };
+  if(data){ currentUser = data; return; }
+
+  // No profile row. This happens when the account was created before the schema
+  // was installed, or if the signup trigger didn't fire. Faking a user object
+  // here would be worse than useless: messages.user_id has a foreign key to
+  // profiles(id), so every post would fail with an FK violation while the UI
+  // insisted you were signed in. Create the row instead.
+  console.warn('[social] no profile row for', userId, '— creating one');
+  const { data: authUser } = await sb.auth.getUser();
+  const meta = authUser?.user?.user_metadata || {};
+  const fallbackName = meta.username || 'fan_' + userId.replace(/-/g, '').slice(0, 8);
+
+  const { data: created, error: insErr } = await sb.from('profiles')
+    .insert({ id: userId, username: fallbackName, avatar_seed: userId.replace(/-/g, '').slice(0, 12) })
+    .select()
+    .single();
+
+  if(insErr){
+    // Username collision is recoverable; anything else means the schema is
+    // missing or RLS is misconfigured, and the user must be told.
+    if(insErr.code === '23505'){
+      const unique = fallbackName + '_' + userId.slice(0, 4);
+      const { data: retry } = await sb.from('profiles')
+        .insert({ id: userId, username: unique, avatar_seed: userId.replace(/-/g, '').slice(0, 12) })
+        .select().single();
+      if(retry){ currentUser = retry; return; }
+    }
+    console.error('[social] could not create profile:', insErr.message);
+    profileError = insErr.message;
+    currentUser = null;      // stay signed out rather than half-broken
     return;
   }
-  currentUser = data;
+  currentUser = created;
 }
 
 /** Let the page repaint whenever auth state settles. */
@@ -213,14 +239,36 @@ async function loadChat(room = 'general', limit = 60){
 }
 
 async function sendMessage(body, room = 'general', propKey = null){
-  if(!currentUser){ promptSignIn(); return { error: 'not signed in' }; }
+  if(!currentUser){
+    return { error: profileError
+      ? 'Your profile could not be created: ' + profileError
+      : 'not signed in' };
+  }
   const trimmed = body.trim();
   if(!trimmed) return { error: 'empty' };
   if(trimmed.length > 500) return { error: 'Message too long (500 max).' };
 
-  const { error } = await sb.from('messages')
-    .insert({ user_id: currentUser.id, room, body: trimmed, prop_key: propKey });
-  return error ? { error: error.message } : { ok: true };
+  const { data, error } = await sb.from('messages')
+    .insert({ user_id: currentUser.id, room, body: trimmed, prop_key: propKey })
+    .select('id, body, created_at, prop_key, user_id')
+    .single();
+
+  if(error){
+    // Translate the failures that actually happen into something actionable.
+    let msg = error.message;
+    if(error.code === '23503') msg = 'Your profile row is missing — sign out and back in.';
+    else if(error.code === '42501' || /row-level security/i.test(msg))
+      msg = 'Blocked by row-level security. Re-run supabase-schema.sql.';
+    else if(/relation .* does not exist/i.test(msg))
+      msg = 'The messages table does not exist. Run supabase-schema.sql.';
+    console.error('[social] send failed:', error);
+    return { error: msg };
+  }
+
+  // Return the row so the UI can show it immediately — realtime may be off or
+  // slow, and a message that posts but never appears reads as a failure.
+  return { ok: true, message: { ...data, profiles: { username: currentUser.username,
+                                                     avatar_seed: currentUser.avatar_seed } } };
 }
 
 /** Realtime subscription. Returns an unsubscribe function. */

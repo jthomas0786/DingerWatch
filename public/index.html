@@ -432,6 +432,8 @@ body:has(.betslip-bar) main{ padding-bottom:70px; }
   font-family:'Space Mono',monospace; font-size:9px; padding:2px 8px; border-radius:10px; cursor:pointer; }
 .chat-follow.following{ border-color:var(--grass-bright); color:var(--grass-bright); }
 .chat-txt{ font-size:12.5px; color:var(--white); margin-top:3px; line-height:1.5; word-break:break-word; }
+.chat-err{ color:var(--hot); font-size:11.5px; font-family:'Space Mono',monospace; min-height:15px;
+  margin-top:10px; line-height:1.5; }
 .chat-compose{ display:flex; gap:8px; margin-top:14px; position:sticky; bottom:0; background:var(--night);
   padding:10px 0; }
 .chat-compose input{ flex:1; background:var(--night2); border:1px solid var(--line); color:var(--white);
@@ -4461,6 +4463,7 @@ async function renderChat(){
   pickList.innerHTML = `
     <div class="chat-list" id="chatList">${msgs.map(chatMsgHTML).join('') ||
       '<div style="text-align:center;padding:30px;color:var(--mute);font-size:13px;">No messages yet — say something.</div>'}</div>
+    <div class="chat-err" id="chatErr"></div>
     <div class="chat-compose">
       <input id="chatInput" placeholder="${signedIn ? 'Message the room…' : 'Sign in to chat'}"
              maxlength="500" ${signedIn ? '' : 'disabled'}>
@@ -4472,12 +4475,40 @@ async function renderChat(){
   }
 
   const input = document.getElementById('chatInput');
+  const errBox = document.getElementById('chatErr');
+  const sendBtn = document.getElementById('chatSend');
+  const seen = new Set(msgs.map(m => m.id));   // avoid double-rendering via realtime
+
   const send = async () => {
     const body = input.value;
     if(!body.trim()) return;
+    errBox.textContent = '';
     input.value = '';
+    sendBtn.disabled = true;
+
     const res = await s.sendMessage(body, 'general');
-    if(res.error && res.error !== 'not signed in') input.value = body;   // give it back
+    sendBtn.disabled = false;
+
+    if(res.error){
+      // Previously this failed silently and the message just vanished.
+      if(res.error === 'not signed in'){ promptSignIn(); }
+      else errBox.textContent = res.error;
+      input.value = body;             // don't lose what they typed
+      return;
+    }
+
+    // Render immediately. Realtime may be disabled or lagging, and a message
+    // that posts but never shows is indistinguishable from one that failed.
+    if(res.message && !seen.has(res.message.id)){
+      seen.add(res.message.id);
+      const list = document.getElementById('chatList');
+      if(list){
+        if(list.querySelector('div[style]')) list.innerHTML = '';   // clear empty state
+        list.insertAdjacentHTML('beforeend', chatMsgHTML(res.message));
+        list.scrollTop = list.scrollHeight;
+      }
+    }
+    input.focus();
   };
   document.getElementById('chatSend').onclick = send;
   input.onkeydown = e => { if(e.key === 'Enter') send(); };
@@ -4485,8 +4516,11 @@ async function renderChat(){
   // Live updates while the tab is open.
   if(chatUnsub) chatUnsub();
   chatUnsub = s.subscribeChat('general', m => {
+    if(seen.has(m.id)) return;        // already shown optimistically
+    seen.add(m.id);
     const list = document.getElementById('chatList');
     if(!list) return;
+    if(list.querySelector('div[style]')) list.innerHTML = '';
     list.insertAdjacentHTML('beforeend', chatMsgHTML(m));
     list.scrollTop = list.scrollHeight;
   });
