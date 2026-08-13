@@ -25,6 +25,7 @@ let sb = null;                 // Supabase client
 let currentUser = null;        // { id, username, avatar_seed }
 let socialReady = false;
 let profileError = null;   // surfaced in the UI when a profile can't be made
+let schemaMissing = false; // true when the SQL schema hasn't been installed
 
 const socialEnabled = () => !!(SUPABASE_URL && SUPABASE_ANON_KEY);
 
@@ -34,6 +35,15 @@ async function initSocial(){
   try{
     const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
     sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Confirm the schema is actually installed before anything tries to use it.
+    // Without this the first failure the user sees is a raw PostgREST error
+    // from whichever feature they happened to touch first.
+    const { error: probe } = await sb.from('profiles').select('id').limit(1);
+    if(probe && (probe.code === 'PGRST205' || /schema cache|does not exist/i.test(probe.message))){
+      schemaMissing = true;
+      console.error('[social] Supabase tables are missing. Run supabase-schema.sql in the SQL editor.');
+    }
 
     const { data: { session } } = await sb.auth.getSession();
     if(session) await loadProfile(session.user.id);
@@ -239,6 +249,9 @@ async function loadChat(room = 'general', limit = 60){
 }
 
 async function sendMessage(body, room = 'general', propKey = null){
+  if(schemaMissing){
+    return { error: 'Database tables are missing. Run supabase-schema.sql in the Supabase SQL editor, then reload.' };
+  }
   if(!currentUser){
     return { error: profileError
       ? 'Your profile could not be created: ' + profileError
@@ -351,6 +364,7 @@ export {
 };
 export const getUser = () => currentUser;
 export const isReady = () => socialReady;
+export const needsSchema = () => schemaMissing;
 // Live binding: ES module exports of `let` update for importers automatically,
 // so the dashboard's `s.socialReady` reflects the real state.
 export { socialReady, currentUser };

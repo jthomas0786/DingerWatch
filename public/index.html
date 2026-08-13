@@ -4457,6 +4457,19 @@ async function renderChat(){
     return;
   }
 
+  // A missing schema is a setup problem, not a chat problem — say so directly
+  // instead of letting every action fail with a Postgres error.
+  if(s.needsSchema?.()){
+    pickList.innerHTML = `<div style="text-align:center;padding:46px 22px;color:var(--mute);
+      font-family:'Oswald',sans-serif;font-size:14px;line-height:1.7;">
+      <div style="font-size:16px;color:var(--hot);margin-bottom:10px;">Database tables are missing</div>
+      Open your Supabase project → <b>SQL Editor</b> → paste the contents of
+      <code style="color:var(--foul)">supabase-schema.sql</code> → Run.<br><br>
+      The script ends with a check that prints one row per table — every row should say <b>ok = true</b>.
+      Reload this page afterwards.</div>`;
+    return;
+  }
+
   const msgs = await s.loadChat('general');
   const signedIn = !!s.getUser?.();
 
