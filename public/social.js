@@ -337,6 +337,201 @@ async function followingFeed(limit = 50){
   return data;
 }
 
+// ---------------------------------------------------------------- presence
+// Who's online. Supabase Realtime Presence keeps a shared roster per channel
+// and drops entries automatically when a tab closes, so there's no stale-user
+// cleanup to write.
+let presenceChannel = null;
+let onlineUsers = [];
+
+function joinPresence(onChange){
+  if(!socialReady || !currentUser) return () => {};
+  if(presenceChannel) sb.removeChannel(presenceChannel);
+
+  presenceChannel = sb.channel('online', {
+    config: { presence: { key: currentUser.id } },
+  });
+
+  const sync = () => {
+    const state = presenceChannel.presenceState();
+    // One entry per user even with several tabs open.
+    const seen = new Map();
+    for(const key of Object.keys(state)){
+      const meta = state[key][0];
+      if(meta) seen.set(key, meta);
+    }
+    onlineUsers = [...seen.values()];
+    if(onChange) onChange(onlineUsers);
+  };
+
+  presenceChannel
+    .on('presence', { event: 'sync' }, sync)
+    .on('presence', { event: 'join' }, sync)
+    .on('presence', { event: 'leave' }, sync)
+    .subscribe(async status => {
+      if(status !== 'SUBSCRIBED') return;
+      await presenceChannel.track({
+        id: currentUser.id,
+        username: currentUser.username,
+        avatar_seed: currentUser.avatar_seed,
+        online_at: new Date().toISOString(),
+      });
+    });
+
+  return () => { if(presenceChannel){ sb.removeChannel(presenceChannel); presenceChannel = null; } };
+}
+
+const getOnlineUsers = () => onlineUsers;
+
+// ---------------------------------------------------------------- profiles
+async function getProfile(username){
+  if(!socialReady) return null;
+  const { data, error } = await sb.from('profiles')
+    .select('*').ilike('username', username).maybeSingle();
+  if(error){ console.warn('[social] profile fetch failed:', error.message); return null; }
+  return data;
+}
+
+async function updateProfile(fields){
+  if(!currentUser) return { error: 'not signed in' };
+  const allowed = {};
+  // Only these are editable; never let the client set id or created_at.
+  for(const k of ['display_name', 'bio', 'team']) {
+    if(fields[k] !== undefined) allowed[k] = fields[k];
+  }
+  if(fields.username !== undefined){
+    const u = String(fields.username).trim();
+    if(!/^[a-zA-Z0-9_]{3,20}$/.test(u)) return { error: 'Username must be 3–20 characters: letters, numbers, underscore.' };
+    const { data: taken } = await sb.from('profiles')
+      .select('id').ilike('username', u).neq('id', currentUser.id).maybeSingle();
+    if(taken) return { error: 'That username is taken.' };
+    allowed.username = u;
+  }
+  allowed.updated_at = new Date().toISOString();
+
+  const { data, error } = await sb.from('profiles')
+    .update(allowed).eq('id', currentUser.id).select().single();
+  if(error) return { error: error.message };
+  currentUser = data;
+  notifyAuthChanged();
+  return { ok: true, profile: data };
+}
+
+async function isFollowing(userId){
+  if(!socialReady || !currentUser) return false;
+  const { data } = await sb.from('follows').select('follower_id')
+    .match({ follower_id: currentUser.id, followee_id: userId }).maybeSingle();
+  return !!data;
+}
+
+// ---------------------------------------------------------------- statuses
+async function postStatus(body, legs = null, slateDate = null){
+  if(!currentUser) return { error: 'not signed in' };
+  const trimmed = String(body || '').trim();
+  if(!trimmed) return { error: 'Say something first.' };
+  if(trimmed.length > 500) return { error: 'Status too long (500 max).' };
+
+  const { data, error } = await sb.from('statuses')
+    .insert({ user_id: currentUser.id, body: trimmed, legs, slate_date: slateDate })
+    .select().single();
+  if(error) return { error: error.message };
+  return { ok: true, status: { ...data, username: currentUser.username,
+                               display_name: currentUser.display_name,
+                               avatar_seed: currentUser.avatar_seed,
+                               comment_count: 0, reaction_count: 0 } };
+}
+
+async function deleteStatus(id){
+  if(!currentUser) return { error: 'not signed in' };
+  const { error } = await sb.from('statuses').delete().match({ id, user_id: currentUser.id });
+  return error ? { error: error.message } : { ok: true };
+}
+
+/** Statuses for one user, or the global feed when userId is null. */
+async function loadStatuses({ userId = null, limit = 40 } = {}){
+  if(!socialReady) return [];
+  let q = sb.from('status_feed').select('*').order('created_at', { ascending: false }).limit(limit);
+  if(userId) q = q.eq('user_id', userId);
+  const { data, error } = await q;
+  if(error){ console.warn('[social] statuses failed:', error.message); return []; }
+  return data;
+}
+
+/** Statuses from people the signed-in user follows. */
+async function loadFollowingStatuses(limit = 40){
+  if(!socialReady || !currentUser) return [];
+  const { data: f } = await sb.from('follows').select('followee_id').eq('follower_id', currentUser.id);
+  const ids = (f || []).map(r => r.followee_id);
+  if(!ids.length) return [];
+  const { data, error } = await sb.from('status_feed').select('*')
+    .in('user_id', ids).order('created_at', { ascending: false }).limit(limit);
+  if(error){ console.warn('[social] following feed failed:', error.message); return []; }
+  return data;
+}
+
+// ---------------------------------------------------------------- comments
+async function loadComments(statusId){
+  if(!socialReady) return [];
+  const { data, error } = await sb.from('comments')
+    .select('id, body, created_at, user_id, profiles(username, avatar_seed)')
+    .eq('status_id', statusId).order('created_at');
+  if(error){ console.warn('[social] comments failed:', error.message); return []; }
+  return data;
+}
+
+async function postComment(statusId, body){
+  if(!currentUser) return { error: 'not signed in' };
+  const trimmed = String(body || '').trim();
+  if(!trimmed) return { error: 'empty' };
+  if(trimmed.length > 300) return { error: 'Comment too long (300 max).' };
+  const { data, error } = await sb.from('comments')
+    .insert({ status_id: statusId, user_id: currentUser.id, body: trimmed })
+    .select('id, body, created_at, user_id').single();
+  if(error) return { error: error.message };
+  return { ok: true, comment: { ...data, profiles: { username: currentUser.username,
+                                                     avatar_seed: currentUser.avatar_seed } } };
+}
+
+// ------------------------------------------------------- status reactions
+let statusRxCache = new Map();   // statusId -> { emoji: {count, mine} }
+
+async function loadStatusReactions(statusIds){
+  if(!socialReady || !statusIds.length) return;
+  const { data, error } = await sb.from('status_reactions')
+    .select('status_id, emoji, user_id').in('status_id', statusIds);
+  if(error) return;
+  const map = new Map();
+  for(const r of data){
+    if(!map.has(r.status_id)) map.set(r.status_id, {});
+    const b = map.get(r.status_id);
+    b[r.emoji] = b[r.emoji] || { count: 0, mine: false };
+    b[r.emoji].count++;
+    if(currentUser && r.user_id === currentUser.id) b[r.emoji].mine = true;
+  }
+  for(const id of statusIds) statusRxCache.set(id, map.get(id) || {});
+}
+
+const statusReactionsFor = id => statusRxCache.get(id) || {};
+
+async function toggleStatusReaction(statusId, emoji){
+  if(!currentUser) return { error: 'not signed in' };
+  const b = statusRxCache.get(statusId) || {};
+  const mine = b[emoji]?.mine;
+
+  b[emoji] = b[emoji] || { count: 0, mine: false };
+  b[emoji].count += mine ? -1 : 1;
+  b[emoji].mine = !mine;
+  if(b[emoji].count <= 0) delete b[emoji];
+  statusRxCache.set(statusId, b);
+
+  const q = mine
+    ? sb.from('status_reactions').delete().match({ status_id: statusId, user_id: currentUser.id, emoji })
+    : sb.from('status_reactions').insert({ status_id: statusId, user_id: currentUser.id, emoji });
+  const { error } = await q;
+  if(error){ await loadStatusReactions([statusId]); return { error: error.message }; }
+  return { ok: true };
+}
+
 // ---------------------------------------------------------------- picks
 async function publishPick(pick){
   if(!currentUser){ promptSignIn(); return { error: 'not signed in' }; }
@@ -361,6 +556,11 @@ export {
   loadChat, sendMessage, subscribeChat,
   toggleFollow, followCounts, followingFeed,
   publishPick, reactionsFor, primeReactions,
+  joinPresence, getOnlineUsers,
+  getProfile, updateProfile, isFollowing,
+  postStatus, deleteStatus, loadStatuses, loadFollowingStatuses,
+  loadComments, postComment,
+  loadStatusReactions, statusReactionsFor, toggleStatusReaction,
 };
 export const getUser = () => currentUser;
 export const isReady = () => socialReady;

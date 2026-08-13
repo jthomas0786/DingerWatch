@@ -432,6 +432,94 @@ body:has(.betslip-bar) main{ padding-bottom:70px; }
   font-family:'Space Mono',monospace; font-size:9px; padding:2px 8px; border-radius:10px; cursor:pointer; }
 .chat-follow.following{ border-color:var(--grass-bright); color:var(--grass-bright); }
 .chat-txt{ font-size:12.5px; color:var(--white); margin-top:3px; line-height:1.5; word-break:break-word; }
+/* --- compact reactions on ranked cards --- */
+.rx-strip.compact{ margin-top:5px; gap:2px; }
+.rx-strip.compact .rx{ padding:1px 5px; font-size:10px; }
+.rx-more{ opacity:.55; }
+.rx-more:hover{ opacity:1; }
+
+/* --- online presence --- */
+.online-bar{ position:relative; display:flex; justify-content:flex-end; margin-top:12px; }
+.online-btn{ background:var(--night2); border:1px solid var(--line); color:var(--mute);
+  font-family:'Space Mono',monospace; font-size:10.5px; padding:5px 11px; border-radius:14px;
+  cursor:pointer; display:flex; align-items:center; gap:7px; }
+.online-btn:hover{ border-color:var(--grass-bright); color:var(--white); }
+.online-dot{ width:7px; height:7px; border-radius:50%; background:var(--grass-bright);
+  box-shadow:0 0 0 0 rgba(62,207,110,.6); animation:onlinePulse 2.2s infinite; }
+@keyframes onlinePulse{ 70%{ box-shadow:0 0 0 7px rgba(62,207,110,0);} 100%{ box-shadow:0 0 0 0 rgba(62,207,110,0);} }
+.online-pop{ display:none; position:absolute; top:calc(100% + 6px); right:0; background:var(--panel);
+  border:1px solid var(--line); border-radius:11px; padding:6px; min-width:190px; z-index:80;
+  box-shadow:0 10px 28px rgba(0,0,0,.55); max-height:280px; overflow-y:auto; }
+.online-pop.open{ display:block; }
+.online-user{ display:flex; align-items:center; gap:9px; width:100%; background:none; border:none;
+  color:var(--white); font-family:'Oswald',sans-serif; font-size:13px; padding:7px 9px;
+  border-radius:7px; cursor:pointer; text-align:left; }
+.online-user:hover{ background:var(--night2); }
+.online-user .chat-av{ width:24px; height:24px; font-size:10px; }
+.online-empty{ color:var(--mute); font-size:11.5px; padding:10px; text-align:center; }
+
+/* --- profile page --- */
+.profile-modal{ align-items:flex-start; padding-top:40px; overflow-y:auto; }
+.profile-card{ background:var(--panel); border:1px solid var(--line); border-radius:16px;
+  padding:24px; max-width:620px; width:100%; position:relative; margin-bottom:40px; }
+.pf-head{ display:flex; align-items:center; gap:14px; }
+.pf-av{ width:58px; height:58px; border-radius:50%; background:var(--foul); color:var(--night);
+  display:flex; align-items:center; justify-content:center; font-family:'Archivo Black',sans-serif;
+  font-size:22px; flex-shrink:0; }
+.pf-id{ flex:1; min-width:0; }
+.pf-name{ font-family:'Oswald',sans-serif; font-size:19px; }
+.pf-handle{ font-family:'Space Mono',monospace; font-size:11.5px; color:var(--mute); margin-top:2px; }
+.pf-btn{ background:var(--foul); border:1px solid var(--foul); color:var(--night); font-weight:700;
+  font-family:'Oswald',sans-serif; font-size:13px; padding:8px 18px; border-radius:20px; cursor:pointer; }
+.pf-btn.following{ background:none; color:var(--grass-bright); border-color:var(--grass-bright); font-weight:400; }
+.pf-bio{ font-size:13px; color:var(--white); line-height:1.6; margin-top:14px; }
+.pf-stats{ display:flex; gap:18px; margin-top:14px; padding-bottom:14px; border-bottom:1px solid var(--line);
+  font-family:'Space Mono',monospace; font-size:11.5px; color:var(--mute); }
+.pf-stats b{ color:var(--white); font-family:'Oswald',sans-serif; font-size:14px; }
+.pf-compose{ margin-top:16px; }
+.pf-compose textarea, .dw-card textarea{ width:100%; height:76px; background:var(--night);
+  border:1px solid var(--line); color:var(--white); font-size:13px; padding:11px; border-radius:9px;
+  resize:vertical; font-family:inherit; }
+.pf-compose textarea:focus, .dw-card textarea:focus{ outline:none; border-color:var(--foul); }
+.pf-compose-row{ display:flex; align-items:center; justify-content:space-between; margin-top:9px; gap:10px; }
+.pf-attach{ font-family:'Space Mono',monospace; font-size:10.5px; color:var(--mute); display:flex;
+  align-items:center; gap:6px; cursor:pointer; }
+.pf-statuses{ margin-top:18px; display:flex; flex-direction:column; gap:10px; }
+.pf-empty{ text-align:center; color:var(--mute); font-size:13px; padding:26px; }
+
+.status{ background:var(--night2); border:1px solid var(--line); border-radius:12px; padding:13px 15px; }
+.status-head{ display:flex; align-items:center; gap:9px; }
+.status-name{ font-family:'Oswald',sans-serif; font-size:14px; cursor:pointer; }
+.status-name:hover{ color:var(--foul); }
+.status-del{ margin-left:auto; background:none; border:none; color:var(--mute); font-size:17px;
+  cursor:pointer; line-height:1; }
+.status-del:hover{ color:var(--hot); }
+.status-body{ font-size:13px; color:var(--white); line-height:1.55; margin-top:7px; word-break:break-word; }
+.status-legs{ margin-top:10px; display:flex; flex-direction:column; gap:4px; }
+.sl-leg{ display:flex; justify-content:space-between; gap:10px; background:var(--night);
+  border:1px solid var(--line); border-radius:7px; padding:7px 10px; font-size:11.5px; }
+.sl-leg b{ color:var(--grass-bright); font-family:'Space Mono',monospace; }
+.status-foot{ display:flex; align-items:center; justify-content:space-between; margin-top:10px; gap:10px; }
+.status-rx{ margin-top:0 !important; justify-content:flex-start; }
+.status-comments{ background:none; border:1px solid var(--line); color:var(--mute);
+  font-family:'Space Mono',monospace; font-size:10.5px; padding:3px 10px; border-radius:12px; cursor:pointer; }
+.status-comments:hover{ border-color:var(--foul); color:var(--white); }
+.comment-box{ display:none; margin-top:11px; padding-top:11px; border-top:1px solid var(--line); }
+.comment-box.open{ display:block; }
+.comment{ display:flex; gap:8px; font-size:12px; padding:5px 0; line-height:1.5; }
+.comment .chat-user{ color:var(--foul); flex-shrink:0; font-size:12px; }
+.comment-compose{ display:flex; gap:7px; margin-top:9px; }
+.comment-compose input{ flex:1; background:var(--night); border:1px solid var(--line); color:var(--white);
+  font-size:12px; padding:8px 10px; border-radius:7px; }
+.comment-compose input:focus{ outline:none; border-color:var(--foul); }
+.comment-compose button{ background:var(--night2); border:1px solid var(--line); color:var(--white);
+  font-family:'Oswald',sans-serif; font-size:12px; padding:8px 14px; border-radius:7px; cursor:pointer; }
+
+@media (max-width:520px){
+  .profile-card{ padding:18px; }
+  .pf-av{ width:48px; height:48px; font-size:18px; }
+  .pf-name{ font-size:17px; }
+}
 .chat-err{ color:var(--hot); font-size:11.5px; font-family:'Space Mono',monospace; min-height:15px;
   margin-top:10px; line-height:1.5; }
 .chat-compose{ display:flex; gap:8px; margin-top:14px; position:sticky; bottom:0; background:var(--night);
@@ -2280,6 +2368,7 @@ function renderAllPlayers(){
       if(p) openBatterModal(p);
     });
   });
+  primeVisibleReactions();
 }
 
 function wireFilterBar(){
@@ -2324,6 +2413,25 @@ function wireFilterBar(){
       }
       filterPanelOpen = true;    // keep the panel open across the re-render
       renderAllPlayers();
+    });
+  });
+}
+
+/**
+ * Reactions live in Supabase, so a freshly rendered list has no counts until
+ * they're fetched. Prime the cache for the visible props, then repaint the
+ * strips in place rather than re-rendering the whole list.
+ */
+function primeVisibleReactions(){
+  const s = social();
+  if(!s?.socialReady || !s.primeReactions) return;
+  const keys = [...document.querySelectorAll('.rx-strip')]
+    .map(el => el.dataset.propkey).filter(Boolean);
+  if(!keys.length) return;
+  s.primeReactions([...new Set(keys)], () => {
+    document.querySelectorAll('.rx-strip').forEach(el => {
+      const k = el.dataset.propkey;
+      if(k) el.outerHTML = reactionStripHTML(k);
     });
   });
 }
@@ -2412,6 +2520,9 @@ function renderList(){
           ${TAB_SIM[activeTab] ? `<div class="pick-grade ${gradeFor(TAB_SIM[activeTab].grade, score).cls}">${gradeFor(TAB_SIM[activeTab].grade, score).g}</div>` : ''}
           <div class="pick-score-val ${scoreTierClass(activeTab, score)}">${scoreDisplay}</div>
           <div class="pick-score-label">${scoreLabel(activeTab)}</div>
+          ${TAB_SIM[activeTab] ? reactionStripCompactHTML(propKeyFor(p,
+              {hr:'HR',hits:'HITS',tb:'TOTAL BASES',rbi:'RBI',hrr:'H+R+RBI',sb:'STOLEN BASE'}[activeTab],
+              TAB_SIM[activeTab].line.replace('over ',''))) : ''}
           ${TAB_SIM[activeTab] ? addLegBtn({
               id: legId(p.name, scoreLabel(activeTab).split(' ')[0], TAB_SIM[activeTab].line.replace('over ','')),
               kind:'prop', player:p.name,
@@ -4289,7 +4400,27 @@ function propKeyFor(p, market, line){
   return `${slateMeta.date || 'today'}|${p.name}|${market}|${line}`;
 }
 
-const REACTION_SET = ['🔥','💣','🔒','👀'];
+const REACTION_SET = ['🔥','💣','🔒','👀','🤡','💀'];
+
+/**
+ * Compact variant for ranked lists: only emoji that someone has actually used
+ * are shown, plus a muted "+" to open the full picker. A full six-emoji row on
+ * every card would drown out the ranking itself.
+ */
+function reactionStripCompactHTML(key){
+  const s = social();
+  if(!s || !s.socialReady) return '';
+  const counts = s.reactionsFor ? s.reactionsFor(key) : {};
+  const used = REACTION_SET.filter(e => counts[e]?.count);
+  const total = used.reduce((t,e) => t + counts[e].count, 0);
+  return `<div class="rx-strip compact" data-propkey="${key}">` +
+    (used.length
+      ? used.map(e => `<button class="rx ${counts[e].mine?'mine':''}" data-emoji="${e}"
+          title="${counts[e].count}">${e}<b>${counts[e].count}</b></button>`).join('')
+      : '') +
+    `<button class="rx rx-more" data-more="1" title="React">${used.length ? '+' : '🔥+'}</button>` +
+    `</div>`;
+}
 
 /** Emoji row under a prop. Renders nothing until social is available. */
 function reactionStripHTML(key){
@@ -4312,13 +4443,28 @@ function renderReactionsFor(key){
 }
 
 // Delegated so it survives every re-render.
+// Any @username opens that profile.
+document.addEventListener('click', e => {
+  const u = e.target.closest?.('.chat-user');
+  if(u?.dataset.username){ e.stopPropagation(); openProfile(u.dataset.username); }
+});
+
 document.addEventListener('click', e => {
   const btn = e.target.closest?.('.rx');
   if(!btn) return;
   e.stopPropagation();
-  const key = btn.closest('.rx-strip')?.dataset.propkey;
+  const strip = btn.closest('.rx-strip');
+  const key = strip?.dataset.propkey;
   const s = social();
-  if(key && s?.toggleReaction) s.toggleReaction(key, btn.dataset.emoji);
+  if(!key || !s) return;
+
+  // The "+" swaps the compact strip for the full picker in place.
+  if(btn.dataset.more){
+    if(!s.getUser?.()){ promptSignIn(); return; }
+    strip.outerHTML = reactionStripHTML(key);
+    return;
+  }
+  if(s.toggleReaction) s.toggleReaction(key, btn.dataset.emoji);
 });
 
 // ---------------------------------------------------------------- auth UI
@@ -4432,7 +4578,7 @@ function chatMsgHTML(m){
     <div class="chat-av">${initial}</div>
     <div class="chat-body">
       <div class="chat-top">
-        <span class="chat-user" data-uid="${m.user_id}">@${name}</span>
+        <span class="chat-user" data-username="${escapeHTML(name)}">@${escapeHTML(name)}</span>
         <span class="chat-time">${ago}</span>
       </div>
       <div class="chat-txt">${escapeHTML(m.body)}</div>
@@ -4444,6 +4590,276 @@ function chatMsgHTML(m){
 function escapeHTML(str){
   return String(str).replace(/[&<>"']/g, c =>
     ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+// ---------------------------------------------------------------- presence UI
+let onlineUnsub = null;
+let onlineList = [];
+
+function onlineBarHTML(){
+  const n = onlineList.length;
+  return `<div class="online-bar">
+    <button class="online-btn" id="onlineBtn">
+      <span class="online-dot"></span>${n} online
+    </button>
+    <div class="online-pop" id="onlinePop">
+      ${n ? onlineList.map(u => `
+        <button class="online-user" data-username="${escapeHTML(u.username)}">
+          <span class="chat-av">${escapeHTML((u.username||'?')[0].toUpperCase())}</span>
+          <span>@${escapeHTML(u.username)}</span>
+        </button>`).join('')
+        : '<div class="online-empty">Nobody else right now.</div>'}
+    </div>
+  </div>`;
+}
+
+function wireOnlineBar(){
+  const btn = document.getElementById('onlineBtn');
+  const pop = document.getElementById('onlinePop');
+  if(!btn || !pop) return;
+  btn.onclick = e => { e.stopPropagation(); pop.classList.toggle('open'); };
+  pop.querySelectorAll('.online-user').forEach(b => {
+    b.onclick = () => { pop.classList.remove('open'); openProfile(b.dataset.username); };
+  });
+  // Any outside click closes it.
+  document.addEventListener('click', () => pop.classList.remove('open'), { once: true });
+}
+
+// ---------------------------------------------------------------- profiles
+const STATUS_EMOJI = ['🔥','💯','😂','🤝','💀'];
+
+function statusHTML(st, canDelete){
+  const s = social();
+  const rx = s?.statusReactionsFor ? s.statusReactionsFor(st.id) : {};
+  const name = st.display_name || st.username;
+  const legs = st.legs ? (Array.isArray(st.legs) ? st.legs : []) : [];
+  return `<div class="status" data-sid="${st.id}">
+    <div class="status-head">
+      <span class="chat-av">${escapeHTML((st.username||'?')[0].toUpperCase())}</span>
+      <span class="status-name chat-user" data-username="${escapeHTML(st.username)}">${escapeHTML(name)}</span>
+      <span class="chat-time">${timeAgo(new Date(st.created_at).getTime())}</span>
+      ${canDelete ? `<button class="status-del" data-del="${st.id}" title="Delete">&times;</button>` : ''}
+    </div>
+    <div class="status-body">${escapeHTML(st.body)}</div>
+    ${legs.length ? `<div class="status-legs">${legs.map(l => `
+      <div class="sl-leg"><span>${escapeHTML(l.text || '')}</span>
+      ${l.price != null ? `<b>${fmtAmerican(l.price)}</b>` : ''}</div>`).join('')}</div>` : ''}
+    <div class="status-foot">
+      <div class="rx-strip status-rx" data-sid="${st.id}">
+        ${STATUS_EMOJI.map(e => {
+          const c = rx[e];
+          return `<button class="rx ${c?.mine?'mine':''}" data-semoji="${e}">${e}${c?.count?`<b>${c.count}</b>`:''}</button>`;
+        }).join('')}
+      </div>
+      <button class="status-comments" data-comments="${st.id}">
+        💬 ${st.comment_count || 0}
+      </button>
+    </div>
+    <div class="comment-box" data-cbox="${st.id}"></div>
+  </div>`;
+}
+
+async function openProfile(username){
+  const s = social();
+  if(!s?.socialReady) return;
+  const prof = await s.getProfile(username);
+  if(!prof){ return; }
+
+  const me = s.getUser?.();
+  const isMe = me && me.id === prof.id;
+  const [counts, following, statuses] = await Promise.all([
+    s.followCounts(prof.id),
+    isMe ? Promise.resolve(false) : s.isFollowing(prof.id),
+    s.loadStatuses({ userId: prof.id }),
+  ]);
+  await s.loadStatusReactions(statuses.map(x => x.id));
+
+  const wrap = document.createElement('div');
+  wrap.className = 'dw-modal profile-modal';
+  wrap.innerHTML = `
+    <div class="profile-card">
+      <button class="modal-close" id="pfClose">&times;</button>
+      <div class="pf-head">
+        <div class="pf-av">${escapeHTML((prof.username||'?')[0].toUpperCase())}</div>
+        <div class="pf-id">
+          <div class="pf-name">${escapeHTML(prof.display_name || prof.username)}</div>
+          <div class="pf-handle">@${escapeHTML(prof.username)}${prof.team ? ` · ${escapeHTML(prof.team)}` : ''}</div>
+        </div>
+        ${isMe
+          ? `<button class="pf-btn" id="pfEdit">Edit</button>`
+          : `<button class="pf-btn ${following?'following':''}" id="pfFollow">${following?'Following':'Follow'}</button>`}
+      </div>
+      ${prof.bio ? `<div class="pf-bio">${escapeHTML(prof.bio)}</div>` : ''}
+      <div class="pf-stats">
+        <span><b id="pfFollowers">${counts.followers}</b> followers</span>
+        <span><b>${counts.following}</b> following</span>
+        <span><b>${statuses.length}</b> posts</span>
+      </div>
+      ${isMe ? `
+        <div class="pf-compose">
+          <textarea id="pfStatus" placeholder="Post a status or share a parlay…" maxlength="500"></textarea>
+          <div class="pf-compose-row">
+            ${betslip.length ? `<label class="pf-attach"><input type="checkbox" id="pfAttach" checked> Attach slip (${betslip.length})</label>` : '<span></span>'}
+            <button class="bs-btn primary" id="pfPost">Post</button>
+          </div>
+          <div class="dw-err" id="pfErr"></div>
+        </div>` : ''}
+      <div class="pf-statuses" id="pfStatuses">
+        ${statuses.length ? statuses.map(st => statusHTML(st, isMe)).join('')
+          : '<div class="pf-empty">No posts yet.</div>'}
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+
+  const close = () => wrap.remove();
+  document.getElementById('pfClose').onclick = close;
+  wrap.onclick = e => { if(e.target === wrap) close(); };
+
+  // Follow / unfollow, with the counter updated in place.
+  const fBtn = document.getElementById('pfFollow');
+  if(fBtn) fBtn.onclick = async () => {
+    if(!me){ promptSignIn(); return; }
+    fBtn.disabled = true;
+    const res = await s.toggleFollow(prof.id);
+    fBtn.disabled = false;
+    if(res?.error) return;
+    const now = !!res?.following;
+    fBtn.textContent = now ? 'Following' : 'Follow';
+    fBtn.classList.toggle('following', now);
+    const el = document.getElementById('pfFollowers');
+    if(el) el.textContent = Math.max(0, (+el.textContent) + (now ? 1 : -1));
+  };
+
+  const eBtn = document.getElementById('pfEdit');
+  if(eBtn) eBtn.onclick = () => { close(); openProfileEditor(prof); };
+
+  const postBtn = document.getElementById('pfPost');
+  if(postBtn) postBtn.onclick = async () => {
+    const ta = document.getElementById('pfStatus');
+    const err = document.getElementById('pfErr');
+    const attach = document.getElementById('pfAttach')?.checked;
+    err.textContent = '';
+    postBtn.disabled = true;
+    const legs = attach ? betslip.map(l => ({ text: legToText(l), price: l.price ?? null })) : null;
+    const res = await s.postStatus(ta.value, legs, slateMeta.date || null);
+    postBtn.disabled = false;
+    if(res.error){ err.textContent = res.error; return; }
+    ta.value = '';
+    const list = document.getElementById('pfStatuses');
+    if(list){
+      if(list.querySelector('.pf-empty')) list.innerHTML = '';
+      list.insertAdjacentHTML('afterbegin', statusHTML(res.status, true));
+    }
+  };
+
+  wireStatusInteractions(wrap, isMe);
+}
+
+/** Reactions, comments and deletion inside a profile or feed container. */
+function wireStatusInteractions(root, canDelete){
+  const s = social();
+
+  root.querySelectorAll('.status-rx .rx').forEach(b => b.onclick = async e => {
+    e.stopPropagation();
+    if(!s.getUser?.()){ promptSignIn(); return; }
+    const sid = +b.closest('.status-rx').dataset.sid;
+    await s.toggleStatusReaction(sid, b.dataset.semoji);
+    const strip = b.closest('.status-rx');
+    const rx = s.statusReactionsFor(sid);
+    strip.innerHTML = STATUS_EMOJI.map(em => {
+      const c = rx[em];
+      return `<button class="rx ${c?.mine?'mine':''}" data-semoji="${em}">${em}${c?.count?`<b>${c.count}</b>`:''}</button>`;
+    }).join('');
+    wireStatusInteractions(strip.closest('.status'), canDelete);
+  });
+
+  root.querySelectorAll('[data-comments]').forEach(b => b.onclick = async e => {
+    e.stopPropagation();
+    const sid = +b.dataset.comments;
+    const box = root.querySelector(`[data-cbox="${sid}"]`);
+    if(!box) return;
+    if(box.classList.contains('open')){ box.classList.remove('open'); box.innerHTML = ''; return; }
+
+    const comments = await s.loadComments(sid);
+    const signedIn = !!s.getUser?.();
+    box.classList.add('open');
+    box.innerHTML = `
+      ${comments.map(c => `<div class="comment">
+        <span class="chat-user" data-username="${escapeHTML(c.profiles?.username||'')}">@${escapeHTML(c.profiles?.username||'?')}</span>
+        <span>${escapeHTML(c.body)}</span>
+      </div>`).join('')}
+      <div class="comment-compose">
+        <input placeholder="${signedIn ? 'Reply…' : 'Sign in to reply'}" maxlength="300" ${signedIn?'':'disabled'}>
+        <button ${signedIn?'':'disabled'}>Reply</button>
+      </div>`;
+
+    const input = box.querySelector('input');
+    const send = async () => {
+      if(!input.value.trim()) return;
+      const res = await s.postComment(sid, input.value);
+      if(res.error){ return; }
+      input.value = '';
+      box.querySelector('.comment-compose').insertAdjacentHTML('beforebegin',
+        `<div class="comment"><span class="chat-user">@${escapeHTML(res.comment.profiles.username)}</span>
+         <span>${escapeHTML(res.comment.body)}</span></div>`);
+      b.textContent = `💬 ${comments.length + 1}`;
+    };
+    box.querySelector('button').onclick = send;
+    input.onkeydown = ev => { if(ev.key === 'Enter') send(); };
+    if(!signedIn) input.onclick = promptSignIn;
+  });
+
+  root.querySelectorAll('[data-del]').forEach(b => b.onclick = async e => {
+    e.stopPropagation();
+    const res = await s.deleteStatus(+b.dataset.del);
+    if(!res.error) b.closest('.status')?.remove();
+  });
+}
+
+function openProfileEditor(prof){
+  const s = social();
+  const wrap = document.createElement('div');
+  wrap.className = 'dw-modal';
+  wrap.innerHTML = `
+    <div class="dw-card">
+      <h3>Edit profile</h3>
+      <input id="peName" placeholder="display name" maxlength="40" value="${escapeHTML(prof.display_name||'')}">
+      <input id="peUser" placeholder="username" maxlength="20" value="${escapeHTML(prof.username||'')}">
+      <input id="peTeam" placeholder="team (e.g. LAD)" maxlength="4" value="${escapeHTML(prof.team||'')}">
+      <textarea id="peBio" placeholder="bio (280 max)" maxlength="280">${escapeHTML(prof.bio||'')}</textarea>
+      <div class="dw-actions">
+        <button class="primary" id="peSave">Save</button>
+        <button id="peCancel">Cancel</button>
+      </div>
+      <div class="dw-switch"><a id="peSignOut">Sign out</a></div>
+      <div class="dw-err" id="peErr"></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => wrap.remove();
+  document.getElementById('peCancel').onclick = close;
+  wrap.onclick = e => { if(e.target === wrap) close(); };
+  document.getElementById('peSignOut').onclick = async () => {
+    await s.signOut();
+    close();
+    renderAuthButton();
+    refreshSocialUI();
+  };
+  document.getElementById('peSave').onclick = async () => {
+    const err = document.getElementById('peErr');
+    const btn = document.getElementById('peSave');
+    btn.disabled = true;
+    const res = await s.updateProfile({
+      display_name: document.getElementById('peName').value.trim() || null,
+      username: document.getElementById('peUser').value.trim(),
+      team: document.getElementById('peTeam').value.trim().toUpperCase() || null,
+      bio: document.getElementById('peBio').value.trim() || null,
+    });
+    btn.disabled = false;
+    if(res.error){ err.textContent = res.error; return; }
+    close();
+    renderAuthButton();
+    openProfile(res.profile.username);
+  };
 }
 
 async function renderChat(){
@@ -4474,6 +4890,7 @@ async function renderChat(){
   const signedIn = !!s.getUser?.();
 
   pickList.innerHTML = `
+    ${onlineBarHTML()}
     <div class="chat-list" id="chatList">${msgs.map(chatMsgHTML).join('') ||
       '<div style="text-align:center;padding:30px;color:var(--mute);font-size:13px;">No messages yet — say something.</div>'}</div>
     <div class="chat-err" id="chatErr"></div>
@@ -4525,6 +4942,23 @@ async function renderChat(){
   };
   document.getElementById('chatSend').onclick = send;
   input.onkeydown = e => { if(e.key === 'Enter') send(); };
+
+  wireOnlineBar();
+
+  // Presence roster. Re-renders just the bar so chat scroll position survives.
+  if(signedIn){
+    if(onlineUnsub) onlineUnsub();
+    onlineUnsub = s.joinPresence(users => {
+      onlineList = users;
+      const bar = document.querySelector('.online-bar');
+      if(bar){
+        const wasOpen = document.getElementById('onlinePop')?.classList.contains('open');
+        bar.outerHTML = onlineBarHTML();
+        wireOnlineBar();
+        if(wasOpen) document.getElementById('onlinePop')?.classList.add('open');
+      }
+    });
+  }
 
   // Live updates while the tab is open.
   if(chatUnsub) chatUnsub();
@@ -4951,7 +5385,8 @@ async function boot(){
     renderAuthButton();
     document.getElementById('authBtn')?.addEventListener('click', () => {
       const u = s.getUser?.();
-      if(u){ s.signOut().then(()=>{ renderAuthButton(); refreshSocialUI(); }); }
+      // Signed in, the button is your profile; sign-out lives inside the editor.
+      if(u) openProfile(u.username);
       else openAuthModal('signin');
     });
   };
