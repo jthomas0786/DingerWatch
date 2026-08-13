@@ -60,7 +60,7 @@ jobs:
           if [ -z "$ODDS_API_KEY" ]; then
             echo "ODDS_API_KEY not set — skipping odds (betslips will fall back to text)"
           else
-            node public/fetch-odds.js --slate public/slate.json
+            node fetch-odds.js --slate public/slate.json
           fi
 
       # Optional: layer Statcast metrics on top. Allowed to fail without killing
@@ -89,7 +89,7 @@ jobs:
                 const at = raw.indexOf(m[0]);
                 console.error(`::error::slate.json contains bare ${m[1]}, which is not valid JSON.`);
                 console.error('Context: ' + raw.slice(Math.max(0,at-120), at+120).replace(/\n/g,' '));
-                console.error('Fix: public/enrich-statcast.py must sanitise pandas NaN before writing.');
+                console.error('Fix: enrich-statcast.py must sanitise pandas NaN before writing.');
               } else {
                 console.error('::error::slate.json is not valid JSON: ' + err.message);
                 console.error('Context: ' + raw.slice(0, 300));
@@ -111,10 +111,31 @@ jobs:
         run: |
           git config user.name  'slate-bot'
           git config user.email 'actions@github.com'
+
+          # Commit only the files this job owns, so a concurrent push of
+          # index.html or config isn't clobbered.
           git add public/slate.json
           git diff --staged --quiet && echo "no changes" && exit 0
           git commit -m "slate: $(date -u +%Y-%m-%d)"
-          git push
+
+          # The checkout can go stale while the build runs — any push made in
+          # the meantime makes this a non-fast-forward and the push is rejected.
+          # Rebase onto whatever arrived and retry rather than failing the run.
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              echo "pushed on attempt $attempt"
+              exit 0
+            fi
+            echo "push rejected — rebasing onto remote (attempt $attempt)"
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || {
+              echo "::error::rebase failed — resolve the conflict in public/slate.json manually"
+              exit 1
+            }
+            sleep $((attempt * 3))
+          done
+
+          echo "::error::could not push after 5 attempts"
+          exit 1
 
   # Optional second job: keep live scores fresh during game hours without a server.
   # Comment this in if you want the Slate tab to update even for users who leave
@@ -125,4 +146,4 @@ jobs:
   #   if: github.event_name == 'schedule'
   #   steps:
   #     - uses: actions/checkout@v4
-  #     - run: node public/build-live.js --out public/live.json
+  #     - run: node build-live.js --out public/live.json
