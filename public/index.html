@@ -833,7 +833,7 @@ body:has(.betslip-bar) main{ padding-bottom:70px; }
   <div class="refresh-row">
     <span id="lastUpdated">Updated just now</span>
     <button id="refreshBtn" title="Refresh live data now">↻ Refresh</button>
-    <button id="exportBtn" title="Download every player's prop projections as an Excel workbook">⬇ Excel</button>
+    <button id="exportBtn" title="Download every player's prop projections as an Excel workbook" hidden>⬇ Excel</button>
     <button id="notifyBtn" title="Get a notification for every home run">🔔 Alerts</button>
     <button id="authBtn" title="Sign in to react and chat">Sign in</button>
   </div>
@@ -5443,6 +5443,7 @@ async function boot(){
     if(!s) return;
     await s.initSocial();
     renderAuthButton();
+    refreshExportVisibility();
     document.getElementById('authBtn')?.addEventListener('click', () => {
       const u = s.getUser?.();
       // Signed in, the button is your profile; sign-out lives inside the editor.
@@ -5453,6 +5454,7 @@ async function boot(){
   // Repaint whenever auth settles, including sign-ins completed in another tab.
   window.addEventListener('dw-auth-changed', () => {
     renderAuthButton();
+    refreshExportVisibility();
     refreshSocialUI();
   });
 
@@ -5584,6 +5586,14 @@ function fitColumns(rows){
 }
 
 function exportToExcel(){
+  // Also check here, not just on the button. Hiding a control is not the same
+  // as disabling the action behind it — though note this remains cosmetic,
+  // since the underlying slate.json is public either way.
+  const u = social()?.getUser?.();
+  if(!u || String(u.username).toLowerCase() !== EXPORT_OWNER){
+    console.warn('[export] restricted to the owner account');
+    return;
+  }
   const btn = document.getElementById('exportBtn');
   if(typeof XLSX === 'undefined'){
     alert("Excel library didn't load — check your connection and try again.");
@@ -5678,6 +5688,23 @@ function exportToExcel(){
   }finally{
     if(btn){ btn.classList.remove('busy'); btn.textContent = '⬇ Excel'; }
   }
+}
+
+/**
+ * The Excel export is shown only to the owner account.
+ *
+ * This is presentation, NOT access control. The button can be revealed from the
+ * console, and every projection in the workbook already lives in slate.json,
+ * which is served publicly. Treat this as decluttering the UI for other users —
+ * if the data ever genuinely needs protecting, that has to happen server-side.
+ */
+const EXPORT_OWNER = 'dingerwatch';   // compared lower-case
+
+function refreshExportVisibility(){
+  const btn = document.getElementById('exportBtn');
+  if(!btn) return;
+  const u = social()?.getUser?.();
+  btn.hidden = !(u && String(u.username).toLowerCase() === EXPORT_OWNER);
 }
 
 document.getElementById('exportBtn')?.addEventListener('click', exportToExcel);
