@@ -998,9 +998,25 @@ function plausible(value, lo, hi, label) {
 
 function toStatcastShape(season, statcast) {
   // Prefer real Statcast when the enrichment step ran; otherwise derive a
-  // reasonable stand-in from season rate stats so scoring still works.
+  // stand-in from season rate stats so scoring still works.
   const slg = season.slg ?? 0.400;
-  const iso = Math.max(0, slg - (season.avg ?? 0.250));
+  const rawIso = Math.max(0, slg - (season.avg ?? 0.250));
+
+  /**
+   * Regress toward the league mean based on sample size.
+   *
+   * Without this a 60-PA callup on a hot streak produces the same derived
+   * barrel rate as a 600-PA superstar, because ISO alone carries no information
+   * about how much evidence is behind it. Small samples then dominate the
+   * rankings — which is exactly how a fringe player pins to the top 5.
+   *
+   * `regressionPA` is the sample size at which a player's own rate and the
+   * league mean are weighted equally.
+   */
+  const R = MODEL.regression;
+  const pa = season.pa ?? 0;
+  const w = pa / (pa + R.regressionPA);          // 0 = all league, 1 = all player
+  const iso = rawIso * w + R.leagueIso * (1 - w);
 
   // Range-check every upstream metric before trusting it.
   const barrel  = plausible(statcast?.barrelPct,   0,  35, 'barrelPct');
@@ -1013,6 +1029,9 @@ function toStatcastShape(season, statcast) {
   const usedReal = barrel != null || ev != null || hardHit != null;
 
   return {
+    // Flagged so the UI can mark a player whose profile is mostly assumption.
+    _regressed:  !usedReal && pa < R.lowSamplePA,
+    _pa:         pa,
     barrel:      barrel  ?? +(iso * 42).toFixed(1),
     ev:          ev      ?? +(86 + iso * 18).toFixed(1),
     maxEv:       maxEv   ?? (ev != null ? +(ev + 20).toFixed(1) : +(104 + iso * 20).toFixed(1)),
@@ -1304,6 +1323,15 @@ const TIER_RANGES = {
 //  a category easier to max out, raise it to make it stricter.
 // ============================================================================
 const MODEL = {
+
+  // ---- Small-sample regression ----
+  //  Applied to DERIVED Statcast only. Real measured Statcast is left alone —
+  //  it already reflects actual contact, not an inference from rate stats.
+  regression: {
+    regressionPA: 220,    // PA at which player and league are weighted 50/50
+    leagueIso:    0.164,  // league-average ISO to regress toward
+    lowSamplePA:  150,    // below this, the card is flagged as small-sample
+  },
 
   // ---- Grading ----
   //  How letter grades are assigned to prop probabilities.
@@ -2404,7 +2432,8 @@ function renderAllPlayers(){
             <span class="chip">Barrel% <b>${p.statcast.barrel}%</b></span>
             <span class="chip">EV <b>${p.statcast.ev}</b></span>
             <span class="chip">HR <b>${p.hr}</b></span>
-            ${p.statcast._derived?'<span class="chip" style="color:var(--warm);">est. Statcast</span>':''}
+            ${p.statcast._regressed?`<span class="chip" style="color:var(--warm);">small sample · ${p.statcast._pa} PA</span>`
+              : p.statcast._derived?'<span class="chip" style="color:var(--warm);">est. Statcast</span>':''}
           </div>
           <div class="pick-env">
             <div class="env-item">${ballparkIconSVG(g.roof)}<b>${g.parkShort||g.park}</b> · idx ${g.parkFactor}</div>
@@ -5475,7 +5504,9 @@ function openBatterModal(p){
       </div>
       <div class="narrative" style="margin-top:14px;">
         Percentiles are relative to the ${allBatters.filter(isPlayable).length} hitters on tonight's slate — not the whole league — so they answer "who's the best option available right now".
-        ${p.statcast._derived ? '<br><span style="color:var(--warm)">These Statcast values are estimated from season rate stats; the enrichment step hasn\'t run for this player.</span>' : ''}
+        ${p.statcast._regressed
+          ? `<br><span style="color:var(--warm)">Only ${p.statcast._pa} plate appearances. These values are estimated and regressed toward league average, so treat them as a weak signal rather than a read on this hitter.</span>`
+          : p.statcast._derived ? '<br><span style="color:var(--warm)">These Statcast values are estimated from season rate stats; the enrichment step hasn\'t run for this player.</span>' : ''}
       </div>
     </div>
     <div class="tab-content" data-panel="arsenal">

@@ -1,21 +1,27 @@
 {
   "//": "Dinger Watch model config. Deep-merged over the app defaults at load, so this survives any rebuild of index.html. Delete any key to fall back to its default. Place next to index.html.",
-  "// grading": "GRADES — edit here, never in index.html. percentiles = one setting for ALL props: aPlus 95 means only the top 5% of tonight's slate earn A+. Raise it for rarer A+, lower it for more. byProp = optional per-prop overrides layered on top, e.g. {\"hr\":{\"aPlus\":98},\"sb\":{\"aPlus\":85}} makes HR strict and SB lenient; letters you omit inherit from percentiles. mode 'absolute' ignores both and uses the fixed probability thresholds in cuts instead.",
+  "// regression": "SMALL-SAMPLE REGRESSION for DERIVED Statcast only (real measured Statcast is untouched). regressionPA is the plate-appearance count at which a player's own rate and the league average are weighted equally — raise it to trust small samples less, lower it to let hot callups rank higher. lowSamplePA is the threshold below which cards show a \"small sample\" warning.",
+  "regression": {
+    "regressionPA": 220,
+    "leagueIso": 0.164,
+    "lowSamplePA": 150
+  },
+  "// grading": "GRADES. mode 'percentile' grades on RANK within tonight's slate — percentiles.aPlus:95 means only the top 5% get A+. Raise it to make A+ rarer, lower it to hand out more. mode 'absolute' uses the fixed probability thresholds in cuts instead.",
   "grading": {
     "mode": "percentile",
     "percentiles": {
-      "aPlus": 99,
-      "a": 90,
-      "bPlus": 78,
-      "b": 65,
-      "cPlus": 50,
-      "c": 35
+      "aPlus": 95,
+      "a": 80,
+      "bPlus": 60,
+      "b": 40,
+      "cPlus": 25,
+      "c": 10
     },
     "byProp": {},
     "cuts": {
       "hr": {
         "e": 27,
-        "g": 24,
+        "g": 23,
         "f": 16
       },
       "hits": {
@@ -78,26 +84,26 @@
   "// hr": "HOME RUN INDEX (0-100). weights must total 100. Each *Scale is the input value that earns full marks.",
   "hr": {
     "weights": {
-      "statcast": 60,
-      "form": 10,
+      "statcast": 50,
+      "form": 20,
       "park": 15,
       "matchup": 15
     },
-    "barrelWeight": 0.45,
-    "barrelScale": 15,
-    "hardHitScale": 36,
-    "trendBonus": 2.5,
+    "barrelWeight": 0.6,
+    "barrelScale": 20,
+    "hardHitScale": 55,
+    "trendBonus": 4,
     "weatherMult": {
-      "pos": 1.12,
-      "neg": 0.88,
+      "pos": 1.08,
+      "neg": 0.9,
       "neu": 1
     },
-    "leagueHR9": 1.2,
+    "leagueHR9": 1.1,
     "matchupCap": 1.5,
-    "airWeight": 0.35,
+    "airWeight": 0.3,
     "leagueAirPct": 62,
-    "pitcherGbWeight": 0.17,
-    "leagueGbFb": 1.35
+    "pitcherGbWeight": 0.2,
+    "leagueGbFb": 1.15
   },
   "// hits": "PROJECTED HITS. babipWeight pulls a lucky/unlucky hitter back toward .300 (0 disables). kSensitivity weights the batter-vs-pitcher strikeout mismatch.",
   "hits": {
