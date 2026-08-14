@@ -13,7 +13,7 @@
  * Usage:
  *   node build-slate.js                  # today
  *   node build-slate.js --date 2026-08-10
- *   node build-slate.js --out slate.json
+ *   node build-slate.js --out public/slate.json
  */
 
 import fs from 'node:fs/promises';
@@ -40,7 +40,7 @@ function todayEastern() {
 }
 const DATE = arg('--date', todayEastern());
 const VERBOSE = process.argv.includes('--verbose');
-const OUT = arg('--out', 'slate.json');
+const OUT = arg('--out', 'public/slate.json');
 const CONCURRENCY = 6; // be a polite API citizen
 
 // Max hitters carried per team. High enough to include every position player on
@@ -321,6 +321,56 @@ async function fetchPlatoonSplits(playerId, group = 'hitting') {
   return Object.keys(out).length ? out : null;
 }
 
+/**
+ * True head-to-head: this specific hitter's career at-bats against this
+ * specific pitcher. Different endpoint from the platoon splits above — those
+ * are "vs all lefties," this is "vs Kirby" specifically.
+ *
+ * These samples are usually tiny (often 0-15 career PA), so the number is a
+ * curiosity more than a signal — but it's the literal stat people want to see,
+ * and it's cheap to fetch since it only runs for confirmed starting pitchers,
+ * not every arm on a roster.
+ */
+async function fetchHeadToHead(batterId, pitcherId, debug = false) {
+  if (!batterId || !pitcherId) return null;
+  const url = `${MLB}/people/${batterId}/stats`
+    + `?stats=vsPlayer&opposingPlayerId=${pitcherId}&group=hitting&gameType=R`;
+  const data = await getJSON(url).catch(() => null);
+
+  // IMPORTANT: vsPlayer can return one split PER SEASON they've faced each
+  // other, not one aggregated total. Reading only splits[0] silently drops
+  // every season but the first returned — which, depending on how the API
+  // orders results and whether it implicitly scopes to the current season
+  // when none is given, can make a real multi-year history read as "no data"
+  // for everyone. This was unverified against the live API (no network access
+  // in the build environment here), so it's handled defensively: sum across
+  // every split returned rather than trusting index 0 alone.
+  const splits = data?.stats?.[0]?.splits ?? [];
+  if (debug) {
+    console.log(`    [h2h debug] batter ${batterId} vs pitcher ${pitcherId}: ` +
+      `${splits.length} split(s) — ` +
+      JSON.stringify(splits.map(sp => ({ season: sp.season, pa: sp.stat?.plateAppearances }))));
+  }
+  if (!splits.length) return null;
+
+  const sum = (key) => splits.reduce((t, sp) => t + (num(sp.stat?.[key]) ?? 0), 0);
+  const pa = sum('plateAppearances');
+  if (!pa) return null;
+
+  const ab = sum('atBats'), h = sum('hits');
+  return {
+    pa, ab, h,
+    hr: sum('homeRuns'), rbi: sum('rbi'), bb: sum('baseOnBalls'), so: sum('strikeOuts'),
+    doubles: sum('doubles'), triples: sum('triples'),
+    // Rate stats must be recomputed from the summed counts, not averaged
+    // across splits — averaging AVG values directly would be wrong whenever
+    // the seasons had different numbers of at-bats.
+    avg: ab ? +(h / ab).toFixed(3) : null,
+    slg: ab ? +(sum('totalBases') / ab).toFixed(3) : null,
+    obp: pa ? +((h + sum('baseOnBalls') + sum('hitByPitch')) / pa).toFixed(3) : null,
+  };
+}
+
 /** MLB reports IP as "142.1" meaning 142 and 1/3 innings — not 142.1 decimal. */
 function parseIP(ipStr) {
   if (!ipStr) return null;
@@ -489,6 +539,38 @@ async function build() {
   console.log(`  ${postedCount}/${schedule.length} lineups posted`);
   if (postedCount === 0) warnings.push('No lineups posted yet — batting order unavailable, RBI/run projections use role estimates');
 
+  // 4c. Head-to-head: every confirmed hitter vs that game's opposing starter.
+  // Only runs against ANNOUNCED starters — one pitcher per game side, not every
+  // arm on the roster, which keeps this from ballooning into thousands of calls.
+  console.log('  fetching batter-vs-starter head-to-head');
+  const h2hPairs = [];
+  for (const g of schedule) {
+    const awayIds = (byTeam[g.away.id] || []).map(h => h.id);
+    const homeIds = (byTeam[g.home.id] || []).map(h => h.id);
+    if (g.home.probablePitcherId) for (const bid of awayIds) h2hPairs.push([bid, g.home.probablePitcherId]);
+    if (g.away.probablePitcherId) for (const bid of homeIds) h2hPairs.push([bid, g.away.probablePitcherId]);
+  }
+  // Debug the first handful regardless of the flag, on every run — cheap
+  // insurance against silently shipping a systemic parsing bug like the one
+  // that made every batter show "no prior at-bats" the first time this ran.
+  let debugged = 0;
+  const h2hResults = await mapLimit(h2hPairs, CONCURRENCY, ([b, p]) => {
+    const wantDebug = DEBUG_H2H || debugged < 5;
+    if (wantDebug) debugged++;
+    return fetchHeadToHead(b, p, wantDebug);
+  });
+  const h2hMap = new Map();   // "batterId:pitcherId" -> stats
+  h2hPairs.forEach(([b, p], i) => {
+    if (h2hResults[i] && !h2hResults[i].__error) h2hMap.set(`${b}:${p}`, h2hResults[i]);
+  });
+  console.log(`  ${h2hMap.size}/${h2hPairs.length} pairs have prior at-bats on record`);
+  if (h2hMap.size === 0 && h2hPairs.length > 0) {
+    warnings.push('Zero batter-vs-starter matchups found across the whole slate — ' +
+      'suspicious rather than expected. Check the [h2h debug] lines above, or ' +
+      're-run with --debug-h2h to see the raw API response shape for every pair.');
+    console.warn('  ⚠ zero matches slate-wide — see debug lines above; likely a parsing issue, not a data issue');
+  }
+
   // 5. Venue coords + weather
   const venueIds = [...new Set(schedule.map(g => g.venueId))];
   const coordList = await mapLimit(venueIds, CONCURRENCY, fetchVenueCoords);
@@ -537,7 +619,7 @@ async function build() {
      * of the roster by OPS up to a much higher cap. The cap exists only to keep
      * slate.json from ballooning, not to make a judgement about who matters.
      */
-    const mkLineup = (teamId, side) => {
+    const mkLineup = (teamId, side, opposingPitcherId) => {
       const roster = byTeam[teamId] || [];
       const inOrder = new Set(
         Object.keys((order && order[side]) || {}).map(Number)
@@ -561,6 +643,12 @@ async function build() {
           season: h.stats,
           last10: h.recent?.totals ?? null,
           gameLog: h.recent?.games ?? [],
+          // Career at-bats against THIS game's specific opposing starter, not
+          // a general platoon split. Null when unmet (no starter announced yet,
+          // or the two have simply never faced off).
+          vsPitcher: opposingPitcherId
+            ? (h2hMap.get(`${h.id}:${opposingPitcherId}`) ?? null)
+            : null,
         }));
     };
 
@@ -573,8 +661,8 @@ async function build() {
       gameNumber: g.gameNumber,
       venue: { id: g.venueId, name: g.venueName, ...(park || {}) },
       weather,
-      away: { ...g.away, pitcher: mkPitcher('away'), lineup: mkLineup(g.away.id, 'away') },
-      home: { ...g.home, pitcher: mkPitcher('home'), lineup: mkLineup(g.home.id, 'home') },
+      away: { ...g.away, pitcher: mkPitcher('away'), lineup: mkLineup(g.away.id, 'away', g.home.probablePitcherId) },
+      home: { ...g.home, pitcher: mkPitcher('home'), lineup: mkLineup(g.home.id, 'home', g.away.probablePitcherId) },
     };
   });
 
