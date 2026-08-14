@@ -1,4 +1,4 @@
-# .github/workflows/daily-slate.yml
+.github/workflows/daily-slate.yml
 #
 # Rebuilds slate.json every morning and commits it. GitHub Pages then serves it
 # same-origin alongside your HTML, so the browser never makes a cross-origin
@@ -77,7 +77,7 @@ jobs:
           # NB: package.json sets "type": "module", so require() is unavailable here.
           node --input-type=module -e "
             import { readFileSync } from 'node:fs';
-            const raw = readFileSync('.slate.json','utf8');
+            const raw = readFileSync('slate.json','utf8');
             let s;
             try {
               s = JSON.parse(raw);
