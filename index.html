@@ -2022,11 +2022,8 @@ function chipsFor(tabId, p){
   if(tabId==='k') return [`<span class="chip">K/9 <b>${p.k9}</b></span>`,`<span class="chip">Proj IP <b>${p.expIP}</b></span>`,`<span class="chip">Throws <b>${p.throws}</b></span>`];
   const cfg = TAB_SIM[tabId];
   if(cfg){
-    const d = simulatePlayer(p)[cfg.key];
-    // Median and ceiling come first — they say what the probability actually
-    // means in outcomes — then the two inputs most responsible for it.
-    const base = [`<span class="chip">Median <b>${d.p50}</b></span>`,
-                  `<span class="chip">Ceiling <b>${d.ceiling}</b></span>`];
+    // Median and ceiling live in the score column's mini-stat row now, not
+    // here — this used to duplicate them in the chip row too.
     const extra = {
       hr:   [`<span class="chip">Barrel% <b>${p.statcast.barrel}%</b></span>`, `<span class="chip">Opp HR/9 <b>${p.oppPitcher.hr9}</b></span>`],
       hits: [`<span class="chip">AVG <b>.${Math.round(p.avg*1000)}</b></span>`, `<span class="chip">Opp K/9 <b>${p.oppPitcher.k9 ?? '—'}</b></span>`],
@@ -2035,7 +2032,7 @@ function chipsFor(tabId, p){
       hrr:  [`<span class="chip">OBP <b>${p.obp!=null?p.obp.toFixed(3).replace(/^0/,''):'—'}</b></span>`, `<span class="chip">RBI/G <b>${p.g?(p.rbi/p.g).toFixed(2):'—'}</b></span>`],
       sb:   [`<span class="chip">SB/G <b>${p.g?(p.sb/p.g).toFixed(2):'—'}</b></span>`, `<span class="chip">Success <b>${p.sbSuccess!=null?Math.round(p.sbSuccess*100)+'%':'—'}</b></span>`],
     }[tabId] || [];
-    return base.concat(extra);
+    return extra;
   }
   return [];
 }
