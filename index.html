@@ -138,6 +138,8 @@ main{ max-width:760px; margin: 8px auto 0; padding: 0 20px; }
 .mf-stat{ font-family:'Space Mono',monospace; font-size:10.5px; color:var(--white); }
 .mf-pa{ color:var(--mute); }
 .mf-none{ color:var(--mute); font-style:italic; }
+.mf-tiny{ font-family:'Space Mono',monospace; font-size:9px; color:var(--warm); background:var(--night2);
+  border:1px solid var(--line); padding:1px 6px; border-radius:9px; }
 @media (max-width:480px){
   .mf-hands{ font-size:11px; }
   .mf-stats{ gap:7px; }
@@ -1158,6 +1160,7 @@ function adaptHitter(h, teamAbbr, game, side) {
     gameLog: h.gameLog || [],
     odds: h.odds || null,          // real prices + one-tap betslip deep links
     splits: h.splits || null,      // season vs LHP / vs RHP
+    vsPitcher: h.vsPitcher || null, // career at-bats vs THIS game's starter
     detail: h.detail || null,      // zone grid, pitch types, batted balls
     note: tier === 1 ? 'Elite power threat'
         : tier === 2 ? 'Consistent power bat'
@@ -4209,28 +4212,38 @@ function matchupFooterHTML(p){
 
   const batLabel = bat === 'S' ? 'Switch' : bat ? `${bat}HB` : '?';
   const thrLabel = thr ? `${thr}HP` : '?';
-
-  // Which split actually applies tonight. A switch hitter always gets his
-  // stronger-side numbers, since he can choose to bat from either side.
-  const splitKey = thr === 'L' ? 'vsLHP' : thr === 'R' ? 'vsRHP' : null;
-  const split = splitKey ? p.splits?.[splitKey] : null;
-
   const edge = (!bat || !thr || bat === '?' || thr === '?') ? 'neu'
              : bat === 'S' ? 'good'
              : bat !== thr ? 'good' : 'bad';
 
-  const statLine = split
-    ? `<span class="mf-stat">.${String(Math.round((split.avg??0)*1000)).padStart(3,'0')} AVG</span>
-       <span class="mf-stat">.${String(Math.round((split.ops??0)*1000)).padStart(3,'0')} OPS</span>
-       <span class="mf-stat">${split.hr ?? 0} HR</span>
-       <span class="mf-stat mf-pa">${split.pa ?? '—'} PA</span>`
-    : `<span class="mf-stat mf-none">no ${splitKey === 'vsLHP' ? 'vs LHP' : splitKey === 'vsRHP' ? 'vs RHP' : ''} split on file</span>`;
+  const h2h = p.vsPitcher;   // real career AB vs THIS specific starter
+
+  let statLine, sourceNote;
+  if(h2h && h2h.pa){
+    // What was asked for: this batter against this pitcher, specifically.
+    statLine = `<span class="mf-stat">${h2h.h ?? 0}-for-${h2h.ab ?? 0}</span>
+      <span class="mf-stat">.${String(Math.round((h2h.avg??0)*1000)).padStart(3,'0')} AVG</span>
+      <span class="mf-stat">${h2h.hr ?? 0} HR</span>
+      <span class="mf-stat">${h2h.bb ?? 0} BB</span>
+      <span class="mf-stat">${h2h.so ?? 0} K</span>
+      <span class="mf-stat mf-pa">${h2h.pa} career PA</span>`;
+    sourceNote = h2h.pa < 10
+      ? '<span class="mf-tiny">small sample</span>'   // honest about a 3-AB history
+      : '';
+  } else if(!sp.name || sp.announced === false){
+    statLine = `<span class="mf-stat mf-none">starter not yet announced</span>`;
+    sourceNote = '';
+  } else {
+    statLine = `<span class="mf-stat mf-none">no prior at-bats vs ${thrLabel==='?'?'this pitcher':sp.name.split(' ').slice(-1)[0]}</span>`;
+    sourceNote = '';
+  }
 
   return `<div class="matchup-foot mf-${edge}">
     <div class="mf-hands">
       <span class="mf-side">${p.name.split(' ').slice(-1)[0]} <b>${batLabel}</b></span>
       <span class="mf-vs">vs</span>
       <span class="mf-side">${sp.name ? sp.name.split(' ').slice(-1)[0] : 'SP'} <b>${thrLabel}</b></span>
+      ${sourceNote}
     </div>
     <div class="mf-stats">${statLine}</div>
   </div>`;
