@@ -3283,11 +3283,28 @@ async function subscribeToPush(){
   if(!reg) return null;
   try{
     const existing = await reg.pushManager.getSubscription();
-    if(existing) return existing;
-    return await reg.pushManager.subscribe({
+    if(existing){
+      // A subscription is bound to the origin AND the VAPID key it was created
+      // with. If the site moved domains or the key changed, the old endpoint is
+      // dead but still returned here — pushes to it silently fail forever.
+      // Detect the mismatch and re-subscribe instead.
+      const oldKey = existing.options?.applicationServerKey;
+      const wanted = urlB64ToUint8Array(VAPID_PUBLIC_KEY);
+      const same = oldKey && new Uint8Array(oldKey).length === wanted.length &&
+                   new Uint8Array(oldKey).every((b, i) => b === wanted[i]);
+      const sameOrigin = existing.endpoint && store.get('dw_sub_origin') === location.origin;
+      if(same && sameOrigin) return existing;
+
+      console.info('[push] re-subscribing (origin or key changed)');
+      try{ await existing.unsubscribe(); }catch{}
+      store.set('dw_sub_shown', '');   // prompt for the new subscription JSON
+    }
+    const sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC_KEY),
     });
+    store.set('dw_sub_origin', location.origin);
+    return sub;
   }catch(e){
     console.warn('[push] subscribe failed:', e.message);
     return null;
