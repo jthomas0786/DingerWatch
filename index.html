@@ -812,6 +812,17 @@ body.gated{ overflow:hidden; }
   .sf-wind{ font-size:12.5px; }
 }
 .linescore{ margin-top:12px; padding-top:12px; border-top:1px solid var(--line); overflow-x:auto; }
+
+.strike-zone{ margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }
+.sz-head{ display:flex; align-items:center; gap:7px; margin-bottom:8px; font-family:'Oswald',sans-serif; font-size:12.5px; }
+.sz-title{ color:var(--white); font-weight:600; }
+.sz-vs{ color:var(--mute); font-size:10px; }
+.sz-svg{ width:150px; height:178px; display:block; margin:0 auto; }
+.sz-foot{ display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:9px; }
+.sz-legend{ display:flex; align-items:center; gap:5px; font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); }
+.sz-legend i{ width:8px; height:8px; border-radius:50%; display:inline-block; }
+.sz-count{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); }
+.sz-last{ text-align:center; font-family:'Space Mono',monospace; font-size:10.5px; color:var(--white); margin-top:7px; }
 .linescore table{ border-collapse:collapse; font-family:'Space Mono',monospace; font-size:11.5px; width:100%; min-width:max-content; }
 .linescore th, .linescore td{ padding:4px 7px; text-align:center; min-width:22px; }
 .linescore th{ color:var(--mute); font-size:9.5px; font-weight:400; border-bottom:1px solid var(--line); }
@@ -3083,6 +3094,44 @@ async function fetchLiveGameStates(){
             scheduledInnings: line.scheduledInnings || 9,
           };
         }
+
+        /**
+         * Pitch-by-pitch location for the CURRENT at-bat, so the strike zone
+         * widget can plot every pitch thrown to the batter standing in right
+         * now — not just the last one. The same live feed response already
+         * carries this; nothing extra to fetch.
+         *
+         * pitchData.coordinates.pX/pZ are the ball's plate-crossing position in
+         * feet from the center of home plate (pX) and off the ground (pZ).
+         * sZTop/sZBot are THIS batter's actual strike zone for that pitch — MLB
+         * adjusts it per batter stance, so it isn't a fixed box.
+         */
+        const currentPlay = data.liveData?.plays?.currentPlay;
+        if(currentPlay?.playEvents?.length){
+          const pitches = currentPlay.playEvents
+            .filter(pe => pe.isPitch && pe.pitchData?.coordinates)
+            .map(pe => ({
+              x: pe.pitchData.coordinates.pX,
+              z: pe.pitchData.coordinates.pZ,
+              zTop: pe.pitchData.strikeZoneTop ?? 3.5,
+              zBot: pe.pitchData.strikeZoneBottom ?? 1.5,
+              type: pe.details?.type?.description ?? null,
+              code: pe.details?.type?.code ?? null,
+              speed: pe.pitchData.startSpeed ?? null,
+              call: pe.details?.description ?? null,        // "Ball", "Called Strike", "In play, ..."
+              isStrike: pe.details?.isStrike ?? null,
+              isBall: pe.details?.isBall ?? null,
+              inPlay: pe.details?.isInPlay ?? false,
+            }));
+          if(pitches.length){
+            g.currentAtBat = {
+              batter: currentPlay.matchup?.batter?.fullName ?? null,
+              pitcher: currentPlay.matchup?.pitcher?.fullName ?? null,
+              batSide: currentPlay.matchup?.batSide?.code ?? null,
+              pitches,
+            };
+          }
+        }
       }catch(e){ /* leave this game's state as last-known on a per-game fetch failure */ }
     }));
     return true;
@@ -3098,6 +3147,85 @@ async function fetchLiveGameStates(){
  *  - Extra-inning games return more than 9 innings; the header is built from
  *    the actual innings array, not a hardcoded 9.
  */
+/**
+ * Live strike zone. Coordinates come straight from MLB's pitch-tracking data:
+ *   pX — horizontal position, feet from the center of the plate (catcher's view)
+ *   pZ — height off the ground, in feet
+ *   zTop/zBot — THIS batter's actual zone for that pitch (adjusts per stance)
+ *
+ * The box is drawn to a fixed real-world scale (feet -> px) rather than
+ * stretched to fit, so a pitch just off the corner actually LOOKS just off the
+ * corner instead of the zone rubber-banding to whatever pitches happened to be
+ * thrown. Ball width (~2.94in) is added to each side, matching how a pitch is
+ * ruled a strike if any part of the ball clips the zone.
+ */
+function liveStrikeZoneHTML(g){
+  const ab = g.currentAtBat;
+  if(!ab || !ab.pitches?.length) return '';
+
+  const zTop = ab.pitches[ab.pitches.length-1].zTop ?? 3.5;
+  const zBot = ab.pitches[ab.pitches.length-1].zBot ?? 1.5;
+  const BALL_R = 0.121;   // half a baseball's diameter, in feet
+
+  // Fixed feet-per-pixel scale so the drawn zone is proportionally accurate
+  // rather than auto-fit to whatever pitch locations happened to occur.
+  const PLATE_HALF = 0.708;         // half the plate's width, feet
+  const VIEW_HALF_X = 1.9;          // how far left/right of the plate we draw
+  const VIEW_TOP = 4.6, VIEW_BOT = 0.8;
+  const W = 150, H = 178;
+  const px = x => ((x + VIEW_HALF_X) / (VIEW_HALF_X*2)) * W;
+  const pz = z => H - ((z - VIEW_BOT) / (VIEW_TOP - VIEW_BOT)) * H;
+
+  const zoneX0 = px(-PLATE_HALF), zoneX1 = px(PLATE_HALF);
+  const zoneY0 = pz(zTop), zoneY1 = pz(zBot);
+
+  const dotColor = p => p.inPlay ? 'var(--white)' : p.isStrike ? 'var(--foul)' : p.isBall ? '#4ea1f7' : 'var(--mute)';
+
+  const dots = ab.pitches.map((p, i) => {
+    const isLast = i === ab.pitches.length - 1;
+    const cx = px(p.x ?? 0), cy = pz(p.z ?? 2.5);
+    const r = isLast ? 8 : 5;
+    const op = isLast ? 1 : 0.35 + (i / ab.pitches.length) * 0.4;   // earlier pitches fade
+    return `<g opacity="${op.toFixed(2)}">
+      <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r}" fill="${dotColor(p)}"
+        stroke="${isLast?'#fff':'none'}" stroke-width="${isLast?1.5:0}">
+        <title>${p.speed?p.speed+' mph ':''}${p.type||''} — ${p.call||''}</title>
+      </circle>
+      ${isLast ? `<text x="${cx.toFixed(1)}" y="${(cy+3).toFixed(1)}" text-anchor="middle" font-size="8" font-weight="700" fill="${p.inPlay?'#111':'#fff'}" font-family="monospace">${i+1}</text>` : ''}
+    </g>`;
+  }).join('');
+
+  const last = ab.pitches[ab.pitches.length - 1];
+  const legend = ab.pitches.length > 1
+    ? `<div class="sz-count">${ab.pitches.length} pitch${ab.pitches.length===1?'':'es'} this AB</div>` : '';
+
+  return `<div class="strike-zone">
+    <div class="sz-head">
+      <span class="sz-title">${ab.batter||'Batter'}</span>
+      <span class="sz-vs">vs</span>
+      <span class="sz-title">${ab.pitcher||'Pitcher'}</span>
+    </div>
+    <svg class="sz-svg" viewBox="0 0 ${W} ${H}">
+      <rect x="0" y="0" width="${W}" height="${H}" fill="#0d1a12" rx="6"/>
+      <rect x="${zoneX0.toFixed(1)}" y="${zoneY0.toFixed(1)}"
+        width="${(zoneX1-zoneX0).toFixed(1)}" height="${(zoneY1-zoneY0).toFixed(1)}"
+        fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.55)" stroke-width="1.5"/>
+      <line x1="${zoneX0.toFixed(1)}" y1="${(zoneY0+(zoneY1-zoneY0)/3).toFixed(1)}" x2="${zoneX1.toFixed(1)}" y2="${(zoneY0+(zoneY1-zoneY0)/3).toFixed(1)}" stroke="rgba(255,255,255,.15)"/>
+      <line x1="${zoneX0.toFixed(1)}" y1="${(zoneY0+(zoneY1-zoneY0)*2/3).toFixed(1)}" x2="${zoneX1.toFixed(1)}" y2="${(zoneY0+(zoneY1-zoneY0)*2/3).toFixed(1)}" stroke="rgba(255,255,255,.15)"/>
+      <line x1="${(zoneX0+(zoneX1-zoneX0)/3).toFixed(1)}" y1="${zoneY0.toFixed(1)}" x2="${(zoneX0+(zoneX1-zoneX0)/3).toFixed(1)}" y2="${zoneY1.toFixed(1)}" stroke="rgba(255,255,255,.15)"/>
+      <line x1="${(zoneX0+(zoneX1-zoneX0)*2/3).toFixed(1)}" y1="${zoneY0.toFixed(1)}" x2="${(zoneX0+(zoneX1-zoneX0)*2/3).toFixed(1)}" y2="${zoneY1.toFixed(1)}" stroke="rgba(255,255,255,.15)"/>
+      ${dots}
+    </svg>
+    <div class="sz-foot">
+      <span class="sz-legend"><i style="background:#4ea1f7"></i>Ball</span>
+      <span class="sz-legend"><i style="background:var(--foul)"></i>Strike</span>
+      <span class="sz-legend"><i style="background:var(--white)"></i>In play</span>
+      ${legend}
+    </div>
+    ${last ? `<div class="sz-last">Last: ${last.speed?last.speed+' mph ':''}${last.type||'pitch'} — ${last.call||''}</div>` : ''}
+  </div>`;
+}
+
 function linescoreHTML(g){
   const ls = g.liveScore;
   if(!ls || !ls.innings || !ls.innings.length) return '';
@@ -3184,6 +3312,7 @@ function renderSlate(){
           </div>
         </div>
         ${(isLive || isFinal) ? linescoreHTML(g) : slateFieldHTML(g)}
+        ${isLive ? liveStrikeZoneHTML(g) : ''}
         ${liveDetail}
       </div>`;
   }).join('');
