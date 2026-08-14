@@ -63,20 +63,6 @@ jobs:
             node fetch-odds.js --slate slate.json
           fi
 
-      # Real odds + one-tap betslip deep links. Allowed to fail: without it the
-      # app still works, it just falls back to the text handoff instead of
-      # opening a loaded betslip.
-      - name: Attach odds and betslip links
-        continue-on-error: true
-        env:
-          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
-        run: |
-          if [ -z "$ODDS_API_KEY" ]; then
-            echo "ODDS_API_KEY not set — skipping odds (betslips will fall back to text)"
-          else
-            node fetch-odds.js --slate public/slate.json
-          fi
-
       # Optional: layer Statcast metrics on top. Allowed to fail without killing
       # the build, since it scrapes Baseball Savant and can break when they change
       # their page structure. A slate without Statcast is still fully usable.
@@ -128,11 +114,7 @@ jobs:
 
           # Commit only the files this job owns, so a concurrent push of
           # index.html or config isn't clobbered.
-<<<<<<< HEAD
           git add slate.json
-=======
-          git add slate.json
->>>>>>> ad53607 (moved everything from /public/ to the public root)
           git diff --staged --quiet && echo "no changes" && exit 0
           git commit -m "slate: $(date -u +%Y-%m-%d)"
 
@@ -146,11 +128,7 @@ jobs:
             fi
             echo "push rejected — rebasing onto remote (attempt $attempt)"
             git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || {
-<<<<<<< HEAD
-              echo "::error::rebase failed — resolve the conflict in public/slate.json manually"
-=======
               echo "::error::rebase failed — resolve the conflict in slate.json manually"
->>>>>>> ad53607 (moved everything from /public/ to the public root)
               exit 1
             }
             sleep $((attempt * 3))
