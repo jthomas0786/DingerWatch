@@ -30,8 +30,8 @@ jobs:
 
       - name: Guard against the example fixture being served as real data
         run: |
-          if [ -f public/slate.json ] && grep -q '"name": *"Player 6' public/slate.json; then
-            echo "::error::public/slate.json contains mock fixture data — delete it and let the build regenerate."
+          if [ -f slate.json ] && grep -q '"name": *"Player 6' slate.json; then
+            echo "::error::slate.json contains mock fixture data — delete it and let the build regenerate."
             exit 1
           fi
 
@@ -44,9 +44,23 @@ jobs:
       - name: Build today's slate
         run: |
           if [ -n "${{ inputs.date }}" ]; then
-            node public/build-slate.js --date "${{ inputs.date }}" --out public/slate.json --verbose
+            node build-slate.js --date "${{ inputs.date }}" --out slate.json --verbose
           else
-            node public/build-slate.js --out public/slate.json --verbose
+            node build-slate.js --out slate.json --verbose
+          fi
+
+      # Real odds + one-tap betslip deep links. Allowed to fail: without it the
+      # app still works, it just falls back to the text handoff instead of
+      # opening a loaded betslip.
+      - name: Attach odds and betslip links
+        continue-on-error: true
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: |
+          if [ -z "$ODDS_API_KEY" ]; then
+            echo "ODDS_API_KEY not set — skipping odds (betslips will fall back to text)"
+          else
+            node fetch-odds.js --slate slate.json
           fi
 
       # Real odds + one-tap betslip deep links. Allowed to fail: without it the
@@ -70,14 +84,14 @@ jobs:
         continue-on-error: true
         run: |
           pip install --quiet pybaseball pandas
-          python public/enrich-statcast.py --slate public/slate.json
+          python enrich-statcast.py --slate slate.json
 
       - name: Sanity check output
         run: |
           # NB: package.json sets "type": "module", so require() is unavailable here.
           node --input-type=module -e "
             import { readFileSync } from 'node:fs';
-            const raw = readFileSync('./public/slate.json','utf8');
+            const raw = readFileSync('.slate.json','utf8');
             let s;
             try {
               s = JSON.parse(raw);
@@ -114,7 +128,11 @@ jobs:
 
           # Commit only the files this job owns, so a concurrent push of
           # index.html or config isn't clobbered.
+<<<<<<< HEAD
           git add public/slate.json
+=======
+          git add slate.json
+>>>>>>> ad53607 (moved everything from /public/ to the public root)
           git diff --staged --quiet && echo "no changes" && exit 0
           git commit -m "slate: $(date -u +%Y-%m-%d)"
 
@@ -128,7 +146,11 @@ jobs:
             fi
             echo "push rejected — rebasing onto remote (attempt $attempt)"
             git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || {
+<<<<<<< HEAD
               echo "::error::rebase failed — resolve the conflict in public/slate.json manually"
+=======
+              echo "::error::rebase failed — resolve the conflict in slate.json manually"
+>>>>>>> ad53607 (moved everything from /public/ to the public root)
               exit 1
             }
             sleep $((attempt * 3))
@@ -146,4 +168,4 @@ jobs:
   #   if: github.event_name == 'schedule'
   #   steps:
   #     - uses: actions/checkout@v4
-  #     - run: node build-live.js --out public/live.json
+  #     - run: node build-live.js --out live.json

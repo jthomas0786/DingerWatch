@@ -7,7 +7,7 @@
 #   1. node gen-vapid-keys.js
 #   2. Paste the PUBLIC key into index.html as VAPID_PUBLIC_KEY
 #   3. Add repo secrets: VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_SUBJECT
-#   4. Create public/push-subscriptions.json containing: []
+#   4. Create push-subscriptions.json containing: []
 #   5. Open the app, enable Alerts, copy the subscription it shows into that file
 
 name: Push home run alerts
@@ -58,7 +58,7 @@ jobs:
         run: |
           git config user.name  'push-bot'
           git config user.email 'actions@github.com'
-          git add public/latest-hr.json public/pushed-hrs.json public/push-subscriptions.json 2>/dev/null || true
+          git add latest-hr.json pushed-hrs.json push-subscriptions.json 2>/dev/null || true
           git diff --staged --quiet && echo "no changes" && exit 0
           git commit -m "push: $(date -u +%Y-%m-%dT%H:%M)"
 

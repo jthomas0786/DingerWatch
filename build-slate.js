@@ -13,7 +13,7 @@
  * Usage:
  *   node build-slate.js                  # today
  *   node build-slate.js --date 2026-08-10
- *   node build-slate.js --out public/slate.json
+ *   node build-slate.js --out slate.json
  */
 
 import fs from 'node:fs/promises';
@@ -40,7 +40,7 @@ function todayEastern() {
 }
 const DATE = arg('--date', todayEastern());
 const VERBOSE = process.argv.includes('--verbose');
-const OUT = arg('--out', 'public/slate.json');
+const OUT = arg('--out', 'slate.json');
 const CONCURRENCY = 6; // be a polite API citizen
 
 // Max hitters carried per team. High enough to include every position player on
