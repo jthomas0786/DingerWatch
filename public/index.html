@@ -400,6 +400,10 @@ body:has(.betslip-bar) main{ padding-bottom:70px; }
 #authBtn:hover{ border-color:var(--foul); color:var(--white); }
 #authBtn.signed-in{ border-color:var(--grass-bright); color:var(--grass-bright); }
 
+.origin-warn{ background:#3a1418; border-bottom:2px solid var(--hot); color:var(--white);
+  font-size:12.5px; line-height:1.6; padding:12px 18px; position:relative; z-index:4000; }
+.origin-warn b{ color:var(--hot); }
+.origin-warn span{ display:block; color:var(--mute); font-size:11.5px; margin-top:5px; }
 .gate{ position:fixed; inset:0; z-index:3000; background:var(--night);
   display:flex; align-items:flex-start; justify-content:center; overflow-y:auto; padding:24px 18px 40px; }
 /* Stop the app scrolling behind the gate. */
@@ -3339,7 +3343,52 @@ function showSubscriptionForCopy(sub){
   box.onclick = e => { if(e.target === box) box.remove(); };
 }
 
+/**
+ * Why notifications can't be enabled right now. Returns null when they can.
+ *
+ * "Blocked" has several distinct causes that look identical to a user, and the
+ * two that matter most after a domain move are:
+ *   - the page is served over http (secure context required), or
+ *   - the page is inside a cross-origin iframe, which is what registrar
+ *     "URL masking" does. In a frame the Notification API is unavailable, the
+ *     manifest is ignored, and the viewport is the frame's — which also makes
+ *     the layout look subtly different from the real site.
+ */
+function notifyBlockReason(){
+  if(window.self !== window.top){
+    return { code:'framed',
+      msg:'This page is running inside a frame, which browsers do not allow to send notifications.',
+      fix:'Your domain is set up as URL forwarding with masking. Change it to a real custom domain: point a CNAME at jthomas0786.github.io and set the domain in GitHub Settings → Pages.' };
+  }
+  if(!window.isSecureContext){
+    return { code:'insecure',
+      msg:`This page is served over ${(typeof location!=='undefined'?location.protocol:'http:').replace(':','')}, and notifications require https.`,
+      fix:'Enable "Enforce HTTPS" in GitHub Settings → Pages. If it is greyed out, the certificate is still being issued — that can take up to an hour after DNS changes.' };
+  }
+  if(typeof Notification === 'undefined'){
+    if(isIOS() && !isStandalone()){
+      return { code:'ios-install',
+        msg:'On iPhone and iPad, notifications only work once the site is installed.',
+        fix:'Tap Share → Add to Home Screen, open it from there, then turn Alerts on.' };
+    }
+    return { code:'unsupported', msg:'This browser does not support notifications.', fix:'' };
+  }
+  if(Notification.permission === 'denied'){
+    return { code:'denied',
+      msg:'Notifications are blocked for this site.',
+      fix:'Tap the padlock or ⓘ in the address bar → Notifications → Allow, then try again. Note that permission is per-domain, so a previous "Allow" on the old address does not carry over.' };
+  }
+  return null;
+}
+
 async function toggleNotifications(){
+  // Explain the real cause rather than a generic "not supported".
+  const blocked = notifyBlockReason();
+  if(blocked){
+    alert(blocked.msg + (blocked.fix ? '\n\n' + blocked.fix : ''));
+    console.warn('[notify] blocked:', blocked.code, blocked);
+    return;
+  }
   if(!notifySupported()){
     if(isIOS() && !isStandalone()){
       alert('On iPhone or iPad, notifications work only after you add this site to your Home Screen.\n\nTap the Share button, choose "Add to Home Screen", then open it from there and turn notifications on again.');
@@ -5735,6 +5784,29 @@ async function boot(){
   renderNotifyBtn();
   document.getElementById('notifyBtn')?.addEventListener('click', toggleNotifications);
   registerServiceWorker();
+
+  // A framed or insecure origin breaks push, install, and layout at once. That
+  // is a deployment problem the user can't discover from the UI, so say it
+  // plainly rather than letting features fail one by one.
+  (function warnAboutOrigin(){
+    const framed = window.self !== window.top;
+    const insecure = !window.isSecureContext;
+    if(!framed && !insecure) return;
+
+    const bar = document.createElement('div');
+    bar.className = 'origin-warn';
+    bar.innerHTML = framed
+      ? `<b>This site is running inside a frame.</b> Notifications, the installable app,
+         and correct mobile layout all need the page loaded directly.
+         <span>Switch your domain from URL forwarding/masking to a real custom domain
+         (CNAME → jthomas0786.github.io, then set it in GitHub Settings → Pages).</span>`
+      : `<b>This page isn't served over HTTPS.</b> Notifications and offline support are
+         disabled on insecure origins.
+         <span>Enable "Enforce HTTPS" in GitHub Settings → Pages.</span>`;
+    document.body.insertBefore(bar, document.body.firstChild);
+    console.warn('[origin]', framed ? 'page is framed' : 'insecure context',
+                 '· location:', location.href, '· top:', framed ? '(cross-origin)' : 'self');
+  })();
 
   loadBetslip();
   renderBetslipBar();
