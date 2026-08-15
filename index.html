@@ -441,11 +441,20 @@ body:has(.betslip-bar) main{ padding-bottom:70px; }
 .rx.mine{ background:rgba(224,18,46,.16); border-color:var(--foul); }
 .rx b{ font-family:'Space Mono',monospace; font-size:9px; color:var(--white); font-weight:700; }
 
-/* --- auth + chat --- */
+/* --- top-right fixed cluster: online button + profile avatar --- */
+.header-fixed-cluster{ position:fixed; top:14px; right:14px; z-index:850;
+  display:flex; align-items:center; gap:8px; }
+
 #authBtn{ background:var(--panel); border:1px solid var(--line); color:var(--mute);
-  font-family:'Space Mono',monospace; font-size:10.5px; padding:4px 10px; border-radius:14px; cursor:pointer; }
+  font-family:'Space Mono',monospace; font-size:10.5px; padding:4px 10px; border-radius:14px; cursor:pointer;
+  display:flex; align-items:center; box-shadow:0 4px 14px rgba(0,0,0,.45); }
 #authBtn:hover{ border-color:var(--foul); color:var(--white); }
-#authBtn.signed-in{ border-color:var(--grass-bright); color:var(--grass-bright); }
+#authBtn.signed-in{ padding:2px; border-radius:50%; border-color:var(--grass-bright); }
+.auth-avatar{ display:block; }
+
+@media (max-width:520px){
+  .header-fixed-cluster{ top:10px; right:10px; gap:6px; }
+}
 
 .origin-warn{ background:#3a1418; border-bottom:2px solid var(--hot); color:var(--white);
   font-size:12.5px; line-height:1.6; padding:12px 18px; position:relative; z-index:4000; }
@@ -514,9 +523,28 @@ body.gated{ overflow:hidden; }
 .dw-switch{ text-align:center; margin-top:12px; font-size:11.5px; color:var(--mute); }
 .dw-switch a{ color:var(--foul); cursor:pointer; text-decoration:underline; }
 
+.ap-wrap{ display:flex; flex-direction:column; align-items:center; margin-bottom:16px; }
+.ap-preview .dw-avatar{ box-shadow:0 6px 18px rgba(0,0,0,.5), inset 0 -4px 8px rgba(0,0,0,.3),
+  inset 0 3px 5px rgba(255,255,255,.15); }
+.ap-actions{ margin-top:10px; display:flex; align-items:center; gap:10px; }
+.ap-upload-btn{ background:var(--night2); border:1px solid var(--line); color:var(--white);
+  font-family:'Oswald',sans-serif; font-size:12.5px; padding:8px 14px; border-radius:20px; cursor:pointer; }
+.ap-upload-btn:hover{ border-color:var(--foul); }
+.ap-uploading{ font-family:'Space Mono',monospace; font-size:10.5px; color:var(--mute); }
+.ap-err{ color:var(--hot); font-size:11px; margin-top:6px; min-height:14px; }
+.ap-presets-label{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute);
+  text-transform:uppercase; letter-spacing:.08em; margin-top:12px; margin-bottom:8px; }
+.ap-presets{ display:grid; grid-template-columns:repeat(6, 1fr); gap:7px; width:100%; }
+.ap-preset{ aspect-ratio:1; border-radius:50%; border:2px solid transparent; cursor:pointer;
+  font-size:16px; display:flex; align-items:center; justify-content:center; transition:transform .1s ease; }
+.ap-preset:hover{ transform:scale(1.08); border-color:var(--white); }
+@media (max-width:420px){ .ap-presets{ grid-template-columns:repeat(4, 1fr); } }
+
 .chat-list{ display:flex; flex-direction:column; gap:8px; margin-top:14px; }
 .chat-msg{ display:flex; gap:10px; background:var(--night2); border:1px solid var(--line);
   border-radius:10px; padding:10px 13px; }
+.dw-avatar{ border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  font-family:'Archivo Black',sans-serif; color:var(--night); object-fit:cover; overflow:hidden; }
 .chat-av{ width:30px; height:30px; border-radius:50%; flex-shrink:0; background:var(--foul);
   display:flex; align-items:center; justify-content:center; font-family:'Archivo Black',sans-serif;
   font-size:12px; color:var(--night); }
@@ -1028,6 +1056,12 @@ body:has(.betslip-bar) .chat-dock{ bottom:calc(84px + env(safe-area-inset-bottom
     <button id="refreshBtn" title="Refresh live data now">↻ Refresh</button>
     <button id="exportBtn" title="Download every player's prop projections as an Excel workbook" hidden>⬇ Excel</button>
     <button id="notifyBtn" title="Get a notification for every home run">🔔 Alerts</button>
+  </div>
+
+  <!-- Pinned to the actual top-right corner of the screen, not just the
+       rightmost item in this row — stays visible while scrolling, the way a
+       profile icon behaves in most apps. -->
+  <div class="header-fixed-cluster">
     <span id="headerOnlineSlot"></span>
     <button id="authBtn" title="Sign in to react and chat">Sign in</button>
   </div>
@@ -1695,6 +1729,60 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
  * click handlers; keeping it adjacent to any one feature makes it easy to
  * delete by accident.
  */
+/**
+ * A small set of baseball-themed clip-art avatars, defined inline (emoji +
+ * background gradient) rather than as external image files — nothing to
+ * upload, nothing that can 404, and they render identically offline.
+ * Referenced by id as avatar_url = "preset:N".
+ */
+const AVATAR_PRESETS = [
+  { id:1,  emoji:'⚾', bg:'linear-gradient(135deg,#c0392b,#e74c3c)' },
+  { id:2,  emoji:'💣', bg:'linear-gradient(135deg,#1a1a2e,#e0122e)' },
+  { id:3,  emoji:'🔥', bg:'linear-gradient(135deg,#d35400,#f39c12)' },
+  { id:4,  emoji:'🚀', bg:'linear-gradient(135deg,#2c3e50,#4ea1f7)' },
+  { id:5,  emoji:'🧢', bg:'linear-gradient(135deg,#0f4c3a,#1abc9c)' },
+  { id:6,  emoji:'🏆', bg:'linear-gradient(135deg,#8e6b1f,#f4c430)' },
+  { id:7,  emoji:'😤', bg:'linear-gradient(135deg,#4a148c,#8e44ad)' },
+  { id:8,  emoji:'🎯', bg:'linear-gradient(135deg,#7f1d1d,#dc2626)' },
+  { id:9,  emoji:'👑', bg:'linear-gradient(135deg,#78350f,#d97706)' },
+  { id:10, emoji:'🐐', bg:'linear-gradient(135deg,#1e3a2f,#3ecf6e)' },
+  { id:11, emoji:'🌩️', bg:'linear-gradient(135deg,#1e2a3a,#3b82f6)' },
+  { id:12, emoji:'🥶', bg:'linear-gradient(135deg,#083344,#0891b2)' },
+];
+const avatarPresetById = id => AVATAR_PRESETS.find(p => p.id === +id) || AVATAR_PRESETS[0];
+
+/**
+ * The ONE avatar renderer for the whole app — chat, online list, profile
+ * pages, statuses, comments, the header button. A user's picture can be a
+ * real uploaded photo (avatar_url is an https URL), a preset
+ * (avatar_url === "preset:N"), or nothing yet (falls back to their initial on
+ * a color derived from avatar_seed, same as before this feature existed).
+ * Routing every call site through this one function is what keeps a user's
+ * photo consistent everywhere instead of half the app still showing initials.
+ */
+function avatarHTML(user, sizePx = 32, cls = ''){
+  const size = sizePx;
+  const name = user?.username || user?.display_name || '?';
+  const initial = escapeHTML((name[0] || '?').toUpperCase());
+  const style = `width:${size}px;height:${size}px;font-size:${Math.round(size*0.42)}px;`;
+
+  const url = user?.avatar_url;
+  if(url && url.startsWith('preset:')){
+    const preset = avatarPresetById(url.slice(7));
+    return `<div class="dw-avatar ${cls}" style="${style}background:${preset.bg};">${preset.emoji}</div>`;
+  }
+  if(url && /^https?:\/\//.test(url)){
+    return `<img class="dw-avatar ${cls}" style="${style}" src="${url}" alt=""
+      loading="lazy" onerror="this.outerHTML=${JSON.stringify(`<div class="dw-avatar ${cls}" style="${style}background:var(--foul);">${initial}</div>`).replace(/"/g,'&quot;')}">`;
+  }
+  // No custom avatar yet — deterministic color from the seed so the same
+  // user always gets the same fallback color across sessions.
+  const seed = user?.avatar_seed || name;
+  let hash = 0; for(const ch of seed) hash = (hash*31 + ch.charCodeAt(0)) >>> 0;
+  const hue = hash % 360;
+  return `<div class="dw-avatar ${cls}" style="${style}background:hsl(${hue},55%,32%);">${initial}</div>`;
+}
+
 function isInteractiveClick(e){
   return !!e.target?.closest?.('.rx, .add-leg, .chat-user, .status-comments, .status-del, .feed-share, button');
 }
@@ -5407,7 +5495,9 @@ function renderAuthButton(){
   if(!s || !s.socialEnabled()){ btn.style.display = 'none'; return; }
   btn.style.display = '';
   const u = s.getUser?.();
-  btn.textContent = u ? `@${u.username}` : 'Sign in';
+  // Signed in: the button IS your profile picture. Signed out: a plain
+  // "Sign in" pill, since there's no photo to show yet.
+  btn.innerHTML = u ? avatarHTML(u, 34, 'auth-avatar') : 'Sign in';
   btn.classList.toggle('signed-in', !!u);
 }
 
@@ -5627,6 +5717,305 @@ async function openChatPanel(){
 function closeChatPanel(){
   chatPanelOpen = false;
   document.getElementById('chatPanel')?.classList.remove('open');
+}
+
+// ---------------------------------------------------------------- profiles
+// Rebuilt here (a previous edit accidentally deleted this whole system —
+// caught via a post-edit function-existence check, see below).
+const STATUS_EMOJI = ['🔥','💯','😂','🤝','💀'];
+
+function statusHTML(st, canDelete){
+  const s = social();
+  const rx = s?.statusReactionsFor ? s.statusReactionsFor(st.id) : {};
+  const name = st.display_name || st.username;
+  const legs = st.legs ? (Array.isArray(st.legs) ? st.legs : []) : [];
+  return `<div class="status" data-sid="${st.id}">
+    <div class="status-head">
+      ${avatarHTML({username:st.username, avatar_url:st.avatar_url, avatar_seed:st.avatar_seed}, 30)}
+      <span class="status-name chat-user" data-username="${escapeHTML(st.username)}">${escapeHTML(name)}</span>
+      <span class="chat-time">${timeAgo(new Date(st.created_at).getTime())}</span>
+      ${canDelete ? `<button class="status-del" data-del="${st.id}" title="Delete">&times;</button>` : ''}
+    </div>
+    <div class="status-body">${escapeHTML(st.body)}</div>
+    ${legs.length ? `<div class="status-legs">${legs.map(l => `
+      <div class="sl-leg"><span>${escapeHTML(l.text || '')}</span>
+      ${l.price != null ? `<b>${fmtAmerican(l.price)}</b>` : ''}</div>`).join('')}</div>` : ''}
+    <div class="status-foot">
+      <div class="rx-strip status-rx" data-sid="${st.id}">
+        ${STATUS_EMOJI.map(e => {
+          const c = rx[e];
+          return `<button class="rx ${c?.mine?'mine':''}" data-semoji="${e}">${e}${c?.count?`<b>${c.count}</b>`:''}</button>`;
+        }).join('')}
+      </div>
+      <button class="status-comments" data-comments="${st.id}">
+        💬 ${st.comment_count || 0}
+      </button>
+    </div>
+    <div class="comment-box" data-cbox="${st.id}"></div>
+  </div>`;
+}
+
+async function openProfile(username){
+  const s = social();
+  if(!s?.socialReady) return;
+  const prof = await s.getProfile(username);
+  if(!prof){ return; }
+
+  const me = s.getUser?.();
+  const isMe = me && me.id === prof.id;
+  const [counts, following, statuses] = await Promise.all([
+    s.followCounts(prof.id),
+    isMe ? Promise.resolve(false) : s.isFollowing(prof.id),
+    s.loadStatuses({ userId: prof.id }),
+  ]);
+  await s.loadStatusReactions(statuses.map(x => x.id));
+
+  const wrap = document.createElement('div');
+  wrap.className = 'dw-modal profile-modal';
+  wrap.innerHTML = `
+    <div class="profile-card">
+      <button class="modal-close" id="pfClose">&times;</button>
+      <div class="pf-head">
+        ${avatarHTML(prof, 58, 'pf-av')}
+        <div class="pf-id">
+          <div class="pf-name">${escapeHTML(prof.display_name || prof.username)}</div>
+          <div class="pf-handle">@${escapeHTML(prof.username)}${prof.team ? ` · ${escapeHTML(prof.team)}` : ''}</div>
+        </div>
+        ${isMe
+          ? `<button class="pf-btn" id="pfEdit">Edit</button>`
+          : `<button class="pf-btn ${following?'following':''}" id="pfFollow">${following?'Following':'Follow'}</button>`}
+      </div>
+      ${prof.bio ? `<div class="pf-bio">${escapeHTML(prof.bio)}</div>` : ''}
+      <div class="pf-stats">
+        <span><b id="pfFollowers">${counts.followers}</b> followers</span>
+        <span><b>${counts.following}</b> following</span>
+        <span><b>${statuses.length}</b> posts</span>
+      </div>
+      ${isMe ? `
+        <div class="pf-compose">
+          <textarea id="pfStatus" placeholder="Post a status or share a parlay…" maxlength="500"></textarea>
+          <div class="pf-compose-row">
+            ${betslip.length ? `<label class="pf-attach"><input type="checkbox" id="pfAttach" checked> Attach slip (${betslip.length})</label>` : '<span></span>'}
+            <button class="bs-btn primary" id="pfPost">Post</button>
+          </div>
+          <div class="dw-err" id="pfErr"></div>
+        </div>` : ''}
+      <div class="pf-statuses" id="pfStatuses">
+        ${statuses.length ? statuses.map(st => statusHTML({...st, avatar_url: prof.avatar_url, avatar_seed: prof.avatar_seed}, isMe)).join('')
+          : '<div class="pf-empty">No posts yet.</div>'}
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+
+  const close = () => wrap.remove();
+  document.getElementById('pfClose').onclick = close;
+  wrap.onclick = e => { if(e.target === wrap) close(); };
+
+  const fBtn = document.getElementById('pfFollow');
+  if(fBtn) fBtn.onclick = async () => {
+    if(!me){ promptSignIn(); return; }
+    fBtn.disabled = true;
+    const res = await s.toggleFollow(prof.id);
+    fBtn.disabled = false;
+    if(res?.error) return;
+    const now = !!res?.following;
+    fBtn.textContent = now ? 'Following' : 'Follow';
+    fBtn.classList.toggle('following', now);
+    const el = document.getElementById('pfFollowers');
+    if(el) el.textContent = Math.max(0, (+el.textContent) + (now ? 1 : -1));
+  };
+
+  const eBtn = document.getElementById('pfEdit');
+  if(eBtn) eBtn.onclick = () => { close(); openProfileEditor(prof); };
+
+  const postBtn = document.getElementById('pfPost');
+  if(postBtn) postBtn.onclick = async () => {
+    const ta = document.getElementById('pfStatus');
+    const err = document.getElementById('pfErr');
+    const attach = document.getElementById('pfAttach')?.checked;
+    err.textContent = '';
+    postBtn.disabled = true;
+    const legs = attach ? betslip.map(l => ({ text: legToText(l), price: l.price ?? null })) : null;
+    const res = await s.postStatus(ta.value, legs, slateMeta.date || null);
+    postBtn.disabled = false;
+    if(res.error){ err.textContent = res.error; return; }
+    ta.value = '';
+    const list = document.getElementById('pfStatuses');
+    if(list){
+      if(list.querySelector('.pf-empty')) list.innerHTML = '';
+      list.insertAdjacentHTML('afterbegin', statusHTML({...res.status, avatar_url: prof.avatar_url, avatar_seed: prof.avatar_seed}, true));
+      wireStatusInteractions(list, true);
+    }
+  };
+
+  wireStatusInteractions(wrap, isMe);
+}
+
+function wireStatusInteractions(root, canDelete){
+  const s = social();
+
+  root.querySelectorAll('.status-rx .rx').forEach(b => b.onclick = async e => {
+    e.stopPropagation();
+    if(!s.getUser?.()){ promptSignIn(); return; }
+    const sid = +b.closest('.status-rx').dataset.sid;
+    await s.toggleStatusReaction(sid, b.dataset.semoji);
+    const strip = b.closest('.status-rx');
+    const rx = s.statusReactionsFor(sid);
+    strip.innerHTML = STATUS_EMOJI.map(em => {
+      const c = rx[em];
+      return `<button class="rx ${c?.mine?'mine':''}" data-semoji="${em}">${em}${c?.count?`<b>${c.count}</b>`:''}</button>`;
+    }).join('');
+    wireStatusInteractions(strip.closest('.status'), canDelete);
+  });
+
+  root.querySelectorAll('[data-comments]').forEach(b => b.onclick = async e => {
+    e.stopPropagation();
+    const sid = +b.dataset.comments;
+    const box = root.querySelector(`[data-cbox="${sid}"]`);
+    if(!box) return;
+    if(box.classList.contains('open')){ box.classList.remove('open'); box.innerHTML = ''; return; }
+
+    const comments = await s.loadComments(sid);
+    const signedIn = !!s.getUser?.();
+    box.classList.add('open');
+    box.innerHTML = `
+      ${comments.map(c => `<div class="comment">
+        <span class="chat-user" data-username="${escapeHTML(c.profiles?.username||'')}">@${escapeHTML(c.profiles?.username||'?')}</span>
+        <span>${escapeHTML(c.body)}</span>
+      </div>`).join('')}
+      <div class="comment-compose">
+        <input placeholder="${signedIn ? 'Reply…' : 'Sign in to reply'}" maxlength="300" ${signedIn?'':'disabled'}>
+        <button ${signedIn?'':'disabled'}>Reply</button>
+      </div>`;
+
+    const input = box.querySelector('input');
+    const send = async () => {
+      if(!input.value.trim()) return;
+      const res = await s.postComment(sid, input.value);
+      if(res.error){ return; }
+      input.value = '';
+      box.querySelector('.comment-compose').insertAdjacentHTML('beforebegin',
+        `<div class="comment"><span class="chat-user">@${escapeHTML(res.comment.profiles.username)}</span>
+         <span>${escapeHTML(res.comment.body)}</span></div>`);
+      b.textContent = `💬 ${comments.length + 1}`;
+    };
+    box.querySelector('button').onclick = send;
+    input.onkeydown = ev => { if(ev.key === 'Enter') send(); };
+    if(!signedIn) input.onclick = promptSignIn;
+  });
+
+  root.querySelectorAll('[data-del]').forEach(b => b.onclick = async e => {
+    e.stopPropagation();
+    const res = await s.deleteStatus(+b.dataset.del);
+    if(!res.error) b.closest('.status')?.remove();
+  });
+}
+
+/**
+ * Avatar picker: upload from device (camera roll / file picker) or choose
+ * from the preset clip-art set. Lives inside the profile editor.
+ */
+function avatarPickerHTML(prof){
+  return `<div class="ap-wrap">
+    <div class="ap-preview" id="apPreview">${avatarHTML(prof, 72)}</div>
+    <div class="ap-actions">
+      <label class="ap-upload-btn">
+        📷 Choose photo
+        <input type="file" accept="image/*" id="apFile" hidden>
+      </label>
+      <span class="ap-uploading" id="apUploading" hidden>Uploading…</span>
+    </div>
+    <div class="ap-err" id="apErr"></div>
+    <div class="ap-presets-label">Or pick one</div>
+    <div class="ap-presets">
+      ${AVATAR_PRESETS.map(p => `<button class="ap-preset" data-preset="${p.id}"
+          style="background:${p.bg}" title="Use this avatar">${p.emoji}</button>`).join('')}
+    </div>
+  </div>`;
+}
+
+function wireAvatarPicker(root, onChanged){
+  const s = social();
+  const preview = root.querySelector('#apPreview');
+  const err = root.querySelector('#apErr');
+  const fileInput = root.querySelector('#apFile');
+  const uploading = root.querySelector('#apUploading');
+
+  fileInput.onchange = async () => {
+    const file = fileInput.files?.[0];
+    if(!file) return;
+    err.textContent = '';
+    uploading.hidden = false;
+    const res = await s.uploadAvatar(file);
+    uploading.hidden = true;
+    fileInput.value = '';
+    if(res.error){ err.textContent = res.error; return; }
+    preview.innerHTML = avatarHTML(res.profile, 72);
+    if(onChanged) onChanged(res.profile);
+  };
+
+  root.querySelectorAll('.ap-preset').forEach(btn => btn.onclick = async () => {
+    err.textContent = '';
+    const res = await s.setAvatarPreset(btn.dataset.preset);
+    if(res.error){ err.textContent = res.error; return; }
+    preview.innerHTML = avatarHTML(res.profile, 72);
+    if(onChanged) onChanged(res.profile);
+  });
+}
+
+function openProfileEditor(prof){
+  const s = social();
+  const wrap = document.createElement('div');
+  wrap.className = 'dw-modal';
+  wrap.innerHTML = `
+    <div class="dw-card">
+      <h3>Edit profile</h3>
+      ${avatarPickerHTML(prof)}
+      <input id="peName" placeholder="display name" maxlength="40" value="${escapeHTML(prof.display_name||'')}">
+      <input id="peUser" placeholder="username" maxlength="20" value="${escapeHTML(prof.username||'')}">
+      <input id="peTeam" placeholder="team (e.g. LAD)" maxlength="4" value="${escapeHTML(prof.team||'')}">
+      <textarea id="peBio" placeholder="bio (280 max)" maxlength="280">${escapeHTML(prof.bio||'')}</textarea>
+      <div class="dw-actions">
+        <button class="primary" id="peSave">Save</button>
+        <button id="peCancel">Cancel</button>
+      </div>
+      <div class="dw-err" id="peErr"></div>
+      <div class="dw-switch"><a id="peSignOut">Sign out</a></div>
+    </div>`;
+  document.body.appendChild(wrap);
+
+  let latestAvatarProfile = prof;
+  wireAvatarPicker(wrap, (updated) => {
+    latestAvatarProfile = updated;
+    renderAuthButton();   // header avatar reflects the change immediately
+  });
+
+  const close = () => wrap.remove();
+  document.getElementById('peCancel').onclick = close;
+  wrap.onclick = e => { if(e.target === wrap) close(); };
+  document.getElementById('peSignOut').onclick = async () => {
+    await s.signOut();
+    close();
+    renderAuthButton();
+    refreshSocialUI();
+    evaluateGate();
+  };
+  document.getElementById('peSave').onclick = async () => {
+    const err = document.getElementById('peErr');
+    const btn = document.getElementById('peSave');
+    btn.disabled = true;
+    const res = await s.updateProfile({
+      display_name: document.getElementById('peName').value.trim() || null,
+      username: document.getElementById('peUser').value.trim(),
+      team: document.getElementById('peTeam').value.trim().toUpperCase() || null,
+      bio: document.getElementById('peBio').value.trim() || null,
+    });
+    btn.disabled = false;
+    if(res.error){ err.textContent = res.error; return; }
+    close();
+    renderAuthButton();
+    openProfile(res.profile.username);
+  };
 }
 
 async function renderChatPanelBody(panel){
