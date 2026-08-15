@@ -451,6 +451,38 @@ body:has(.betslip-bar) main{ padding-bottom:70px; }
 .header-fixed-cluster{ position:fixed; top:14px; right:14px; z-index:850;
   display:flex; align-items:center; gap:8px; }
 
+/* --- notification bell / badge / dropdown --- */
+.notify-wrap{ position:relative; }
+#notifyBtn{ background:var(--panel); border:1px solid var(--line); color:var(--white);
+  width:36px; height:36px; border-radius:50%; cursor:pointer; font-size:16px;
+  display:flex; align-items:center; justify-content:center; position:relative;
+  box-shadow:0 4px 14px rgba(0,0,0,.45); }
+#notifyBtn:hover{ border-color:var(--foul); }
+#notifyBtn.active{ border-color:var(--grass-bright); }
+#notifyBtn.blocked{ opacity:.55; }
+.notify-badge{ position:absolute; top:-4px; right:-4px; background:var(--foul); color:var(--white);
+  font-family:'Archivo Black',sans-serif; font-size:10px; min-width:18px; height:18px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center; padding:0 4px; border:2px solid var(--night); }
+
+.notify-pop{ display:none; position:absolute; top:calc(100% + 8px); right:0; width:280px;
+  background:var(--panel); border:1px solid var(--line); border-radius:12px; z-index:80;
+  box-shadow:0 10px 28px rgba(0,0,0,.55); max-height:360px; overflow-y:auto; }
+.notify-pop.open{ display:block; }
+.notify-empty{ color:var(--mute); font-size:12.5px; padding:22px 16px; text-align:center; }
+.notify-item{ padding:11px 14px; border-bottom:1px solid var(--line); }
+.notify-item:last-of-type{ border-bottom:none; }
+.notify-item.unread{ background:rgba(224,18,46,.06); }
+.notify-item-title{ font-family:'Oswald',sans-serif; font-size:12.5px; color:var(--white); }
+.notify-item-body{ font-size:11.5px; color:var(--mute); margin-top:2px; line-height:1.5; }
+.notify-item-time{ font-family:'Space Mono',monospace; font-size:9px; color:var(--mute); margin-top:4px; }
+.notify-pop-foot{ padding:9px 14px; border-top:1px solid var(--line); }
+.notify-pop-foot button{ width:100%; background:none; border:1px solid var(--line); color:var(--mute);
+  font-family:'Space Mono',monospace; font-size:10px; padding:7px; border-radius:8px; cursor:pointer; }
+.notify-pop-foot button:hover{ border-color:var(--hot); color:var(--hot); }
+@media (max-width:480px){
+  .notify-pop{ width:240px; }
+}
+
 #authBtn{ background:var(--panel); border:1px solid var(--line); color:var(--mute);
   font-family:'Space Mono',monospace; font-size:10.5px; padding:4px 10px; border-radius:14px; cursor:pointer;
   display:flex; align-items:center; box-shadow:0 4px 14px rgba(0,0,0,.45); }
@@ -1062,13 +1094,16 @@ body:has(.betslip-bar) .chat-dock{ bottom:calc(84px + env(safe-area-inset-bottom
     <span id="lastUpdated">Updated just now</span>
     <button id="refreshBtn" title="Refresh live data now">↻ Refresh</button>
     <button id="exportBtn" title="Download every player's prop projections as an Excel workbook" hidden>⬇ Excel</button>
-    <button id="notifyBtn" title="Get a notification for every home run">🔔 Alerts</button>
   </div>
 
   <!-- Pinned to the actual top-right corner of the screen, not just the
        rightmost item in this row — stays visible while scrolling, the way a
        profile icon behaves in most apps. -->
   <div class="header-fixed-cluster">
+    <div class="notify-wrap">
+      <button id="notifyBtn" title="Get a notification for every home run">🔔</button>
+      <div class="notify-pop" id="notifyPop"></div>
+    </div>
     <span id="headerOnlineSlot"></span>
     <button id="authBtn" title="Sign in to react and chat">Sign in</button>
   </div>
@@ -3994,13 +4029,10 @@ async function toggleNotifications(){
     return;
   }
 
-  if(notifyEnabled){                       // turning off
-    notifyEnabled = false;
-    store.set('dw_notify', '0');
-    renderNotifyBtn();
-    return;
-  }
-
+  // Turning alerts off now lives inside the dropdown (see wireNotifyPop),
+  // not on the bell tap — once alerts are on, tapping the bell opens the
+  // notification list instead. This function still handles the OFF -> ON
+  // transition and is also called by that dropdown's own toggle-off control.
   let perm = Notification.permission;
   if(perm === 'default') perm = await Notification.requestPermission();
 
@@ -4026,6 +4058,13 @@ async function toggleNotifications(){
     alert('Notifications are blocked for this site.\n\nRe-enable them in your browser settings (the padlock or ⓘ icon next to the address bar), then try again.');
   }
   renderNotifyBtn();
+}
+
+function disableNotifications(){
+  notifyEnabled = false;
+  store.set('dw_notify', '0');
+  renderNotifyBtn();
+  closeNotifyPop();
 }
 
 // App icon, shared by notifications and the installed-app shortcut. Relative
@@ -4058,15 +4097,103 @@ function notifyHomeRun(ev){
   }catch(e){ /* some browsers throw on tag reuse — not worth surfacing */ }
 }
 
+/**
+ * Notifications aren't attached to real events yet — the dropdown they open
+ * is empty scaffolding, ready for that data. This array and the two functions
+ * below are the whole surface that future work needs to touch:
+ *
+ *   pushAppNotification({ title, body, ... }) — adds one and repaints the badge
+ *   notifyItems — the list the dropdown renders from
+ *
+ * Nothing elsewhere needs to change once real notifications start arriving.
+ */
+let notifyItems = [];   // newest first: { id, title, body, ts, read }
+
+function notifyUnreadCount(){
+  return notifyItems.filter(n => !n.read).length;
+}
+
+/** Call this once real notification events exist. Not wired to anything yet. */
+function pushAppNotification({ title, body = '', id = null } = {}){
+  notifyItems.unshift({ id: id ?? `n${Date.now()}`, title, body, ts: Date.now(), read: false });
+  notifyItems = notifyItems.slice(0, 50);   // cap so this can't grow unbounded
+  renderNotifyBtn();
+  const pop = document.getElementById('notifyPop');
+  if(pop?.classList.contains('open')) renderNotifyPop();
+}
+
+function notifyPopHTML(){
+  if(!notifyItems.length){
+    return `<div class="notify-empty">No notifications yet.</div>`;
+  }
+  return notifyItems.map(n => `
+    <div class="notify-item ${n.read?'':'unread'}" data-nid="${n.id}">
+      <div class="notify-item-title">${escapeHTML(n.title || 'Notification')}</div>
+      ${n.body ? `<div class="notify-item-body">${escapeHTML(n.body)}</div>` : ''}
+      <div class="notify-item-time">${timeAgo(n.ts)}</div>
+    </div>`).join('');
+}
+
+function renderNotifyPop(){
+  const pop = document.getElementById('notifyPop');
+  if(!pop) return;
+  pop.innerHTML = notifyPopHTML() + `
+    <div class="notify-pop-foot">
+      <button id="notifyOffBtn">Turn off alerts</button>
+    </div>`;
+  document.getElementById('notifyOffBtn')?.addEventListener('click', e => {
+    e.stopPropagation();
+    disableNotifications();
+  });
+}
+
+function closeNotifyPop(){
+  document.getElementById('notifyPop')?.classList.remove('open');
+}
+
+function toggleNotifyPop(){
+  const pop = document.getElementById('notifyPop');
+  if(!pop) return;
+  const opening = !pop.classList.contains('open');
+  pop.classList.toggle('open', opening);
+  if(opening){
+    // Opening the list is what "reads" it — same convention as every phone's
+    // notification tray.
+    notifyItems.forEach(n => n.read = true);
+    renderNotifyPop();
+    renderNotifyBtn();
+    document.addEventListener('click', function onOutside(e){
+      if(!pop.contains(e.target) && e.target.id !== 'notifyBtn'){
+        closeNotifyPop();
+        document.removeEventListener('click', onOutside);
+      }
+    });
+  }
+}
+
+/**
+ * Two states behind one button:
+ *   OFF  — a plain bell, click to request permission and turn alerts on.
+ *   ON   — the bell becomes a badge showing unread notifications; click opens
+ *          the dropdown instead of toggling alerts off (turning alerts off
+ *          entirely lives in the dropdown itself, not on the icon tap).
+ */
 function renderNotifyBtn(){
   const btn = document.getElementById('notifyBtn');
   if(!btn) return;
   const blocked = notifySupported() && Notification.permission === 'denied';
-  btn.textContent = notifyEnabled ? '🔔 On' : (blocked ? '🔕 Blocked' : '🔔 Alerts');
+  const unread = notifyUnreadCount();
+
   btn.classList.toggle('active', notifyEnabled);
-  btn.title = notifyEnabled
-    ? 'Home run notifications are on — click to turn off'
-    : blocked ? 'Blocked in browser settings' : 'Get a notification for every home run';
+  btn.classList.toggle('blocked', blocked && !notifyEnabled);
+
+  if(notifyEnabled){
+    btn.innerHTML = `🔔${unread > 0 ? `<span class="notify-badge">${unread > 99 ? '99+' : unread}</span>` : ''}`;
+    btn.title = `${unread} notification${unread===1?'':'s'} — click to view`;
+  } else {
+    btn.innerHTML = blocked ? '🔕' : '🔔';
+    btn.title = blocked ? 'Blocked in browser settings' : 'Get a notification for every home run';
+  }
 }
 
 let feedEvents = [];          // newest first
@@ -6566,7 +6693,12 @@ async function boot(){
     notifyEnabled = true;
   }
   renderNotifyBtn();
-  document.getElementById('notifyBtn')?.addEventListener('click', toggleNotifications);
+  document.getElementById('notifyBtn')?.addEventListener('click', e => {
+    // Once alerts are on, the bell's job is to open the dropdown; the OFF -> ON
+    // request flow is what toggleNotifications() still handles.
+    if(notifyEnabled){ e.stopPropagation(); toggleNotifyPop(); }
+    else toggleNotifications();
+  });
   registerServiceWorker();
 
   // A framed or insecure origin breaks push, install, and layout at once. That
