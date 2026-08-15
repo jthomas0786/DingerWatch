@@ -239,7 +239,7 @@ let chatMessages = [];
 async function loadChat(room = 'general', limit = 60){
   if(!socialReady) return [];
   const { data, error } = await sb.from('messages')
-    .select('id, body, created_at, prop_key, user_id, profiles(username, avatar_seed)')
+    .select('id, body, created_at, prop_key, user_id, profiles(username, avatar_seed, avatar_url)')
     .eq('room', room)
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -281,7 +281,8 @@ async function sendMessage(body, room = 'general', propKey = null){
   // Return the row so the UI can show it immediately — realtime may be off or
   // slow, and a message that posts but never appears reads as a failure.
   return { ok: true, message: { ...data, profiles: { username: currentUser.username,
-                                                     avatar_seed: currentUser.avatar_seed } } };
+                                                     avatar_seed: currentUser.avatar_seed,
+                                                     avatar_url: currentUser.avatar_url } } };
 }
 
 /** Realtime subscription. Returns an unsubscribe function. */
@@ -294,7 +295,7 @@ function subscribeChat(room, onMessage){
         async payload => {
           // The realtime payload has no joined profile, so fetch the author.
           const { data: prof } = await sb.from('profiles')
-            .select('username, avatar_seed').eq('id', payload.new.user_id).single();
+            .select('username, avatar_seed, avatar_url').eq('id', payload.new.user_id).single();
           onMessage({ ...payload.new, profiles: prof });
         })
     .subscribe();
@@ -374,6 +375,7 @@ function joinPresence(onChange){
         id: currentUser.id,
         username: currentUser.username,
         avatar_seed: currentUser.avatar_seed,
+        avatar_url: currentUser.avatar_url,
         online_at: new Date().toISOString(),
       });
     });
@@ -491,6 +493,7 @@ async function postStatus(body, legs = null, slateDate = null){
   return { ok: true, status: { ...data, username: currentUser.username,
                                display_name: currentUser.display_name,
                                avatar_seed: currentUser.avatar_seed,
+                               avatar_url: currentUser.avatar_url,
                                comment_count: 0, reaction_count: 0 } };
 }
 
@@ -526,7 +529,7 @@ async function loadFollowingStatuses(limit = 40){
 async function loadComments(statusId){
   if(!socialReady) return [];
   const { data, error } = await sb.from('comments')
-    .select('id, body, created_at, user_id, profiles(username, avatar_seed)')
+    .select('id, body, created_at, user_id, profiles(username, avatar_seed, avatar_url)')
     .eq('status_id', statusId).order('created_at');
   if(error){ console.warn('[social] comments failed:', error.message); return []; }
   return data;
@@ -542,7 +545,8 @@ async function postComment(statusId, body){
     .select('id, body, created_at, user_id').single();
   if(error) return { error: error.message };
   return { ok: true, comment: { ...data, profiles: { username: currentUser.username,
-                                                     avatar_seed: currentUser.avatar_seed } } };
+                                                     avatar_seed: currentUser.avatar_seed,
+                                                     avatar_url: currentUser.avatar_url } } };
 }
 
 // ------------------------------------------------------- status reactions
