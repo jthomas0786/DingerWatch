@@ -27,7 +27,13 @@
   // configured, so the app never depends on them.
   import('./social.js')
     .then(m => { window.DW_SOCIAL = m; window.dispatchEvent(new Event('dw-social-ready')); })
-    .catch(() => { /* not configured — app runs unchanged */ });
+    .catch(err => {
+      // Previously swallowed entirely — a real failure (404, syntax error,
+      // bad MIME type) produced zero console output, which is why chat/
+      // profile/online could vanish with nothing to explain why. Now it says
+      // so plainly, since the app is still expected to work without it.
+      console.error('[social] social.js failed to load — chat, profile, and online status will be unavailable:', err);
+    });
 </script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
