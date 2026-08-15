@@ -6024,6 +6024,16 @@ function showGate(mode = 'signin'){
       return;
     }
     if(!s.getUser?.()){ err.textContent = 'Signed in, but your profile didn\'t load. Reload and try again.'; return; }
+
+    // A subscription is required to enter, checked fresh right after every
+    // successful sign-in or account creation — never trusted from cache here.
+    err.textContent = 'Checking your subscription…';
+    const access = await s.checkWhopAccess(true);
+    if(access.error){
+      err.innerHTML = `<span style="color:var(--hot)">Signed in, but couldn't verify your subscription: \${escapeHTML(access.error)}</span>`;
+      return;
+    }
+    if(!access.hasAccess){ showSubscribeGate(access.checkoutUrl); return; }
     dismissGate();
   };
 
@@ -6041,17 +6051,101 @@ function dismissGate(){
   refreshSocialUI();
 }
 
+/**
+ * Blocks entry when signed in but not subscribed. Not part of the normal
+ * sign-in/sign-up gate flow above — this is its own state, reachable only
+ * after a real account exists, so "sign out and try a different account" is
+ * always the escape hatch rather than a dead end.
+ */
+function showSubscribeGate(checkoutUrl){
+  const existing = document.getElementById('gate');
+  if(existing) existing.remove();
+  const s = social();
+  const url = checkoutUrl || 'https://whop.com/';
+
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="gate" id="gate">
+      <div class="gate-card">
+        <div class="gate-brand">
+          <img src="icon-192.png" alt="" class="gate-logo" onerror="this.style.display='none'">
+          <div>
+            <div class="gate-title">DINGER<span>WATCH</span></div>
+            <div class="gate-tag">Who's Going Deep</div>
+          </div>
+        </div>
+        <div class="gate-disclaimer">
+          <h3>Subscription required</h3>
+          <p style="font-size:12.5px;color:var(--mute);line-height:1.6;margin-bottom:14px;">
+            Dinger Watch requires an active Whop subscription. Subscribe below, then come back
+            and tap "I've subscribed" — activation is usually instant but can take a minute.
+          </p>
+          <div id="swErr" class="dw-err"></div>
+        </div>
+        <div class="gate-auth">
+          <a class="gate-go" style="display:block;text-align:center;text-decoration:none;box-sizing:border-box;"
+             href="${url}" target="_blank" rel="noopener">Subscribe on Whop</a>
+          <button class="gate-go" id="swRecheck" style="margin-top:10px;background:var(--night2);color:var(--white);border:1px solid var(--line);">
+            I've subscribed — check again
+          </button>
+          <div class="dw-switch"><a id="swSignOut">Sign out</a></div>
+        </div>
+      </div>
+    </div>`);
+  document.body.classList.add('gated');
+
+  const err = document.getElementById('swErr');
+  const recheckBtn = document.getElementById('swRecheck');
+
+  recheckBtn.onclick = async () => {
+    err.textContent = '';
+    recheckBtn.disabled = true;
+    const label = recheckBtn.textContent;
+    recheckBtn.textContent = 'Checking…';
+    const access = await s.checkWhopAccess(true);
+    recheckBtn.disabled = false;
+    recheckBtn.textContent = label;
+
+    if(access.error){ err.textContent = access.error; return; }
+    if(access.hasAccess){ dismissGate(); return; }
+    err.textContent = "Still no active subscription found. Make sure you're signed in with the same email you used to subscribe on Whop.";
+  };
+
+  document.getElementById('swSignOut').onclick = async () => {
+    await s.signOut();
+    showGate('signin');
+  };
+}
+
 /** Decide whether the gate is needed. Called once social has settled. */
-function evaluateGate(){
+async function evaluateGate(){
   const s = social();
   const canAuth = !!(s && s.socialEnabled() && !s.needsSchema?.());
   const signedIn = !!s?.getUser?.();
   const acked = store.get(GATE_ACK_KEY) === '1';
 
-  // Signed in and already acknowledged: nothing to show.
-  if(signedIn && acked){ dismissGate(); return; }
-  // Backend unavailable and already acknowledged: don't block a working app.
+  // Backend unavailable and already acknowledged: don't block a working app —
+  // there's no subscription check possible without the backend either, so
+  // failing open here matches the existing policy for the disclaimer gate.
   if(!canAuth && acked){ dismissGate(); return; }
+
+  // Signed in and already acknowledged: still needs a subscription check —
+  // covers a returning visit with a persisted session, not just a fresh
+  // sign-in. Rate-limited internally (see checkWhopAccess), so this doesn't
+  // hit the Edge Function on every single page load.
+  if(signedIn && acked){
+    const access = await s.checkWhopAccess();
+    if(access.error){
+      // Don't lock a paying subscriber out because of a transient network
+      // blip or a not-yet-deployed Edge Function — fail open with a console
+      // warning rather than fail closed on an error that isn't theirs.
+      console.warn('[whop] access check failed, allowing entry:', access.error);
+      dismissGate();
+      return;
+    }
+    if(access.hasAccess){ dismissGate(); } else { showSubscribeGate(access.checkoutUrl); }
+    return;
+  }
+
   showGate(signedIn ? 'signin' : 'signup');
 }
 
@@ -6566,7 +6660,7 @@ function openProfileEditor(prof){
     close();
     renderAuthButton();
     refreshSocialUI();
-    evaluateGate();
+    await evaluateGate();
   };
   document.getElementById('peSave').onclick = async () => {
     const err = document.getElementById('peErr');
@@ -7181,7 +7275,7 @@ async function boot(){
   // Social is optional: if the module didn't load, everything above still works.
   const startSocial = async () => {
     const s = social();
-    if(!s){ evaluateGate(); return; }
+    if(!s){ evaluateGate().catch(e => console.error('[gate] evaluateGate rejected:', e)); return; }
     await s.initSocial();
 
     // Each of these is independent — a header widget, a gate check, presence,
@@ -7193,7 +7287,7 @@ async function boot(){
     const steps = [
       ['auth button',         () => renderAuthButton()],
       ['export visibility',   () => refreshExportVisibility()],
-      ['disclaimer gate',     () => evaluateGate()],
+      ['disclaimer gate',     () => { evaluateGate().catch(e => console.error('[gate] evaluateGate rejected:', e)); }],
       ['online button',       () => renderHeaderOnline()],
       ['chat dock',           () => renderChatDock()],
       ['presence',            () => startPresence()],
@@ -7252,7 +7346,7 @@ async function boot(){
     window.addEventListener('dw-social-ready', startSocial, { once: true });
     // social.js may be absent or blocked; don't leave the user staring at data
     // they never agreed to terms for, and don't hang forever either.
-    setTimeout(() => { if(!window.DW_SOCIAL) evaluateGate(); }, 2500);
+    setTimeout(() => { if(!window.DW_SOCIAL) evaluateGate().catch(e => console.error('[gate] evaluateGate rejected:', e)); }, 2500);
   }
 
   // Must land before loadSlate(), since every player is scored during adaptation.
