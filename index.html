@@ -6561,38 +6561,59 @@ async function boot(){
     const s = social();
     if(!s){ evaluateGate(); return; }
     await s.initSocial();
-    renderAuthButton();
-    refreshExportVisibility();
-    evaluateGate();
-    renderHeaderOnline();
-    renderChatDock();
-    startPresence();
-    startGlobalChatSubscription();
+
+    // Each of these is independent — a header widget, a gate check, presence,
+    // a chat subscription. They used to run as one unguarded sequence, which
+    // meant a single throw (in ANY of them) silently killed everything after
+    // it. That's the exact failure mode where several unrelated header
+    // elements vanish together: not because each is individually broken, but
+    // because the first failure stopped the chain before the rest ran.
+    const steps = [
+      ['auth button',         () => renderAuthButton()],
+      ['export visibility',   () => refreshExportVisibility()],
+      ['disclaimer gate',     () => evaluateGate()],
+      ['online button',       () => renderHeaderOnline()],
+      ['chat dock',           () => renderChatDock()],
+      ['presence',            () => startPresence()],
+      ['chat subscription',   () => startGlobalChatSubscription()],
+    ];
+    for(const [label, fn] of steps){
+      try{ fn(); }
+      catch(e){ console.error(`[social] "${label}" failed — the rest still ran:`, e); }
+    }
+
     document.getElementById('authBtn')?.addEventListener('click', () => {
       const u = s.getUser?.();
-      // Signed in, the button is your profile; sign-out lives inside the editor.
       if(u) openProfile(u.username);
       else openAuthModal('signin');
     });
   };
   // Repaint whenever auth settles, including sign-ins completed in another tab.
   window.addEventListener('dw-auth-changed', () => {
-    renderAuthButton();
-    refreshExportVisibility();
-    refreshSocialUI();
-    renderHeaderOnline();
-    renderChatDock();
-    // A sign-out drops presence entirely and clears any unread badge, since
-    // it's tied to who's now signed in; a sign-in (re)joins the room.
-    if(social()?.getUser?.()){
-      startPresence();
-      startGlobalChatSubscription();
-    } else {
-      if(onlineUnsub){ onlineUnsub(); onlineUnsub = null; }
-      if(chatGlobalUnsub){ chatGlobalUnsub(); chatGlobalUnsub = null; }
-      onlineList = [];
-      chatUnreadCount = 0;
-      closeChatPanel();
+    // Same isolation as startSocial() above — this fires on every sign-in and
+    // sign-out, so one bad step here would re-break the header every time.
+    const steps = [
+      ['auth button',       () => renderAuthButton()],
+      ['export visibility', () => refreshExportVisibility()],
+      ['social UI refresh', () => refreshSocialUI()],
+      ['online button',     () => renderHeaderOnline()],
+      ['chat dock',         () => renderChatDock()],
+      ['presence/chat',     () => {
+        if(social()?.getUser?.()){
+          startPresence();
+          startGlobalChatSubscription();
+        } else {
+          if(onlineUnsub){ onlineUnsub(); onlineUnsub = null; }
+          if(chatGlobalUnsub){ chatGlobalUnsub(); chatGlobalUnsub = null; }
+          onlineList = [];
+          chatUnreadCount = 0;
+          closeChatPanel();
+        }
+      }],
+    ];
+    for(const [label, fn] of steps){
+      try{ fn(); }
+      catch(e){ console.error(`[social] "${label}" failed on auth change — the rest still ran:`, e); }
     }
   });
 
