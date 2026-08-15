@@ -894,47 +894,7 @@ body:has(.betslip-bar) .chat-dock{ bottom:calc(84px + env(safe-area-inset-bottom
 .slate-matchup{ font-size:11.5px; color: var(--mute); font-family:'Space Mono',monospace; text-align:right; }
 .slate-matchup b{ color: var(--white); font-weight:600; }
 .prop-dropdown{ position:relative; display:inline-block; flex:0 0 auto; }
-/* The menu is moved to <body>
-
-<!-- Static markup, not JS-generated: this must be visible the instant the page
-     paints, before any script has even run, so there is zero flash of an
-     un-simulated app before it. Removed by boot() once every player's 10,000
-     simulations are primed. -->
-<div id="loadSplash" class="load-splash">
-  <svg class="ls-scene" viewBox="0 0 200 120" aria-hidden="true">
-    <ellipse cx="100" cy="104" rx="70" ry="6" fill="rgba(0,0,0,.35)"/>
-    <!-- bat: pivots at the handle, swings through and connects with the ball -->
-    <g class="ls-bat" transform-origin="46 78">
-      <rect x="44" y="40" width="6" height="42" rx="3" fill="#c8a165"/>
-      <rect x="44" y="76" width="6" height="10" rx="3" fill="#5a4326"/>
-    </g>
-    <circle class="ls-ball" cx="100" cy="58" r="6" fill="#f4f1e8">
-      <animate attributeName="opacity" values="1;1;0;0;1" dur="1.6s" repeatCount="indefinite"/>
-    </circle>
-    <path class="ls-ball-seam" d="M96,54 Q100,58 96,62 M104,54 Q100,58 104,62" stroke="var(--foul)" stroke-width="1" fill="none" opacity=".8"/>
-    <g class="ls-impact">
-      <circle cx="108" cy="56" r="3" fill="#fff"/>
-      <line x1="108" y1="56" x2="118" y2="48" stroke="#fff" stroke-width="2"/>
-      <line x1="108" y1="56" x2="120" y2="58" stroke="#fff" stroke-width="2"/>
-      <line x1="108" y1="56" x2="116" y2="66" stroke="#fff" stroke-width="2"/>
-    </g>
-    <circle class="ls-flyball" cx="100" cy="58" r="5" fill="#f4f1e8"/>
-  </svg>
-  <div class="ls-title">DINGER<span>WATCH</span></div>
-  <div class="ls-text">Loading Dinger Watch<span class="ls-dots"><i>.</i><i>.</i><i>.</i></span></div>
-  <div class="ls-sub" id="lsSub">Running 10,000 simulations per player</div>
-</div>
-<script>
-  // Last-resort safety net, independent of the main app script entirely: if
-  // anything goes wrong badly enough that boot() never runs (a syntax error,
-  // a blocked resource, anything), this alone guarantees the splash cannot
-  // trap the user on a loading screen forever.
-  setTimeout(function(){
-    var el = document.getElementById('loadSplash');
-    if(el) el.remove();
-  }, 15000);
-</script>
- when opened (see openPropMenu). The tab bar uses
+/* The menu is moved to <body> when opened (see openPropMenu). The tab bar uses
    overflow-x:auto for horizontal scrolling, which clips descendants; reparenting
    to <body> escapes that and any other containing block, on every browser. */
 .prop-menu{ position:fixed; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:5px; min-width:180px; z-index:1000; display:none; box-shadow:0 10px 30px rgba(0,0,0,.6); max-height:70vh; overflow-y:auto; }
@@ -1197,6 +1157,41 @@ body:has(.betslip-bar) .chat-dock{ bottom:calc(84px + env(safe-area-inset-bottom
 </style>
 </head>
 <body>
+
+<div id="loadSplash" class="load-splash">
+  <svg class="ls-scene" viewBox="0 0 200 120" aria-hidden="true">
+    <ellipse cx="100" cy="104" rx="70" ry="6" fill="rgba(0,0,0,.35)"/>
+    <!-- bat: pivots at the handle, swings through and connects with the ball -->
+    <g class="ls-bat" transform-origin="46 78">
+      <rect x="44" y="40" width="6" height="42" rx="3" fill="#c8a165"/>
+      <rect x="44" y="76" width="6" height="10" rx="3" fill="#5a4326"/>
+    </g>
+    <circle class="ls-ball" cx="100" cy="58" r="6" fill="#f4f1e8">
+      <animate attributeName="opacity" values="1;1;0;0;1" dur="1.6s" repeatCount="indefinite"/>
+    </circle>
+    <path class="ls-ball-seam" d="M96,54 Q100,58 96,62 M104,54 Q100,58 104,62" stroke="var(--foul)" stroke-width="1" fill="none" opacity=".8"/>
+    <g class="ls-impact">
+      <circle cx="108" cy="56" r="3" fill="#fff"/>
+      <line x1="108" y1="56" x2="118" y2="48" stroke="#fff" stroke-width="2"/>
+      <line x1="108" y1="56" x2="120" y2="58" stroke="#fff" stroke-width="2"/>
+      <line x1="108" y1="56" x2="116" y2="66" stroke="#fff" stroke-width="2"/>
+    </g>
+    <circle class="ls-flyball" cx="100" cy="58" r="5" fill="#f4f1e8"/>
+  </svg>
+  <div class="ls-title">DINGER<span>WATCH</span></div>
+  <div class="ls-text">Loading Dinger Watch<span class="ls-dots"><i>.</i><i>.</i><i>.</i></span></div>
+  <div class="ls-sub" id="lsSub">Running 10,000 simulations per player</div>
+</div>
+<script>
+  // Last-resort safety net, independent of the main app script entirely: if
+  // anything goes wrong badly enough that boot() never runs (a syntax error,
+  // a blocked resource, anything), this alone guarantees the splash cannot
+  // trap the user on a loading screen forever.
+  setTimeout(function(){
+    var el = document.getElementById('loadSplash');
+    if(el) el.remove();
+  }, 15000);
+</script>
 
 <header>
   <div class="brand-row">
