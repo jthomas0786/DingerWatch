@@ -502,6 +502,61 @@ body:has(.betslip-bar) main{ padding-bottom:70px; }
   font-size:12.5px; line-height:1.6; padding:12px 18px; position:relative; z-index:4000; }
 .origin-warn b{ color:var(--hot); }
 .origin-warn span{ display:block; color:var(--mute); font-size:11.5px; margin-top:5px; }
+.load-splash{ position:fixed; inset:0; z-index:6000; background:var(--night);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;
+  transition:opacity .35s ease; }
+.load-splash.fading{ opacity:0; pointer-events:none; }
+
+.ls-scene{ width:200px; height:120px; }
+
+/* Bat swings from cocked-back to follow-through, connecting right as the ball
+   should "vanish" (its own opacity animation, defined inline on the element,
+   is timed to match) and the impact burst/fly-ball take over. */
+.ls-bat{ animation: batSwing 1.6s cubic-bezier(.6,0,.2,1) infinite; }
+@keyframes batSwing{
+  0%   { transform: rotate(-55deg); }
+  28%  { transform: rotate(-55deg); }     /* cocked, waiting */
+  46%  { transform: rotate(35deg); }      /* contact */
+  62%  { transform: rotate(70deg); }      /* follow-through */
+  100% { transform: rotate(-55deg); }     /* reset for the next swing */
+}
+
+.ls-ball-seam{ animation: ballVisible 1.6s linear infinite; }
+@keyframes ballVisible{
+  0%, 43% { opacity: .8; }
+  44%, 100% { opacity: 0; }
+}
+
+.ls-impact{ opacity:0; animation: impactFlash 1.6s linear infinite; }
+@keyframes impactFlash{
+  0%, 43%   { opacity: 0; }
+  45%       { opacity: 1; }
+  58%, 100% { opacity: 0; }
+}
+
+/* The fly-ball only exists visually from contact onward, arcing off frame,
+   then resets invisibly for the next loop. */
+.ls-flyball{ opacity:0; animation: flyOff 1.6s cubic-bezier(.2,.6,.4,1) infinite; }
+@keyframes flyOff{
+  0%, 44%  { opacity:0; transform:translate(0,0) scale(1); }
+  46%      { opacity:1; transform:translate(0,0) scale(1); }
+  100%     { opacity:0; transform:translate(85px,-70px) scale(.4); }
+}
+
+.ls-title{ font-family:'Archivo Black',sans-serif; font-size:22px; letter-spacing:-.02em; color:var(--white); }
+.ls-title span{ color:var(--foul); }
+.ls-text{ font-family:'Oswald',sans-serif; font-size:14px; color:var(--mute); }
+.ls-dots i{ font-style:normal; opacity:0; animation: dotFade 1.4s infinite; }
+.ls-dots i:nth-child(1){ animation-delay:0s; }
+.ls-dots i:nth-child(2){ animation-delay:.2s; }
+.ls-dots i:nth-child(3){ animation-delay:.4s; }
+@keyframes dotFade{ 0%,20%{opacity:0;} 40%,80%{opacity:1;} 100%{opacity:0;} }
+.ls-sub{ font-family:'Space Mono',monospace; font-size:10.5px; color:var(--mute); opacity:.7; }
+
+@media (prefers-reduced-motion: reduce){
+  .ls-bat, .ls-ball-seam, .ls-impact, .ls-flyball, .ls-dots i{ animation:none; }
+}
+
 .gate{ position:fixed; inset:0; z-index:3000; background:var(--night);
   display:flex; align-items:flex-start; justify-content:center; overflow-y:auto; padding:24px 18px 40px; }
 /* Stop the app scrolling behind the gate. */
@@ -839,7 +894,47 @@ body:has(.betslip-bar) .chat-dock{ bottom:calc(84px + env(safe-area-inset-bottom
 .slate-matchup{ font-size:11.5px; color: var(--mute); font-family:'Space Mono',monospace; text-align:right; }
 .slate-matchup b{ color: var(--white); font-weight:600; }
 .prop-dropdown{ position:relative; display:inline-block; flex:0 0 auto; }
-/* The menu is moved to <body> when opened (see openPropMenu). The tab bar uses
+/* The menu is moved to <body>
+
+<!-- Static markup, not JS-generated: this must be visible the instant the page
+     paints, before any script has even run, so there is zero flash of an
+     un-simulated app before it. Removed by boot() once every player's 10,000
+     simulations are primed. -->
+<div id="loadSplash" class="load-splash">
+  <svg class="ls-scene" viewBox="0 0 200 120" aria-hidden="true">
+    <ellipse cx="100" cy="104" rx="70" ry="6" fill="rgba(0,0,0,.35)"/>
+    <!-- bat: pivots at the handle, swings through and connects with the ball -->
+    <g class="ls-bat" transform-origin="46 78">
+      <rect x="44" y="40" width="6" height="42" rx="3" fill="#c8a165"/>
+      <rect x="44" y="76" width="6" height="10" rx="3" fill="#5a4326"/>
+    </g>
+    <circle class="ls-ball" cx="100" cy="58" r="6" fill="#f4f1e8">
+      <animate attributeName="opacity" values="1;1;0;0;1" dur="1.6s" repeatCount="indefinite"/>
+    </circle>
+    <path class="ls-ball-seam" d="M96,54 Q100,58 96,62 M104,54 Q100,58 104,62" stroke="var(--foul)" stroke-width="1" fill="none" opacity=".8"/>
+    <g class="ls-impact">
+      <circle cx="108" cy="56" r="3" fill="#fff"/>
+      <line x1="108" y1="56" x2="118" y2="48" stroke="#fff" stroke-width="2"/>
+      <line x1="108" y1="56" x2="120" y2="58" stroke="#fff" stroke-width="2"/>
+      <line x1="108" y1="56" x2="116" y2="66" stroke="#fff" stroke-width="2"/>
+    </g>
+    <circle class="ls-flyball" cx="100" cy="58" r="5" fill="#f4f1e8"/>
+  </svg>
+  <div class="ls-title">DINGER<span>WATCH</span></div>
+  <div class="ls-text">Loading Dinger Watch<span class="ls-dots"><i>.</i><i>.</i><i>.</i></span></div>
+  <div class="ls-sub" id="lsSub">Running 10,000 simulations per player</div>
+</div>
+<script>
+  // Last-resort safety net, independent of the main app script entirely: if
+  // anything goes wrong badly enough that boot() never runs (a syntax error,
+  // a blocked resource, anything), this alone guarantees the splash cannot
+  // trap the user on a loading screen forever.
+  setTimeout(function(){
+    var el = document.getElementById('loadSplash');
+    if(el) el.remove();
+  }, 15000);
+</script>
+ when opened (see openPropMenu). The tab bar uses
    overflow-x:auto for horizontal scrolling, which clips descendants; reparenting
    to <body> escapes that and any other containing block, on every browser. */
 .prop-menu{ position:fixed; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:5px; min-width:180px; z-index:1000; display:none; box-shadow:0 10px 30px rgba(0,0,0,.6); max-height:70vh; overflow-y:auto; }
@@ -5554,6 +5649,41 @@ function gradeDistribution(prop){
 }
 function invalidateGradeCache(){ _gradeDist = {}; }
 
+/**
+ * Runs every batter's 10,000-iteration simulation upfront, at load, instead
+ * of lazily on first click of a prop tab. That moves the ~1-3s cost from "the
+ * first tab you tap after the page looks ready" to "before the page looks
+ * ready at all" — worse for time-to-first-paint, better for every interaction
+ * afterward, which is the trade being made here deliberately.
+ *
+ * Chunked rather than one giant synchronous loop: simulating 10,000 draws for
+ * 60+ players back-to-back would monopolize the main thread long enough to
+ * freeze the loading animation itself, which would look broken rather than
+ * reassuring. Yielding every few players keeps the animation rendering
+ * smoothly throughout.
+ */
+async function primeAllSimulations(){
+  const batters = allBatters.filter(isPlayable);
+  const CHUNK = 4;
+  const sub = document.getElementById('lsSub');
+
+  for(let i = 0; i < batters.length; i += CHUNK){
+    const chunk = batters.slice(i, i + CHUNK);
+    for(const p of chunk) simulatePlayer(p);   // populates p._sim
+    if(sub) sub.textContent = `Simulating ${Math.min(i + CHUNK, batters.length)} of ${batters.length} players…`;
+    // Yield back to the browser so the CSS animation keeps painting and the
+    // tab doesn't appear to hang during the heaviest part of load.
+    await new Promise(r => setTimeout(r, 0));
+  }
+}
+
+function hideLoadSplash(){
+  const el = document.getElementById('loadSplash');
+  if(!el) return;
+  el.classList.add('fading');
+  setTimeout(() => el.remove(), 400);
+}
+
 /** Share of the slate scoring at or below this value. */
 function percentileOf(prop, pct){
   const vals = gradeDistribution(prop);
@@ -7030,6 +7160,8 @@ async function boot(){
 
   const ok = await loadSlate();
   if(!ok){
+    // Never leave the splash covering an error the user needs to see.
+    hideLoadSplash();
     pickList.innerHTML = `<div style="text-align:center;padding:46px 22px;color:var(--mute);font-family:'Oswald',sans-serif;font-size:14px;line-height:1.7;">
       <div style="font-size:17px;color:var(--white);margin-bottom:10px;">Couldn't load slate.json</div>
       Expected it next to this page at <code style="color:var(--foul);">./slate.json</code>.<br>
@@ -7039,6 +7171,14 @@ async function boot(){
     document.getElementById('dayNote').innerHTML = '<span style="color:var(--hot)">No slate data</span>';
     return;
   }
+
+  // The whole point of this: every prop tab is instant from the user's very
+  // first click, because the expensive part already happened behind the
+  // splash. A failure here should never trap the user on the loading screen —
+  // worst case, individual tabs fall back to their normal lazy simulation.
+  try{ await primeAllSimulations(); }
+  catch(e){ console.warn('[boot] simulation priming failed, falling back to lazy per-tab simulation:', e); }
+  hideLoadSplash();
 
   refreshDayLabelsAndStaleness();
   renderList();
