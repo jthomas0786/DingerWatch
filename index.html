@@ -919,6 +919,28 @@ body:has(.betslip-bar) .chat-dock{ bottom:calc(84px + env(safe-area-inset-bottom
 .linescore{ margin-top:12px; padding-top:12px; border-top:1px solid var(--line); overflow-x:auto; }
 
 .strike-zone{ margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }
+.gamecast{ margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }
+.gc-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:9px; }
+.gc-score{ display:flex; align-items:center; gap:7px; font-family:'Oswald',sans-serif; font-size:13px; color:var(--white); }
+.gc-at{ color:var(--mute); font-size:10px; }
+.gc-mid{ display:flex; align-items:center; gap:9px; }
+.gc-inning{ font-family:'Space Mono',monospace; font-size:11px; color:var(--mute); }
+.gc-count{ font-family:'Space Mono',monospace; font-size:11px; color:var(--white);
+  background:var(--night2); border:1px solid var(--line); padding:1px 7px; border-radius:9px; }
+.gc-outs{ display:flex; gap:3px; }
+.gc-out{ width:7px; height:7px; border-radius:50%; background:var(--line); }
+.gc-out.on{ background:var(--foul); box-shadow:0 0 5px var(--foul); }
+
+.field-svg{ width:100%; max-width:280px; height:auto; display:block; margin:0 auto;
+  border-radius:8px; box-shadow:0 6px 16px rgba(0,0,0,.35), inset 0 3px 8px rgba(0,0,0,.4); }
+
+.gc-result{ text-align:center; font-family:'Oswald',sans-serif; font-size:12px; color:var(--white);
+  text-transform:capitalize; margin-top:9px; }
+
+.gc-matchup{ display:flex; align-items:center; justify-content:center; gap:10px; margin-top:12px; }
+.gc-zone-col{ display:flex; flex-direction:column; align-items:center; flex-shrink:0; }
+.gc-zone-label{ font-family:'Space Mono',monospace; font-size:8px; color:var(--mute); margin-bottom:5px; text-align:center; }
+
 .sz-matchup{ display:flex; align-items:center; justify-content:center; gap:10px; }
 .sz-center{ display:flex; flex-direction:column; align-items:center; flex-shrink:0; }
 .sz-vs-label{ font-family:'Space Mono',monospace; font-size:8.5px; color:var(--mute); letter-spacing:.12em; margin-bottom:5px; }
@@ -3308,6 +3330,11 @@ async function fetchLiveGameStates(){
             balls: line.balls, strikes: line.strikes, outs: line.outs,
             batter: line.offense && line.offense.batter ? line.offense.batter.fullName : null,
             pitcher: line.defense && line.defense.pitcher ? line.defense.pitcher.fullName : null,
+            // Baserunners: linescore.offense carries first/second/third as a
+            // player object when occupied, absent when the base is empty.
+            onFirst:  !!(line.offense && line.offense.first),
+            onSecond: !!(line.offense && line.offense.second),
+            onThird:  !!(line.offense && line.offense.third),
             // Per-inning runs. The API omits the bottom half when the home team
             // hasn't batted yet (or doesn't need to), so `runs` can be undefined —
             // that's meaningfully different from 0 and is rendered as a blank cell.
@@ -3449,125 +3476,185 @@ async function fetchLiveGameStates(){
  * thrown. Ball width (~2.94in) is added to each side, matching how a pitch is
  * ruled a strike if any part of the ball clips the zone.
  */
-function liveStrikeZoneHTML(g){
-  const ab = g.currentAtBat;
-  if(!ab || !ab.pitches?.length) return '';
+/**
+ * Live field diamond — foul lines, bases, baserunners, and (once a ball is
+ * put in play) the landing spot plotted on the actual field rather than an
+ * abstract straight-up arc.
+ *
+ * COORDINATE NOTE: hitData.coordinates on the live feed uses an
+ * undocumented-but-widely-observed convention (roughly a 0-250 grid, home
+ * plate near x=125/y=204 — the same one common third-party spray-chart tools
+ * rely on). This build has no live network access to confirm it against a
+ * real payload, so the plot is defended: coordinates outside a plausible
+ * range are rejected and the marker falls back to a distance-only straight-up
+ * placement with a small "approx" label, rather than risk drawing a batted
+ * ball on the wrong side of the field with unwarranted confidence.
+ */
+function fieldDiamondSVG(g, battedBall){
+  const W = 220, H = 200;
+  const homeX = W/2, homeY = H - 14;
+  const baseDist = 62;                 // px from home to a base along the line
+  const firstX  = homeX + baseDist * Math.SQRT1_2, firstY  = homeY - baseDist * Math.SQRT1_2;
+  const thirdX  = homeX - baseDist * Math.SQRT1_2, thirdY  = homeY - baseDist * Math.SQRT1_2;
+  const secondX = homeX, secondY = homeY - baseDist * Math.SQRT2;
 
+  const foulLen = 175;
+  const rfX = homeX + foulLen * Math.SQRT1_2, rfY = homeY - foulLen * Math.SQRT1_2;
+  const lfX = homeX - foulLen * Math.SQRT1_2, lfY = homeY - foulLen * Math.SQRT1_2;
+
+  const baseSq = (cx, cy, on) => `<rect x="${(cx-4.5).toFixed(1)}" y="${(cy-4.5).toFixed(1)}" width="9" height="9"
+    transform="rotate(45 ${cx.toFixed(1)} ${cy.toFixed(1)})"
+    fill="${on ? '#f4c430' : 'rgba(255,255,255,.5)'}" stroke="rgba(0,0,0,.4)" stroke-width="1"/>`;
+
+  let landing = '';
+  if(battedBall){
+    const cx = battedBall.rawCoordX, cy = battedBall.rawCoordY;
+    // Plausible-range check on the raw feed coordinates before trusting them.
+    const looksReal = typeof cx === 'number' && typeof cy === 'number'
+      && cx > 0 && cx < 250 && cy > 0 && cy < 250;
+
+    let lx, ly, approx = false;
+    if(looksReal){
+      // Feed grid -> this SVG's coordinate space, home plate aligned to homeX/homeY.
+      const scale = (foulLen * 1.15) / 210;   // rough grid-to-field scale
+      lx = homeX + (cx - 125) * scale;
+      ly = homeY - (204 - cy) * scale;
+    } else {
+      // Fallback: distance only, straight up the middle. Honest about being
+      // an approximation rather than a real spray direction.
+      const dist = battedBall.distance ?? 150;
+      const reach = Math.min(1, dist / 420);
+      lx = homeX; ly = homeY - reach * (foulLen * 1.1);
+      approx = true;
+    }
+    const isHR = /home_run/.test(battedBall.result || '');
+    landing = `
+      <circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="6" fill="${isHR?'var(--foul)':'var(--warm)'}"
+        stroke="#fff" stroke-width="1.5">
+        <animate attributeName="r" values="2;7;6" dur="0.5s"/>
+      </circle>
+      ${approx ? `<text x="${lx.toFixed(1)}" y="${(ly-10).toFixed(1)}" text-anchor="middle" font-size="7"
+        fill="var(--mute)" font-family="monospace">approx</text>` : ''}`;
+  }
+
+  return `<svg class="field-svg" viewBox="0 0 ${W} ${H}">
+    <defs>
+      <radialGradient id="fieldGrass" cx="50%" cy="90%" r="100%">
+        <stop offset="0%" stop-color="#234a2e"/>
+        <stop offset="100%" stop-color="#132818"/>
+      </radialGradient>
+    </defs>
+    <rect x="0" y="0" width="${W}" height="${H}" fill="url(#fieldGrass)" rx="8"/>
+    <path d="M ${homeX},${homeY} L ${lfX},${lfY}" stroke="rgba(255,255,255,.5)" stroke-width="1.5"/>
+    <path d="M ${homeX},${homeY} L ${rfX},${rfY}" stroke="rgba(255,255,255,.5)" stroke-width="1.5"/>
+    <path d="M ${homeX},${homeY} L ${firstX},${firstY} L ${secondX},${secondY} L ${thirdX},${thirdY} Z"
+      fill="rgba(196,164,132,.18)" stroke="rgba(196,164,132,.5)" stroke-width="1"/>
+    ${baseSq(secondX, secondY, g.onSecond)}
+    ${baseSq(firstX,  firstY,  g.onFirst)}
+    ${baseSq(thirdX,  thirdY,  g.onThird)}
+    <rect x="${(homeX-3.5).toFixed(1)}" y="${(homeY-3.5).toFixed(1)}" width="7" height="7" fill="#fff" stroke="#000" stroke-width=".5"/>
+    ${landing}
+  </svg>`;
+}
+
+/** Balls-strikes-outs strip, plus inning and score — the header of the gamecast panel. */
+function gamecastHeaderHTML(g){
+  const ls = g.liveScore || {};
+  const half = ls.inningState === 'Top' ? '▲' : ls.inningState === 'Bottom' ? '▼' : '';
+  const outDots = [0,1,2].map(i => `<span class="gc-out ${i < (ls.outs??0) ? 'on':''}"></span>`).join('');
+  return `<div class="gc-header">
+    <div class="gc-score">
+      <span>${g.awayAbbr||g.away||''} ${ls.away ?? 0}</span>
+      <span class="gc-at">@</span>
+      <span>${g.homeAbbr||g.home||''} ${ls.home ?? 0}</span>
+    </div>
+    <div class="gc-mid">
+      <span class="gc-inning">${half}${ls.inning ?? ''}</span>
+      <span class="gc-count">${ls.balls ?? 0}-${ls.strikes ?? 0}</span>
+      <span class="gc-outs">${outDots}</span>
+    </div>
+  </div>`;
+}
+
+/** The pitch-location panel alone — extracted so it can sit beside the field diamond. */
+function pitchZonePanelSVG(ab){
   const zTop = ab.pitches[ab.pitches.length-1].zTop ?? 3.5;
   const zBot = ab.pitches[ab.pitches.length-1].zBot ?? 1.5;
-
-  const PLATE_HALF = 0.708;
-  const VIEW_HALF_X = 1.9;
-  const VIEW_TOP = 4.6, VIEW_BOT = 0.8;
-  const W = 150, H = 178;
+  const PLATE_HALF = 0.708, VIEW_HALF_X = 1.9, VIEW_TOP = 4.6, VIEW_BOT = 0.8;
+  const W = 130, H = 154;
   const px = x => ((x + VIEW_HALF_X) / (VIEW_HALF_X*2)) * W;
   const pz = z => H - ((z - VIEW_BOT) / (VIEW_TOP - VIEW_BOT)) * H;
-
   const zoneX0 = px(-PLATE_HALF), zoneX1 = px(PLATE_HALF);
   const zoneY0 = pz(zTop), zoneY1 = pz(zBot);
 
-  // Perspective is faked in the geometry, not with CSS 3D transforms on the
-  // SVG (inconsistent cross-browser support on nested transformed shapes).
-  // The near edge (bottom, close to the camera/catcher) is drawn wider than
-  // the far edge (top), and side walls converge toward a vanishing point
-  // above the box — the same trick real 3D-box illustrations use.
   const VANISH_X = W/2;
-  const perspAt = (x, amt) => x + (VANISH_X - x) * amt;   // pull x toward vanishing point
-  const nearAmt = 0, farAmt = 0.16;             // how much the far edge narrows
-  // How far "up" (toward the far/narrow edge) a given y sits within the
-  // overall drawn box — used so a pitch near the top narrows the same amount
-  // the zone walls do, keeping dots visually anchored inside the perspective.
+  const perspAt = (x, amt) => x + (VANISH_X - x) * amt;
+  const farAmt = 0.16;
   const depthAt = y => Math.max(0, Math.min(1, 1 - (y / H)));
-
   const dotColor = p => p.inPlay ? 'var(--white)' : p.isStrike ? 'var(--foul)' : p.isBall ? '#4ea1f7' : 'var(--mute)';
 
   const dots = ab.pitches.map((p, i) => {
     const isLast = i === ab.pitches.length - 1;
     const rawX = px(p.x ?? 0), cy = pz(p.z ?? 2.5);
-    const cx = perspAt(rawX, farAmt * depthAt(cy));   // project through the same perspective as the box walls
-    const r = isLast ? 8 : 5;
+    const cx = perspAt(rawX, farAmt * depthAt(cy));
+    const r = isLast ? 7 : 4;
     const op = isLast ? 1 : 0.35 + (i / ab.pitches.length) * 0.4;
-    // A small ground-shadow under the highlighted pitch sells the sense that
-    // it's sitting IN the box rather than pasted flat on top of it.
-    const shadow = isLast
-      ? `<ellipse cx="${cx.toFixed(1)}" cy="${(cy+r*0.9).toFixed(1)}" rx="${(r*0.9).toFixed(1)}" ry="${(r*0.32).toFixed(1)}" fill="rgba(0,0,0,.4)"/>`
-      : '';
     return `<g opacity="${op.toFixed(2)}">
-      ${shadow}
       <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r}" fill="${dotColor(p)}"
-        stroke="${isLast?'#fff':'none'}" stroke-width="${isLast?1.5:0}">
+        stroke="${isLast?'#fff':'none'}" stroke-width="${isLast?1.3:0}">
         <title>${p.speed?p.speed+' mph ':''}${p.type||''} — ${p.call||''}</title>
       </circle>
-      ${isLast ? `<circle cx="${(cx-r*0.3).toFixed(1)}" cy="${(cy-r*0.3).toFixed(1)}" r="${(r*0.32).toFixed(1)}" fill="rgba(255,255,255,.55)"/>` : ''}
-      ${isLast ? `<text x="${cx.toFixed(1)}" y="${(cy+3).toFixed(1)}" text-anchor="middle" font-size="8" font-weight="700" fill="${p.inPlay?'#111':'#fff'}" font-family="monospace">${i+1}</text>` : ''}
     </g>`;
   }).join('');
 
-  const last = ab.pitches[ab.pitches.length - 1];
-  const pitchCountLabel = ab.pitches.length > 1
-    ? `<div class="sz-count">${ab.pitches.length} pitch${ab.pitches.length===1?'':'es'} this AB</div>` : '';
+  return `<svg class="sz-svg" viewBox="0 0 ${W} ${H}">
+    <rect x="0" y="0" width="${W}" height="${H}" fill="#0d1a12" rx="6"/>
+    <polygon points="
+      ${perspAt(zoneX0,0).toFixed(1)},${zoneY1.toFixed(1)}
+      ${perspAt(zoneX1,0).toFixed(1)},${zoneY1.toFixed(1)}
+      ${perspAt(zoneX1,farAmt).toFixed(1)},${zoneY0.toFixed(1)}
+      ${perspAt(zoneX0,farAmt).toFixed(1)},${zoneY0.toFixed(1)}"
+      fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.55)" stroke-width="1.3"/>
+    ${dots}
+  </svg>`;
+}
 
-  const zoneBox = `<svg class="sz-svg" viewBox="0 0 ${W} ${H}">
-      <defs>
-        <linearGradient id="szFloor" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#0a140d"/>
-          <stop offset="55%" stop-color="#0d1a12"/>
-          <stop offset="100%" stop-color="#16241a"/>
-        </linearGradient>
-        <linearGradient id="szGlass" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="rgba(255,255,255,.10)"/>
-          <stop offset="100%" stop-color="rgba(255,255,255,.02)"/>
-        </linearGradient>
-      </defs>
-      <rect x="0" y="0" width="${W}" height="${H}" fill="url(#szFloor)" rx="6"/>
-      <!-- side walls of the box, converging toward the vanishing point above -->
-      <polygon points="0,${H} ${perspAt(0,farAmt).toFixed(1)},0 ${perspAt(0,farAmt).toFixed(1)+8},0 8,${H}"
-        fill="rgba(255,255,255,.025)"/>
-      <polygon points="${W},${H} ${perspAt(W,farAmt).toFixed(1)},0 ${perspAt(W,farAmt).toFixed(1)-8},0 ${W-8},${H}"
-        fill="rgba(255,255,255,.025)"/>
-      <!-- the strike zone itself: trapezoid, narrower at the far (top) edge -->
-      <polygon points="
-        ${perspAt(zoneX0,nearAmt).toFixed(1)},${zoneY1.toFixed(1)}
-        ${perspAt(zoneX1,nearAmt).toFixed(1)},${zoneY1.toFixed(1)}
-        ${perspAt(zoneX1,farAmt).toFixed(1)},${zoneY0.toFixed(1)}
-        ${perspAt(zoneX0,farAmt).toFixed(1)},${zoneY0.toFixed(1)}"
-        fill="url(#szGlass)" stroke="rgba(255,255,255,.6)" stroke-width="1.5"/>
-      ${[1,2].map(k => {
-        const t = k/3, y = zoneY1 + (zoneY0-zoneY1)*t;
-        const x0 = perspAt(zoneX0,nearAmt + (farAmt-nearAmt)*t), x1 = perspAt(zoneX1,0,nearAmt + (farAmt-nearAmt)*t);
-        return `<line x1="${x0.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y.toFixed(1)}" stroke="rgba(255,255,255,.15)"/>`;
-      }).join('')}
-      ${[1,2].map(k => {
-        const t = k/3;
-        const yb=zoneY1, yt=zoneY0;
-        const xb = perspAt(zoneX0 + (zoneX1-zoneX0)*t, nearAmt), xt = perspAt(zoneX0 + (zoneX1-zoneX0)*t, farAmt);
-        return `<line x1="${xb.toFixed(1)}" y1="${yb.toFixed(1)}" x2="${xt.toFixed(1)}" y2="${yt.toFixed(1)}" stroke="rgba(255,255,255,.15)"/>`;
-      }).join('')}
-      ${dots}
-    </svg>`;
+/**
+ * Full gamecast: score/count/outs header, live field diamond with
+ * baserunners, batter/pitcher photos, and the pitch-location panel — with the
+ * batted-ball landing spot plotted on the field once the at-bat ends in play,
+ * replacing the earlier abstract "ball travels off-field" arc entirely.
+ */
+function gamecastHTML(g){
+  const ab = g.currentAtBat;
+  if(!ab || !ab.pitches?.length){
+    // Even with no in-progress at-bat data yet, the field/score header is
+    // still useful (inning, count, runners) while the feed catches up.
+    return `<div class="gamecast">${gamecastHeaderHTML(g)}${fieldDiamondSVG(g, null)}</div>`;
+  }
 
-  return `<div class="strike-zone">
-    <div class="sz-matchup">
+  const resultLine = ab.battedBall
+    ? `<div class="gc-result">${(ab.battedBall.result || ab.battedBall.description || 'In play').replace(/_/g,' ')}
+        ${ab.battedBall.exitVelo!=null ? ` · ${ab.battedBall.exitVelo} mph`:''}
+        ${ab.battedBall.launchAngle!=null ? ` · ${ab.battedBall.launchAngle}°`:''}
+        ${ab.battedBall.distance!=null ? ` · ${ab.battedBall.distance} ft`:''}</div>`
+    : '';
+
+  return `<div class="gamecast">
+    ${gamecastHeaderHTML(g)}
+    ${fieldDiamondSVG(g, ab.battedBall)}
+    ${resultLine}
+    <div class="gc-matchup">
       ${playerCardMini(ab.batter, ab.batterId, g.currentAtBat.battingTeam, ab.batterGameStats, 'bat')}
-      <div class="sz-center">
-        <div class="sz-vs-label">AT BAT</div>
-        ${ab.battedBall ? battedBallHTML(ab.battedBall, W, H) : zoneBox}
-        <div class="sz-foot">
-          ${ab.battedBall ? '' : `
-            <span class="sz-legend"><i style="background:#4ea1f7"></i>Ball</span>
-            <span class="sz-legend"><i style="background:var(--foul)"></i>Strike</span>
-            <span class="sz-legend"><i style="background:var(--white)"></i>In play</span>
-          `}
-          ${pitchCountLabel}
-        </div>
-        ${(!ab.battedBall && last) ? `<div class="sz-last">Last: ${last.speed?last.speed+' mph ':''}${last.type||'pitch'} — ${last.call||''}</div>` : ''}
+      <div class="gc-zone-col">
+        <div class="gc-zone-label">${ab.pitches.length} pitch${ab.pitches.length===1?'':'es'} this AB</div>
+        ${pitchZonePanelSVG(ab)}
       </div>
       ${playerCardMini(ab.pitcher, ab.pitcherId, g.currentAtBat.pitchingTeam, ab.pitcherGameStats, 'pitch')}
     </div>
   </div>`;
 }
 
-/** Small headshot + name + today's in-game line, flanking the zone box. */
 function playerCardMini(name, id, teamAbbr, gameStats, kind){
   if(!name) return `<div class="sz-player sz-player-empty"></div>`;
   const initial = name.split(' ').slice(-1)[0]?.[0] || '?';
@@ -3599,69 +3686,7 @@ function playerCardMini(name, id, teamAbbr, gameStats, kind){
  * an honest approximation of shape and distance, always straightaway, not a
  * literal pull/oppo spray chart.
  */
-function battedBallHTML(bb, W, H){
-  const dist = bb.distance ?? 0;
-  const maxDist = 480;
-  const reach = Math.min(1, dist / maxDist);
-  const startX = W/2, startY = H - 18;         // home plate, near/bottom edge
-  // The ball travels "into" the frame — its endpoint moves up (further) AND
-  // shrinks in scale, which is what actually reads as depth rather than a
-  // flat 2D arc. Distance also narrows slightly toward the vanishing point,
-  // matching the same convergence used on the strike-zone box for consistency.
-  const VANISH_X = W/2;
-  const endX = startX + (VANISH_X - startX) * (reach * 0.5);
-  const endY = startY - reach * (H - 34);
-  const endScale = 1 - reach * 0.65;           // ball shrinks as it recedes
 
-  const angle = bb.launchAngle ?? 20;
-  const arcHeight = Math.max(10, Math.min(70, angle * 2));
-  const midX = (startX + endX) / 2, midY = Math.min(startY, endY) - arcHeight;
-
-  const path = `M ${startX},${startY} Q ${midX},${midY} ${endX},${endY}`;
-  const resultLabel = (bb.result || bb.description || 'In play').replace(/_/g,' ');
-
-  // Foreshortened field: a trapezoid of grass narrowing toward the back,
-  // matching the same vanishing point as the strike-zone widget so the two
-  // states of this panel feel like one consistent 3D space rather than two
-  // different flat illustrations.
-  const farW = W * 0.32;
-  const field = `<polygon points="0,${H} ${W},${H} ${(VANISH_X+farW/2).toFixed(1)},${(H*0.18).toFixed(1)} ${(VANISH_X-farW/2).toFixed(1)},${(H*0.18).toFixed(1)}"
-      fill="url(#bbGrass)"/>
-    <line x1="${W*0.18}" y1="${H}" x2="${(VANISH_X-farW*0.4).toFixed(1)}" y2="${(H*0.2).toFixed(1)}" stroke="rgba(255,255,255,.05)"/>
-    <line x1="${W*0.82}" y1="${H}" x2="${(VANISH_X+farW*0.4).toFixed(1)}" y2="${(H*0.2).toFixed(1)}" stroke="rgba(255,255,255,.05)"/>`;
-
-  return `<svg class="sz-svg sz-bb" viewBox="0 0 ${W} ${H}">
-    <defs>
-      <radialGradient id="bbGrass" cx="50%" cy="100%" r="120%">
-        <stop offset="0%" stop-color="#1c3320"/>
-        <stop offset="100%" stop-color="#0a140d"/>
-      </radialGradient>
-    </defs>
-    <rect x="0" y="0" width="${W}" height="${H}" fill="#0a140d" rx="6"/>
-    ${field}
-    <path d="${path}" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2" stroke-dasharray="4 3"/>
-    <!-- ground shadow, travels under the ball and shrinks/fades with distance -->
-    <ellipse rx="5" ry="2" fill="rgba(0,0,0,.5)">
-      <animateMotion dur="0.9s" fill="freeze" path="M ${startX},${startY+3} Q ${midX},${(startY+3-arcHeight*0.15).toFixed(1)} ${endX},${endY+3}"/>
-      <animate attributeName="rx" dur="0.9s" fill="freeze" from="5" to="${(5*endScale).toFixed(1)}"/>
-      <animate attributeName="opacity" dur="0.9s" fill="freeze" from=".5" to="${(0.5*endScale).toFixed(2)}"/>
-    </ellipse>
-    <circle cx="${startX}" cy="${startY}" r="4" fill="var(--foul)"/>
-    <circle r="5" fill="var(--white)">
-      <animateMotion dur="0.9s" fill="freeze" path="${path}"/>
-      <animate attributeName="r" dur="0.9s" fill="freeze" from="5" to="${(5*endScale).toFixed(1)}"/>
-    </circle>
-    <circle cx="${endX.toFixed(1)}" cy="${endY.toFixed(1)}" r="${(3*endScale).toFixed(1)}" fill="var(--warm)" opacity="0">
-      <animate attributeName="opacity" begin="0.85s" dur="0.3s" fill="freeze" from="0" to="1"/>
-    </circle>
-  </svg>
-  <div class="sz-bb-result">${resultLabel}</div>
-  <div class="sz-bb-stats">
-    ${bb.exitVelo!=null ? `<span class="bb-stat"><b>${bb.exitVelo}</b> mph</span>` : ''}
-    ${bb.launchAngle!=null ? `<span class="bb-stat"><b>${bb.launchAngle}°</b> LA</span>` : ''}
-    ${bb.distance!=null ? `<span class="bb-stat"><b>${bb.distance}</b> ft</span>` : ''}
-  </div>`;
-}
 
 function linescoreHTML(g){
   const ls = g.liveScore;
@@ -3749,7 +3774,7 @@ function renderSlate(){
           </div>
         </div>
         ${(isLive || isFinal) ? linescoreHTML(g) : slateFieldHTML(g)}
-        ${isLive ? liveStrikeZoneHTML(g) : ''}
+        ${isLive ? gamecastHTML(g) : ''}
         ${liveDetail}
       </div>`;
   }).join('');
