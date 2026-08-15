@@ -814,6 +814,21 @@ body.gated{ overflow:hidden; }
 .linescore{ margin-top:12px; padding-top:12px; border-top:1px solid var(--line); overflow-x:auto; }
 
 .strike-zone{ margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }
+.sz-matchup{ display:flex; align-items:center; justify-content:center; gap:10px; }
+.sz-center{ display:flex; flex-direction:column; align-items:center; flex-shrink:0; }
+.sz-vs-label{ font-family:'Space Mono',monospace; font-size:8.5px; color:var(--mute); letter-spacing:.12em; margin-bottom:5px; }
+
+.sz-player{ display:flex; flex-direction:column; align-items:center; gap:5px; width:64px; flex-shrink:0; }
+.sz-player-empty{ visibility:hidden; }
+.sz-face{ width:52px; height:52px; border-radius:50%; object-fit:cover; background:var(--night2);
+  border:2px solid var(--line); }
+.sz-face-fallback{ display:flex; align-items:center; justify-content:center; font-family:'Archivo Black',sans-serif;
+  font-size:18px; color:var(--mute); }
+.sz-player-name{ font-family:'Oswald',sans-serif; font-size:11px; color:var(--white); text-align:center;
+  line-height:1.2; }
+.sz-player-stat{ font-family:'Space Mono',monospace; font-size:9px; color:var(--grass-bright); text-align:center;
+  line-height:1.3; }
+.sz-player-stat-empty{ color:var(--mute); }
 .sz-head{ display:flex; align-items:center; gap:7px; margin-bottom:8px; font-family:'Oswald',sans-serif; font-size:12.5px; }
 .sz-title{ color:var(--white); font-weight:600; }
 .sz-vs{ color:var(--mute); font-size:10px; }
@@ -823,6 +838,21 @@ body.gated{ overflow:hidden; }
 .sz-legend i{ width:8px; height:8px; border-radius:50%; display:inline-block; }
 .sz-count{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); }
 .sz-last{ text-align:center; font-family:'Space Mono',monospace; font-size:10.5px; color:var(--white); margin-top:7px; }
+
+/* --- batted-ball trajectory --- */
+.sz-bb-result{ text-align:center; font-family:'Oswald',sans-serif; font-size:12px; color:var(--white);
+  text-transform:capitalize; margin-top:8px; }
+.sz-bb-stats{ display:flex; gap:11px; justify-content:center; margin-top:5px; }
+.bb-stat{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); }
+.bb-stat b{ color:var(--foul); font-size:11px; }
+
+@media (max-width:480px){
+  .sz-player{ width:50px; }
+  .sz-face{ width:42px; height:42px; }
+  .sz-player-name{ font-size:9.5px; }
+  .sz-player-stat{ font-size:8px; }
+  .sz-svg{ width:120px; height:142px; }
+}
 .linescore table{ border-collapse:collapse; font-family:'Space Mono',monospace; font-size:11.5px; width:100%; min-width:max-content; }
 .linescore th, .linescore td{ padding:4px 7px; text-align:center; min-width:22px; }
 .linescore th{ color:var(--mute); font-size:9.5px; font-weight:400; border-bottom:1px solid var(--line); }
@@ -3123,12 +3153,77 @@ async function fetchLiveGameStates(){
               isBall: pe.details?.isBall ?? null,
               inPlay: pe.details?.isInPlay ?? false,
             }));
+
+          // The pitch event that ended the at-bat in play, if any — carries the
+          // batted-ball data (exit velo, launch angle, distance, spray angle).
+          const hitEvent = currentPlay.playEvents.find(pe => pe.details?.isInPlay && pe.hitData);
+          let battedBall = null;
+          if(hitEvent){
+            const hd = hitEvent.hitData;
+            // hitData.coordinates on the live feed is an undocumented pixel
+            // convention (roughly a 0-250 grid centred on home plate), and this
+            // build has no live network access to verify it against a real
+            // response. Rather than risk animating a confidently-wrong flight
+            // path, the trajectory below is derived from launch angle + total
+            // distance instead — real physical quantities with a known meaning
+            // — and the raw coordinates are kept only as an optional override
+            // if they turn out to look right once this runs against live data.
+            battedBall = {
+              result: currentPlay.result?.event ?? currentPlay.result?.description ?? null,
+              description: currentPlay.result?.description ?? null,
+              exitVelo: hd.launchSpeed ?? null,
+              launchAngle: hd.launchAngle ?? null,
+              distance: hd.totalDistance ?? null,
+              trajectory: hd.trajectory ?? null,         // 'fly_ball' | 'line_drive' | 'ground_ball' | 'popup'
+              hardness: hd.hardness ?? null,
+              rawCoordX: hd.coordinates?.coordX ?? null, // unverified — see note above
+              rawCoordY: hd.coordinates?.coordY ?? null,
+            };
+          }
+
           if(pitches.length){
             g.currentAtBat = {
               batter: currentPlay.matchup?.batter?.fullName ?? null,
+              batterId: currentPlay.matchup?.batter?.id ?? null,
               pitcher: currentPlay.matchup?.pitcher?.fullName ?? null,
+              pitcherId: currentPlay.matchup?.pitcher?.id ?? null,
               batSide: currentPlay.matchup?.batSide?.code ?? null,
               pitches,
+              battedBall,
+            };
+          }
+        }
+
+        /**
+         * Today's in-game box score line for the current batter and pitcher —
+         * distinct from their season stats, which live elsewhere. Only fetched
+         * while a game is live, and only for the two players actually at bat,
+         * so this doesn't add a request per player on the roster.
+         */
+        if(g.currentAtBat?.batterId || g.currentAtBat?.pitcherId){
+          const box = data.liveData?.boxscore;
+          const findPlayer = (id) => {
+            if(!id || !box) return null;
+            for(const side of ['away','home']){
+              const p = box.teams?.[side]?.players?.[`ID${id}`];
+              if(p) return p;
+            }
+            return null;
+          };
+          if(g.currentAtBat.batterId){
+            const bp = findPlayer(g.currentAtBat.batterId);
+            const bs = bp?.stats?.batting;
+            if(bs) g.currentAtBat.batterGameStats = {
+              ab: bs.atBats ?? 0, h: bs.hits ?? 0, hr: bs.homeRuns ?? 0,
+              rbi: bs.rbi ?? 0, bb: bs.baseOnBalls ?? 0, so: bs.strikeOuts ?? 0,
+            };
+          }
+          if(g.currentAtBat.pitcherId){
+            const pp = findPlayer(g.currentAtBat.pitcherId);
+            const ps = pp?.stats?.pitching;
+            if(ps) g.currentAtBat.pitcherGameStats = {
+              ip: ps.inningsPitched ?? '0.0', h: ps.hits ?? 0, er: ps.earnedRuns ?? 0,
+              bb: ps.baseOnBalls ?? 0, so: ps.strikeOuts ?? 0,
             };
           }
         }
@@ -3165,12 +3260,9 @@ function liveStrikeZoneHTML(g){
 
   const zTop = ab.pitches[ab.pitches.length-1].zTop ?? 3.5;
   const zBot = ab.pitches[ab.pitches.length-1].zBot ?? 1.5;
-  const BALL_R = 0.121;   // half a baseball's diameter, in feet
 
-  // Fixed feet-per-pixel scale so the drawn zone is proportionally accurate
-  // rather than auto-fit to whatever pitch locations happened to occur.
-  const PLATE_HALF = 0.708;         // half the plate's width, feet
-  const VIEW_HALF_X = 1.9;          // how far left/right of the plate we draw
+  const PLATE_HALF = 0.708;
+  const VIEW_HALF_X = 1.9;
   const VIEW_TOP = 4.6, VIEW_BOT = 0.8;
   const W = 150, H = 178;
   const px = x => ((x + VIEW_HALF_X) / (VIEW_HALF_X*2)) * W;
@@ -3185,7 +3277,7 @@ function liveStrikeZoneHTML(g){
     const isLast = i === ab.pitches.length - 1;
     const cx = px(p.x ?? 0), cy = pz(p.z ?? 2.5);
     const r = isLast ? 8 : 5;
-    const op = isLast ? 1 : 0.35 + (i / ab.pitches.length) * 0.4;   // earlier pitches fade
+    const op = isLast ? 1 : 0.35 + (i / ab.pitches.length) * 0.4;
     return `<g opacity="${op.toFixed(2)}">
       <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r}" fill="${dotColor(p)}"
         stroke="${isLast?'#fff':'none'}" stroke-width="${isLast?1.5:0}">
@@ -3196,16 +3288,10 @@ function liveStrikeZoneHTML(g){
   }).join('');
 
   const last = ab.pitches[ab.pitches.length - 1];
-  const legend = ab.pitches.length > 1
+  const pitchCountLabel = ab.pitches.length > 1
     ? `<div class="sz-count">${ab.pitches.length} pitch${ab.pitches.length===1?'':'es'} this AB</div>` : '';
 
-  return `<div class="strike-zone">
-    <div class="sz-head">
-      <span class="sz-title">${ab.batter||'Batter'}</span>
-      <span class="sz-vs">vs</span>
-      <span class="sz-title">${ab.pitcher||'Pitcher'}</span>
-    </div>
-    <svg class="sz-svg" viewBox="0 0 ${W} ${H}">
+  const zoneBox = `<svg class="sz-svg" viewBox="0 0 ${W} ${H}">
       <rect x="0" y="0" width="${W}" height="${H}" fill="#0d1a12" rx="6"/>
       <rect x="${zoneX0.toFixed(1)}" y="${zoneY0.toFixed(1)}"
         width="${(zoneX1-zoneX0).toFixed(1)}" height="${(zoneY1-zoneY0).toFixed(1)}"
@@ -3215,14 +3301,92 @@ function liveStrikeZoneHTML(g){
       <line x1="${(zoneX0+(zoneX1-zoneX0)/3).toFixed(1)}" y1="${zoneY0.toFixed(1)}" x2="${(zoneX0+(zoneX1-zoneX0)/3).toFixed(1)}" y2="${zoneY1.toFixed(1)}" stroke="rgba(255,255,255,.15)"/>
       <line x1="${(zoneX0+(zoneX1-zoneX0)*2/3).toFixed(1)}" y1="${zoneY0.toFixed(1)}" x2="${(zoneX0+(zoneX1-zoneX0)*2/3).toFixed(1)}" y2="${zoneY1.toFixed(1)}" stroke="rgba(255,255,255,.15)"/>
       ${dots}
-    </svg>
-    <div class="sz-foot">
-      <span class="sz-legend"><i style="background:#4ea1f7"></i>Ball</span>
-      <span class="sz-legend"><i style="background:var(--foul)"></i>Strike</span>
-      <span class="sz-legend"><i style="background:var(--white)"></i>In play</span>
-      ${legend}
+    </svg>`;
+
+  return `<div class="strike-zone">
+    <div class="sz-matchup">
+      ${playerCardMini(ab.batter, ab.batterId, g.currentAtBat.battingTeam, ab.batterGameStats, 'bat')}
+      <div class="sz-center">
+        <div class="sz-vs-label">AT BAT</div>
+        ${ab.battedBall ? battedBallHTML(ab.battedBall, W, H) : zoneBox}
+        <div class="sz-foot">
+          ${ab.battedBall ? '' : `
+            <span class="sz-legend"><i style="background:#4ea1f7"></i>Ball</span>
+            <span class="sz-legend"><i style="background:var(--foul)"></i>Strike</span>
+            <span class="sz-legend"><i style="background:var(--white)"></i>In play</span>
+          `}
+          ${pitchCountLabel}
+        </div>
+        ${(!ab.battedBall && last) ? `<div class="sz-last">Last: ${last.speed?last.speed+' mph ':''}${last.type||'pitch'} — ${last.call||''}</div>` : ''}
+      </div>
+      ${playerCardMini(ab.pitcher, ab.pitcherId, g.currentAtBat.pitchingTeam, ab.pitcherGameStats, 'pitch')}
     </div>
-    ${last ? `<div class="sz-last">Last: ${last.speed?last.speed+' mph ':''}${last.type||'pitch'} — ${last.call||''}</div>` : ''}
+  </div>`;
+}
+
+/** Small headshot + name + today's in-game line, flanking the zone box. */
+function playerCardMini(name, id, teamAbbr, gameStats, kind){
+  if(!name) return `<div class="sz-player sz-player-empty"></div>`;
+  const initial = name.split(' ').slice(-1)[0]?.[0] || '?';
+  const url = id ? headshotUrl(name, id) : null;
+  const img = url
+    ? `<img src="${url}" alt="" class="sz-face" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'sz-face sz-face-fallback',textContent:'${initial}'}))">`
+    : `<div class="sz-face sz-face-fallback">${initial}</div>`;
+
+  let statLine = '';
+  if(kind === 'bat' && gameStats){
+    statLine = `${gameStats.h}-${gameStats.ab}${gameStats.hr?`, ${gameStats.hr} HR`:''}${gameStats.rbi?`, ${gameStats.rbi} RBI`:''}`;
+  } else if(kind === 'pitch' && gameStats){
+    statLine = `${gameStats.ip} IP, ${gameStats.so} K, ${gameStats.er} ER`;
+  }
+
+  return `<div class="sz-player">
+    ${img}
+    <div class="sz-player-name">${name.split(' ').slice(-1)[0]}</div>
+    ${statLine ? `<div class="sz-player-stat">${statLine}</div>` : '<div class="sz-player-stat sz-player-stat-empty">—</div>'}
+  </div>`;
+}
+
+/**
+ * Batted-ball result, shown in place of the zone box once the at-bat ends in
+ * play. The flight path is drawn from launch angle + total distance — real
+ * physical quantities — rather than the feed's raw landing coordinates, whose
+ * pixel convention this build has no way to verify without live network access
+ * (see the capture-side note where battedBall is built). The arc is therefore
+ * an honest approximation of shape and distance, always straightaway, not a
+ * literal pull/oppo spray chart.
+ */
+function battedBallHTML(bb, W, H){
+  const dist = bb.distance ?? 0;
+  const maxDist = 480;                        // roughly a park's deepest fence
+  const reach = Math.min(1, dist / maxDist);
+  const startX = W/2, startY = H - 14;         // home plate, bottom-center
+  const endX = W/2, endY = startY - reach * (H - 30);
+
+  // Arc height follows launch angle: higher angle = taller arc, within reason.
+  const angle = bb.launchAngle ?? 20;
+  const arcHeight = Math.max(10, Math.min(70, angle * 2));
+  const midX = W/2, midY = Math.min(startY, endY) - arcHeight;
+
+  const path = `M ${startX},${startY} Q ${midX},${midY} ${endX},${endY}`;
+  const resultLabel = (bb.result || bb.description || 'In play').replace(/_/g,' ');
+
+  return `<svg class="sz-svg sz-bb" viewBox="0 0 ${W} ${H}">
+    <rect x="0" y="0" width="${W}" height="${H}" fill="#0d1a12" rx="6"/>
+    <path d="${path}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="2" stroke-dasharray="4 3"/>
+    <circle cx="${startX}" cy="${startY}" r="4" fill="var(--foul)"/>
+    <circle r="5" fill="var(--white)">
+      <animateMotion dur="0.9s" fill="freeze" path="${path}"/>
+    </circle>
+    <circle cx="${endX}" cy="${endY}" r="3" fill="var(--warm)" opacity="0">
+      <animate attributeName="opacity" begin="0.85s" dur="0.3s" fill="freeze" from="0" to="1"/>
+    </circle>
+  </svg>
+  <div class="sz-bb-result">${resultLabel}</div>
+  <div class="sz-bb-stats">
+    ${bb.exitVelo!=null ? `<span class="bb-stat"><b>${bb.exitVelo}</b> mph</span>` : ''}
+    ${bb.launchAngle!=null ? `<span class="bb-stat"><b>${bb.launchAngle}°</b> LA</span>` : ''}
+    ${bb.distance!=null ? `<span class="bb-stat"><b>${bb.distance}</b> ft</span>` : ''}
   </div>`;
 }
 
