@@ -430,7 +430,9 @@ async function isFollowing(userId){
 /**
  * Calls the check-whop-access Edge Function, which does the real work
  * server-side (Whop's API needs a secret key that must never reach the
- * browser). Returns { hasAccess, checkoutUrl } or { error }.
+ * browser). Returns { hasAccess, connected, checkoutUrl } or { error }.
+ * `connected: false` means no Whop account has been linked yet — distinct
+ * from "connected but not subscribed" so the UI can show the right prompt.
  *
  * Rate-limited client-side: a fresh sign-in always re-checks, but repeated
  * calls within a short window reuse the cached result on the profile rather
@@ -444,7 +446,7 @@ async function checkWhopAccess(force = false){
   if(!force && currentUser.whop_checked_at){
     const age = Date.now() - new Date(currentUser.whop_checked_at).getTime();
     if(age < WHOP_RECHECK_MS){
-      return { hasAccess: !!currentUser.whop_access, cached: true };
+      return { hasAccess: !!currentUser.whop_access, connected: !!currentUser.whop_user_id, cached: true };
     }
   }
 
@@ -459,14 +461,118 @@ async function checkWhopAccess(force = false){
     if(error) return { error: error.message || 'Could not reach the access check.' };
     if(data?.error) return { error: data.error };
 
-    // Reflect the fresh result locally so the UI updates immediately without
-    // waiting on a full profile reload.
     currentUser.whop_access = !!data.hasAccess;
     currentUser.whop_checked_at = new Date().toISOString();
 
-    return { hasAccess: !!data.hasAccess, checkoutUrl: data.checkoutUrl };
+    return { hasAccess: !!data.hasAccess, connected: !!data.connected, checkoutUrl: data.checkoutUrl };
   }catch(e){
     return { error: e?.message || 'Could not reach the access check.' };
+  }
+}
+
+// ---------------------------------------------------------------- whop oauth connect
+/**
+ * "Sign in with Whop" via OAuth 2.1 + PKCE, per Whop's documented flow
+ * (docs.whop.com/developer/guides/oauth). PKCE means the code exchange needs
+ * no client secret, so the redirect and the verifier can both live safely on
+ * the client — only the final "who does this belong to" step goes through an
+ * Edge Function (whop-oauth-connect), since that's what writes to the database.
+ *
+ * WHOP_CLIENT_ID is the OAuth app id (looks like "app_xxxxx"). Unlike an API
+ * key, this is meant to be public — every OAuth provider's client_id is
+ * embedded in client-side code the same way (Google, GitHub, etc.).
+ */
+const WHOP_CLIENT_ID = '';   // e.g. 'app_xxxxxxxxx' — set this, or connect stays disabled
+const WHOP_OAUTH_STORAGE_KEY = 'dw_whop_pkce';
+
+function whopOAuthConfigured(){ return !!WHOP_CLIENT_ID; }
+
+function base64url(bytes){
+  let bin = '';
+  for(const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function randomString(len){ return base64url(crypto.getRandomValues(new Uint8Array(len))); }
+async function sha256(str){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return base64url(new Uint8Array(buf));
+}
+
+/** Redirects the browser to Whop. Nothing after this line runs — the page navigates away. */
+async function startWhopConnect(){
+  if(!whopOAuthConfigured()) return { error: 'Whop connect is not configured yet.' };
+
+  const pkce = { codeVerifier: randomString(32), state: randomString(16) };
+  sessionStorage.setItem(WHOP_OAUTH_STORAGE_KEY, JSON.stringify(pkce));
+
+  // Must exactly match a redirect URI registered in the Whop dashboard,
+  // including the trailing slash — this is the single most common OAuth
+  // setup mistake and Whop will reject the redirect if it doesn't match.
+  const redirectUri = location.origin + location.pathname;
+
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: WHOP_CLIENT_ID,
+    redirect_uri: redirectUri,
+    scope: 'openid profile email',
+    state: pkce.state,
+    code_challenge: await sha256(pkce.codeVerifier),
+    code_challenge_method: 'S256',
+  });
+  location.href = `https://api.whop.com/oauth/authorize?${params}`;
+  return { ok: true };   // never actually observed — the page has navigated away
+}
+
+/**
+ * Call once on every page load. If the URL is Whop redirecting back
+ * (?code=...&state=...), completes the connection and cleans the URL so a
+ * refresh doesn't attempt to resubmit the same code. Returns null when the
+ * current load isn't an OAuth callback at all — the common case.
+ */
+async function handleWhopOAuthCallback(){
+  const params = new URLSearchParams(location.search);
+  const code = params.get('code');
+  if(!code) return null;
+
+  const cleanUrl = () => {
+    const url = new URL(location.href);
+    url.searchParams.delete('code'); url.searchParams.delete('state'); url.searchParams.delete('error');
+    history.replaceState({}, '', url.toString());
+  };
+
+  const returnedState = params.get('state');
+  const oauthError = params.get('error');
+  if(oauthError){ cleanUrl(); return { error: `Whop sign-in was cancelled or failed: ${oauthError}` }; }
+
+  let stored;
+  try{ stored = JSON.parse(sessionStorage.getItem(WHOP_OAUTH_STORAGE_KEY) || 'null'); }catch{ stored = null; }
+  sessionStorage.removeItem(WHOP_OAUTH_STORAGE_KEY);
+  cleanUrl();
+
+  if(!stored || returnedState !== stored.state){
+    return { error: 'Whop sign-in could not be verified (state mismatch) — please try connecting again.' };
+  }
+  if(!currentUser){
+    return { error: "You'll need to be signed in to Dinger Watch before connecting Whop." };
+  }
+
+  const { data: sess } = await sb.auth.getSession();
+  const token = sess?.session?.access_token;
+  if(!token) return { error: 'not signed in' };
+
+  try{
+    const { data, error } = await sb.functions.invoke('whop-oauth-connect', {
+      body: { code, redirect_uri: location.origin + location.pathname, code_verifier: stored.codeVerifier },
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if(error) return { error: error.message || 'Could not complete the Whop connection.' };
+    if(data?.error) return { error: data.error };
+
+    currentUser.whop_user_id = data.whopUserId;
+    currentUser.whop_username = data.whopUsername;
+    return { ok: true };
+  }catch(e){
+    return { error: e?.message || 'Could not complete the Whop connection.' };
   }
 }
 
@@ -738,7 +844,7 @@ export {
   loadChat, sendMessage, subscribeChat,
   toggleFollow, followCounts, followingFeed,
   publishPick, reactionsFor, primeReactions,
-  checkWhopAccess,
+  checkWhopAccess, startWhopConnect, handleWhopOAuthCallback, whopOAuthConfigured,
   loadNotifications, markAllNotificationsRead, selfNotify, subscribeNotifications,
   getWatchlist, addToWatchlist, removeFromWatchlist,
   joinPresence, getOnlineUsers,
