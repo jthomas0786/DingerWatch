@@ -7057,11 +7057,11 @@ function openGameModal(g){
       </div>
     </div>
     <div class="tabs">
-      <div class="tab active" data-tab="overview">Matchup</div>
-      ${(isLive || isFinal) ? '<div class="tab" data-tab="boxscore">Box Score</div>' : ''}
+      ${!isLive ? '<div class="tab active" data-tab="overview">Matchup</div>' : ''}
+      ${(isLive || isFinal) ? `<div class="tab ${isLive?'active':''}" data-tab="boxscore">Box Score</div>` : ''}
       ${o ? '<div class="tab" data-tab="odds">Odds</div>' : ''}
     </div>
-    <div class="tab-content active" data-panel="overview">
+    ${!isLive ? `<div class="tab-content active" data-panel="overview">
       <div class="matchup-block"><h5>Starting Pitchers</h5>
         <p>${g.awayName}: ${g.awayPitcher.name} (${g.awayPitcher.throws}) &nbsp;·&nbsp; ${g.homeName}: ${g.homePitcher.name} (${g.homePitcher.throws})</p>
         <div class="msub">${g.awayPitcher.mix}</div>
@@ -7076,12 +7076,8 @@ function openGameModal(g){
         <p>${topHR_away ? `${g.awayName}: <b>${topHR_away.name}</b> (${topHR_away.hrIndex}% HR Index)`:''}</p>
         <p>${topHR_home ? `${g.homeName}: <b>${topHR_home.name}</b> (${topHR_home.hrIndex}% HR Index)`:''}</p>
       </div>` : ''}
-      ${isLive ? `<div class="matchup-block"><h5>Live Situation</h5>
-        <p>${ls.inningState||''} ${ls.inning||''} · ${ls.outs||0} out(s)</p>
-        <div class="msub">${ls.pitcher?`${ls.pitcher} pitching`:''} ${ls.batter?`vs ${ls.batter}`:''} · Count: ${ls.balls||0}-${ls.strikes||0}</div>
-      </div>` : ''}
-    </div>
-    ${(isLive || isFinal) ? `<div class="tab-content" data-panel="boxscore">${boxScoreHTML(g)}</div>` : ''}
+    </div>` : ''}
+    ${(isLive || isFinal) ? `<div class="tab-content ${isLive?'active':''}" data-panel="boxscore">${boxScoreHTML(g)}</div>` : ''}
     ${o ? `<div class="tab-content" data-panel="odds">
       <div class="live-note" style="margin-bottom:14px;"><span class="dq-badge ${dqClass}">${dqLabel}</span> — sportsbook odds have no public live API; this is a point-in-time snapshot, not a real-time line.</div>
       <div class="odds-grid">
