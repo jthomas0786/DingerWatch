@@ -426,6 +426,50 @@ async function isFollowing(userId){
   return !!data;
 }
 
+// ---------------------------------------------------------------- whop access gate
+/**
+ * Calls the check-whop-access Edge Function, which does the real work
+ * server-side (Whop's API needs a secret key that must never reach the
+ * browser). Returns { hasAccess, checkoutUrl } or { error }.
+ *
+ * Rate-limited client-side: a fresh sign-in always re-checks, but repeated
+ * calls within a short window reuse the cached result on the profile rather
+ * than hitting the Edge Function (and Whop's API) on every render.
+ */
+const WHOP_RECHECK_MS = 5 * 60 * 1000;   // 5 minutes
+
+async function checkWhopAccess(force = false){
+  if(!currentUser) return { error: 'not signed in' };
+
+  if(!force && currentUser.whop_checked_at){
+    const age = Date.now() - new Date(currentUser.whop_checked_at).getTime();
+    if(age < WHOP_RECHECK_MS){
+      return { hasAccess: !!currentUser.whop_access, cached: true };
+    }
+  }
+
+  const { data: sess } = await sb.auth.getSession();
+  const token = sess?.session?.access_token;
+  if(!token) return { error: 'not signed in' };
+
+  try{
+    const { data, error } = await sb.functions.invoke('check-whop-access', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if(error) return { error: error.message || 'Could not reach the access check.' };
+    if(data?.error) return { error: data.error };
+
+    // Reflect the fresh result locally so the UI updates immediately without
+    // waiting on a full profile reload.
+    currentUser.whop_access = !!data.hasAccess;
+    currentUser.whop_checked_at = new Date().toISOString();
+
+    return { hasAccess: !!data.hasAccess, checkoutUrl: data.checkoutUrl };
+  }catch(e){
+    return { error: e?.message || 'Could not reach the access check.' };
+  }
+}
+
 // ---------------------------------------------------------------- avatars
 /**
  * Resize any uploaded photo to a small square before it ever leaves the
@@ -694,6 +738,7 @@ export {
   loadChat, sendMessage, subscribeChat,
   toggleFollow, followCounts, followingFeed,
   publishPick, reactionsFor, primeReactions,
+  checkWhopAccess,
   loadNotifications, markAllNotificationsRead, selfNotify, subscribeNotifications,
   getWatchlist, addToWatchlist, removeFromWatchlist,
   joinPresence, getOnlineUsers,
