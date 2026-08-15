@@ -619,6 +619,9 @@ async function selfNotify(type, payload){
   const { data, error } = await sb.from('notifications')
     .insert({ user_id: currentUser.id, actor_id: currentUser.id, type, payload })
     .select().single();
+  // A duplicate at-bat notification (e.g. two tabs open) hits the unique
+  // index rather than an error the user needs to see.
+  if(error && error.code === '23505') return { ok: true, duplicate: true };
   return error ? { error: error.message } : { ok: true, notification: data };
 }
 
