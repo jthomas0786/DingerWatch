@@ -119,6 +119,10 @@ main{ max-width:760px; margin: 8px auto 0; padding: 0 20px; }
 .feed-headshot.placeholder,
 .modal-headshot.placeholder{ object-fit:contain; object-position:center; padding:6px; opacity:0.55; }
 .pick-body{ flex:1; min-width:0; }
+.watch-star{ background:none; border:none; color:var(--line); font-size:15px; cursor:pointer;
+  padding:0 0 0 6px; line-height:1; vertical-align:middle; transition:color .12s ease, transform .1s ease; }
+.watch-star:hover{ color:var(--mute); transform:scale(1.15); }
+.watch-star.active{ color:#f4c430; text-shadow:0 0 8px rgba(244,196,48,.5); }
 .pick-name-row{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
 .pick-name{ font-family:'Oswald',sans-serif; font-weight:600; font-size:17px; }
 .pick-team{ font-family:'Space Mono',monospace; font-size:11px; color: var(--mute); }
@@ -2720,7 +2724,7 @@ function renderAllPlayers(){
         <div class="pick-rank ${i===0?'':(i===1?'r2':(i===2?'r3':'r5'))}">${i+1}</div>
         ${headshotImgTag(p.name, 'pick-headshot', p.team, p.id)}
         <div class="pick-body">
-          <div class="pick-name-row"><span class="pick-name">${p.name}</span><span class="pick-team">${p.team} · ${p.pos||''}</span></div>
+          <div class="pick-name-row"><span class="pick-name">${p.name}</span><span class="pick-team">${p.team} · ${p.pos||''}</span>${watchStarHTML(p)}</div>
           <div class="pick-matchup">${g.awayName} @ ${g.homeName} · ${gameTime(g)}</div>
           <div class="pick-summary">${p.narrative}</div>
           <div class="pick-chips grid">
@@ -2902,7 +2906,7 @@ function renderList(){
         <div class="pick-rank ${rankClasses[i]}">${i+1}</div>
         ${headshotImgTag(p.name, 'pick-headshot', ringTeam, p.id)}
         <div class="pick-body">
-          <div class="pick-name-row"><span class="pick-name">${p.name}</span><span class="pick-team">${isPitcher ? '' : team+' · '+(p.pos||'')}</span></div>
+          <div class="pick-name-row"><span class="pick-name">${p.name}</span><span class="pick-team">${isPitcher ? '' : team+' · '+(p.pos||'')}</span>${isPitcher ? '' : watchStarHTML(p)}</div>
           <div class="pick-matchup">${matchupTxt}</div>
           <div class="pick-summary">${propSummary(activeTab, p)}</div>
           <div class="pick-chips grid">${chipsFor(activeTab, p).join('')}</div>
@@ -4108,18 +4112,58 @@ function notifyHomeRun(ev){
  * Nothing elsewhere needs to change once real notifications start arriving.
  */
 let notifyItems = [];   // newest first: { id, title, body, ts, read }
+let notifyUnsub = null;
 
 function notifyUnreadCount(){
   return notifyItems.filter(n => !n.read).length;
 }
 
-/** Call this once real notification events exist. Not wired to anything yet. */
-function pushAppNotification({ title, body = '', id = null } = {}){
-  notifyItems.unshift({ id: id ?? `n${Date.now()}`, title, body, ts: Date.now(), read: false });
+/** Add one notification to the in-memory list and repaint. */
+function pushAppNotification({ title, body = '', id = null, ts = Date.now(), read = false } = {}){
+  notifyItems.unshift({ id: id ?? `n${Date.now()}`, title, body, ts, read });
   notifyItems = notifyItems.slice(0, 50);   // cap so this can't grow unbounded
   renderNotifyBtn();
   const pop = document.getElementById('notifyPop');
   if(pop?.classList.contains('open')) renderNotifyPop();
+}
+
+/** Turn a raw DB notification row into the {title, body} shape the bell shows. */
+function formatNotification(row){
+  const p = row.payload || {};
+  switch(row.type){
+    case 'comment':
+      return { title: `@${p.username || 'someone'} commented on your post`, body: p.body || '' };
+    case 'follow':
+      return { title: `@${p.username || 'someone'} started following you`, body: '' };
+    case 'atbat_up':
+      return { title: `⚾ ${p.player_name} is up to bat`, body: p.game || '' };
+    case 'atbat_result':
+      return { title: `${p.emoji || '💥'} ${p.player_name}: ${p.result || 'at-bat over'}`, body: p.detail || '' };
+    default:
+      return { title: 'Notification', body: '' };
+  }
+}
+
+/** Load history + subscribe to new ones arriving live. Called once per sign-in. */
+async function startNotifications(){
+  const s = social();
+  if(!s || !s.socialEnabled() || !s.getUser?.()) return;
+
+  const rows = await s.loadNotifications();
+  notifyItems = rows.map(r => ({ id: r.id, ts: new Date(r.created_at).getTime(),
+    read: r.read, ...formatNotification(r) }));
+  renderNotifyBtn();
+
+  if(notifyUnsub) notifyUnsub();
+  notifyUnsub = s.subscribeNotifications(row => {
+    pushAppNotification({ id: row.id, ts: new Date(row.created_at).getTime(),
+      read: false, ...formatNotification(row) });
+  });
+}
+
+function stopNotifications(){
+  if(notifyUnsub){ notifyUnsub(); notifyUnsub = null; }
+  notifyItems = [];
 }
 
 function notifyPopHTML(){
@@ -4158,10 +4202,12 @@ function toggleNotifyPop(){
   pop.classList.toggle('open', opening);
   if(opening){
     // Opening the list is what "reads" it — same convention as every phone's
-    // notification tray.
+    // notification tray. Repaint locally first for instant feedback, then
+    // persist so read-state survives a reload or another device.
     notifyItems.forEach(n => n.read = true);
     renderNotifyPop();
     renderNotifyBtn();
+    social()?.markAllNotificationsRead?.();
     document.addEventListener('click', function onOutside(e){
       if(!pop.contains(e.target) && e.target.id !== 'notifyBtn'){
         closeNotifyPop();
@@ -4233,6 +4279,69 @@ function rememberNotified(key){
 
 function markFeedRead(){ feedUnread = 0; }
 
+// Dedup keys for watch-list at-bat alerts, same style as seenHRKeys but
+// entirely separate — different event types, different lifecycle.
+const seenWatchUpKeys = new Set();
+const seenWatchResultKeys = new Set();
+
+/**
+ * Checks one play against the signed-in user's own daily watch list and fires
+ * an in-app notification when relevant. Runs once per play per poll cycle,
+ * reusing the play-by-play data pollHomeRunFeed already fetched for the home
+ * run feed — no extra network request.
+ *
+ * LIMITATION worth being upfront about: this only works while this browser
+ * tab is open and polling, the same limitation the original notification
+ * system had before background push existed for home runs specifically.
+ * True background alerts (app closed) for watch-list at-bats would need a
+ * server-side job — similar in shape to send-push.js — that cross-references
+ * every user's watch list against live at-bat data and sends a real push.
+ * That's a larger, separate piece of work and hasn't been built here.
+ */
+function checkWatchlistPlay(g, play){
+  if(!watchedPlayerIds.size) return;      // nobody signed in, or nothing watched
+  const batterId = play.matchup?.batter?.id;
+  if(!batterId || !watchedPlayerIds.has(batterId)) return;
+
+  const complete = play.about?.isComplete;
+  const atBatKey = `${g.gamePk}:${play.atBatIndex}`;
+
+  if(!complete){
+    // In progress — this is the "up to bat" moment. Fire once per at-bat.
+    if(seenWatchUpKeys.has(atBatKey)) return;
+    seenWatchUpKeys.add(atBatKey);
+    if(!feedPrimed) return;               // first poll after load = backlog, don't alert
+    const name = play.matchup?.batter?.fullName ?? 'Watched player';
+    social()?.selfNotify?.('atbat_up', {
+      player_name: name, player_id: batterId,
+      game: `${g.awayName} @ ${g.homeName}`,
+    });
+    pushAppNotification({ title: `⚾ ${name} is up to bat`, body: `${g.awayName} @ ${g.homeName}` });
+    return;
+  }
+
+  // Completed — the result. Only fires once per at-bat, and only after the
+  // in-progress alert already fired for it (or would have, had backlog
+  // suppression not blocked it) — either way this key guards it from repeats.
+  if(seenWatchResultKeys.has(atBatKey)) return;
+  seenWatchResultKeys.add(atBatKey);
+  if(!feedPrimed) return;
+
+  const name = play.matchup?.batter?.fullName ?? 'Watched player';
+  const hitEvent = [...(play.playEvents || [])].reverse().find(e => e.hitData?.launchSpeed != null);
+  const hd = hitEvent?.hitData;
+  const result = play.result?.event || play.result?.eventType?.replace(/_/g, ' ') || 'at-bat over';
+  const emoji = play.result?.eventType === 'home_run' ? '💣'
+              : play.result?.eventType === 'strikeout' ? '❌'
+              : play.result?.eventType === 'walk' ? '🚶' : '⚾';
+  const detail = hd ? `${hd.launchSpeed} mph, ${hd.totalDistance ?? '?'} ft` : (play.result?.description || '');
+
+  social()?.selfNotify?.('atbat_result', {
+    player_name: name, player_id: batterId, result, detail, emoji,
+  });
+  pushAppNotification({ title: `${emoji} ${name}: ${result}`, body: detail });
+}
+
 async function pollHomeRunFeed(){
   const live = games.filter(g => g.gamePk && (g.mlbStatus === 'Live' || g.mlbStatus === 'Final'));
   if(!live.length) return;
@@ -4243,6 +4352,11 @@ async function pollHomeRunFeed(){
       if(!res.ok) return;
       const data = await res.json();
       for(const play of (data.allPlays || [])){
+        // Watchlist check runs for every play, not just home runs, and is
+        // independent of the HR-feed logic below — different event, different
+        // dedup keys, same play-by-play data so no extra fetch is needed.
+        checkWatchlistPlay(g, play);
+
         if(play.result?.eventType !== 'home_run') continue;
         const key = `${g.gamePk}:${play.atBatIndex}`;
         if(seenHRKeys.has(key)) continue;
@@ -4951,6 +5065,62 @@ function propOdds(p, prop){
   if(!k || !p.odds || !p.odds[k]) return null;
   return p.odds[k];
 }
+
+// ---------------------------------------------------------------- watchlist
+let watchedPlayerIds = new Set();
+
+function isWatched(playerId){ return watchedPlayerIds.has(playerId); }
+
+/** Loaded once per sign-in; kept in sync locally as the user toggles stars. */
+async function loadWatchlistCache(){
+  const s = social();
+  if(!s || !s.socialEnabled() || !s.getUser?.()) { watchedPlayerIds = new Set(); return; }
+  const rows = await s.getWatchlist();
+  watchedPlayerIds = new Set(rows.map(r => r.player_id));
+}
+
+/** The star. `p` needs id, name, team — same shape every card already has. */
+function watchStarHTML(p){
+  const on = isWatched(p.id);
+  return `<button class="watch-star ${on?'active':''}" data-pid="${p.id}"
+    data-pname="${escapeHTML(p.name)}" data-pteam="${escapeHTML(p.team||'')}"
+    title="${on ? 'Remove from watch list' : 'Watch — get notified when he bats'}">★</button>`;
+}
+
+/** Repaint every star for one player currently on screen (card + modal, if open). */
+function syncWatchStars(playerId){
+  document.querySelectorAll(`.watch-star[data-pid="${playerId}"]`).forEach(btn => {
+    const on = isWatched(playerId);
+    btn.classList.toggle('active', on);
+    btn.title = on ? 'Remove from watch list' : 'Watch — get notified when he bats';
+  });
+}
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest?.('.watch-star');
+  if(!btn) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const s = social();
+  if(!s?.getUser?.()){ promptSignIn(); return; }
+
+  const pid = +btn.dataset.pid;
+  const player = { id: pid, name: btn.dataset.pname, team: btn.dataset.pteam };
+
+  (async () => {
+    if(isWatched(pid)){
+      watchedPlayerIds.delete(pid);      // optimistic — feels instant
+      syncWatchStars(pid);
+      const res = await s.removeFromWatchlist(pid);
+      if(res?.error){ watchedPlayerIds.add(pid); syncWatchStars(pid); }
+    } else {
+      watchedPlayerIds.add(pid);
+      syncWatchStars(pid);
+      const res = await s.addToWatchlist(player);
+      if(res?.error){ watchedPlayerIds.delete(pid); syncWatchStars(pid); }
+    }
+  })();
+}, true);
 
 const legId = (player, market, line) => `${player}|${market}|${line}`;
 const inSlip = id => betslip.some(l => l.id === id);
@@ -6747,6 +6917,8 @@ async function boot(){
       ['chat dock',           () => renderChatDock()],
       ['presence',            () => startPresence()],
       ['chat subscription',   () => startGlobalChatSubscription()],
+      ['notifications',       () => startNotifications()],
+      ['watchlist',            () => { loadWatchlistCache().then(() => renderList()); }],
     ];
     for(const [label, fn] of steps){
       try{ fn(); }
@@ -6769,16 +6941,22 @@ async function boot(){
       ['social UI refresh', () => refreshSocialUI()],
       ['online button',     () => renderHeaderOnline()],
       ['chat dock',         () => renderChatDock()],
-      ['presence/chat',     () => {
+      ['presence/chat/notifications', () => {
         if(social()?.getUser?.()){
           startPresence();
           startGlobalChatSubscription();
+          startNotifications();
+          loadWatchlistCache().then(() => renderList());
         } else {
+          watchedPlayerIds = new Set();
           if(onlineUnsub){ onlineUnsub(); onlineUnsub = null; }
           if(chatGlobalUnsub){ chatGlobalUnsub(); chatGlobalUnsub = null; }
+          stopNotifications();
           onlineList = [];
           chatUnreadCount = 0;
           closeChatPanel();
+          closeNotifyPop();
+          renderNotifyBtn();
         }
       }],
     ];
