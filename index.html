@@ -5631,11 +5631,10 @@ let chatUnsub = null;
 
 function chatMsgHTML(m){
   const name = m.profiles?.username || 'unknown';
-  const initial = name[0]?.toUpperCase() || '?';
   const t = new Date(m.created_at);
   const ago = timeAgo(t.getTime());
   return `<div class="chat-msg">
-    <div class="chat-av">${initial}</div>
+    ${avatarHTML({ username:name, avatar_url:m.profiles?.avatar_url, avatar_seed:m.profiles?.avatar_seed }, 30)}
     <div class="chat-body">
       <div class="chat-top">
         <span class="chat-user" data-username="${escapeHTML(name)}">@${escapeHTML(name)}</span>
@@ -5666,7 +5665,7 @@ function headerOnlineBtnHTML(){
   <div class="online-pop" id="onlinePop">
     ${n ? onlineList.map(u => `
       <button class="online-user" data-username="${escapeHTML(u.username)}">
-        <span class="chat-av">${escapeHTML((u.username||'?')[0].toUpperCase())}</span>
+        ${avatarHTML(u, 24)}
         <span>@${escapeHTML(u.username)}</span>
       </button>`).join('')
       : '<div class="online-empty">Nobody else right now.</div>'}
