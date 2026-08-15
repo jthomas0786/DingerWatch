@@ -536,7 +536,7 @@ body.gated{ overflow:hidden; }
 .rx-more:hover{ opacity:1; }
 
 /* --- online presence --- */
-.online-bar{ position:relative; display:flex; justify-content:flex-end; margin-top:12px; }
+#headerOnlineSlot{ position:relative; display:inline-flex; }
 .online-btn{ background:var(--night2); border:1px solid var(--line); color:var(--mute);
   font-family:'Space Mono',monospace; font-size:10.5px; padding:5px 11px; border-radius:14px;
   cursor:pointer; display:flex; align-items:center; gap:7px; }
@@ -554,6 +554,40 @@ body.gated{ overflow:hidden; }
 .online-user:hover{ background:var(--night2); }
 .online-user .chat-av{ width:24px; height:24px; font-size:10px; }
 .online-empty{ color:var(--mute); font-size:11.5px; padding:10px; text-align:center; }
+
+/* --- chat dock button --- */
+.chat-dock{ position:fixed; right:18px; bottom:calc(18px + env(safe-area-inset-bottom));
+  z-index:950; width:52px; height:52px; border-radius:50%; background:var(--foul); border:none;
+  color:var(--night); font-size:22px; cursor:pointer; box-shadow:0 6px 18px rgba(224,18,46,.4);
+  display:flex; align-items:center; justify-content:center; }
+.chat-dock:hover{ transform:translateY(-2px); }
+.chat-dock-badge{ position:absolute; top:-4px; right:-4px; background:var(--white); color:var(--night);
+  font-family:'Archivo Black',sans-serif; font-size:10px; min-width:19px; height:19px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center; padding:0 4px; border:2px solid var(--night); }
+/* Keep the dock from covering the bet slip tray when both are present. */
+body:has(.betslip-bar) .chat-dock{ bottom:calc(84px + env(safe-area-inset-bottom)); }
+
+/* --- chat panel --- */
+.chat-panel{ position:fixed; right:18px; bottom:calc(80px + env(safe-area-inset-bottom)); left:18px;
+  max-width:380px; margin-left:auto; height:min(70vh, 520px); background:var(--panel);
+  border:1px solid var(--line); border-radius:16px; z-index:960; display:flex; flex-direction:column;
+  box-shadow:0 16px 40px rgba(0,0,0,.55); opacity:0; pointer-events:none; transform:translateY(12px);
+  transition:opacity .18s ease, transform .18s ease; }
+.chat-panel.open{ opacity:1; pointer-events:auto; transform:translateY(0); }
+.chat-panel-head{ display:flex; align-items:center; justify-content:space-between; padding:14px 16px;
+  border-bottom:1px solid var(--line); font-family:'Oswald',sans-serif; font-size:14px; color:var(--white);
+  flex-shrink:0; }
+.chat-panel-close{ background:none; border:none; color:var(--mute); font-size:22px; line-height:1; cursor:pointer; }
+.chat-panel-close:hover{ color:var(--white); }
+.chat-panel-empty{ padding:24px; color:var(--mute); font-size:12.5px; line-height:1.7; text-align:center; }
+.chat-panel-empty code{ color:var(--foul); }
+.chat-panel .chat-list{ flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:8px; }
+.chat-panel .chat-err{ padding:0 14px; color:var(--hot); font-size:11px; font-family:'Space Mono',monospace; min-height:14px; }
+.chat-panel .chat-compose{ padding:10px 14px calc(12px + env(safe-area-inset-bottom)); margin-top:0;
+  position:static; background:transparent; border-top:1px solid var(--line); }
+@media (max-width:480px){
+  .chat-panel{ right:12px; left:12px; height:min(72vh, 480px); }
+}
 
 /* --- profile page --- */
 .profile-modal{ align-items:flex-start; padding-top:40px; overflow-y:auto; }
@@ -994,6 +1028,7 @@ body.gated{ overflow:hidden; }
     <button id="refreshBtn" title="Refresh live data now">↻ Refresh</button>
     <button id="exportBtn" title="Download every player's prop projections as an Excel workbook" hidden>⬇ Excel</button>
     <button id="notifyBtn" title="Get a notification for every home run">🔔 Alerts</button>
+    <span id="headerOnlineSlot"></span>
     <button id="authBtn" title="Sign in to react and chat">Sign in</button>
   </div>
   <div class="live-status">
@@ -2029,7 +2064,6 @@ function scorePlayer(base, game){
 const PROP_TABS = [
   {id:'slate',       label:'Slate'},
   {id:'feed',        label:'Feed'},
-  {id:'chat',        label:'Chat'},
   {id:'firstinning', label:'1st Inning O/U'},
   {id:'__props__',   label:'Player Props', dropdown:true},
   {id:'all',         label:'All Players'},
@@ -2688,12 +2722,7 @@ function renderList(){
     renderFeed();
     return;
   }
-  if(activeTab==='chat'){
-    renderChat();
-    return;
-  }
-  // Leaving chat should drop the realtime subscription rather than leak it.
-  if(chatUnsub){ chatUnsub(); chatUnsub = null; }
+
   if(activeTab==='firstinning'){
     renderFirstInning();
     return;
@@ -5496,324 +5525,138 @@ function escapeHTML(str){
 }
 
 // ---------------------------------------------------------------- presence UI
+// Now lives in the header, not the (removed) chat tab, so it's visible from
+// anywhere in the app rather than only while chat happens to be open.
 let onlineUnsub = null;
 let onlineList = [];
 
-function onlineBarHTML(){
+function headerOnlineBtnHTML(){
   const n = onlineList.length;
-  return `<div class="online-bar">
-    <button class="online-btn" id="onlineBtn">
-      <span class="online-dot"></span>${n} online
-    </button>
-    <div class="online-pop" id="onlinePop">
-      ${n ? onlineList.map(u => `
-        <button class="online-user" data-username="${escapeHTML(u.username)}">
-          <span class="chat-av">${escapeHTML((u.username||'?')[0].toUpperCase())}</span>
-          <span>@${escapeHTML(u.username)}</span>
-        </button>`).join('')
-        : '<div class="online-empty">Nobody else right now.</div>'}
-    </div>
+  return `<button class="online-btn" id="onlineBtn" title="Who's online">
+    <span class="online-dot"></span>${n}
+  </button>
+  <div class="online-pop" id="onlinePop">
+    ${n ? onlineList.map(u => `
+      <button class="online-user" data-username="${escapeHTML(u.username)}">
+        <span class="chat-av">${escapeHTML((u.username||'?')[0].toUpperCase())}</span>
+        <span>@${escapeHTML(u.username)}</span>
+      </button>`).join('')
+      : '<div class="online-empty">Nobody else right now.</div>'}
   </div>`;
 }
 
-function wireOnlineBar(){
+function renderHeaderOnline(){
+  const slot = document.getElementById('headerOnlineSlot');
+  if(!slot) return;
+  const s = social();
+  if(!s || !s.socialEnabled()){ slot.innerHTML = ''; return; }
+  const wasOpen = document.getElementById('onlinePop')?.classList.contains('open');
+  slot.innerHTML = headerOnlineBtnHTML();
   const btn = document.getElementById('onlineBtn');
   const pop = document.getElementById('onlinePop');
-  if(!btn || !pop) return;
-  btn.onclick = e => { e.stopPropagation(); pop.classList.toggle('open'); };
-  pop.querySelectorAll('.online-user').forEach(b => {
-    b.onclick = () => { pop.classList.remove('open'); openProfile(b.dataset.username); };
-  });
-  // Any outside click closes it.
-  document.addEventListener('click', () => pop.classList.remove('open'), { once: true });
-}
-
-// ---------------------------------------------------------------- profiles
-const STATUS_EMOJI = ['🔥','💯','😂','🤝','💀'];
-const HR_EMOJI = ['🔥','💣','🚀','😱','🫡'];
-
-/**
- * Reactions on a home run. Keyed by the play itself (gamePk:atBatIndex) rather
- * than by date and player, so it stays correct when a hitter goes deep twice in
- * one game — two homers are two separate things to react to.
- */
-function hrReactionStripHTML(ev){
-  const s = social();
-  if(!s || !s.socialReady) return '';
-  const key = `hr|${ev.key}`;
-  const counts = s.reactionsFor ? s.reactionsFor(key) : {};
-  return `<div class="rx-strip feed-rx" data-propkey="${key}">` +
-    HR_EMOJI.map(e => {
-      const c = counts[e];
-      return `<button class="rx ${c?.mine?'mine':''}" data-emoji="${e}"
-        title="${c?.count || 0} reaction${c?.count === 1 ? '' : 's'}">${e}${c?.count?`<b>${c.count}</b>`:''}</button>`;
-    }).join('') + `</div>`;
-}
-
-function statusHTML(st, canDelete){
-  const s = social();
-  const rx = s?.statusReactionsFor ? s.statusReactionsFor(st.id) : {};
-  const name = st.display_name || st.username;
-  const legs = st.legs ? (Array.isArray(st.legs) ? st.legs : []) : [];
-  return `<div class="status" data-sid="${st.id}">
-    <div class="status-head">
-      <span class="chat-av">${escapeHTML((st.username||'?')[0].toUpperCase())}</span>
-      <span class="status-name chat-user" data-username="${escapeHTML(st.username)}">${escapeHTML(name)}</span>
-      <span class="chat-time">${timeAgo(new Date(st.created_at).getTime())}</span>
-      ${canDelete ? `<button class="status-del" data-del="${st.id}" title="Delete">&times;</button>` : ''}
-    </div>
-    <div class="status-body">${escapeHTML(st.body)}</div>
-    ${legs.length ? `<div class="status-legs">${legs.map(l => `
-      <div class="sl-leg"><span>${escapeHTML(l.text || '')}</span>
-      ${l.price != null ? `<b>${fmtAmerican(l.price)}</b>` : ''}</div>`).join('')}</div>` : ''}
-    <div class="status-foot">
-      <div class="rx-strip status-rx" data-sid="${st.id}">
-        ${STATUS_EMOJI.map(e => {
-          const c = rx[e];
-          return `<button class="rx ${c?.mine?'mine':''}" data-semoji="${e}">${e}${c?.count?`<b>${c.count}</b>`:''}</button>`;
-        }).join('')}
-      </div>
-      <button class="status-comments" data-comments="${st.id}">
-        💬 ${st.comment_count || 0}
-      </button>
-    </div>
-    <div class="comment-box" data-cbox="${st.id}"></div>
-  </div>`;
-}
-
-async function openProfile(username){
-  const s = social();
-  if(!s?.socialReady) return;
-  const prof = await s.getProfile(username);
-  if(!prof){ return; }
-
-  const me = s.getUser?.();
-  const isMe = me && me.id === prof.id;
-  const [counts, following, statuses] = await Promise.all([
-    s.followCounts(prof.id),
-    isMe ? Promise.resolve(false) : s.isFollowing(prof.id),
-    s.loadStatuses({ userId: prof.id }),
-  ]);
-  await s.loadStatusReactions(statuses.map(x => x.id));
-
-  const wrap = document.createElement('div');
-  wrap.className = 'dw-modal profile-modal';
-  wrap.innerHTML = `
-    <div class="profile-card">
-      <button class="modal-close" id="pfClose">&times;</button>
-      <div class="pf-head">
-        <div class="pf-av">${escapeHTML((prof.username||'?')[0].toUpperCase())}</div>
-        <div class="pf-id">
-          <div class="pf-name">${escapeHTML(prof.display_name || prof.username)}</div>
-          <div class="pf-handle">@${escapeHTML(prof.username)}${prof.team ? ` · ${escapeHTML(prof.team)}` : ''}</div>
-        </div>
-        ${isMe
-          ? `<button class="pf-btn" id="pfEdit">Edit</button>`
-          : `<button class="pf-btn ${following?'following':''}" id="pfFollow">${following?'Following':'Follow'}</button>`}
-      </div>
-      ${prof.bio ? `<div class="pf-bio">${escapeHTML(prof.bio)}</div>` : ''}
-      <div class="pf-stats">
-        <span><b id="pfFollowers">${counts.followers}</b> followers</span>
-        <span><b>${counts.following}</b> following</span>
-        <span><b>${statuses.length}</b> posts</span>
-      </div>
-      ${isMe ? `
-        <div class="pf-compose">
-          <textarea id="pfStatus" placeholder="Post a status or share a parlay…" maxlength="500"></textarea>
-          <div class="pf-compose-row">
-            ${betslip.length ? `<label class="pf-attach"><input type="checkbox" id="pfAttach" checked> Attach slip (${betslip.length})</label>` : '<span></span>'}
-            <button class="bs-btn primary" id="pfPost">Post</button>
-          </div>
-          <div class="dw-err" id="pfErr"></div>
-        </div>` : ''}
-      <div class="pf-statuses" id="pfStatuses">
-        ${statuses.length ? statuses.map(st => statusHTML(st, isMe)).join('')
-          : '<div class="pf-empty">No posts yet.</div>'}
-      </div>
-    </div>`;
-  document.body.appendChild(wrap);
-
-  const close = () => wrap.remove();
-  document.getElementById('pfClose').onclick = close;
-  wrap.onclick = e => { if(e.target === wrap) close(); };
-
-  // Follow / unfollow, with the counter updated in place.
-  const fBtn = document.getElementById('pfFollow');
-  if(fBtn) fBtn.onclick = async () => {
-    if(!me){ promptSignIn(); return; }
-    fBtn.disabled = true;
-    const res = await s.toggleFollow(prof.id);
-    fBtn.disabled = false;
-    if(res?.error) return;
-    const now = !!res?.following;
-    fBtn.textContent = now ? 'Following' : 'Follow';
-    fBtn.classList.toggle('following', now);
-    const el = document.getElementById('pfFollowers');
-    if(el) el.textContent = Math.max(0, (+el.textContent) + (now ? 1 : -1));
-  };
-
-  const eBtn = document.getElementById('pfEdit');
-  if(eBtn) eBtn.onclick = () => { close(); openProfileEditor(prof); };
-
-  const postBtn = document.getElementById('pfPost');
-  if(postBtn) postBtn.onclick = async () => {
-    const ta = document.getElementById('pfStatus');
-    const err = document.getElementById('pfErr');
-    const attach = document.getElementById('pfAttach')?.checked;
-    err.textContent = '';
-    postBtn.disabled = true;
-    const legs = attach ? betslip.map(l => ({ text: legToText(l), price: l.price ?? null })) : null;
-    const res = await s.postStatus(ta.value, legs, slateMeta.date || null);
-    postBtn.disabled = false;
-    if(res.error){ err.textContent = res.error; return; }
-    ta.value = '';
-    const list = document.getElementById('pfStatuses');
-    if(list){
-      if(list.querySelector('.pf-empty')) list.innerHTML = '';
-      list.insertAdjacentHTML('afterbegin', statusHTML(res.status, true));
-    }
-  };
-
-  wireStatusInteractions(wrap, isMe);
-}
-
-/** Reactions, comments and deletion inside a profile or feed container. */
-function wireStatusInteractions(root, canDelete){
-  const s = social();
-
-  root.querySelectorAll('.status-rx .rx').forEach(b => b.onclick = async e => {
-    e.stopPropagation();
-    if(!s.getUser?.()){ promptSignIn(); return; }
-    const sid = +b.closest('.status-rx').dataset.sid;
-    await s.toggleStatusReaction(sid, b.dataset.semoji);
-    const strip = b.closest('.status-rx');
-    const rx = s.statusReactionsFor(sid);
-    strip.innerHTML = STATUS_EMOJI.map(em => {
-      const c = rx[em];
-      return `<button class="rx ${c?.mine?'mine':''}" data-semoji="${em}">${em}${c?.count?`<b>${c.count}</b>`:''}</button>`;
-    }).join('');
-    wireStatusInteractions(strip.closest('.status'), canDelete);
-  });
-
-  root.querySelectorAll('[data-comments]').forEach(b => b.onclick = async e => {
-    e.stopPropagation();
-    const sid = +b.dataset.comments;
-    const box = root.querySelector(`[data-cbox="${sid}"]`);
-    if(!box) return;
-    if(box.classList.contains('open')){ box.classList.remove('open'); box.innerHTML = ''; return; }
-
-    const comments = await s.loadComments(sid);
-    const signedIn = !!s.getUser?.();
-    box.classList.add('open');
-    box.innerHTML = `
-      ${comments.map(c => `<div class="comment">
-        <span class="chat-user" data-username="${escapeHTML(c.profiles?.username||'')}">@${escapeHTML(c.profiles?.username||'?')}</span>
-        <span>${escapeHTML(c.body)}</span>
-      </div>`).join('')}
-      <div class="comment-compose">
-        <input placeholder="${signedIn ? 'Reply…' : 'Sign in to reply'}" maxlength="300" ${signedIn?'':'disabled'}>
-        <button ${signedIn?'':'disabled'}>Reply</button>
-      </div>`;
-
-    const input = box.querySelector('input');
-    const send = async () => {
-      if(!input.value.trim()) return;
-      const res = await s.postComment(sid, input.value);
-      if(res.error){ return; }
-      input.value = '';
-      box.querySelector('.comment-compose').insertAdjacentHTML('beforebegin',
-        `<div class="comment"><span class="chat-user">@${escapeHTML(res.comment.profiles.username)}</span>
-         <span>${escapeHTML(res.comment.body)}</span></div>`);
-      b.textContent = `💬 ${comments.length + 1}`;
-    };
-    box.querySelector('button').onclick = send;
-    input.onkeydown = ev => { if(ev.key === 'Enter') send(); };
-    if(!signedIn) input.onclick = promptSignIn;
-  });
-
-  root.querySelectorAll('[data-del]').forEach(b => b.onclick = async e => {
-    e.stopPropagation();
-    const res = await s.deleteStatus(+b.dataset.del);
-    if(!res.error) b.closest('.status')?.remove();
-  });
-}
-
-function openProfileEditor(prof){
-  const s = social();
-  const wrap = document.createElement('div');
-  wrap.className = 'dw-modal';
-  wrap.innerHTML = `
-    <div class="dw-card">
-      <h3>Edit profile</h3>
-      <input id="peName" placeholder="display name" maxlength="40" value="${escapeHTML(prof.display_name||'')}">
-      <input id="peUser" placeholder="username" maxlength="20" value="${escapeHTML(prof.username||'')}">
-      <input id="peTeam" placeholder="team (e.g. LAD)" maxlength="4" value="${escapeHTML(prof.team||'')}">
-      <textarea id="peBio" placeholder="bio (280 max)" maxlength="280">${escapeHTML(prof.bio||'')}</textarea>
-      <div class="dw-actions">
-        <button class="primary" id="peSave">Save</button>
-        <button id="peCancel">Cancel</button>
-      </div>
-      <div class="dw-switch"><a id="peSignOut">Sign out</a></div>
-      <div class="dw-err" id="peErr"></div>
-    </div>`;
-  document.body.appendChild(wrap);
-  const close = () => wrap.remove();
-  document.getElementById('peCancel').onclick = close;
-  wrap.onclick = e => { if(e.target === wrap) close(); };
-  document.getElementById('peSignOut').onclick = async () => {
-    await s.signOut();
-    close();
-    renderAuthButton();
-    refreshSocialUI();
-    evaluateGate();      // account required, so return to the gate
-  };
-  document.getElementById('peSave').onclick = async () => {
-    const err = document.getElementById('peErr');
-    const btn = document.getElementById('peSave');
-    btn.disabled = true;
-    const res = await s.updateProfile({
-      display_name: document.getElementById('peName').value.trim() || null,
-      username: document.getElementById('peUser').value.trim(),
-      team: document.getElementById('peTeam').value.trim().toUpperCase() || null,
-      bio: document.getElementById('peBio').value.trim() || null,
+  if(btn && pop){
+    btn.onclick = e => { e.stopPropagation(); pop.classList.toggle('open'); };
+    if(wasOpen) pop.classList.add('open');
+    pop.querySelectorAll('.online-user').forEach(b => {
+      b.onclick = () => { pop.classList.remove('open'); openProfile(b.dataset.username); };
     });
-    btn.disabled = false;
-    if(res.error){ err.textContent = res.error; return; }
-    close();
-    renderAuthButton();
-    openProfile(res.profile.username);
-  };
+    document.addEventListener('click', () => pop.classList.remove('open'), { once: true });
+  }
 }
 
-async function renderChat(){
+/** Join presence as soon as social is ready, independent of any panel being open. */
+function startPresence(){
   const s = social();
+  if(!s || !s.socialEnabled() || !s.getUser?.()) return;
+  if(onlineUnsub) onlineUnsub();
+  onlineUnsub = s.joinPresence(users => {
+    onlineList = users;
+    renderHeaderOnline();
+  });
+}
+
+// ---------------------------------------------------------------- floating chat
+// Replaces the old Chat tab. A docked button at the bottom of the screen opens
+// a slide-up panel; an unread badge tracks messages that arrive while it's
+// closed, via a chat subscription that stays alive for the whole session
+// rather than only while a tab happened to be open.
+let chatPanelOpen = false;
+let chatUnreadCount = 0;
+let chatMsgsCache = [];
+let chatSeenIds = new Set();
+let chatGlobalUnsub = null;
+
+function chatDockHTML(){
+  return `<button class="chat-dock" id="chatDock" title="Chat">
+    💬
+    ${chatUnreadCount > 0 ? `<span class="chat-dock-badge">${chatUnreadCount > 99 ? '99+' : chatUnreadCount}</span>` : ''}
+  </button>`;
+}
+
+function renderChatDock(){
+  let dock = document.getElementById('chatDock');
+  const s = social();
+  if(!s || !s.socialEnabled()){ if(dock) dock.remove(); return; }
+  if(!dock){
+    document.body.insertAdjacentHTML('beforeend', chatDockHTML());
+    document.getElementById('chatDock').onclick = toggleChatPanel;
+  } else {
+    dock.outerHTML = chatDockHTML();
+    document.getElementById('chatDock').onclick = toggleChatPanel;
+  }
+}
+
+function toggleChatPanel(){
+  chatPanelOpen ? closeChatPanel() : openChatPanel();
+}
+
+async function openChatPanel(){
+  chatPanelOpen = true;
+  chatUnreadCount = 0;
+  renderChatDock();
+
+  let panel = document.getElementById('chatPanel');
+  if(!panel){
+    document.body.insertAdjacentHTML('beforeend', `<div class="chat-panel" id="chatPanel"></div>`);
+    panel = document.getElementById('chatPanel');
+  }
+  panel.classList.add('open');
+  await renderChatPanelBody(panel);
+}
+
+function closeChatPanel(){
+  chatPanelOpen = false;
+  document.getElementById('chatPanel')?.classList.remove('open');
+}
+
+async function renderChatPanelBody(panel){
+  const s = social();
+
   if(!s || !s.socialEnabled()){
-    pickList.innerHTML = `<div style="text-align:center;padding:46px 22px;color:var(--mute);
-      font-family:'Oswald',sans-serif;font-size:14px;line-height:1.7;">
-      <div style="font-size:16px;color:var(--white);margin-bottom:8px;">Chat isn't set up yet</div>
-      Add your Supabase URL and anon key to <code style="color:var(--foul)">social.js</code>,
-      then run <code style="color:var(--foul)">supabase-schema.sql</code>.</div>`;
+    panel.innerHTML = `<div class="chat-panel-head"><span>Chat</span><button class="chat-panel-close" id="chatPanelClose">&times;</button></div>
+      <div class="chat-panel-empty">Chat isn't set up yet. Add your Supabase URL and anon key to
+      <code>social.js</code>, then run <code>supabase-schema.sql</code>.</div>`;
+    document.getElementById('chatPanelClose').onclick = closeChatPanel;
     return;
   }
-
-  // A missing schema is a setup problem, not a chat problem — say so directly
-  // instead of letting every action fail with a Postgres error.
   if(s.needsSchema?.()){
-    pickList.innerHTML = `<div style="text-align:center;padding:46px 22px;color:var(--mute);
-      font-family:'Oswald',sans-serif;font-size:14px;line-height:1.7;">
-      <div style="font-size:16px;color:var(--hot);margin-bottom:10px;">Database tables are missing</div>
-      Open your Supabase project → <b>SQL Editor</b> → paste the contents of
-      <code style="color:var(--foul)">supabase-schema.sql</code> → Run.<br><br>
-      The script ends with a check that prints one row per table — every row should say <b>ok = true</b>.
-      Reload this page afterwards.</div>`;
+    panel.innerHTML = `<div class="chat-panel-head"><span>Chat</span><button class="chat-panel-close" id="chatPanelClose">&times;</button></div>
+      <div class="chat-panel-empty" style="color:var(--hot)">Database tables are missing.<br>
+      Run <code>supabase-schema.sql</code> in the Supabase SQL editor, then reload.</div>`;
+    document.getElementById('chatPanelClose').onclick = closeChatPanel;
     return;
   }
 
-  const msgs = await s.loadChat('general');
+  const msgs = chatMsgsCache.length ? chatMsgsCache : await s.loadChat('general');
+  chatMsgsCache = msgs;
+  chatSeenIds = new Set(msgs.map(m => m.id));
   const signedIn = !!s.getUser?.();
 
-  pickList.innerHTML = `
-    ${onlineBarHTML()}
+  panel.innerHTML = `
+    <div class="chat-panel-head">
+      <span>Chat</span>
+      <button class="chat-panel-close" id="chatPanelClose">&times;</button>
+    </div>
     <div class="chat-list" id="chatList">${msgs.map(chatMsgHTML).join('') ||
       '<div style="text-align:center;padding:30px;color:var(--mute);font-size:13px;">No messages yet — say something.</div>'}</div>
     <div class="chat-err" id="chatErr"></div>
@@ -5823,14 +5666,14 @@ async function renderChat(){
       <button id="chatSend" ${signedIn ? '' : 'disabled'}>Send</button>
     </div>`;
 
-  if(!signedIn){
-    document.getElementById('chatInput').onclick = promptSignIn;
-  }
+  const list = document.getElementById('chatList');
+  if(list) list.scrollTop = list.scrollHeight;
+
+  if(!signedIn) document.getElementById('chatInput').onclick = promptSignIn;
 
   const input = document.getElementById('chatInput');
   const errBox = document.getElementById('chatErr');
   const sendBtn = document.getElementById('chatSend');
-  const seen = new Set(msgs.map(m => m.id));   // avoid double-rendering via realtime
 
   const send = async () => {
     const body = input.value;
@@ -5838,63 +5681,62 @@ async function renderChat(){
     errBox.textContent = '';
     input.value = '';
     sendBtn.disabled = true;
-
     const res = await s.sendMessage(body, 'general');
     sendBtn.disabled = false;
-
     if(res.error){
-      // Previously this failed silently and the message just vanished.
       if(res.error === 'not signed in'){ promptSignIn(); }
       else errBox.textContent = res.error;
-      input.value = body;             // don't lose what they typed
+      input.value = body;
       return;
     }
-
-    // Render immediately. Realtime may be disabled or lagging, and a message
-    // that posts but never shows is indistinguishable from one that failed.
-    if(res.message && !seen.has(res.message.id)){
-      seen.add(res.message.id);
-      const list = document.getElementById('chatList');
-      if(list){
-        if(list.querySelector('div[style]')) list.innerHTML = '';   // clear empty state
-        list.insertAdjacentHTML('beforeend', chatMsgHTML(res.message));
-        list.scrollTop = list.scrollHeight;
+    if(res.message && !chatSeenIds.has(res.message.id)){
+      chatSeenIds.add(res.message.id);
+      chatMsgsCache.push(res.message);
+      const l = document.getElementById('chatList');
+      if(l){
+        if(l.querySelector('div[style]')) l.innerHTML = '';
+        l.insertAdjacentHTML('beforeend', chatMsgHTML(res.message));
+        l.scrollTop = l.scrollHeight;
       }
     }
     input.focus();
   };
   document.getElementById('chatSend').onclick = send;
   input.onkeydown = e => { if(e.key === 'Enter') send(); };
+  document.getElementById('chatPanelClose').onclick = closeChatPanel;
+}
 
-  wireOnlineBar();
+/**
+ * One chat subscription for the whole session, started as soon as social is
+ * ready — not tied to any panel being open. This is what makes the unread
+ * badge actually work: a message that arrives while the panel is closed still
+ * increments the dock badge, exactly like a normal chat app.
+ */
+function startGlobalChatSubscription(){
+  const s = social();
+  if(!s || !s.socialEnabled() || s.needsSchema?.()) return;
+  if(chatGlobalUnsub) chatGlobalUnsub();
+  chatGlobalUnsub = s.subscribeChat('general', m => {
+    if(chatSeenIds.has(m.id)) return;
+    chatSeenIds.add(m.id);
+    chatMsgsCache.push(m);
 
-  // Presence roster. Re-renders just the bar so chat scroll position survives.
-  if(signedIn){
-    if(onlineUnsub) onlineUnsub();
-    onlineUnsub = s.joinPresence(users => {
-      onlineList = users;
-      const bar = document.querySelector('.online-bar');
-      if(bar){
-        const wasOpen = document.getElementById('onlinePop')?.classList.contains('open');
-        bar.outerHTML = onlineBarHTML();
-        wireOnlineBar();
-        if(wasOpen) document.getElementById('onlinePop')?.classList.add('open');
+    if(chatPanelOpen){
+      const list = document.getElementById('chatList');
+      if(list){
+        if(list.querySelector('div[style]')) list.innerHTML = '';
+        list.insertAdjacentHTML('beforeend', chatMsgHTML(m));
+        list.scrollTop = list.scrollHeight;
       }
-    });
-  }
-
-  // Live updates while the tab is open.
-  if(chatUnsub) chatUnsub();
-  chatUnsub = s.subscribeChat('general', m => {
-    if(seen.has(m.id)) return;        // already shown optimistically
-    seen.add(m.id);
-    const list = document.getElementById('chatList');
-    if(!list) return;
-    if(list.querySelector('div[style]')) list.innerHTML = '';
-    list.insertAdjacentHTML('beforeend', chatMsgHTML(m));
-    list.scrollTop = list.scrollHeight;
+    } else {
+      // Don't badge your own message echoing back through realtime.
+      const mine = s.getUser?.()?.id === m.user_id;
+      if(!mine){ chatUnreadCount++; renderChatDock(); }
+    }
   });
 }
+
+
 
 function propsGridHTML(p){
   const sim = simulatePlayer(p);
@@ -6333,6 +6175,10 @@ async function boot(){
     renderAuthButton();
     refreshExportVisibility();
     evaluateGate();
+    renderHeaderOnline();
+    renderChatDock();
+    startPresence();
+    startGlobalChatSubscription();
     document.getElementById('authBtn')?.addEventListener('click', () => {
       const u = s.getUser?.();
       // Signed in, the button is your profile; sign-out lives inside the editor.
@@ -6345,6 +6191,20 @@ async function boot(){
     renderAuthButton();
     refreshExportVisibility();
     refreshSocialUI();
+    renderHeaderOnline();
+    renderChatDock();
+    // A sign-out drops presence entirely and clears any unread badge, since
+    // it's tied to who's now signed in; a sign-in (re)joins the room.
+    if(social()?.getUser?.()){
+      startPresence();
+      startGlobalChatSubscription();
+    } else {
+      if(onlineUnsub){ onlineUnsub(); onlineUnsub = null; }
+      if(chatGlobalUnsub){ chatGlobalUnsub(); chatGlobalUnsub = null; }
+      onlineList = [];
+      chatUnreadCount = 0;
+      closeChatPanel();
+    }
   });
 
   if(window.DW_SOCIAL) startSocial();
