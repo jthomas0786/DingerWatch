@@ -1,5 +1,3 @@
-
-Social · JS
 /**
  * social.js — accounts, emoji reactions, chat, and follows.
  *
@@ -19,25 +17,25 @@ Social · JS
  * Never replace it with the service_role key: that one bypasses RLS entirely
  * and would let any visitor read or delete every row in the database.
  */
- 
+
 const SUPABASE_URL = 'https://hjhfbhpuuxnrexddplxd.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhqaGZiaHB1dXhucmV4ZGRwbHhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0OTY5ODQsImV4cCI6MjEwMjA3Mjk4NH0.6URv-aSJgFupp1dkO65AsTqPpZF_aUckczhxJZBWVJ0';
- 
+
 let sb = null;                 // Supabase client
 let currentUser = null;        // { id, username, avatar_seed }
 let socialReady = false;
 let profileError = null;   // surfaced in the UI when a profile can't be made
 let schemaMissing = false; // true when the SQL schema hasn't been installed
- 
+
 const socialEnabled = () => !!(SUPABASE_URL && SUPABASE_ANON_KEY);
- 
+
 /** Load the SDK only when configured, so an unconfigured site pays nothing. */
 async function initSocial(){
   if(!socialEnabled()) return false;
   try{
     const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
     sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
- 
+
     // Confirm the schema is actually installed before anything tries to use it.
     // Without this the first failure the user sees is a raw PostgREST error
     // from whichever feature they happened to touch first.
@@ -46,10 +44,10 @@ async function initSocial(){
       schemaMissing = true;
       console.error('[social] Supabase tables are missing. Run supabase-schema.sql in the SQL editor.');
     }
- 
+
     const { data: { session } } = await sb.auth.getSession();
     if(session) await loadProfile(session.user.id);
- 
+
     // IMPORTANT: this callback must not await a Supabase call. The client holds
     // an internal lock while it runs, and querying from inside can deadlock —
     // the await never resolves, so the profile never loads and the UI still
@@ -65,7 +63,7 @@ async function initSocial(){
         notifyAuthChanged();
       }, 0);
     });
- 
+
     socialReady = true;
     return true;
   }catch(e){
@@ -73,11 +71,11 @@ async function initSocial(){
     return false;
   }
 }
- 
+
 async function loadProfile(userId){
   const { data, error } = await sb.from('profiles').select('*').eq('id', userId).single();
   if(data){ currentUser = data; return; }
- 
+
   // No profile row. This happens when the account was created before the schema
   // was installed, or if the signup trigger didn't fire. Faking a user object
   // here would be worse than useless: messages.user_id has a foreign key to
@@ -87,12 +85,12 @@ async function loadProfile(userId){
   const { data: authUser } = await sb.auth.getUser();
   const meta = authUser?.user?.user_metadata || {};
   const fallbackName = meta.username || 'fan_' + userId.replace(/-/g, '').slice(0, 8);
- 
+
   const { data: created, error: insErr } = await sb.from('profiles')
     .insert({ id: userId, username: fallbackName, avatar_seed: userId.replace(/-/g, '').slice(0, 12) })
     .select()
     .single();
- 
+
   if(insErr){
     // Username collision is recoverable; anything else means the schema is
     // missing or RLS is misconfigured, and the user must be told.
@@ -110,12 +108,12 @@ async function loadProfile(userId){
   }
   currentUser = created;
 }
- 
+
 /** Let the page repaint whenever auth state settles. */
 function notifyAuthChanged(){
   try{ window.dispatchEvent(new CustomEvent('dw-auth-changed')); }catch{}
 }
- 
+
 // ---------------------------------------------------------------- auth
 async function signUp(email, password, username){
   if(!/^[a-zA-Z0-9_]{3,20}$/.test(username)){
@@ -124,13 +122,13 @@ async function signUp(email, password, username){
   // Check availability first so the user isn't told after creating an account.
   const { data: taken } = await sb.from('profiles').select('id').eq('username', username).maybeSingle();
   if(taken) return { error: 'That username is taken.' };
- 
+
   const { data, error } = await sb.auth.signUp({
     email, password,
     options: { data: { username } },   // the DB trigger reads this
   });
   if(error) return { error: error.message };
- 
+
   // When email confirmation is disabled in the project, signUp returns a live
   // session and the user is already in. Only claim "check your email" when
   // there genuinely is no session.
@@ -141,7 +139,7 @@ async function signUp(email, password, username){
   }
   return { ok: true, needsConfirm: true };
 }
- 
+
 async function signIn(email, password){
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
   if(error){
@@ -157,14 +155,14 @@ async function signIn(email, password){
   notifyAuthChanged();
   return { ok: true };
 }
- 
+
 async function signOut(){
   await sb.auth.signOut();
   currentUser = null;
   notifyAuthChanged();
   return { ok: true };
 }
- 
+
 // ---------------------------------------------------------------- reactions
 /**
  * Stable identity for a prop across users and sessions. Date-scoped so
@@ -173,18 +171,18 @@ async function signOut(){
 function propKey(slateDate, player, market, line){
   return `${slateDate}|${player}|${market}|${line}`;
 }
- 
+
 const REACTION_EMOJI = ['🔥','💣','🔒','👀','🤡','💀'];
- 
+
 let reactionCache = new Map();   // propKey -> { emoji: {count, mine} }
- 
+
 async function loadReactions(propKeys){
   if(!socialReady || !propKeys.length) return;
   const { data, error } = await sb.from('reactions')
     .select('prop_key, emoji, user_id')
     .in('prop_key', propKeys);
   if(error){ console.warn('[social] reactions load failed:', error.message); return; }
- 
+
   const map = new Map();
   for(const r of data){
     if(!map.has(r.prop_key)) map.set(r.prop_key, {});
@@ -195,13 +193,13 @@ async function loadReactions(propKeys){
   }
   for(const [k, v] of map) reactionCache.set(k, v);
 }
- 
+
 async function toggleReaction(key, emoji){
   if(!currentUser){ promptSignIn(); return; }
- 
+
   const bucket = reactionCache.get(key) || {};
   const mine = bucket[emoji]?.mine;
- 
+
   // Update locally first so the tap feels instant, then reconcile.
   bucket[emoji] = bucket[emoji] || { count: 0, mine: false };
   bucket[emoji].count += mine ? -1 : 1;
@@ -209,11 +207,11 @@ async function toggleReaction(key, emoji){
   if(bucket[emoji].count <= 0) delete bucket[emoji];
   reactionCache.set(key, bucket);
   renderReactionsFor(key);
- 
+
   const q = mine
     ? sb.from('reactions').delete().match({ user_id: currentUser.id, prop_key: key, emoji })
     : sb.from('reactions').insert({ user_id: currentUser.id, prop_key: key, emoji });
- 
+
   const { error } = await q;
   if(error){
     console.warn('[social] reaction failed:', error.message);
@@ -222,22 +220,22 @@ async function toggleReaction(key, emoji){
     renderReactionsFor(key);
   }
 }
- 
+
 /** Synchronous read of cached counts, for render paths that can't await. */
 function reactionsFor(key){
   return reactionCache.get(key) || {};
 }
- 
+
 /** Warm the cache for everything currently on screen, then repaint. */
 async function primeReactions(keys, onDone){
   await loadReactions(keys);
   if(onDone) onDone();
 }
- 
+
 // ---------------------------------------------------------------- chat
 let chatSub = null;
 let chatMessages = [];
- 
+
 async function loadChat(room = 'general', limit = 60){
   if(!socialReady) return [];
   const { data, error } = await sb.from('messages')
@@ -249,7 +247,7 @@ async function loadChat(room = 'general', limit = 60){
   chatMessages = data.reverse();   // oldest first for display
   return chatMessages;
 }
- 
+
 async function sendMessage(body, room = 'general', propKey = null){
   if(schemaMissing){
     return { error: 'Database tables are missing. Run supabase-schema.sql in the Supabase SQL editor, then reload.' };
@@ -262,12 +260,12 @@ async function sendMessage(body, room = 'general', propKey = null){
   const trimmed = body.trim();
   if(!trimmed) return { error: 'empty' };
   if(trimmed.length > 500) return { error: 'Message too long (500 max).' };
- 
+
   const { data, error } = await sb.from('messages')
     .insert({ user_id: currentUser.id, room, body: trimmed, prop_key: propKey })
     .select('id, body, created_at, prop_key, user_id')
     .single();
- 
+
   if(error){
     // Translate the failures that actually happen into something actionable.
     let msg = error.message;
@@ -279,13 +277,13 @@ async function sendMessage(body, room = 'general', propKey = null){
     console.error('[social] send failed:', error);
     return { error: msg };
   }
- 
+
   // Return the row so the UI can show it immediately — realtime may be off or
   // slow, and a message that posts but never appears reads as a failure.
   return { ok: true, message: { ...data, profiles: { username: currentUser.username,
                                                      avatar_seed: currentUser.avatar_seed } } };
 }
- 
+
 /** Realtime subscription. Returns an unsubscribe function. */
 function subscribeChat(room, onMessage){
   if(!socialReady) return () => {};
@@ -302,17 +300,17 @@ function subscribeChat(room, onMessage){
     .subscribe();
   return () => { if(chatSub){ sb.removeChannel(chatSub); chatSub = null; } };
 }
- 
+
 // ---------------------------------------------------------------- follows
 async function toggleFollow(followeeId){
   if(!currentUser){ promptSignIn(); return; }
   if(followeeId === currentUser.id) return;   // schema forbids it too
- 
+
   const { data: existing } = await sb.from('follows')
     .select('follower_id')
     .match({ follower_id: currentUser.id, followee_id: followeeId })
     .maybeSingle();
- 
+
   if(existing){
     await sb.from('follows').delete().match({ follower_id: currentUser.id, followee_id: followeeId });
     return { following: false };
@@ -321,7 +319,7 @@ async function toggleFollow(followeeId){
     .insert({ follower_id: currentUser.id, followee_id: followeeId });
   return error ? { error: error.message } : { following: true };
 }
- 
+
 async function followCounts(userId){
   if(!socialReady) return { followers: 0, following: 0 };
   const [{ count: followers }, { count: following }] = await Promise.all([
@@ -330,7 +328,7 @@ async function followCounts(userId){
   ]);
   return { followers: followers || 0, following: following || 0 };
 }
- 
+
 /** Picks from people you follow. */
 async function followingFeed(limit = 50){
   if(!socialReady || !currentUser) return [];
@@ -338,22 +336,22 @@ async function followingFeed(limit = 50){
   if(error){ console.warn('[social] feed failed:', error.message); return []; }
   return data;
 }
- 
+
 // ---------------------------------------------------------------- presence
 // Who's online. Supabase Realtime Presence keeps a shared roster per channel
 // and drops entries automatically when a tab closes, so there's no stale-user
 // cleanup to write.
 let presenceChannel = null;
 let onlineUsers = [];
- 
+
 function joinPresence(onChange){
   if(!socialReady || !currentUser) return () => {};
   if(presenceChannel) sb.removeChannel(presenceChannel);
- 
+
   presenceChannel = sb.channel('online', {
     config: { presence: { key: currentUser.id } },
   });
- 
+
   const sync = () => {
     const state = presenceChannel.presenceState();
     // One entry per user even with several tabs open.
@@ -365,7 +363,7 @@ function joinPresence(onChange){
     onlineUsers = [...seen.values()];
     if(onChange) onChange(onlineUsers);
   };
- 
+
   presenceChannel
     .on('presence', { event: 'sync' }, sync)
     .on('presence', { event: 'join' }, sync)
@@ -379,12 +377,12 @@ function joinPresence(onChange){
         online_at: new Date().toISOString(),
       });
     });
- 
+
   return () => { if(presenceChannel){ sb.removeChannel(presenceChannel); presenceChannel = null; } };
 }
- 
+
 const getOnlineUsers = () => onlineUsers;
- 
+
 // ---------------------------------------------------------------- profiles
 async function getProfile(username){
   if(!socialReady) return null;
@@ -393,7 +391,7 @@ async function getProfile(username){
   if(error){ console.warn('[social] profile fetch failed:', error.message); return null; }
   return data;
 }
- 
+
 async function updateProfile(fields){
   if(!currentUser) return { error: 'not signed in' };
   const allowed = {};
@@ -410,7 +408,7 @@ async function updateProfile(fields){
     allowed.username = u;
   }
   allowed.updated_at = new Date().toISOString();
- 
+
   const { data, error } = await sb.from('profiles')
     .update(allowed).eq('id', currentUser.id).select().single();
   if(error) return { error: error.message };
@@ -418,14 +416,14 @@ async function updateProfile(fields){
   notifyAuthChanged();
   return { ok: true, profile: data };
 }
- 
+
 async function isFollowing(userId){
   if(!socialReady || !currentUser) return false;
   const { data } = await sb.from('follows').select('follower_id')
     .match({ follower_id: currentUser.id, followee_id: userId }).maybeSingle();
   return !!data;
 }
- 
+
 // ---------------------------------------------------------------- avatars
 /**
  * Resize any uploaded photo to a small square before it ever leaves the
@@ -451,41 +449,41 @@ function resizeToSquare(file, size = 320){
     img.src = url;
   });
 }
- 
+
 async function uploadAvatar(file){
   if(!currentUser) return { error: 'not signed in' };
   if(!file.type?.startsWith('image/')) return { error: 'Please choose an image file.' };
   if(file.size > 15 * 1024 * 1024) return { error: 'Image is too large (15MB max before resizing).' };
- 
+
   let blob;
   try{ blob = await resizeToSquare(file); }
   catch(e){ return { error: e.message || 'Could not process that image.' }; }
- 
+
   const path = `${currentUser.id}/avatar.jpg`;
   const { error: upErr } = await sb.storage.from('avatars')
     .upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
   if(upErr) return { error: upErr.message };
- 
+
   const { data: pub } = sb.storage.from('avatars').getPublicUrl(path);
   // Cache-bust: the path never changes on re-upload, so without this the
   // browser (and any CDN in front of storage) would keep showing the old photo.
   const url = `${pub.publicUrl}?t=${Date.now()}`;
- 
+
   return updateProfile({ avatar_url: url });
 }
- 
+
 async function setAvatarPreset(presetId){
   if(!currentUser) return { error: 'not signed in' };
   return updateProfile({ avatar_url: `preset:${presetId}` });
 }
- 
+
 // ---------------------------------------------------------------- statuses
 async function postStatus(body, legs = null, slateDate = null){
   if(!currentUser) return { error: 'not signed in' };
   const trimmed = String(body || '').trim();
   if(!trimmed) return { error: 'Say something first.' };
   if(trimmed.length > 500) return { error: 'Status too long (500 max).' };
- 
+
   const { data, error } = await sb.from('statuses')
     .insert({ user_id: currentUser.id, body: trimmed, legs, slate_date: slateDate })
     .select().single();
@@ -495,13 +493,13 @@ async function postStatus(body, legs = null, slateDate = null){
                                avatar_seed: currentUser.avatar_seed,
                                comment_count: 0, reaction_count: 0 } };
 }
- 
+
 async function deleteStatus(id){
   if(!currentUser) return { error: 'not signed in' };
   const { error } = await sb.from('statuses').delete().match({ id, user_id: currentUser.id });
   return error ? { error: error.message } : { ok: true };
 }
- 
+
 /** Statuses for one user, or the global feed when userId is null. */
 async function loadStatuses({ userId = null, limit = 40 } = {}){
   if(!socialReady) return [];
@@ -511,7 +509,7 @@ async function loadStatuses({ userId = null, limit = 40 } = {}){
   if(error){ console.warn('[social] statuses failed:', error.message); return []; }
   return data;
 }
- 
+
 /** Statuses from people the signed-in user follows. */
 async function loadFollowingStatuses(limit = 40){
   if(!socialReady || !currentUser) return [];
@@ -523,7 +521,7 @@ async function loadFollowingStatuses(limit = 40){
   if(error){ console.warn('[social] following feed failed:', error.message); return []; }
   return data;
 }
- 
+
 // ---------------------------------------------------------------- comments
 async function loadComments(statusId){
   if(!socialReady) return [];
@@ -533,7 +531,7 @@ async function loadComments(statusId){
   if(error){ console.warn('[social] comments failed:', error.message); return []; }
   return data;
 }
- 
+
 async function postComment(statusId, body){
   if(!currentUser) return { error: 'not signed in' };
   const trimmed = String(body || '').trim();
@@ -546,10 +544,10 @@ async function postComment(statusId, body){
   return { ok: true, comment: { ...data, profiles: { username: currentUser.username,
                                                      avatar_seed: currentUser.avatar_seed } } };
 }
- 
+
 // ------------------------------------------------------- status reactions
 let statusRxCache = new Map();   // statusId -> { emoji: {count, mine} }
- 
+
 async function loadStatusReactions(statusIds){
   if(!socialReady || !statusIds.length) return;
   const { data, error } = await sb.from('status_reactions')
@@ -565,20 +563,20 @@ async function loadStatusReactions(statusIds){
   }
   for(const id of statusIds) statusRxCache.set(id, map.get(id) || {});
 }
- 
+
 const statusReactionsFor = id => statusRxCache.get(id) || {};
- 
+
 async function toggleStatusReaction(statusId, emoji){
   if(!currentUser) return { error: 'not signed in' };
   const b = statusRxCache.get(statusId) || {};
   const mine = b[emoji]?.mine;
- 
+
   b[emoji] = b[emoji] || { count: 0, mine: false };
   b[emoji].count += mine ? -1 : 1;
   b[emoji].mine = !mine;
   if(b[emoji].count <= 0) delete b[emoji];
   statusRxCache.set(statusId, b);
- 
+
   const q = mine
     ? sb.from('status_reactions').delete().match({ status_id: statusId, user_id: currentUser.id, emoji })
     : sb.from('status_reactions').insert({ status_id: statusId, user_id: currentUser.id, emoji });
@@ -586,7 +584,7 @@ async function toggleStatusReaction(statusId, emoji){
   if(error){ await loadStatusReactions([statusId]); return { error: error.message }; }
   return { ok: true };
 }
- 
+
 // ---------------------------------------------------------------- picks
 async function publishPick(pick){
   if(!currentUser){ promptSignIn(); return { error: 'not signed in' }; }
@@ -601,8 +599,8 @@ async function publishPick(pick){
   if(error && error.code === '23505') return { ok: true, duplicate: true };
   return error ? { error: error.message } : { ok: true };
 }
- 
- 
+
+
 // ---------------------------------------------------------------- exports
 export {
   initSocial, socialEnabled,
@@ -624,6 +622,3 @@ export const needsSchema = () => schemaMissing;
 // Live binding: ES module exports of `let` update for importers automatically,
 // so the dashboard's `s.socialReady` reflects the real state.
 export { socialReady, currentUser };
- 
-
-
