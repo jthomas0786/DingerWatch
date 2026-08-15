@@ -1783,6 +1783,17 @@ function avatarHTML(user, sizePx = 32, cls = ''){
   return `<div class="dw-avatar ${cls}" style="${style}background:hsl(${hue},55%,32%);">${initial}</div>`;
 }
 
+/**
+ * Updates one of the small status dots in the footer (dotSlate, dotSchedule)
+ * to reflect whether a data source loaded, fell back, or is still pending.
+ * Null-safe: an element that isn't on the current view shouldn't throw.
+ */
+function setDot(id, status){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.className = 'dot ' + (status === 'ok' ? 'ok' : status === 'fallback' ? 'fallback' : 'pending');
+}
+
 function isInteractiveClick(e){
   return !!e.target?.closest?.('.rx, .add-leg, .chat-user, .status-comments, .status-del, .feed-share, button');
 }
@@ -5247,6 +5258,27 @@ function propKeyFor(p, market, line){
 }
 
 const REACTION_SET = ['🔥','💣','🔒','👀','🤡','💀'];
+// Home run feed gets its own emoji set — reacting to something that already
+// happened reads differently than reacting to a prediction.
+const HR_EMOJI = ['🔥','💣','🚀','😱','🫡'];
+
+/**
+ * Reactions on one home run. Keyed by the specific play (gamePk:atBatIndex),
+ * not by player + date, so a hitter with two homers in one game gets two
+ * independently reactable events rather than one shared count.
+ */
+function hrReactionStripHTML(ev){
+  const s = social();
+  if(!s || !s.socialReady) return '';
+  const key = `hr|${ev.key}`;
+  const counts = s.reactionsFor ? s.reactionsFor(key) : {};
+  return `<div class="rx-strip feed-rx" data-propkey="${key}">` +
+    HR_EMOJI.map(e => {
+      const c = counts[e];
+      return `<button class="rx ${c?.mine ? 'mine' : ''}" data-emoji="${e}"
+        title="${c?.count || 0} reaction${c?.count === 1 ? '' : 's'}">${e}${c?.count ? `<b>${c.count}</b>` : ''}</button>`;
+    }).join('') + `</div>`;
+}
 
 /**
  * Compact variant for ranked lists: only emoji that someone has actually used
