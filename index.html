@@ -671,7 +671,8 @@ body:has(.betslip-bar) .chat-dock{ bottom:calc(84px + env(safe-area-inset-bottom
 .status-comments:hover{ border-color:var(--foul); color:var(--white); }
 .comment-box{ display:none; margin-top:11px; padding-top:11px; border-top:1px solid var(--line); }
 .comment-box.open{ display:block; }
-.comment{ display:flex; gap:8px; font-size:12px; padding:5px 0; line-height:1.5; }
+.comment{ display:flex; align-items:flex-start; gap:8px; font-size:12px; padding:5px 0; line-height:1.5; }
+.comment .dw-avatar{ flex-shrink:0; margin-top:1px; }
 .comment .chat-user{ color:var(--foul); flex-shrink:0; font-size:12px; }
 .comment-compose{ display:flex; gap:7px; margin-top:9px; }
 .comment-compose input{ flex:1; background:var(--night); border:1px solid var(--line); color:var(--white);
@@ -5917,6 +5918,7 @@ function wireStatusInteractions(root, canDelete){
     box.classList.add('open');
     box.innerHTML = `
       ${comments.map(c => `<div class="comment">
+        ${avatarHTML({ username:c.profiles?.username, avatar_url:c.profiles?.avatar_url, avatar_seed:c.profiles?.avatar_seed }, 20)}
         <span class="chat-user" data-username="${escapeHTML(c.profiles?.username||'')}">@${escapeHTML(c.profiles?.username||'?')}</span>
         <span>${escapeHTML(c.body)}</span>
       </div>`).join('')}
@@ -5932,7 +5934,7 @@ function wireStatusInteractions(root, canDelete){
       if(res.error){ return; }
       input.value = '';
       box.querySelector('.comment-compose').insertAdjacentHTML('beforebegin',
-        `<div class="comment"><span class="chat-user">@${escapeHTML(res.comment.profiles.username)}</span>
+        `<div class="comment">${avatarHTML(res.comment.profiles, 20)}<span class="chat-user">@${escapeHTML(res.comment.profiles.username)}</span>
          <span>${escapeHTML(res.comment.body)}</span></div>`);
       b.textContent = `💬 ${comments.length + 1}`;
     };
