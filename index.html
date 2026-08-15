@@ -818,21 +818,42 @@ body.gated{ overflow:hidden; }
 .sz-center{ display:flex; flex-direction:column; align-items:center; flex-shrink:0; }
 .sz-vs-label{ font-family:'Space Mono',monospace; font-size:8.5px; color:var(--mute); letter-spacing:.12em; margin-bottom:5px; }
 
-.sz-player{ display:flex; flex-direction:column; align-items:center; gap:5px; width:64px; flex-shrink:0; }
+.sz-player{ display:flex; flex-direction:column; align-items:center; gap:5px; width:64px; flex-shrink:0;
+  padding:8px 4px; border-radius:12px;
+  background:linear-gradient(180deg, rgba(255,255,255,.03) 0%, rgba(0,0,0,.08) 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 2px 6px rgba(0,0,0,.25);
+}
 .sz-player-empty{ visibility:hidden; }
 .sz-face{ width:52px; height:52px; border-radius:50%; object-fit:cover; background:var(--night2);
-  border:2px solid var(--line); }
+  border:2px solid var(--line);
+  /* Raised, glossy ring: outer drop shadow lifts it off the card, the two
+     inset shadows fake a curved/lit sphere rather than a flat cutout photo. */
+  box-shadow:
+    0 5px 12px rgba(0,0,0,.5),
+    inset 0 -4px 7px rgba(0,0,0,.35),
+    inset 0 3px 4px rgba(255,255,255,.18);
+  transition: transform .15s ease;
+}
 .sz-face-fallback{ display:flex; align-items:center; justify-content:center; font-family:'Archivo Black',sans-serif;
-  font-size:18px; color:var(--mute); }
+  font-size:18px; color:var(--mute);
+  background:linear-gradient(160deg, var(--night2) 0%, #0a0c0e 100%); }
 .sz-player-name{ font-family:'Oswald',sans-serif; font-size:11px; color:var(--white); text-align:center;
-  line-height:1.2; }
+  line-height:1.2; text-shadow:0 1px 2px rgba(0,0,0,.6); }
 .sz-player-stat{ font-family:'Space Mono',monospace; font-size:9px; color:var(--grass-bright); text-align:center;
   line-height:1.3; }
 .sz-player-stat-empty{ color:var(--mute); }
 .sz-head{ display:flex; align-items:center; gap:7px; margin-bottom:8px; font-family:'Oswald',sans-serif; font-size:12.5px; }
 .sz-title{ color:var(--white); font-weight:600; }
 .sz-vs{ color:var(--mute); font-size:10px; }
-.sz-svg{ width:150px; height:178px; display:block; margin:0 auto; }
+.sz-svg{ width:150px; height:178px; display:block; margin:0 auto; border-radius:8px;
+  /* Layered shadow reads as a recessed viewport (looking INTO the box) rather
+     than a flat image pasted on the card, plus a soft outer lift so it still
+     separates from the card behind it. */
+  box-shadow:
+    inset 0 3px 10px rgba(0,0,0,.55),
+    inset 0 -2px 5px rgba(255,255,255,.04),
+    0 6px 16px rgba(0,0,0,.35);
+}
 .sz-foot{ display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:9px; }
 .sz-legend{ display:flex; align-items:center; gap:5px; font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); }
 .sz-legend i{ width:8px; height:8px; border-radius:50%; display:inline-block; }
@@ -841,10 +862,10 @@ body.gated{ overflow:hidden; }
 
 /* --- batted-ball trajectory --- */
 .sz-bb-result{ text-align:center; font-family:'Oswald',sans-serif; font-size:12px; color:var(--white);
-  text-transform:capitalize; margin-top:8px; }
+  text-transform:capitalize; margin-top:8px; text-shadow:0 1px 2px rgba(0,0,0,.5); }
 .sz-bb-stats{ display:flex; gap:11px; justify-content:center; margin-top:5px; }
 .bb-stat{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); }
-.bb-stat b{ color:var(--foul); font-size:11px; }
+.bb-stat b{ color:var(--foul); font-size:11px; text-shadow:0 0 6px rgba(224,18,46,.5); }
 
 @media (max-width:480px){
   .sz-player{ width:50px; }
@@ -3271,18 +3292,39 @@ function liveStrikeZoneHTML(g){
   const zoneX0 = px(-PLATE_HALF), zoneX1 = px(PLATE_HALF);
   const zoneY0 = pz(zTop), zoneY1 = pz(zBot);
 
+  // Perspective is faked in the geometry, not with CSS 3D transforms on the
+  // SVG (inconsistent cross-browser support on nested transformed shapes).
+  // The near edge (bottom, close to the camera/catcher) is drawn wider than
+  // the far edge (top), and side walls converge toward a vanishing point
+  // above the box — the same trick real 3D-box illustrations use.
+  const VANISH_X = W/2;
+  const perspAt = (x, amt) => x + (VANISH_X - x) * amt;   // pull x toward vanishing point
+  const nearAmt = 0, farAmt = 0.16;             // how much the far edge narrows
+  // How far "up" (toward the far/narrow edge) a given y sits within the
+  // overall drawn box — used so a pitch near the top narrows the same amount
+  // the zone walls do, keeping dots visually anchored inside the perspective.
+  const depthAt = y => Math.max(0, Math.min(1, 1 - (y / H)));
+
   const dotColor = p => p.inPlay ? 'var(--white)' : p.isStrike ? 'var(--foul)' : p.isBall ? '#4ea1f7' : 'var(--mute)';
 
   const dots = ab.pitches.map((p, i) => {
     const isLast = i === ab.pitches.length - 1;
-    const cx = px(p.x ?? 0), cy = pz(p.z ?? 2.5);
+    const rawX = px(p.x ?? 0), cy = pz(p.z ?? 2.5);
+    const cx = perspAt(rawX, farAmt * depthAt(cy));   // project through the same perspective as the box walls
     const r = isLast ? 8 : 5;
     const op = isLast ? 1 : 0.35 + (i / ab.pitches.length) * 0.4;
+    // A small ground-shadow under the highlighted pitch sells the sense that
+    // it's sitting IN the box rather than pasted flat on top of it.
+    const shadow = isLast
+      ? `<ellipse cx="${cx.toFixed(1)}" cy="${(cy+r*0.9).toFixed(1)}" rx="${(r*0.9).toFixed(1)}" ry="${(r*0.32).toFixed(1)}" fill="rgba(0,0,0,.4)"/>`
+      : '';
     return `<g opacity="${op.toFixed(2)}">
+      ${shadow}
       <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r}" fill="${dotColor(p)}"
         stroke="${isLast?'#fff':'none'}" stroke-width="${isLast?1.5:0}">
         <title>${p.speed?p.speed+' mph ':''}${p.type||''} — ${p.call||''}</title>
       </circle>
+      ${isLast ? `<circle cx="${(cx-r*0.3).toFixed(1)}" cy="${(cy-r*0.3).toFixed(1)}" r="${(r*0.32).toFixed(1)}" fill="rgba(255,255,255,.55)"/>` : ''}
       ${isLast ? `<text x="${cx.toFixed(1)}" y="${(cy+3).toFixed(1)}" text-anchor="middle" font-size="8" font-weight="700" fill="${p.inPlay?'#111':'#fff'}" font-family="monospace">${i+1}</text>` : ''}
     </g>`;
   }).join('');
@@ -3292,14 +3334,41 @@ function liveStrikeZoneHTML(g){
     ? `<div class="sz-count">${ab.pitches.length} pitch${ab.pitches.length===1?'':'es'} this AB</div>` : '';
 
   const zoneBox = `<svg class="sz-svg" viewBox="0 0 ${W} ${H}">
-      <rect x="0" y="0" width="${W}" height="${H}" fill="#0d1a12" rx="6"/>
-      <rect x="${zoneX0.toFixed(1)}" y="${zoneY0.toFixed(1)}"
-        width="${(zoneX1-zoneX0).toFixed(1)}" height="${(zoneY1-zoneY0).toFixed(1)}"
-        fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.55)" stroke-width="1.5"/>
-      <line x1="${zoneX0.toFixed(1)}" y1="${(zoneY0+(zoneY1-zoneY0)/3).toFixed(1)}" x2="${zoneX1.toFixed(1)}" y2="${(zoneY0+(zoneY1-zoneY0)/3).toFixed(1)}" stroke="rgba(255,255,255,.15)"/>
-      <line x1="${zoneX0.toFixed(1)}" y1="${(zoneY0+(zoneY1-zoneY0)*2/3).toFixed(1)}" x2="${zoneX1.toFixed(1)}" y2="${(zoneY0+(zoneY1-zoneY0)*2/3).toFixed(1)}" stroke="rgba(255,255,255,.15)"/>
-      <line x1="${(zoneX0+(zoneX1-zoneX0)/3).toFixed(1)}" y1="${zoneY0.toFixed(1)}" x2="${(zoneX0+(zoneX1-zoneX0)/3).toFixed(1)}" y2="${zoneY1.toFixed(1)}" stroke="rgba(255,255,255,.15)"/>
-      <line x1="${(zoneX0+(zoneX1-zoneX0)*2/3).toFixed(1)}" y1="${zoneY0.toFixed(1)}" x2="${(zoneX0+(zoneX1-zoneX0)*2/3).toFixed(1)}" y2="${zoneY1.toFixed(1)}" stroke="rgba(255,255,255,.15)"/>
+      <defs>
+        <linearGradient id="szFloor" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#0a140d"/>
+          <stop offset="55%" stop-color="#0d1a12"/>
+          <stop offset="100%" stop-color="#16241a"/>
+        </linearGradient>
+        <linearGradient id="szGlass" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="rgba(255,255,255,.10)"/>
+          <stop offset="100%" stop-color="rgba(255,255,255,.02)"/>
+        </linearGradient>
+      </defs>
+      <rect x="0" y="0" width="${W}" height="${H}" fill="url(#szFloor)" rx="6"/>
+      <!-- side walls of the box, converging toward the vanishing point above -->
+      <polygon points="0,${H} ${perspAt(0,farAmt).toFixed(1)},0 ${perspAt(0,farAmt).toFixed(1)+8},0 8,${H}"
+        fill="rgba(255,255,255,.025)"/>
+      <polygon points="${W},${H} ${perspAt(W,farAmt).toFixed(1)},0 ${perspAt(W,farAmt).toFixed(1)-8},0 ${W-8},${H}"
+        fill="rgba(255,255,255,.025)"/>
+      <!-- the strike zone itself: trapezoid, narrower at the far (top) edge -->
+      <polygon points="
+        ${perspAt(zoneX0,nearAmt).toFixed(1)},${zoneY1.toFixed(1)}
+        ${perspAt(zoneX1,nearAmt).toFixed(1)},${zoneY1.toFixed(1)}
+        ${perspAt(zoneX1,farAmt).toFixed(1)},${zoneY0.toFixed(1)}
+        ${perspAt(zoneX0,farAmt).toFixed(1)},${zoneY0.toFixed(1)}"
+        fill="url(#szGlass)" stroke="rgba(255,255,255,.6)" stroke-width="1.5"/>
+      ${[1,2].map(k => {
+        const t = k/3, y = zoneY1 + (zoneY0-zoneY1)*t;
+        const x0 = perspAt(zoneX0,nearAmt + (farAmt-nearAmt)*t), x1 = perspAt(zoneX1,0,nearAmt + (farAmt-nearAmt)*t);
+        return `<line x1="${x0.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y.toFixed(1)}" stroke="rgba(255,255,255,.15)"/>`;
+      }).join('')}
+      ${[1,2].map(k => {
+        const t = k/3;
+        const yb=zoneY1, yt=zoneY0;
+        const xb = perspAt(zoneX0 + (zoneX1-zoneX0)*t, nearAmt), xt = perspAt(zoneX0 + (zoneX1-zoneX0)*t, farAmt);
+        return `<line x1="${xb.toFixed(1)}" y1="${yb.toFixed(1)}" x2="${xt.toFixed(1)}" y2="${yt.toFixed(1)}" stroke="rgba(255,255,255,.15)"/>`;
+      }).join('')}
       ${dots}
     </svg>`;
 
@@ -3358,27 +3427,57 @@ function playerCardMini(name, id, teamAbbr, gameStats, kind){
  */
 function battedBallHTML(bb, W, H){
   const dist = bb.distance ?? 0;
-  const maxDist = 480;                        // roughly a park's deepest fence
+  const maxDist = 480;
   const reach = Math.min(1, dist / maxDist);
-  const startX = W/2, startY = H - 14;         // home plate, bottom-center
-  const endX = W/2, endY = startY - reach * (H - 30);
+  const startX = W/2, startY = H - 18;         // home plate, near/bottom edge
+  // The ball travels "into" the frame — its endpoint moves up (further) AND
+  // shrinks in scale, which is what actually reads as depth rather than a
+  // flat 2D arc. Distance also narrows slightly toward the vanishing point,
+  // matching the same convergence used on the strike-zone box for consistency.
+  const VANISH_X = W/2;
+  const endX = startX + (VANISH_X - startX) * (reach * 0.5);
+  const endY = startY - reach * (H - 34);
+  const endScale = 1 - reach * 0.65;           // ball shrinks as it recedes
 
-  // Arc height follows launch angle: higher angle = taller arc, within reason.
   const angle = bb.launchAngle ?? 20;
   const arcHeight = Math.max(10, Math.min(70, angle * 2));
-  const midX = W/2, midY = Math.min(startY, endY) - arcHeight;
+  const midX = (startX + endX) / 2, midY = Math.min(startY, endY) - arcHeight;
 
   const path = `M ${startX},${startY} Q ${midX},${midY} ${endX},${endY}`;
   const resultLabel = (bb.result || bb.description || 'In play').replace(/_/g,' ');
 
+  // Foreshortened field: a trapezoid of grass narrowing toward the back,
+  // matching the same vanishing point as the strike-zone widget so the two
+  // states of this panel feel like one consistent 3D space rather than two
+  // different flat illustrations.
+  const farW = W * 0.32;
+  const field = `<polygon points="0,${H} ${W},${H} ${(VANISH_X+farW/2).toFixed(1)},${(H*0.18).toFixed(1)} ${(VANISH_X-farW/2).toFixed(1)},${(H*0.18).toFixed(1)}"
+      fill="url(#bbGrass)"/>
+    <line x1="${W*0.18}" y1="${H}" x2="${(VANISH_X-farW*0.4).toFixed(1)}" y2="${(H*0.2).toFixed(1)}" stroke="rgba(255,255,255,.05)"/>
+    <line x1="${W*0.82}" y1="${H}" x2="${(VANISH_X+farW*0.4).toFixed(1)}" y2="${(H*0.2).toFixed(1)}" stroke="rgba(255,255,255,.05)"/>`;
+
   return `<svg class="sz-svg sz-bb" viewBox="0 0 ${W} ${H}">
-    <rect x="0" y="0" width="${W}" height="${H}" fill="#0d1a12" rx="6"/>
-    <path d="${path}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="2" stroke-dasharray="4 3"/>
+    <defs>
+      <radialGradient id="bbGrass" cx="50%" cy="100%" r="120%">
+        <stop offset="0%" stop-color="#1c3320"/>
+        <stop offset="100%" stop-color="#0a140d"/>
+      </radialGradient>
+    </defs>
+    <rect x="0" y="0" width="${W}" height="${H}" fill="#0a140d" rx="6"/>
+    ${field}
+    <path d="${path}" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2" stroke-dasharray="4 3"/>
+    <!-- ground shadow, travels under the ball and shrinks/fades with distance -->
+    <ellipse rx="5" ry="2" fill="rgba(0,0,0,.5)">
+      <animateMotion dur="0.9s" fill="freeze" path="M ${startX},${startY+3} Q ${midX},${(startY+3-arcHeight*0.15).toFixed(1)} ${endX},${endY+3}"/>
+      <animate attributeName="rx" dur="0.9s" fill="freeze" from="5" to="${(5*endScale).toFixed(1)}"/>
+      <animate attributeName="opacity" dur="0.9s" fill="freeze" from=".5" to="${(0.5*endScale).toFixed(2)}"/>
+    </ellipse>
     <circle cx="${startX}" cy="${startY}" r="4" fill="var(--foul)"/>
     <circle r="5" fill="var(--white)">
       <animateMotion dur="0.9s" fill="freeze" path="${path}"/>
+      <animate attributeName="r" dur="0.9s" fill="freeze" from="5" to="${(5*endScale).toFixed(1)}"/>
     </circle>
-    <circle cx="${endX}" cy="${endY}" r="3" fill="var(--warm)" opacity="0">
+    <circle cx="${endX.toFixed(1)}" cy="${endY.toFixed(1)}" r="${(3*endScale).toFixed(1)}" fill="var(--warm)" opacity="0">
       <animate attributeName="opacity" begin="0.85s" dur="0.3s" fill="freeze" from="0" to="1"/>
     </circle>
   </svg>
