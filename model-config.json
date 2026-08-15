@@ -2,7 +2,7 @@
   "//": "Dinger Watch model config. Deep-merged over the app defaults at load, so this survives any rebuild of index.html. Delete any key to fall back to its default. Place next to index.html.",
   "// regression": "SMALL-SAMPLE REGRESSION for DERIVED Statcast only (real measured Statcast is untouched). regressionPA is the plate-appearance count at which a player's own rate and the league average are weighted equally — raise it to trust small samples less, lower it to let hot callups rank higher. lowSamplePA is the threshold below which cards show a \"small sample\" warning.",
   "regression": {
-    "regressionPA": 150,
+    "regressionPA": 250,
     "leagueIso": 0.164,
     "lowSamplePA": 150
   },
@@ -84,10 +84,10 @@
   "// hr": "HOME RUN INDEX (0-100). weights must total 100. Each *Scale is the input value that earns full marks.",
   "hr": {
     "weights": {
-      "statcast": 0,
-      "form": 30,
-      "park": 30,
-      "matchup": 40
+      "statcast": 70,
+      "form": 10,
+      "park": 10,
+      "matchup": 10
     },
     "barrelWeight": 0.25,
     "barrelScale": 10,
