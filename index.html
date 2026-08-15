@@ -1036,6 +1036,26 @@ body:has(.betslip-bar) .chat-dock{ bottom:calc(84px + env(safe-area-inset-bottom
 .gc-zone-col{ display:flex; flex-direction:column; align-items:center; flex-shrink:0; }
 .gc-zone-label{ font-family:'Space Mono',monospace; font-size:8px; color:var(--mute); margin-bottom:5px; text-align:center; }
 
+/* --- box score --- */
+.bx-empty{ text-align:center; color:var(--mute); font-size:12.5px; padding:26px; }
+.bx-team{ margin-bottom:20px; }
+.bx-team:last-child{ margin-bottom:0; }
+.bx-team-label{ font-family:'Oswald',sans-serif; font-size:14px; color:var(--white); font-weight:600;
+  margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid var(--line); }
+.bx-table{ width:100%; border-collapse:collapse; font-size:11.5px; }
+.bx-table th{ font-family:'Space Mono',monospace; font-size:9px; color:var(--mute); text-transform:uppercase;
+  text-align:center; padding:4px 3px; border-bottom:1px solid var(--line); }
+.bx-table th.bx-name, .bx-table td.bx-name{ text-align:left; }
+.bx-table td{ text-align:center; padding:5px 3px; color:var(--white); border-bottom:1px solid rgba(255,255,255,.05); }
+.bx-name{ font-family:'Oswald',sans-serif; }
+.bx-pos{ font-family:'Space Mono',monospace; font-size:9px; color:var(--mute); margin-left:5px; }
+.bx-current{ background:rgba(224,18,46,.08); }
+.bx-up{ font-family:'Space Mono',monospace; font-size:8.5px; color:var(--foul); }
+@media (max-width:480px){
+  .bx-table{ font-size:10px; }
+  .bx-pos{ display:none; }
+}
+
 .sz-matchup{ display:flex; align-items:center; justify-content:center; gap:10px; }
 .sz-center{ display:flex; flex-direction:column; align-items:center; flex-shrink:0; }
 .sz-vs-label{ font-family:'Space Mono',monospace; font-size:8.5px; color:var(--mute); letter-spacing:.12em; margin-bottom:5px; }
@@ -3542,6 +3562,42 @@ async function fetchLiveGameStates(){
               ip: ps.inningsPitched ?? '0.0', h: ps.hits ?? 0, er: ps.earnedRuns ?? 0,
               bb: ps.baseOnBalls ?? 0, so: ps.strikeOuts ?? 0,
             };
+          }
+
+          // Full box score — every batter and pitcher on both sides, not just
+          // the two currently in the at-bat. box.teams[side].batters/pitchers
+          // are ordered id arrays (batting order, appearance order); the full
+          // stat line for each id lives in .players["ID{id}"].
+          if(box){
+            const side_ = (teamKey) => {
+              const t = box.teams?.[teamKey];
+              if(!t) return { batters: [], pitchers: [] };
+              const batters = (t.batters || []).map(id => {
+                const p = t.players?.[`ID${id}`];
+                const bs = p?.stats?.batting;
+                if(!p || !bs) return null;
+                return {
+                  id, name: p.person?.fullName ?? '?',
+                  pos: p.position?.abbreviation ?? '',
+                  ab: bs.atBats ?? 0, r: bs.runs ?? 0, h: bs.hits ?? 0,
+                  rbi: bs.rbi ?? 0, bb: bs.baseOnBalls ?? 0, so: bs.strikeOuts ?? 0,
+                  avg: p.seasonStats?.batting?.avg ?? null,
+                };
+              }).filter(Boolean);
+              const pitchers = (t.pitchers || []).map(id => {
+                const p = t.players?.[`ID${id}`];
+                const ps = p?.stats?.pitching;
+                if(!p || !ps) return null;
+                return {
+                  id, name: p.person?.fullName ?? '?',
+                  ip: ps.inningsPitched ?? '0.0', h: ps.hits ?? 0, r: ps.runs ?? 0,
+                  er: ps.earnedRuns ?? 0, bb: ps.baseOnBalls ?? 0, so: ps.strikeOuts ?? 0,
+                  era: p.seasonStats?.pitching?.era ?? null,
+                };
+              }).filter(Boolean);
+              return { batters, pitchers };
+            };
+            g.boxscore = { away: side_('away'), home: side_('home') };
           }
         }
       }catch(e){ /* leave this game's state as last-known on a per-game fetch failure */ }
@@ -6924,6 +6980,57 @@ function openBatterModal(p){
     });
   });
 }
+/**
+ * Batting + pitching lines for both teams. Only meaningful once the game has
+ * actually started — box.teams[side].batters/pitchers are ordered id arrays
+ * MLB fills in as players appear, so this naturally grows over the course of
+ * the game rather than needing separate "pregame" handling.
+ */
+function boxScoreHTML(g){
+  const box = g.boxscore;
+  if(!box || (!box.away.batters.length && !box.home.batters.length)){
+    return `<div class="bx-empty">Box score isn't available yet — check back once the game starts.</div>`;
+  }
+  const currentBatterId = g.currentAtBat?.batterId;
+
+  const teamBlock = (label, side) => {
+    const batters = side.batters.length ? `
+      <table class="bx-table">
+        <thead><tr><th class="bx-name">Batter</th><th>AB</th><th>R</th><th>H</th><th>RBI</th><th>BB</th><th>SO</th><th>AVG</th></tr></thead>
+        <tbody>${side.batters.map(b => `
+          <tr class="${b.id === currentBatterId ? 'bx-current' : ''}">
+            <td class="bx-name">${escapeHTML(b.name)}${b.id === currentBatterId ? ' <span class="bx-up">● AT BAT</span>' : ''}
+              <span class="bx-pos">${b.pos}</span></td>
+            <td>${b.ab}</td><td>${b.r}</td><td>${b.h}</td><td>${b.rbi}</td><td>${b.bb}</td><td>${b.so}</td>
+            <td>${b.avg != null ? `.${String(Math.round(b.avg*1000)).padStart(3,'0')}` : '—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>` : `<div class="bx-empty">No batters yet.</div>`;
+
+    const pitchers = side.pitchers.length ? `
+      <table class="bx-table" style="margin-top:10px;">
+        <thead><tr><th class="bx-name">Pitcher</th><th>IP</th><th>H</th><th>R</th><th>ER</th><th>BB</th><th>SO</th><th>ERA</th></tr></thead>
+        <tbody>${side.pitchers.map(p => `
+          <tr>
+            <td class="bx-name">${escapeHTML(p.name)}</td>
+            <td>${p.ip}</td><td>${p.h}</td><td>${p.r}</td><td>${p.er}</td><td>${p.bb}</td><td>${p.so}</td>
+            <td>${p.era != null ? p.era : '—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>` : '';
+
+    return `<div class="bx-team">
+      <div class="bx-team-label">${label}</div>
+      ${batters}${pitchers}
+    </div>`;
+  };
+
+  return `<div class="box-score">
+    ${teamBlock(g.awayName, box.away)}
+    ${teamBlock(g.homeName, box.home)}
+  </div>`;
+}
+
 function openGameModal(g){
   // g.odds is null whenever no sportsbook feed is configured (the default), so
   // everything below must tolerate its absence — dereferencing it unguarded
@@ -6951,6 +7058,7 @@ function openGameModal(g){
     </div>
     <div class="tabs">
       <div class="tab active" data-tab="overview">Matchup</div>
+      ${(isLive || isFinal) ? '<div class="tab" data-tab="boxscore">Box Score</div>' : ''}
       ${o ? '<div class="tab" data-tab="odds">Odds</div>' : ''}
     </div>
     <div class="tab-content active" data-panel="overview">
@@ -6973,6 +7081,7 @@ function openGameModal(g){
         <div class="msub">${ls.pitcher?`${ls.pitcher} pitching`:''} ${ls.batter?`vs ${ls.batter}`:''} · Count: ${ls.balls||0}-${ls.strikes||0}</div>
       </div>` : ''}
     </div>
+    ${(isLive || isFinal) ? `<div class="tab-content" data-panel="boxscore">${boxScoreHTML(g)}</div>` : ''}
     ${o ? `<div class="tab-content" data-panel="odds">
       <div class="live-note" style="margin-bottom:14px;"><span class="dq-badge ${dqClass}">${dqLabel}</span> — sportsbook odds have no public live API; this is a point-in-time snapshot, not a real-time line.</div>
       <div class="odds-grid">
