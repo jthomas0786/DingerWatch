@@ -6033,7 +6033,7 @@ function showGate(mode = 'signin'){
       err.innerHTML = `<span style="color:var(--hot)">Signed in, but couldn't verify your subscription: \${escapeHTML(access.error)}</span>`;
       return;
     }
-    if(!access.hasAccess){ showSubscribeGate(access.checkoutUrl); return; }
+    if(!access.hasAccess){ showSubscribeGate(access.checkoutUrl, access.connected); return; }
     dismissGate();
   };
 
@@ -6057,11 +6057,27 @@ function dismissGate(){
  * after a real account exists, so "sign out and try a different account" is
  * always the escape hatch rather than a dead end.
  */
-function showSubscribeGate(checkoutUrl){
+/**
+ * Two distinct states share this screen: never connected a Whop account at
+ * all (primary action: connect via OAuth), versus connected but no active
+ * subscription found on that account (primary action: subscribe, then
+ * recheck). `connected` tells them apart — see check-whop-access's response.
+ */
+function showSubscribeGate(checkoutUrl, connected){
   const existing = document.getElementById('gate');
   if(existing) existing.remove();
   const s = social();
   const url = checkoutUrl || 'https://whop.com/';
+  const canConnect = s?.whopOAuthConfigured?.();
+
+  const primaryAction = (!connected && canConnect)
+    ? `<button class="gate-go" id="swConnect">Connect Whop account</button>`
+    : `<a class="gate-go" style="display:block;text-align:center;text-decoration:none;box-sizing:border-box;"
+         href="${url}" target="_blank" rel="noopener">Subscribe on Whop</a>`;
+
+  const explain = !connected
+    ? "Dinger Watch requires an active Whop subscription. Connect your Whop account to check — this takes one click and doesn't share your password with us."
+    : "Your Whop account is connected, but no active Dinger Watch subscription was found on it. Subscribe below, then tap \u201cCheck again\u201d \u2014 activation is usually instant but can take a minute.";
 
   document.body.insertAdjacentHTML('beforeend', `
     <div class="gate" id="gate">
@@ -6075,17 +6091,13 @@ function showSubscribeGate(checkoutUrl){
         </div>
         <div class="gate-disclaimer">
           <h3>Subscription required</h3>
-          <p style="font-size:12.5px;color:var(--mute);line-height:1.6;margin-bottom:14px;">
-            Dinger Watch requires an active Whop subscription. Subscribe below, then come back
-            and tap "I've subscribed" — activation is usually instant but can take a minute.
-          </p>
+          <p style="font-size:12.5px;color:var(--mute);line-height:1.6;margin-bottom:14px;">${explain}</p>
           <div id="swErr" class="dw-err"></div>
         </div>
         <div class="gate-auth">
-          <a class="gate-go" style="display:block;text-align:center;text-decoration:none;box-sizing:border-box;"
-             href="${url}" target="_blank" rel="noopener">Subscribe on Whop</a>
+          ${primaryAction}
           <button class="gate-go" id="swRecheck" style="margin-top:10px;background:var(--night2);color:var(--white);border:1px solid var(--line);">
-            I've subscribed — check again
+            ${connected ? 'Check again' : "I've subscribed — check again"}
           </button>
           <div class="dw-switch"><a id="swSignOut">Sign out</a></div>
         </div>
@@ -6095,6 +6107,14 @@ function showSubscribeGate(checkoutUrl){
 
   const err = document.getElementById('swErr');
   const recheckBtn = document.getElementById('swRecheck');
+  const connectBtn = document.getElementById('swConnect');
+
+  if(connectBtn) connectBtn.onclick = async () => {
+    connectBtn.disabled = true;
+    connectBtn.textContent = 'Redirecting to Whop…';
+    const res = await s.startWhopConnect();   // navigates away on success — this line rarely returns
+    if(res?.error){ err.textContent = res.error; connectBtn.disabled = false; connectBtn.textContent = 'Connect Whop account'; }
+  };
 
   recheckBtn.onclick = async () => {
     err.textContent = '';
@@ -6107,7 +6127,10 @@ function showSubscribeGate(checkoutUrl){
 
     if(access.error){ err.textContent = access.error; return; }
     if(access.hasAccess){ dismissGate(); return; }
-    err.textContent = "Still no active subscription found. Make sure you're signed in with the same email you used to subscribe on Whop.";
+    err.textContent = access.connected
+      ? "Still no active subscription found on the connected account."
+      : "Not connected yet — tap \u201cConnect Whop account\u201d above.";
+    if(access.connected !== connected) showSubscribeGate(access.checkoutUrl, access.connected);
   };
 
   document.getElementById('swSignOut').onclick = async () => {
@@ -6142,7 +6165,7 @@ async function evaluateGate(){
       dismissGate();
       return;
     }
-    if(access.hasAccess){ dismissGate(); } else { showSubscribeGate(access.checkoutUrl); }
+    if(access.hasAccess){ dismissGate(); } else { showSubscribeGate(access.checkoutUrl, access.connected); }
     return;
   }
 
@@ -7277,6 +7300,15 @@ async function boot(){
     const s = social();
     if(!s){ evaluateGate().catch(e => console.error('[gate] evaluateGate rejected:', e)); return; }
     await s.initSocial();
+
+    // If this page load is Whop redirecting back after "Connect Whop
+    // account" (?code=...&state=...), finish that before deciding whether to
+    // show the gate — otherwise a freshly-connected user would still see
+    // "not connected" for one extra reload.
+    try{
+      const cb = await s.handleWhopOAuthCallback?.();
+      if(cb?.error) console.warn('[whop] connect callback failed:', cb.error);
+    }catch(e){ console.warn('[whop] connect callback threw:', e); }
 
     // Each of these is independent — a header widget, a gate check, presence,
     // a chat subscription. They used to run as one unguarded sequence, which
