@@ -4304,10 +4304,36 @@ function rememberNotified(key){
 
 function markFeedRead(){ feedUnread = 0; }
 
-// Dedup keys for watch-list at-bat alerts, same style as seenHRKeys but
-// entirely separate — different event types, different lifecycle.
-const seenWatchUpKeys = new Set();
-const seenWatchResultKeys = new Set();
+// Dedup keys for watch-list at-bat alerts. Unlike seenHRKeys/notifiedKeys
+// above, these were originally in-memory only — which reset on every page
+// load. Within a single session that's masked by the feedPrimed backlog
+// guard, but it's fragile compared to the proven persisted pattern already
+// used for home runs, and doesn't survive things like two tabs open at once.
+// Persisted the same way, date-scoped, for the same reason.
+let seenWatchUpKeys = new Set();
+let seenWatchResultKeys = new Set();
+
+function watchKeysStorageKey(suffix){ return `dw_watchseen_${suffix}_` + (slateMeta.date || 'today'); }
+
+function loadWatchSeenKeys(){
+  try{ seenWatchUpKeys = new Set(JSON.parse(store.get(watchKeysStorageKey('up')) || '[]')); }
+  catch{ seenWatchUpKeys = new Set(); }
+  try{ seenWatchResultKeys = new Set(JSON.parse(store.get(watchKeysStorageKey('result')) || '[]')); }
+  catch{ seenWatchResultKeys = new Set(); }
+  try{
+    for(let i = localStorage.length - 1; i >= 0; i--){
+      const k = localStorage.key(i);
+      if(k?.startsWith('dw_watchseen_') && k !== watchKeysStorageKey('up') && k !== watchKeysStorageKey('result')){
+        localStorage.removeItem(k);
+      }
+    }
+  }catch{}
+}
+
+function rememberWatchKey(set, suffix, key){
+  set.add(key);
+  try{ store.set(watchKeysStorageKey(suffix), JSON.stringify([...set].slice(-500))); }catch{}
+}
 
 /**
  * Checks one play against the signed-in user's own daily watch list and fires
@@ -4334,11 +4360,11 @@ function checkWatchlistPlay(g, play){
   if(!complete){
     // In progress — this is the "up to bat" moment. Fire once per at-bat.
     if(seenWatchUpKeys.has(atBatKey)) return;
-    seenWatchUpKeys.add(atBatKey);
+    rememberWatchKey(seenWatchUpKeys, 'up', atBatKey);
     if(!feedPrimed) return;               // first poll after load = backlog, don't alert
     const name = play.matchup?.batter?.fullName ?? 'Watched player';
     social()?.selfNotify?.('atbat_up', {
-      player_name: name, player_id: batterId,
+      player_name: name, player_id: batterId, atbat_key: atBatKey,
       game: `${g.awayName} @ ${g.homeName}`,
     });
     pushAppNotification({ title: `⚾ ${name} is up to bat`, body: `${g.awayName} @ ${g.homeName}` });
@@ -4349,7 +4375,7 @@ function checkWatchlistPlay(g, play){
   // in-progress alert already fired for it (or would have, had backlog
   // suppression not blocked it) — either way this key guards it from repeats.
   if(seenWatchResultKeys.has(atBatKey)) return;
-  seenWatchResultKeys.add(atBatKey);
+  rememberWatchKey(seenWatchResultKeys, 'result', atBatKey);
   if(!feedPrimed) return;
 
   const name = play.matchup?.batter?.fullName ?? 'Watched player';
@@ -4362,7 +4388,7 @@ function checkWatchlistPlay(g, play){
   const detail = hd ? `${hd.launchSpeed} mph, ${hd.totalDistance ?? '?'} ft` : (play.result?.description || '');
 
   social()?.selfNotify?.('atbat_result', {
-    player_name: name, player_id: batterId, result, detail, emoji,
+    player_name: name, player_id: batterId, result, detail, emoji, atbat_key: atBatKey,
   });
   pushAppNotification({ title: `${emoji} ${name}: ${result}`, body: detail });
 }
@@ -7021,6 +7047,7 @@ async function boot(){
   // Must run after loadSlate (it needs slateMeta.date) and before the first
   // home-run poll, so previously-alerted homers aren't announced again.
   loadNotifiedKeys();
+  loadWatchSeenKeys();
 
   // Live in-game state is the one thing a daily build can't cover.
   fetchLiveGameStates()
