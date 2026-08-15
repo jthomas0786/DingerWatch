@@ -589,6 +589,84 @@ async function toggleStatusReaction(statusId, emoji){
   return { ok: true };
 }
 
+// ---------------------------------------------------------------- notifications
+async function loadNotifications(limit = 50){
+  if(!socialReady || !currentUser) return [];
+  const { data, error } = await sb.from('notifications')
+    .select('id, type, payload, read, created_at, actor_id')
+    .eq('user_id', currentUser.id)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if(error){ console.warn('[social] notifications load failed:', error.message); return []; }
+  return data;
+}
+
+async function markAllNotificationsRead(){
+  if(!currentUser) return { error: 'not signed in' };
+  const { error } = await sb.from('notifications')
+    .update({ read: true }).eq('user_id', currentUser.id).eq('read', false);
+  return error ? { error: error.message } : { ok: true };
+}
+
+/**
+ * A notification the CURRENT user creates for themselves — used for at-bat
+ * watch alerts, which are detected client-side by the watching user's own
+ * browser polling live game state. RLS only allows self-inserts (see schema),
+ * so this can never be used to notify anyone else.
+ */
+async function selfNotify(type, payload){
+  if(!currentUser) return { error: 'not signed in' };
+  const { data, error } = await sb.from('notifications')
+    .insert({ user_id: currentUser.id, actor_id: currentUser.id, type, payload })
+    .select().single();
+  return error ? { error: error.message } : { ok: true, notification: data };
+}
+
+let notifChannel = null;
+
+/** Realtime: new notification rows addressed to this user, e.g. a comment or follow arriving. */
+function subscribeNotifications(onInsert){
+  if(!socialReady || !currentUser) return () => {};
+  if(notifChannel) sb.removeChannel(notifChannel);
+  notifChannel = sb.channel(`notif:${currentUser.id}`)
+    .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${currentUser.id}` },
+        payload => onInsert(payload.new))
+    .subscribe();
+  return () => { if(notifChannel){ sb.removeChannel(notifChannel); notifChannel = null; } };
+}
+
+// ---------------------------------------------------------------- watchlist
+const todayStr = () => new Intl.DateTimeFormat('en-CA', { timeZone:'America/Chicago',
+  year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date());
+
+async function getWatchlist(date = todayStr()){
+  if(!socialReady || !currentUser) return [];
+  const { data, error } = await sb.from('watchlist')
+    .select('player_id, player_name, team, slate_date')
+    .eq('user_id', currentUser.id).eq('slate_date', date);
+  if(error){ console.warn('[social] watchlist load failed:', error.message); return []; }
+  return data;
+}
+
+async function addToWatchlist(player, date = todayStr()){
+  if(!currentUser) return { error: 'not signed in' };
+  const { error } = await sb.from('watchlist').insert({
+    user_id: currentUser.id, player_id: player.id, player_name: player.name,
+    team: player.team ?? null, slate_date: date,
+  });
+  // Already on the list — not an error the UI needs to show.
+  if(error && error.code === '23505') return { ok: true, already: true };
+  return error ? { error: error.message } : { ok: true };
+}
+
+async function removeFromWatchlist(playerId, date = todayStr()){
+  if(!currentUser) return { error: 'not signed in' };
+  const { error } = await sb.from('watchlist').delete()
+    .match({ user_id: currentUser.id, player_id: playerId, slate_date: date });
+  return error ? { error: error.message } : { ok: true };
+}
+
 // ---------------------------------------------------------------- picks
 async function publishPick(pick){
   if(!currentUser){ promptSignIn(); return { error: 'not signed in' }; }
@@ -613,6 +691,8 @@ export {
   loadChat, sendMessage, subscribeChat,
   toggleFollow, followCounts, followingFeed,
   publishPick, reactionsFor, primeReactions,
+  loadNotifications, markAllNotificationsRead, selfNotify, subscribeNotifications,
+  getWatchlist, addToWatchlist, removeFromWatchlist,
   joinPresence, getOnlineUsers,
   getProfile, updateProfile, isFollowing,
   postStatus, deleteStatus, loadStatuses, loadFollowingStatuses,
