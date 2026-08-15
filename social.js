@@ -482,7 +482,7 @@ async function checkWhopAccess(force = false){
  * key, this is meant to be public — every OAuth provider's client_id is
  * embedded in client-side code the same way (Google, GitHub, etc.).
  */
-const WHOP_CLIENT_ID = '';   // e.g. 'app_xxxxxxxxx' — set this, or connect stays disabled
+const WHOP_CLIENT_ID = 'app_QdNZC391lkoy4R';   // e.g. 'app_xxxxxxxxx' — set this, or connect stays disabled
 const WHOP_OAUTH_STORAGE_KEY = 'dw_whop_pkce';
 
 function whopOAuthConfigured(){ return !!WHOP_CLIENT_ID; }
