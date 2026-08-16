@@ -326,6 +326,17 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 .section-mini{ font-family:'Space Mono',monospace; font-size:10px; color:var(--mute); text-transform:uppercase; letter-spacing:.08em; margin:18px 0 9px; }
 .section-mini:first-child{ margin-top:0; }
 
+/* Arsenal & Zone tab stacks several distinct sections (pitch arsenal, platoon
+   splits, pitch-type matchup, strike zone, batted-ball chart) back to back —
+   a real divider between them, not just whitespace, so they read as separate
+   blocks instead of one continuous jumble. Scoped to this one tab so it
+   doesn't affect .section-mini anywhere else it's used. */
+.tab-content[data-panel="arsenal"] .section-mini:not(:first-child){
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
 /* --- verdict header --- */
 .verdict{ display:flex; gap:16px; align-items:center; background:var(--night2); border:1px solid var(--line);
   border-radius:14px; padding:16px 18px; }
