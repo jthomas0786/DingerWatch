@@ -6,9 +6,14 @@
 # SETUP
 #   1. node gen-vapid-keys.js
 #   2. Paste the PUBLIC key into index.html as VAPID_PUBLIC_KEY
-#   3. Add repo secrets: VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_SUBJECT
-#   4. Create push-subscriptions.json containing: []
-#   5. Open the app, enable Alerts, copy the subscription it shows into that file
+#   3. Add repo secrets: VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_SUBJECT,
+#      SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+#      (the last two are the SAME values already used by the Supabase Edge
+#      Functions — but GitHub Actions secrets and Supabase secrets are two
+#      separate stores, so they need adding here too, not just there)
+#   4. That's it. Every signed-in user's device registers itself
+#      automatically when they enable Alerts — nothing to copy, paste, or
+#      commit per user anymore.
 
 name: Push home run alerts
 
@@ -47,6 +52,8 @@ jobs:
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           VAPID_PUBLIC_KEY:  ${{ secrets.VAPID_PUBLIC_KEY }}
           VAPID_SUBJECT:     ${{ secrets.VAPID_SUBJECT }}
+          SUPABASE_URL:      ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             node send-push.js --dry-run
@@ -58,7 +65,11 @@ jobs:
         run: |
           git config user.name  'push-bot'
           git config user.email 'actions@github.com'
-          git add latest-hr.json pushed-hrs.json push-subscriptions.json 2>/dev/null || true
+          # push-subscriptions.json is gone from this list on purpose — the
+          # subscriber list lives in Supabase now, not a file in this repo.
+          # latest-hr.json / pushed-hrs.json are still small, single, shared
+          # state files (not one per user), so committing them is still fine.
+          git add latest-hr.json pushed-hrs.json 2>/dev/null || true
           git diff --staged --quiet && echo "no changes" && exit 0
           git commit -m "push: $(date -u +%Y-%m-%dT%H:%M)"
 
