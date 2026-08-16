@@ -18,7 +18,8 @@
 // SETUP
 //   1. supabase functions deploy check-whop-access
 //   2. supabase secrets set WHOP_API_KEY=your_company_api_key
-//   3. supabase secrets set WHOP_PRODUCT_ID=prod_xxxxxxxx
+//   3. supabase secrets set WHOP_PRODUCT_IDS=prod_xxxxxxxx
+//      (comma-separated for more than one — see WHOP_PRODUCT_IDS below)
 //   4. supabase secrets set WHOP_CHECKOUT_URL=https://whop.com/your-product/
 //
 // Uses Whop's official SDK (via Deno's npm: specifier) for the actual access
@@ -31,7 +32,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Whop from 'npm:@whop/sdk';
 
 const WHOP_API_KEY      = Deno.env.get('WHOP_API_KEY') ?? '';
-const WHOP_PRODUCT_ID   = Deno.env.get('WHOP_PRODUCT_ID') ?? '';
+// One or more product ids, comma-separated — access is granted if the user
+// has a valid membership to ANY of them. Covers e.g. a paid tier plus a
+// separate free/VIP product: WHOP_PRODUCT_IDS=prod_paidtier,prod_vipfree
+const WHOP_PRODUCT_IDS = (Deno.env.get('WHOP_PRODUCT_IDS') ?? '')
+  .split(',').map(s => s.trim()).filter(Boolean);
 const WHOP_CHECKOUT_URL = Deno.env.get('WHOP_CHECKOUT_URL') ?? 'https://whop.com/';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
@@ -77,17 +82,37 @@ Deno.serve(async (req) => {
     return json({ hasAccess: false, connected: false, checkoutUrl: WHOP_CHECKOUT_URL });
   }
 
+  if (WHOP_PRODUCT_IDS.length === 0) {
+    return json({ error: 'WHOP_PRODUCT_IDS is not configured.' }, 500);
+  }
+
+  // Access is granted if the user holds a valid membership to ANY of the
+  // configured products — e.g. a paid tier and a separate free/VIP tier both
+  // count. Checked independently per product (not at the company level),
+  // so an unrelated product sold under the same Whop company later doesn't
+  // silently start granting access here too.
   let hasAccess = false;
-  try{
-    const client = new Whop({ apiKey: WHOP_API_KEY });
-    const resource = WHOP_PRODUCT_ID || undefined;
-    if (!resource) {
-      throw new Error('WHOP_PRODUCT_ID is not configured.');
+  const perProductErrors: string[] = [];
+  const client = new Whop({ apiKey: WHOP_API_KEY });
+
+  for (const productId of WHOP_PRODUCT_IDS) {
+    try{
+      const result = await client.users.checkAccess(productId, { id: profile.whop_user_id });
+      if (result?.has_access) { hasAccess = true; break; }   // found one — no need to check the rest
+    }catch(e){
+      // Don't let one bad product id (e.g. a typo) silently deny a real
+      // subscriber to a DIFFERENT configured product — keep checking the
+      // others, but remember the failure so it can be surfaced if nothing
+      // else grants access either.
+      perProductErrors.push(`${productId}: ${(e as Error).message}`);
     }
-    const result = await client.users.checkAccess(resource, { id: profile.whop_user_id });
-    hasAccess = !!result?.has_access;
-  }catch(e){
-    return json({ error: `Could not verify Whop subscription: ${(e as Error).message}` }, 502);
+  }
+
+  if (!hasAccess && perProductErrors.length > 0) {
+    // At least one lookup failed and none of the successful ones granted
+    // access — report the error rather than confidently saying "not
+    // subscribed," since the failure could be masking a real subscriber.
+    return json({ error: `Could not verify Whop subscription: ${perProductErrors.join('; ')}` }, 502);
   }
 
   await admin.from('profiles').update({
