@@ -15,7 +15,7 @@
     // data and for platoon splits. Raise it to trust small samples less
     // (a hot 15-PA callup gets pulled harder toward average). Lower it to
     // let hot small samples rank higher, faster.
-    "regressionPA": 220,
+    "regressionPA": 500,
 
     // League-average isolated power (SLG - AVG), used as the blend target
     // when a player's own Statcast is too thin to trust. Rarely needs
@@ -38,7 +38,7 @@
     // (pulls every player's simulation slightly toward it); lowering it
     // makes that outcome rarer across the board.
     "leagueRates": {
-      "hr":   0.0317, // ~19 HR per 600 PA
+      "hr":   0.0402, // ~19 HR per 600 PA
       "hits": 0.2250, // ~135 H per 600 PA
       "dbl":  0.0433,
       "trp":  0.0033,
@@ -81,23 +81,23 @@
     // signal is allowed to contribute. Raising one means lowering another
     // (the app warns in the console if they stop summing to 100).
     "weights": {
-      "statcast": 50, // contact quality (barrel% + hard-hit%). Raise to trust exit-velocity data more than context.
+      "statcast": 35, // contact quality (barrel% + hard-hit%). Raise to trust exit-velocity data more than context.
       "form":     20, // recent hot/cold streak. Raise to make tonight's grade react faster to a hot week.
       "park":     15, // ballpark HR factor + tonight's wind/weather. Raise to weight the SETTING more than the hitter.
-      "matchup":  15  // opposing pitcher's HR-proneness (HR/9, groundball rate, ERA). Raise to weight the ARM more.
+      "matchup":  30  // opposing pitcher's HR-proneness (HR/9, groundball rate, ERA). Raise to weight the ARM more.
     },
 
     // Within the "statcast" share above: how much comes from barrel rate
     // vs. hard-hit rate. 0.6 = 60% barrel, 40% hard-hit. Raise toward 1 to
     // reward barrels (the ball hit exactly right) over just hitting it hard;
     // lower toward 0 to reward raw exit velocity even on mediocre contact.
-    "barrelWeight": 0.6,
+    "barrelWeight": 0.75,
     // The barrel% that earns full marks on that portion of the score.
     // Raise it to make elite barrel rates harder to max out (stretches the
     // top of the scale); lower it to make max marks easier to reach.
-    "barrelScale": 20,
+    "barrelScale": 30,
     // Same idea for hard-hit%: the rate that earns full marks on that slice.
-    "hardHitScale": 55,
+    "hardHitScale": 65,
 
     // Flat point swing applied to the "form" share when a player is
     // trending up or down (e.g. hot last 10 games vs. cold). Raise to make
@@ -133,7 +133,7 @@
     // 0 disables it entirely (matchup score is purely HR9/groundball-rate
     // based, the old behavior). Raise toward 1 to let a struggling pitcher's
     // overall bad form matter as much as his specific homer-proneness.
-    "pitcherEraWeight": 0.15,
+    "pitcherEraWeight": 0.2,
 
     // NEW — how much tonight's SPECIFIC pitcher handedness matchup matters,
     // using the batter's own platoon split (his SLG vs LHP or vs RHP this
