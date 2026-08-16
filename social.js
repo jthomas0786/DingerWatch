@@ -799,9 +799,15 @@ async function toggleStatusReaction(statusId, emoji){
 // ---------------------------------------------------------------- notifications
 async function loadNotifications(limit = 50){
   if(!socialReady || !currentUser) return [];
+  // Comment/follow rows have slate_date = null and are never filtered here —
+  // they behave like a normal persistent inbox. atbat_up/atbat_result rows
+  // are stamped with the slate they belong to and only show up while
+  // slate_date matches today; once that day passes they simply stop
+  // appearing, the same way yesterday's watch list stops appearing.
   const { data, error } = await sb.from('notifications')
-    .select('id, type, payload, read, created_at, actor_id')
+    .select('id, type, payload, read, created_at, actor_id, slate_date')
     .eq('user_id', currentUser.id)
+    .or(`slate_date.is.null,slate_date.eq.${todayStr()}`)
     .order('created_at', { ascending: false })
     .limit(limit);
   if(error){ console.warn('[social] notifications load failed:', error.message); return []; }
@@ -821,10 +827,10 @@ async function markAllNotificationsRead(){
  * browser polling live game state. RLS only allows self-inserts (see schema),
  * so this can never be used to notify anyone else.
  */
-async function selfNotify(type, payload){
+async function selfNotify(type, payload, slateDate = null){
   if(!currentUser) return { error: 'not signed in' };
   const { data, error } = await sb.from('notifications')
-    .insert({ user_id: currentUser.id, actor_id: currentUser.id, type, payload })
+    .insert({ user_id: currentUser.id, actor_id: currentUser.id, type, payload, slate_date: slateDate })
     .select().single();
   // A duplicate at-bat notification (e.g. two tabs open) hits the unique
   // index rather than an error the user needs to see.
