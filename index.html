@@ -4576,7 +4576,7 @@ function checkWatchlistPlay(g, play){
     social()?.selfNotify?.('atbat_up', {
       player_name: name, player_id: batterId, atbat_key: atBatKey,
       game: `${g.awayName} @ ${g.homeName}`,
-    });
+    }, slateMeta.date);   // stamped so this alert stops showing after today
     pushAppNotification({ title: `⚾ ${name} is up to bat`, body: `${g.awayName} @ ${g.homeName}` });
     return;
   }
@@ -4599,7 +4599,7 @@ function checkWatchlistPlay(g, play){
 
   social()?.selfNotify?.('atbat_result', {
     player_name: name, player_id: batterId, result, detail, emoji, atbat_key: atBatKey,
-  });
+  }, slateMeta.date);   // stamped so this alert stops showing after today
   pushAppNotification({ title: `${emoji} ${name}: ${result}`, body: detail });
 }
 
