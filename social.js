@@ -482,7 +482,18 @@ async function checkWhopAccess(force = false){
  * key, this is meant to be public — every OAuth provider's client_id is
  * embedded in client-side code the same way (Google, GitHub, etc.).
  */
-const WHOP_CLIENT_ID = 'app_QdNZC391lkoy4R';   // e.g. 'app_xxxxxxxxx' — set this, or connect stays disabled
+const WHOP_CLIENT_ID = '';   // e.g. 'app_xxxxxxxxx' — set this, or connect stays disabled
+
+// A FIXED redirect URI, not derived from location.origin/pathname. Whop
+// requires an exact character-for-character match against what's registered
+// in your OAuth app settings, and deriving it dynamically from wherever the
+// page happens to be loaded means the string can silently differ depending on
+// how someone reached your site (with/without index.html, with/without a
+// trailing slash, the old GitHub Pages path vs a custom domain) — producing
+// exactly the 'redirect_uri is invalid' error even though the app 'looks'
+// like it's running from the right place. Set this to ONE canonical URL and
+// register that exact same string in the Whop dashboard.
+const WHOP_REDIRECT_URI = 'https://dingerwatch.app/';   // e.g. 'https://dingerwatch.app/' — include the trailing slash
 const WHOP_OAUTH_STORAGE_KEY = 'dw_whop_pkce';
 
 function whopOAuthConfigured(){ return !!WHOP_CLIENT_ID; }
@@ -505,10 +516,9 @@ async function startWhopConnect(){
   const pkce = { codeVerifier: randomString(32), state: randomString(16) };
   sessionStorage.setItem(WHOP_OAUTH_STORAGE_KEY, JSON.stringify(pkce));
 
-  // Must exactly match a redirect URI registered in the Whop dashboard,
-  // including the trailing slash — this is the single most common OAuth
-  // setup mistake and Whop will reject the redirect if it doesn't match.
-  const redirectUri = location.origin + location.pathname;
+  // Fixed, not derived from location — see WHOP_REDIRECT_URI above for why.
+  if(!WHOP_REDIRECT_URI) return { error: 'WHOP_REDIRECT_URI is not set in social.js.' };
+  const redirectUri = WHOP_REDIRECT_URI;
 
   const params = new URLSearchParams({
     response_type: 'code',
@@ -555,6 +565,9 @@ async function handleWhopOAuthCallback(){
   if(!currentUser){
     return { error: "You'll need to be signed in to Dinger Watch before connecting Whop." };
   }
+  if(!WHOP_REDIRECT_URI){
+    return { error: 'WHOP_REDIRECT_URI is not set in social.js — cannot complete the connection.' };
+  }
 
   const { data: sess } = await sb.auth.getSession();
   const token = sess?.session?.access_token;
@@ -562,7 +575,7 @@ async function handleWhopOAuthCallback(){
 
   try{
     const { data, error } = await sb.functions.invoke('whop-oauth-connect', {
-      body: { code, redirect_uri: location.origin + location.pathname, code_verifier: stored.codeVerifier },
+      body: { code, redirect_uri: WHOP_REDIRECT_URI, code_verifier: stored.codeVerifier },
       headers: { Authorization: `Bearer ${token}` },
     });
     if(error) return { error: error.message || 'Could not complete the Whop connection.' };
