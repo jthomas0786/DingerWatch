@@ -3280,36 +3280,7 @@ function slateFieldHTML(g){
   </div>`;
 }
 
-function weatherDiagramHTML(g){
-  const cfDeg = g.cfBearing;
-  if(g.roof !== 'open-air' || cfDeg==null || g.windDeg==null){
-    return `<div class="wx-diagram-wrap">
-      <div class="wx-diamond-note">${g.roof==='open-air' ? 'Live wind data pending' : 'Indoor / roof closed — no wind effect'}</div>
-    </div>`;
-  }
-  const rel = windRelativeToPark(g.windDeg, cfDeg);
-  const sectorColor = rel.sector==='out' ? 'var(--foul)' : (rel.sector==='in' ? 'var(--cool)' : 'var(--warm)');
-  return `
-    <div class="wx-diagram-wrap">
-      <svg class="wx-diamond" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-        <path d="M100,175 L30,105 Q100,20 170,105 Z" fill="#1c2e1c" stroke="#3a2424" stroke-width="1.5"/>
-        <path d="M100,175 L60,135 L100,95 L140,135 Z" fill="#3a2424" opacity="0.5"/>
-        <circle cx="100" cy="175" r="5" fill="#e8e2e2"/>
-        <text x="100" y="35" text-anchor="middle" font-size="9" fill="#9a8484" font-family="monospace">CF</text>
-        <text x="45" y="80" text-anchor="middle" font-size="9" fill="#9a8484" font-family="monospace">LF</text>
-        <text x="155" y="80" text-anchor="middle" font-size="9" fill="#9a8484" font-family="monospace">RF</text>
-        <g transform="translate(100,105) rotate(${rel.arrowDeg})">
-          <line x1="0" y1="35" x2="0" y2="-35" stroke="${sectorColor}" stroke-width="4" stroke-linecap="round"/>
-          <path d="M0,-42 L10,-24 L-10,-24 Z" fill="${sectorColor}"/>
-        </g>
-      </svg>
-      <div class="wx-diagram-info">
-        <div class="wx-temp">${g.tempF!=null?g.tempF+'°F':''}</div>
-        <div class="wx-wind-label" style="color:${sectorColor};">${rel.label}</div>
-        <div class="wx-wind-sub">${g.windMph!=null?g.windMph+' mph':''} from ${windDirLabel(g.windDeg)}</div>
-      </div>
-    </div>`;
-}
+
 
 // ---- Real-clock date handling (so "today"/"tomorrow" always track the actual date) ----
 /**
@@ -7262,11 +7233,30 @@ function openGameModal(g){
       <div class="matchup-block"><h5>Ballpark &amp; Conditions</h5>
         <p>${g.park}</p>
         <div class="msub">Park HR factor: ${g.parkFactor} (100 = league average) · ${g.parkNote} ${g.liveWeather?'<span style="color:var(--grass-bright);font-size:10px;">● live weather</span>':''}</div>
-        ${weatherDiagramHTML(g)}
+        ${(() => {
+          // Same icons and copy as the Slate tab card, not the separate
+          // relative-to-CF diamond diagram this modal used to show — the two
+          // screens now look like one consistent visual language instead of
+          // two different widgets for the same information.
+          const windTemp = g.roof==='open-air'
+            ? `${g.tempF!=null ? g.tempF+'°F' : ''} ${g.windMph!=null ? 'wind '+windDirLabel(g.windDeg)+' '+g.windMph+'mph' : ''}`.trim()
+            : 'Indoor / roof closed';
+          return `<div class="pick-env" style="margin-top:10px;">
+            <div class="env-item">${ballparkIconSVG(g.roof)}<b>${g.park.split(',')[0]}</b> · idx ${g.parkFactor}</div>
+            <div class="env-item">${windArrowSVG(g.roof==='open-air' ? g.windDeg : null)}<b>${windTemp}</b></div>
+          </div>`;
+        })()}
       </div>
       ${topHR_away || topHR_home ? `<div class="matchup-block"><h5>Top Home Run Threats</h5>
-        <p>${topHR_away ? `${g.awayName}: <b>${topHR_away.name}</b> (${topHR_away.hrIndex}% HR Index)`:''}</p>
-        <p>${topHR_home ? `${g.homeName}: <b>${topHR_home.name}</b> (${topHR_home.hrIndex}% HR Index)`:''}</p>
+        ${[[g.awayName, topHR_away], [g.homeName, topHR_home]].map(([team, p]) => {
+          if(!p) return '';
+          // Percentile grade from the real simulation, same system every
+          // other prop in the app uses now — not the old raw 0-100 index
+          // rendered as a fake percentage.
+          const sim = simulatePlayer(p).hr;
+          const gr = gradeFor('hr', sim.pct);
+          return `<p>${team}: <b>${p.name}</b> — <span class="${gr.cls}">${gr.g}</span> (${sim.pct}% chance tonight)</p>`;
+        }).join('')}
       </div>` : ''}
     </div>` : ''}
     ${(isLive || isFinal) ? `<div class="tab-content ${isLive?'active':''}" data-panel="boxscore">${boxScoreHTML(g)}</div>` : ''}
