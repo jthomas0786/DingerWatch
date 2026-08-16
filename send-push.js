@@ -102,6 +102,35 @@ async function sendBarePush(sub) {
   return res;
 }
 
+/**
+ * Proves — rather than assumes — whether VAPID_PRIVATE_KEY and
+ * VAPID_PUBLIC_KEY actually correspond to the same key pair, by
+ * mathematically DERIVING the public key from the private scalar and
+ * comparing it to what's configured. This doesn't trust "I regenerated them
+ * together correctly" — it checks the real runtime values directly, however
+ * they actually got there (copy-paste error, stale secret, wrong slot, etc).
+ * Never prints the private key itself, only whether the two match.
+ */
+function checkVapidKeysMatch() {
+  try {
+    const ecdh = crypto.createECDH('prime256v1');
+    ecdh.setPrivateKey(fromB64url(VAPID_PRIVATE));
+    const derivedPublic = b64url(ecdh.getPublicKey());
+    const match = derivedPublic === VAPID_PUBLIC;
+    console.log(`  VAPID key check: private/public ${match ? 'MATCH ✓' : 'DO NOT MATCH ✗'}`);
+    if (!match) {
+      console.log(`    configured public key:     ${VAPID_PUBLIC}`);
+      console.log(`    public key this private key actually produces: ${derivedPublic}`);
+      console.log('    → these must be regenerated as one pair — see gen-vapid-keys.js');
+    }
+    return match;
+  } catch (e) {
+    console.log(`  VAPID key check: could not even parse VAPID_PRIVATE_KEY (${e.message})`);
+    console.log('    → the secret value itself is likely malformed (stray whitespace, wrong value, truncated)');
+    return false;
+  }
+}
+
 // ---------------------------------------------------------------- push subscriptions
 async function fetchAllSubscriptions() {
   const url = `${SUPABASE_URL}/rest/v1/push_subscriptions?select=id,endpoint,p256dh,auth_key`;
@@ -187,6 +216,9 @@ async function main() {
   if (!DRY && (!VAPID_PRIVATE || !VAPID_PUBLIC)) {
     console.error('✗ VAPID_PRIVATE_KEY / VAPID_PUBLIC_KEY not set — run gen-vapid-keys.js');
     process.exit(1);
+  }
+  if (VAPID_PRIVATE && VAPID_PUBLIC && !checkVapidKeysMatch()) {
+    if (!DRY) { console.error('✗ Stopping — sending would just fail with the same 403 as before.'); process.exit(1); }
   }
   if (!DRY && (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY)) {
     console.error('✗ SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set — add them as repo secrets');
