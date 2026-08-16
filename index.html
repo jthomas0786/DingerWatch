@@ -104,7 +104,16 @@ main{ max-width:760px; margin: 8px auto 0; padding: 0 20px; }
 .section-head p{ font-family:'Oswald',sans-serif; color: var(--mute); font-size:13px; margin-top:4px; }
 
 .pick-list{ display:flex; flex-direction:column; gap:12px; margin-top:14px; }
-.pick-card{ background: var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 18px; cursor:pointer; transition: border-color .15s ease, transform .1s ease; display:flex; gap:14px; align-items:stretch; }
+.pick-card{ background: var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 18px; cursor:pointer; transition: border-color .15s ease, transform .1s ease; display:flex; gap:14px; align-items:stretch; position:relative; }
+
+/* HR tab only: a player from the top 20 who has actually gone deep tonight.
+   Border stays green regardless of 1 vs multiple homers; the count badge
+   only appears once he's hit more than one. */
+.pick-card-hr-hit{ border-color:var(--grass-bright); box-shadow:0 0 0 1px var(--grass-bright); }
+.hr-count-badge{ position:absolute; left:10px; bottom:10px; z-index:2;
+  background:var(--grass-bright); color:#04140a; font-family:'Archivo Black',sans-serif;
+  font-size:12px; font-weight:900; padding:2px 7px; border-radius:6px;
+  box-shadow:0 2px 6px rgba(0,0,0,.4); }
 .pick-card:hover{ border-color: var(--foul); transform: translateY(-1px); }
 .pick-rank{ font-family:'Archivo Black',sans-serif; font-size:26px; color: var(--foul); width:28px; flex-shrink:0; text-align:center; padding-top:6px; }
 .pick-rank.r2{ color: var(--grass-bright); } .pick-rank.r3{ color: var(--cool); } .pick-rank.r4, .pick-rank.r5{ color: var(--mute); }
@@ -2415,6 +2424,20 @@ const TOP_N = 20;
 function isPlayable(p){ return p.rosterStatus !== 'inactive'; }
 
 /**
+ * How many home runs this player has hit in TODAY'S game, read straight from
+ * the live box score already being polled every 20s for the gamecast panel —
+ * no extra fetch. Returns 0 before the game starts, before he's batted, or
+ * if the box score simply hasn't arrived yet, never null/undefined, so
+ * callers can use it directly without a null check.
+ */
+function todayHRCount(p){
+  const box = p.game?.boxscore;
+  if(!box) return 0;
+  const all = [...(box.away?.batters||[]), ...(box.home?.batters||[])];
+  return all.find(b => b.id === p.id)?.hr ?? 0;
+}
+
+/**
  * Blends a season rate stat toward the batter's OWN platoon split against
  * tonight's specific pitcher handedness, regressed by the split's own sample
  * size (a 12-PA split says much less than a 200-PA one) — the same regression
@@ -3178,8 +3201,12 @@ function renderList(){
     const windTemp = g.roof==='open-air'
       ? `${g.tempF!=null ? g.tempF+'°F' : ''} ${g.windMph!=null ? 'wind '+windDirLabel(g.windDeg)+' '+g.windMph+'mph' : g.weather}`.trim()
       : 'Indoor / roof closed';
+    // Only the HR tab's top 20 gets the live "he just went deep" treatment —
+    // not Hits/TB/RBI/etc, and not All Players, per what was actually asked for.
+    const hrCount = activeTab==='hr' ? todayHRCount(p) : 0;
     return `
-      <div class="pick-card" data-tab="${activeTab}" data-idx="${i}">
+      <div class="pick-card ${hrCount>=1?'pick-card-hr-hit':''}" data-tab="${activeTab}" data-idx="${i}">
+        ${hrCount>=2 ? `<div class="hr-count-badge">x${hrCount}</div>` : ''}
         <div class="pick-rank ${rankClasses[i]}">${i+1}</div>
         ${headshotImgTag(p.name, 'pick-headshot', ringTeam, p.id)}
         <div class="pick-body">
@@ -3692,6 +3719,7 @@ async function fetchLiveGameStates(){
                   pos: p.position?.abbreviation ?? '',
                   ab: bs.atBats ?? 0, r: bs.runs ?? 0, h: bs.hits ?? 0,
                   rbi: bs.rbi ?? 0, bb: bs.baseOnBalls ?? 0, so: bs.strikeOuts ?? 0,
+                  hr: bs.homeRuns ?? 0,
                   avg: p.seasonStats?.batting?.avg ?? null,
                 };
               }).filter(Boolean);
