@@ -3439,7 +3439,15 @@ function timeToMinutes(timeStr){
   return h*60 + parseInt(min);
 }
 function sortedGames(){
-  return [...games].sort((a,b) => timeToMinutes(gameTime(a)) - timeToMinutes(gameTime(b)));
+  // Finished games sink to the bottom — nothing left to watch there, so live
+  // and upcoming games (the ones actually worth seeing first) stay on top.
+  // Within each group, still ordered by start time, same as before.
+  const isFinalGame = g => g.mlbStatus === 'Final' || g.mlbStatus === 'Completed Early';
+  return [...games].sort((a,b) => {
+    const groupDiff = (isFinalGame(a)?1:0) - (isFinalGame(b)?1:0);
+    if(groupDiff !== 0) return groupDiff;
+    return timeToMinutes(gameTime(a)) - timeToMinutes(gameTime(b));
+  });
 }
 function fmtOdds(n){ return n>0 ? `+${n}` : `${n}`; }
 let currentDates = { today: realTodayStr() };
