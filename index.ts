@@ -1,137 +1,7811 @@
-// supabase/functions/whop-oauth-connect/index.ts
-//
-// Second half of "Sign in with Whop" (PKCE). The client already redirected the
-// user to Whop, got a `code` back, and calls this function with that code.
-// This exchanges it server-side and links the resulting Whop identity to the
-// signed-in Supabase user.
-//
-// WHAT THIS DOES *NOT* DO, ON PURPOSE
-// It does not store the Whop access/refresh tokens anywhere. Per Whop's own
-// docs (docs.whop.com/developer/guides/oauth), the token exchange itself needs
-// no client secret — PKCE is what makes that safe — so this function's only
-// real job is to reliably learn the user's stable Whop identity (`sub`, e.g.
-// "user_xxxxx") and record it. Ongoing subscription checks (in
-// check-whop-access) use your COMPANY api key against that stored id, the
-// same pattern Whop documents for SaaS integrations. That avoids holding a
-// long-lived per-user OAuth token anywhere, which is both simpler (no refresh
-// cycle to maintain) and a smaller attack surface if this database were ever
-// compromised.
-//
-// SETUP
-//   1. In the Whop developer dashboard, create an OAuth app (or via the API —
-//      see the docs above) and add this exact redirect URI:
-//        https://<your-domain>/  (must match character-for-character,
-//        including the trailing slash, whatever you configure client-side)
-//   2. supabase functions deploy whop-oauth-connect
-//   3. supabase secrets set WHOP_CLIENT_ID=app_xxxxxxxxx
-//      (WHOP_API_KEY / WHOP_PRODUCT_ID / WHOP_CHECKOUT_URL are already set
-//      from check-whop-access — this function reuses WHOP_API_KEY.)
-//
-// UNVERIFIED AGAINST A LIVE ACCOUNT
-// Built directly from Whop's current published docs, but this environment has
-// no network access to actually run it against a real Whop app. Test the
-// full connect flow with one real account before relying on it.
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Dinger Watch</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0a0808">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Dinger Watch">
+<!-- iOS Home Screen icons. iOS reads these <link> tags, not the manifest, and
+     falls back to a generated letter tile if none of them resolve. Several sizes
+     are supplied so no device has to downscale. -->
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="167x167" href="apple-touch-icon-167.png">
+<link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152.png">
+<link rel="apple-touch-icon" sizes="120x120" href="apple-touch-icon-120.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="shortcut icon" href="icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script type="module">
+  // Social features live in their own module and attach to window so the main
+  // script can call them. Everything degrades to a no-op when Supabase isn't
+  // configured, so the app never depends on them.
+  import('./social.js')
+    .then(m => { window.DW_SOCIAL = m; window.dispatchEvent(new Event('dw-social-ready')); })
+    .catch(err => {
+      // Previously swallowed entirely — a real failure (404, syntax error,
+      // bad MIME type) produced zero console output, which is why chat/
+      // profile/online could vanish with nothing to explain why. Now it says
+      // so plainly, since the app is still expected to work without it.
+      console.error('[social] social.js failed to load — chat, profile, and online status will be unavailable:', err);
+    });
+</script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+:root{
+  --night:#0a0808; --night2:#151010; --panel:#1c1414; --line:#3a2424;
+  --grass:#7a1220; --grass-bright:#3ecf6e; --foul:#e0122e;
+  --white:#f5f0f0; --mute:#9a8484; --hot:#ff2d4d; --warm:#ff5533; --cool:#b8a8a8;
+  /* MLB headshots are framed head-and-shoulders, so a centred cover-crop in a
+     circle clips the top of the head. Anchoring above centre keeps the face
+     properly framed. One value, shared by every headshot size. */
+  --headshot-crop: 50% 16%;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  background: radial-gradient(ellipse 1100px 550px at 50% -10%, #2a0e12 0%, var(--night) 55%), var(--night);
+  color: var(--white); font-family:'Inter',sans-serif; min-height:100vh; padding-bottom:60px;
+}
+header{ position:relative; padding:44px 20px 26px; text-align:center; overflow:hidden; }
+header::before, header::after{ content:''; position:absolute; top:-120px; width:440px; height:440px; background: radial-gradient(circle, rgba(224,18,46,0.16) 0%, rgba(224,18,46,0) 65%); border-radius:50%;}
+header::before{left:-140px;} header::after{right:-140px;}
+.brand-row{ display:flex; align-items:center; justify-content:center; gap:14px; position:relative; margin-bottom:14px; flex-wrap:wrap; }
+.brand-icon{ width:64px; height:40px; flex-shrink:0; filter:drop-shadow(0 0 10px rgba(224,18,46,0.35)); }
+.brand-text{
+  font-family:'Archivo Black',sans-serif; font-size:clamp(34px,7vw,64px); line-height:1;
+  letter-spacing:-0.01em; color:var(--white);
+}
+.brand-text span{ color:var(--foul); display:inline-block; margin-left:2px; }
+.eyebrow{ font-family:'Space Mono',monospace; letter-spacing:0.22em; text-transform:uppercase; font-size:10.5px; color:var(--mute); margin-bottom:12px; position:relative;}
+h1{ font-family:'Oswald',sans-serif; font-weight:500; font-size:clamp(24px,3.8vw,38px); line-height:1.15; position:relative; color:var(--mute); letter-spacing:0.02em; margin-top:4px;}
+h1 span{ color:var(--foul); font-weight:700;}
+.subhead{ font-family:'Oswald',sans-serif; color:var(--mute); font-size:13.5px; margin-top:10px; position:relative; max-width:520px; margin-left:auto; margin-right:auto;}
 
-const WHOP_CLIENT_ID = Deno.env.get('WHOP_CLIENT_ID') ?? '';
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
-const SERVICE_ROLE  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+.day-toggle{ display:inline-flex; gap:4px; margin-top:18px; background: var(--panel); border:1px solid var(--line); border-radius:30px; padding:4px; position:relative; }
+.day-toggle button{ border:none; background:transparent; color:var(--mute); font-family:'Space Mono',monospace; font-size:12px; padding:8px 18px; border-radius:24px; cursor:pointer; transition: all .15s ease; }
+.day-toggle button.active{ background: var(--foul); color: var(--night); font-weight:700; }
+.day-note{ font-size:10.5px; color: var(--mute); margin-top:8px; font-family:'Space Mono',monospace; }
+.refresh-row{ display:flex; align-items:center; justify-content:center; gap:10px; margin-top:10px; }
+#lastUpdated{ font-size:10.5px; color: var(--mute); font-family:'Space Mono',monospace; }
+#refreshBtn{
+  background: var(--panel); border:1px solid var(--line); color: var(--mute); font-family:'Space Mono',monospace;
+  font-size:10.5px; padding:4px 10px; border-radius:14px; cursor:pointer; transition: all .15s ease;
+}
+#refreshBtn:hover{ border-color: var(--foul); color: var(--white); }
+#exportBtn{
+  background: var(--panel); border:1px solid var(--line); color: var(--mute); font-family:'Space Mono',monospace;
+  font-size:10.5px; padding:4px 10px; border-radius:14px; cursor:pointer; transition: all .15s ease;
+}
+#exportBtn:hover{ border-color: var(--foul); color: var(--white); }
+#exportBtn.busy{ color: var(--foul); border-color: var(--foul); }
+#notifyBtn{
+  background: var(--panel); border:1px solid var(--line); color: var(--mute); font-family:'Space Mono',monospace;
+  font-size:10.5px; padding:4px 10px; border-radius:14px; cursor:pointer; transition: all .15s ease;
+}
+#notifyBtn:hover{ border-color: var(--foul); color: var(--white); }
+#notifyBtn.active{ border-color: var(--grass-bright); color: var(--grass-bright); }
+#refreshBtn.spinning{ color: var(--foul); border-color: var(--foul); }
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+main{ max-width:760px; margin: 8px auto 0; padding: 0 20px; }
+
+.prop-tabs{ display:flex; gap:8px; overflow-x:auto; padding: 22px 0 6px; scrollbar-width:thin; position: sticky; top:0; background: var(--night); z-index:40; margin: 0 -20px; padding-left:20px; padding-right:20px; border-bottom: 1px solid var(--line); }
+.prop-tab{ flex:0 0 auto; background: var(--panel); border:1px solid var(--line); color: var(--mute); font-family:'Oswald',sans-serif; font-size:13px; padding:9px 16px; border-radius:20px; cursor:pointer; white-space:nowrap; transition: all .15s ease; margin-bottom:14px; }
+.prop-tab:hover{ border-color: var(--foul); color: var(--white); }
+.prop-tab.active{ background: var(--foul); color: var(--night); border-color: var(--foul); font-weight:700; }
+
+.section-head{ padding: 18px 2px 6px; }
+.section-head h2{ font-family:'Archivo Black',sans-serif; font-size:22px; }
+.section-head p{ font-family:'Oswald',sans-serif; color: var(--mute); font-size:13px; margin-top:4px; }
+
+.pick-list{ display:flex; flex-direction:column; gap:12px; margin-top:14px; }
+.pick-card{ background: var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 18px; cursor:pointer; transition: border-color .15s ease, transform .1s ease; display:flex; gap:14px; align-items:stretch; }
+.pick-card:hover{ border-color: var(--foul); transform: translateY(-1px); }
+.pick-rank{ font-family:'Archivo Black',sans-serif; font-size:26px; color: var(--foul); width:28px; flex-shrink:0; text-align:center; padding-top:6px; }
+.pick-rank.r2{ color: var(--grass-bright); } .pick-rank.r3{ color: var(--cool); } .pick-rank.r4, .pick-rank.r5{ color: var(--mute); }
+.pick-headshot{
+  width:58px; height:58px; border-radius:50%; flex-shrink:0;
+  object-fit:cover; object-position:var(--headshot-crop);
+  background: var(--night2); border:2px solid var(--line);
+}
+/* The fallback silhouette is a square SVG, so it wants contain + centring
+   rather than the photo crop. */
+.pick-headshot.placeholder,
+.feed-headshot.placeholder,
+.modal-headshot.placeholder{ object-fit:contain; object-position:center; padding:6px; opacity:0.55; }
+.pick-body{ flex:1; min-width:0; }
+.watch-star{ background:none; border:none; color:var(--line); font-size:15px; cursor:pointer;
+  padding:0 0 0 6px; line-height:1; vertical-align:middle; transition:color .12s ease, transform .1s ease; }
+.watch-star:hover{ color:var(--mute); transform:scale(1.15); }
+.watch-star.active{ color:#f4c430; text-shadow:0 0 8px rgba(244,196,48,.5); }
+.pick-name-row{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.pick-name{ font-family:'Oswald',sans-serif; font-weight:600; font-size:17px; }
+.pick-team{ font-family:'Space Mono',monospace; font-size:11px; color: var(--mute); }
+.pick-matchup{ font-size:12px; color: var(--mute); margin-top:2px; }
+.pick-summary{ font-size:12.5px; color: var(--white); line-height:1.5; margin-top:8px; padding-left:10px; border-left:2px solid var(--foul); }
+.pick-chips{ display:flex; gap:6px; flex-wrap:wrap; margin-top:9px; }
+.pick-chips.grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(84px, 1fr)); gap:6px; }
+.pick-chips.grid .chip{ text-align:center; }
+.chip{ font-family:'Space Mono',monospace; font-size:10px; background: var(--night2); border:1px solid var(--line); color: var(--mute); padding:3px 8px; border-radius:6px; }
+.chip b{ color: var(--white); }
+.pick-env{ display:flex; align-items:center; gap:12px; margin-top:9px; flex-wrap:wrap; }
+
+/* --- batter-vs-pitcher matchup footer --- */
+.matchup-foot{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+  margin-top:10px; padding-top:9px; border-top:1px solid var(--line); flex-wrap:wrap; }
+.mf-hands{ display:flex; align-items:center; gap:7px; font-family:'Oswald',sans-serif;
+  font-size:12px; color:var(--mute); flex-shrink:0; white-space:nowrap; }
+.mf-hands b{ font-family:'Space Mono',monospace; font-size:11px; padding:1px 6px;
+  border-radius:5px; background:var(--night2); border:1px solid var(--line); color:var(--white); }
+.mf-vs{ font-size:10px; opacity:.6; }
+/* Green ring on the hand badge when the platoon favours the hitter. */
+.matchup-foot.mf-good .mf-hands b:first-of-type{ border-color:var(--grass-bright); color:var(--grass-bright); }
+.matchup-foot.mf-bad .mf-hands b:first-of-type{ border-color:var(--hot); color:var(--hot); }
+.mf-stats{ display:flex; gap:9px; flex-wrap:wrap; }
+.mf-stat{ font-family:'Space Mono',monospace; font-size:10.5px; color:var(--white); }
+.mf-pa{ color:var(--mute); }
+.mf-none{ color:var(--mute); font-style:italic; }
+.mf-tiny{ font-family:'Space Mono',monospace; font-size:9px; color:var(--warm); background:var(--night2);
+  border:1px solid var(--line); padding:1px 6px; border-radius:9px; }
+@media (max-width:480px){
+  .mf-hands{ font-size:11px; }
+  .mf-stats{ gap:7px; }
+  .mf-stat{ font-size:10px; }
+}
+.env-item{ display:flex; align-items:center; gap:5px; font-family:'Space Mono',monospace; font-size:10px; color: var(--mute); }
+.env-item b{ color: var(--white); font-weight:600; }
+.env-icon{ width:18px; height:18px; flex-shrink:0; opacity:0.85; }
+.wind-arrow{ width:14px; height:14px; flex-shrink:0; }
+.pick-score{ flex:0 0 96px; display:flex; flex-direction:column; align-items:center;
+  justify-content:space-between; text-align:center; padding:2px 0; }
+.pick-grade{ font-family:'Archivo Black',sans-serif; font-size:15px; line-height:1; margin-bottom:2px; }
+.ps-grade-ring{ width:42px; height:42px; border-radius:50%; border:2px solid var(--line);
+  display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ps-grade-ring.grade-a{ border-color:var(--grass-bright); }
+.ps-grade-ring.grade-b{ border-color:#f4c430; }
+.ps-grade-ring.grade-c{ border-color:var(--warm); }
+.ps-grade-ring.grade-d{ border-color:var(--mute); }
+.ps-grade-letter{ font-family:'Archivo Black',sans-serif; font-size:16px; line-height:1; }
+.ps-grade-ring.grade-a .ps-grade-letter{ color:var(--grass-bright); }
+.ps-grade-ring.grade-b .ps-grade-letter{ color:#f4c430; }
+.ps-grade-ring.grade-c .ps-grade-letter{ color:var(--warm); }
+.ps-grade-ring.grade-d .ps-grade-letter{ color:var(--mute); }
+.ps-divider{ width:70%; height:1px; background:var(--line); margin:2px 0; }
+.ps-minirow{ display:flex; gap:8px; }
+.ps-mini{ display:flex; flex-direction:column; align-items:center; }
+.ps-mini b{ font-family:'Oswald',sans-serif; font-size:13px; color:var(--white); line-height:1.1; }
+.ps-mini span{ font-family:'Space Mono',monospace; font-size:8px; color:var(--mute); text-transform:uppercase; }
+@media (max-width:480px){
+  .pick-score{ flex-basis:80px; }
+  .ps-grade-ring{ width:36px; height:36px; }
+  .ps-grade-letter{ font-size:14px; }
+}
+.pick-grade.grade-a{ color:var(--grass-bright); } .pick-grade.grade-b{ color:#f4c430; }
+.pick-grade.grade-c{ color:var(--warm); }        .pick-grade.grade-d{ color:var(--mute); }
+.pick-score-val{ font-family:'Archivo Black',sans-serif; font-size:24px; line-height:1;}
+.pick-score-val.score-hi{ color: var(--grass-bright); }
+.pick-score-val.score-mid{ color: #f4c430; }
+.pick-score-val.score-lo{ color: var(--hot); }
+.pick-score-label{ font-size:8.5px; color: var(--mute); font-family:'Space Mono',monospace; text-transform:uppercase; margin-top:3px; letter-spacing:0.04em;}
+
+.live-status{ display:flex; gap:14px; align-items:center; justify-content:center; margin-top:16px; font-family:'Space Mono',monospace; font-size:10.5px; color: var(--mute); flex-wrap:wrap; }
+.dot{ width:6px; height:6px; border-radius:50%; display:inline-block; margin-right:5px;}
+.dot.ok{ background: var(--grass-bright); box-shadow:0 0 6px var(--grass-bright);}
+.dot.fallback{ background: var(--warm);}
+.dot.pending{ background: var(--mute); animation: pulse 1.5s infinite;}
+@keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute); font-size:11.5px; text-align:center; line-height:1.7; }
+
+.modal-overlay{ display:none; position:fixed; inset:0; background: rgba(5,7,12,0.78); backdrop-filter: blur(4px); z-index:100; padding: 24px; overflow-y:auto; }
+.modal-overlay.open{ display:block; }
+.modal{ max-width: 720px; margin: 20px auto 60px; background: var(--panel); border:1px solid var(--line); border-radius:16px; overflow:hidden; animation: modalIn .2s ease; }
+@keyframes modalIn{ from{opacity:0; transform:translateY(12px);} to{opacity:1; transform:translateY(0);} }
+.modal-head{ padding: 26px 28px 20px; background: linear-gradient(180deg, rgba(224,18,46,0.14), transparent); border-bottom:1px solid var(--line); position:relative; display:flex; gap:18px; align-items:flex-start; }
+.modal-headshot{
+  width:88px; height:88px; border-radius:50%; flex-shrink:0;
+  /* cover fills the circle; the crop is anchored high so the head stays in
+     frame rather than being centred on the chest. */
+  object-fit:cover; object-position:var(--headshot-crop);
+  background: var(--night2); border:3px solid var(--line);
+}
+.modal-head-text{ flex:1; min-width:0; }
+.modal-close{ position:absolute; top:18px; right:20px; background:none; border:none; color: var(--mute); font-size:22px; cursor:pointer; line-height:1; }
+.modal-close:hover{ color: var(--white); }
+.modal-name{ font-family:'Archivo Black',sans-serif; font-size:26px; }
+.modal-tag{ font-family:'Space Mono',monospace; font-size:12px; color: var(--mute); margin-top:6px; }
+.dq-badge{ font-family:'Space Mono',monospace; font-size:9.5px; padding:2px 8px; border-radius:20px; text-transform:uppercase; margin-left:8px; }
+.dq-badge.sourced{ background:rgba(74,156,90,0.18); color:var(--grass-bright); border:1px solid rgba(74,156,90,0.4); }
+.dq-badge.modeled{ background:rgba(184,168,168,0.15); color:var(--cool); border:1px solid rgba(184,168,168,0.35); }
+.modal-grade{ font-family:'Archivo Black',sans-serif; font-size:30px; line-height:1; padding-right:14px;
+  border-right:1px solid var(--line); }
+.modal-grade.grade-a{ color:var(--grass-bright); } .modal-grade.grade-b{ color:#f4c430; }
+.modal-grade.grade-c{ color:var(--warm); }        .modal-grade.grade-d{ color:var(--mute); }
+.modal-index-num.grade-a{ color:var(--grass-bright); } .modal-index-num.grade-b{ color:#f4c430; }
+.modal-index-num.grade-c{ color:var(--warm); }        .modal-index-num.grade-d{ color:var(--mute); }
+.modal-index-fill.grade-a{ background:var(--grass-bright); } .modal-index-fill.grade-b{ background:#f4c430; }
+.modal-index-fill.grade-c{ background:var(--warm); }        .modal-index-fill.grade-d{ background:var(--mute); }
+.mi-label{ font-size:10.5px; color:var(--mute); margin-bottom:6px; font-family:'Space Mono',monospace; letter-spacing:.06em; }
+.mi-sub{ font-family:'Space Mono',monospace; font-size:9px; color:var(--mute); margin-top:5px; }
+.modal-index{ display:flex; align-items:center; gap:18px; margin-top:16px; }
+.modal-index-num{ font-family:'Archivo Black',sans-serif; font-size:42px; color: var(--foul); }
+.modal-index-bar{ flex:1; }
+.modal-index-track{ height:9px; background: var(--line); border-radius:6px; overflow:hidden; }
+.modal-index-fill{ height:100%; background: linear-gradient(90deg, var(--warm), var(--foul)); border-radius:6px; }
+.tabs{ display:flex; gap:2px; padding: 0 28px; background: var(--night2); overflow-x:auto; }
+.tab{ padding: 12px 15px; font-family:'Space Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color: var(--mute); cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap; }
+.tab.active{ color: var(--foul); border-bottom-color: var(--foul); }
+.tab-content{ padding: 22px 28px 28px; display:none; }
+.tab-content.active{ display:block; }
+.chart-wrap{ background: var(--night2); border:1px solid var(--line); border-radius:10px; padding:16px 18px 10px; margin-bottom:14px; }
+.chart-title{ font-family:'Space Mono',monospace; font-size:10.5px; color: var(--mute); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:12px; }
+.bar-chart{ display:flex; align-items:flex-end; gap:6px; height:110px; }
+.bar-chart .bcol{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:5px; }
+.bar-chart .bfill{ width:100%; border-radius:3px 3px 0 0; background: var(--cool); min-height:2px; }
+.bar-chart .bfill.hr{ background: var(--foul); }
+.bar-chart .blabel{ font-size:9px; color: var(--mute); font-family:'Space Mono',monospace; }
+.chart-legend{ display:flex; gap:14px; margin-top:10px; font-size:10.5px; color: var(--mute); font-family:'Space Mono',monospace; }
+.chart-legend span{ display:flex; align-items:center; gap:5px; }
+.legend-dot{ width:8px; height:8px; border-radius:2px; display:inline-block; }
+.live-note{ font-size:11px; color: var(--grass-bright); font-family:'Space Mono',monospace; margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+.live-note.pending{ color: var(--mute); }
+.live-note.err{ color: var(--warm); }
+.gamelog-table{ width:100%; border-collapse:collapse; font-size:12px; margin-top:4px; }
+.gamelog-table th{ text-align:left; font-family:'Space Mono',monospace; font-size:9.5px; color: var(--mute); text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line); }
+.gamelog-table td{ padding:7px 8px; border-bottom:1px solid var(--line); }
+.gamelog-table td.hr-cell{ color: var(--foul); font-weight:700; }
+/* --- arsenal donut --- */
+.arsenal-wrap{ display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+.arsenal-donut{ width:124px; height:124px; flex-shrink:0; }
+.arsenal-legend{ flex:1; min-width:180px; display:flex; flex-direction:column; gap:5px; }
+.ars-row{ display:flex; align-items:center; gap:8px; font-size:12px; }
+.ars-swatch{ width:10px; height:10px; border-radius:3px; flex-shrink:0; display:inline-block; }
+.ars-name{ flex:1; color:var(--white); }
+.ars-usage{ font-family:'Space Mono',monospace; font-size:11.5px; color:var(--foul); font-weight:700; }
+.ars-velo{ font-family:'Space Mono',monospace; font-size:10.5px; color:var(--mute); width:58px; text-align:right; }
+
+/* --- pitch-type performance --- */
+.pmix-table{ display:flex; flex-direction:column; gap:2px; }
+.pmix-head, .pmix-row{ display:grid; grid-template-columns:1.5fr .6fr 1.3fr .7fr .4fr; gap:8px; align-items:center; padding:7px 8px; border-radius:6px; }
+.pmix-head{ font-family:'Space Mono',monospace; font-size:9px; color:var(--mute); text-transform:uppercase; }
+.pmix-row{ background:var(--night2); font-size:12px; }
+.pmix-row.faces-tonight{ background:rgba(224,18,46,.08); }
+.pmix-name{ display:flex; align-items:center; gap:6px; color:var(--white); }
+.pmix-flag{ color:var(--foul); }
+.pmix-val{ font-family:'Space Mono',monospace; font-size:11.5px; text-align:center; color:var(--white); }
+.pmix-bar{ position:relative; height:16px; background:var(--line); border-radius:4px; overflow:hidden; display:flex; align-items:center; }
+.pmix-bar-fill{ position:absolute; left:0; top:0; bottom:0; opacity:.75; }
+.pmix-bar em{ position:relative; font-style:normal; font-family:'Space Mono',monospace; font-size:9.5px; color:var(--white); padding-left:6px; }
+.pmix-note{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); margin-top:6px; }
+
+/* --- strike zone --- */
+.zone-wrap{ display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; }
+.zone-grid-outer{ position:relative; flex-shrink:0; padding:16px 0; }
+.zone-grid{ display:grid; grid-template-columns:repeat(3,52px); grid-template-rows:repeat(3,44px); gap:3px; border:2px solid var(--line); padding:3px; border-radius:4px; }
+.zone-cell{ display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:3px; }
+.zone-avg{ font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; color:var(--white); }
+.zone-sub{ font-family:'Space Mono',monospace; font-size:8px; color:rgba(255,255,255,.65); }
+.zone-label-top,.zone-label-bottom{ position:absolute; left:0; right:0; text-align:center; font-family:'Space Mono',monospace; font-size:8.5px; color:var(--mute); }
+.zone-label-top{ top:2px; } .zone-label-bottom{ bottom:2px; }
+.zone-side{ flex:1; min-width:150px; }
+.zone-legend{ display:flex; flex-direction:column; gap:5px; font-size:11px; color:var(--mute); }
+.zone-legend span{ display:flex; align-items:center; gap:7px; }
+.zone-legend i{ width:14px; height:10px; border-radius:3px; display:inline-block; }
+.zone-stat{ margin-top:12px; }
+.zone-stat b{ font-family:'Oswald',sans-serif; font-size:20px; color:var(--white); display:block; }
+.zone-stat span{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); }
+.zone-note{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); margin-top:10px; line-height:1.5; }
+
+/* --- batted-ball scatter --- */
+.scatter-wrap{ }
+.scatter{ width:100%; max-width:340px; height:auto; }
+.scatter-legend{ display:flex; gap:12px; flex-wrap:wrap; font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); margin-top:4px; }
+.scatter-legend span{ display:flex; align-items:center; gap:5px; }
+.scatter-legend i{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+.scatter-shade{ opacity:.75; }
+
+/* --- platoon splits --- */
+.split-table{ display:flex; flex-direction:column; gap:2px; }
+.split-row{ display:grid; grid-template-columns:1.6fr .7fr .7fr .7fr .45fr .5fr; gap:6px; align-items:center; padding:8px; border-radius:6px; background:var(--night2); font-size:12px; }
+.split-head{ background:none; font-family:'Space Mono',monospace; font-size:9px; color:var(--mute); text-transform:uppercase; padding-bottom:2px; }
+.split-row.is-relevant{ background:rgba(224,18,46,.1); border:1px solid rgba(224,18,46,.35); }
+.split-label{ color:var(--white); }
+.split-label b{ color:var(--foul); font-size:9.5px; font-family:'Space Mono',monospace; }
+.split-stat{ font-family:'Space Mono',monospace; font-size:11.5px; text-align:center; color:var(--white); }
+
+@media (max-width:520px){
+  .zone-grid{ grid-template-columns:repeat(3,46px); grid-template-rows:repeat(3,38px); }
+  .pmix-head,.pmix-row{ grid-template-columns:1.4fr .6fr 1fr .6fr .4fr; font-size:11px; }
+  .ars-velo{ display:none; }
+}
+.section-mini{ font-family:'Space Mono',monospace; font-size:10px; color:var(--mute); text-transform:uppercase; letter-spacing:.08em; margin:18px 0 9px; }
+.section-mini:first-child{ margin-top:0; }
+
+/* --- verdict header --- */
+.verdict{ display:flex; gap:16px; align-items:center; background:var(--night2); border:1px solid var(--line);
+  border-radius:14px; padding:16px 18px; }
+.verdict-ring{ width:92px; height:92px; border-radius:50%; flex-shrink:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; border:3px solid var(--line); }
+.verdict-ring.grade-a{ border-color:var(--grass-bright); }
+.verdict-ring.grade-b{ border-color:#f4c430; }
+.verdict-ring.grade-c{ border-color:var(--warm); }
+.verdict-ring.grade-d{ border-color:var(--mute); }
+.vr-grade{ font-family:'Archivo Black',sans-serif; font-size:26px; line-height:1; }
+.grade-a .vr-grade, .verdict-title.grade-a{ color:var(--grass-bright); }
+.grade-b .vr-grade, .verdict-title.grade-b{ color:#f4c430; }
+.grade-c .vr-grade, .verdict-title.grade-c{ color:var(--warm); }
+.grade-d .vr-grade, .verdict-title.grade-d{ color:var(--mute); }
+.vr-sub{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); margin-top:3px; }
+.verdict-body{ flex:1; min-width:0; }
+.verdict-title{ font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; letter-spacing:.05em; }
+.verdict-body p{ font-size:12.5px; color:var(--white); line-height:1.55; margin-top:6px; }
+
+/* --- graded prop tiles --- */
+/* --- prop switcher + grade header --- */
+.prop-switch{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
+.ps-btn{ background:var(--night2); border:1px solid var(--line); color:var(--mute);
+  font-family:'Oswald',sans-serif; font-size:12px; padding:7px 13px; border-radius:18px; cursor:pointer;
+  transition:all .15s ease; }
+.ps-btn:hover{ border-color:var(--foul); color:var(--white); }
+.ps-btn.active{ background:var(--foul); border-color:var(--foul); color:var(--night); font-weight:700; }
+
+.prop-head{ display:flex; align-items:center; gap:14px; background:var(--night2); border:1px solid var(--line);
+  border-left-width:4px; border-radius:12px; padding:14px 16px; margin-bottom:14px; }
+.prop-head.grade-a{ border-left-color:var(--grass-bright); }
+.prop-head.grade-b{ border-left-color:#f4c430; }
+.prop-head.grade-c{ border-left-color:var(--warm); }
+.prop-head.grade-d{ border-left-color:var(--mute); }
+.ph-grade{ font-family:'Archivo Black',sans-serif; font-size:30px; line-height:1; }
+.grade-a .ph-grade, .grade-a .ph-pct{ color:var(--grass-bright); }
+.grade-b .ph-grade, .grade-b .ph-pct{ color:#f4c430; }
+.grade-c .ph-grade, .grade-c .ph-pct{ color:var(--warm); }
+.grade-d .ph-grade, .grade-d .ph-pct{ color:var(--mute); }
+.ph-mid{ flex:1; min-width:0; }
+.ph-label{ font-family:'Oswald',sans-serif; font-size:14px; color:var(--white); letter-spacing:.03em; }
+.ph-label span{ color:var(--mute); font-size:11px; font-family:'Space Mono',monospace; }
+.ph-sub{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); margin-top:3px; }
+.ph-pct{ font-family:'Archivo Black',sans-serif; font-size:26px; }
+
+/* --- factor list --- */
+.factor-list{ display:flex; flex-direction:column; gap:4px; }
+.fac-head{ display:grid; grid-template-columns:1.5fr 1.4fr .6fr; gap:12px; padding:0 12px 6px;
+  font-family:'Space Mono',monospace; font-size:9px; color:var(--mute); text-transform:uppercase; letter-spacing:.06em; }
+.fac-row{ display:grid; grid-template-columns:1.5fr 1.4fr .6fr; gap:12px; align-items:center;
+  background:var(--night2); border:1px solid var(--line); border-radius:9px; padding:10px 12px; }
+.fac-label{ font-family:'Oswald',sans-serif; font-size:13px; color:var(--white); }
+.fac-detail{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); margin-top:2px; }
+/* Bars grow out from a centre line so direction is readable at a glance. */
+.fac-track{ position:relative; height:8px; background:var(--line); border-radius:4px; }
+.fac-track::before{ content:''; position:absolute; left:50%; top:-2px; bottom:-2px; width:1px; background:var(--mute); opacity:.5; }
+.fac-fill{ height:100%; border-radius:4px; }
+.fac-fill.fac-pos{ background:var(--grass-bright); }
+.fac-fill.fac-neg{ background:var(--hot); }
+.fac-fill.fac-neu{ background:var(--mute); opacity:.5; }
+.fac-verdict{ font-family:'Space Mono',monospace; font-size:10px; text-align:right; }
+.fac-verdict.fac-pos{ color:var(--grass-bright); }
+.fac-verdict.fac-neg{ color:var(--hot); }
+.fac-verdict.fac-neu{ color:var(--mute); }
+.fac-foot{ font-family:'Space Mono',monospace; font-size:9px; color:var(--mute); margin-top:8px; text-align:center; }
+
+@media (max-width:520px){
+  .fac-head, .fac-row{ grid-template-columns:1.4fr 1fr .55fr; gap:8px; }
+  .fac-label{ font-size:11.5px; }
+  .ph-grade{ font-size:24px; } .ph-pct{ font-size:21px; }
+}
+/* --- betslip + buttons --- */
+.add-leg{ background:var(--night2); border:1px solid var(--line); color:var(--mute);
+  font-family:'Space Mono',monospace; font-size:13px; line-height:1; width:24px; height:24px;
+  border-radius:7px; cursor:pointer; padding:0; transition:all .12s ease; flex-shrink:0; }
+.add-leg.labelled{ width:auto; padding:0 8px; font-size:10.5px; height:22px; }
+.add-leg:hover{ border-color:var(--foul); color:var(--foul); }
+.add-leg.in-slip{ background:var(--grass-bright); border-color:var(--grass-bright); color:var(--night); font-weight:700; }
+.prop-tile{ position:relative; }
+.prop-tile .add-leg{ position:absolute; top:6px; right:6px; width:20px; height:20px; font-size:11px; }
+.prob-row .add-leg{ margin-left:4px; }
+.fi-adds{ display:flex; gap:5px; margin-top:6px; justify-content:flex-end; }
+.pick-score .add-leg{ margin-top:6px; }
+
+/* --- slip tray --- */
+.betslip-bar{ position:fixed; left:0; right:0; bottom:0; z-index:900; background:var(--panel);
+  border-top:2px solid var(--foul); box-shadow:0 -8px 28px rgba(0,0,0,.55); }
+.bs-head{ display:flex; align-items:center; gap:10px; padding:11px 18px; cursor:pointer; }
+.bs-head:hover{ background:rgba(224,18,46,.06); }
+.bs-count{ background:var(--foul); color:var(--night); font-family:'Archivo Black',sans-serif;
+  font-size:12px; min-width:22px; height:22px; border-radius:11px; display:flex; align-items:center;
+  justify-content:center; padding:0 6px; }
+.bs-title{ flex:1; font-family:'Oswald',sans-serif; font-size:14px; }
+.bs-toggle{ color:var(--mute); }
+.bs-body{ max-height:0; overflow:hidden; transition:max-height .22s ease; }
+.bs-body.open{ max-height:60vh; overflow-y:auto; border-top:1px solid var(--line); }
+.bs-legs{ padding:12px 18px 0; display:flex; flex-direction:column; gap:6px; }
+.bs-leg{ display:flex; align-items:center; gap:10px; background:var(--night2); border:1px solid var(--line);
+  border-radius:8px; padding:9px 12px; }
+.bs-leg-txt{ flex:1; font-size:12.5px; color:var(--white); }
+.bs-price{ font-family:'Space Mono',monospace; font-size:12px; color:var(--grass-bright); font-weight:700; }
+.bs-price.unpriced{ color:var(--mute); font-weight:400; font-size:10px; }
+.bs-remove{ background:none; border:none; color:var(--mute); font-size:18px; line-height:1; cursor:pointer; padding:0 3px; }
+.bs-remove:hover{ color:var(--hot); }
+.bs-note{ padding:12px 18px 0; font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); line-height:1.6; }
+.bs-actions{ display:flex; gap:8px; padding:12px 18px calc(14px + env(safe-area-inset-bottom)); }
+.bs-btn{ flex:1; background:var(--night2); border:1px solid var(--line); color:var(--white);
+  font-family:'Oswald',sans-serif; font-size:13px; padding:10px; border-radius:8px; cursor:pointer; }
+.bs-btn:hover{ border-color:var(--foul); }
+.bs-btn.primary{ background:var(--foul); border-color:var(--foul); color:var(--night); font-weight:700; }
+.bs-btn.ghost{ flex:0 0 auto; padding:10px 14px; color:var(--mute); }
+.bs-fallback{ width:100%; height:70px; margin-top:8px; background:var(--night); border:1px solid var(--line);
+  color:var(--white); font-family:'Space Mono',monospace; font-size:11px; padding:8px; border-radius:6px; }
+/* Keep the tray from covering the last row of content. */
+body:has(.betslip-bar) main{ padding-bottom:70px; }
+@media (max-width:520px){ .bs-leg-txt{ font-size:11.5px; } }
+/* --- emoji reactions --- */
+.rx-strip{ display:flex; gap:3px; justify-content:center; margin-top:7px; flex-wrap:wrap; }
+.rx{ background:var(--night); border:1px solid var(--line); border-radius:11px; padding:2px 6px;
+  font-size:11px; cursor:pointer; line-height:1.4; display:flex; align-items:center; gap:3px;
+  transition:all .12s ease; }
+.rx:hover{ border-color:var(--foul); transform:translateY(-1px); }
+.rx.mine{ background:rgba(224,18,46,.16); border-color:var(--foul); }
+.rx b{ font-family:'Space Mono',monospace; font-size:9px; color:var(--white); font-weight:700; }
+
+/* --- top-right fixed cluster: online button + profile avatar --- */
+.header-fixed-cluster{ position:fixed; top:14px; right:14px; z-index:850;
+  display:flex; align-items:center; gap:8px; }
+
+/* --- notification bell / badge / dropdown --- */
+.notify-wrap{ position:relative; }
+#notifyBtn{ background:var(--panel); border:1px solid var(--line); color:var(--white);
+  width:36px; height:36px; border-radius:50%; cursor:pointer; font-size:16px;
+  display:flex; align-items:center; justify-content:center; position:relative;
+  box-shadow:0 4px 14px rgba(0,0,0,.45); }
+#notifyBtn:hover{ border-color:var(--foul); }
+#notifyBtn.active{ border-color:var(--grass-bright); }
+#notifyBtn.blocked{ opacity:.55; }
+.notify-badge{ position:absolute; top:-4px; right:-4px; background:var(--foul); color:var(--white);
+  font-family:'Archivo Black',sans-serif; font-size:10px; min-width:18px; height:18px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center; padding:0 4px; border:2px solid var(--night); }
+
+.notify-pop{ display:none; position:absolute; top:calc(100% + 8px); right:0; width:280px;
+  background:var(--panel); border:1px solid var(--line); border-radius:12px; z-index:80;
+  box-shadow:0 10px 28px rgba(0,0,0,.55); max-height:360px; overflow-y:auto; }
+.notify-pop.open{ display:block; }
+.notify-empty{ color:var(--mute); font-size:12.5px; padding:22px 16px; text-align:center; }
+.notify-item{ padding:11px 14px; border-bottom:1px solid var(--line); }
+.notify-item:last-of-type{ border-bottom:none; }
+.notify-item.unread{ background:rgba(224,18,46,.06); }
+.notify-item-title{ font-family:'Oswald',sans-serif; font-size:12.5px; color:var(--white); }
+.notify-item-body{ font-size:11.5px; color:var(--mute); margin-top:2px; line-height:1.5; }
+.notify-item-time{ font-family:'Space Mono',monospace; font-size:9px; color:var(--mute); margin-top:4px; }
+.notify-pop-foot{ padding:9px 14px; border-top:1px solid var(--line); }
+.notify-pop-foot button{ width:100%; background:none; border:1px solid var(--line); color:var(--mute);
+  font-family:'Space Mono',monospace; font-size:10px; padding:7px; border-radius:8px; cursor:pointer; }
+.notify-pop-foot button:hover{ border-color:var(--hot); color:var(--hot); }
+@media (max-width:480px){
+  .notify-pop{ width:240px; }
+}
+
+#authBtn{ background:var(--panel); border:1px solid var(--line); color:var(--mute);
+  font-family:'Space Mono',monospace; font-size:10.5px; padding:4px 10px; border-radius:14px; cursor:pointer;
+  display:flex; align-items:center; box-shadow:0 4px 14px rgba(0,0,0,.45); }
+#authBtn:hover{ border-color:var(--foul); color:var(--white); }
+#authBtn.signed-in{ padding:2px; border-radius:50%; border-color:var(--grass-bright); }
+.auth-avatar{ display:block; }
+
+@media (max-width:520px){
+  .header-fixed-cluster{ top:10px; right:10px; gap:6px; }
+}
+
+.origin-warn{ background:#3a1418; border-bottom:2px solid var(--hot); color:var(--white);
+  font-size:12.5px; line-height:1.6; padding:12px 18px; position:relative; z-index:4000; }
+.origin-warn b{ color:var(--hot); }
+.origin-warn span{ display:block; color:var(--mute); font-size:11.5px; margin-top:5px; }
+.load-splash{ position:fixed; inset:0; z-index:6000; background:var(--night);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;
+  transition:opacity .35s ease; }
+.load-splash.fading{ opacity:0; pointer-events:none; }
+
+.ls-scene{ width:200px; height:120px; }
+
+/* Bat swings from cocked-back to follow-through, connecting right as the ball
+   should "vanish" (its own opacity animation, defined inline on the element,
+   is timed to match) and the impact burst/fly-ball take over. */
+.ls-bat{ animation: batSwing 1.6s cubic-bezier(.6,0,.2,1) infinite; }
+@keyframes batSwing{
+  0%   { transform: rotate(-55deg); }
+  28%  { transform: rotate(-55deg); }     /* cocked, waiting */
+  46%  { transform: rotate(35deg); }      /* contact */
+  62%  { transform: rotate(70deg); }      /* follow-through */
+  100% { transform: rotate(-55deg); }     /* reset for the next swing */
+}
+
+.ls-ball-seam{ animation: ballVisible 1.6s linear infinite; }
+@keyframes ballVisible{
+  0%, 43% { opacity: .8; }
+  44%, 100% { opacity: 0; }
+}
+
+.ls-impact{ opacity:0; animation: impactFlash 1.6s linear infinite; }
+@keyframes impactFlash{
+  0%, 43%   { opacity: 0; }
+  45%       { opacity: 1; }
+  58%, 100% { opacity: 0; }
+}
+
+/* The fly-ball only exists visually from contact onward, arcing off frame,
+   then resets invisibly for the next loop. */
+.ls-flyball{ opacity:0; animation: flyOff 1.6s cubic-bezier(.2,.6,.4,1) infinite; }
+@keyframes flyOff{
+  0%, 44%  { opacity:0; transform:translate(0,0) scale(1); }
+  46%      { opacity:1; transform:translate(0,0) scale(1); }
+  100%     { opacity:0; transform:translate(85px,-70px) scale(.4); }
+}
+
+.ls-title{ font-family:'Archivo Black',sans-serif; font-size:22px; letter-spacing:-.02em; color:var(--white); }
+.ls-title span{ color:var(--foul); }
+.ls-text{ font-family:'Oswald',sans-serif; font-size:14px; color:var(--mute); }
+.ls-dots i{ font-style:normal; opacity:0; animation: dotFade 1.4s infinite; }
+.ls-dots i:nth-child(1){ animation-delay:0s; }
+.ls-dots i:nth-child(2){ animation-delay:.2s; }
+.ls-dots i:nth-child(3){ animation-delay:.4s; }
+@keyframes dotFade{ 0%,20%{opacity:0;} 40%,80%{opacity:1;} 100%{opacity:0;} }
+.ls-sub{ font-family:'Space Mono',monospace; font-size:10.5px; color:var(--mute); opacity:.7; }
+
+@media (prefers-reduced-motion: reduce){
+  .ls-bat, .ls-ball-seam, .ls-impact, .ls-flyball, .ls-dots i{ animation:none; }
+}
+
+.gate{ position:fixed; inset:0; z-index:3000; background:var(--night);
+  display:flex; align-items:flex-start; justify-content:center; overflow-y:auto; padding:24px 18px 40px; }
+/* Stop the app scrolling behind the gate. */
+body.gated{ overflow:hidden; }
+.gate-card{ max-width:520px; width:100%; margin-top:min(6vh, 50px); }
+.gate-brand{ display:flex; align-items:center; gap:14px; margin-bottom:22px; }
+.gate-logo{ width:56px; height:56px; border-radius:14px; flex-shrink:0; }
+.gate-title{ font-family:'Archivo Black',sans-serif; font-size:26px; letter-spacing:-.02em; line-height:1; }
+.gate-title span{ color:var(--foul); }
+.gate-tag{ font-family:'Oswald',sans-serif; font-size:13px; color:var(--mute); margin-top:4px; }
+
+.gate-disclaimer{ background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--foul);
+  border-radius:12px; padding:18px 20px; }
+.gate-disclaimer h3{ font-family:'Oswald',sans-serif; font-size:15px; margin-bottom:12px; letter-spacing:.03em; }
+.gate-disclaimer ul{ list-style:none; display:flex; flex-direction:column; gap:11px; }
+.gate-disclaimer li{ font-size:12.5px; color:var(--mute); line-height:1.6; padding-left:16px; position:relative; }
+.gate-disclaimer li::before{ content:''; position:absolute; left:0; top:8px; width:5px; height:5px;
+  border-radius:50%; background:var(--foul); opacity:.7; }
+.gate-disclaimer b{ color:var(--white); font-weight:600; }
+.gate-disclaimer a{ color:var(--foul); }
+
+.gate-auth{ background:var(--panel); border:1px solid var(--line); border-radius:12px;
+  padding:18px 20px; margin-top:14px; }
+.gate-auth-head{ display:flex; gap:8px; margin-bottom:14px; }
+.gate-tab{ flex:1; background:var(--night2); border:1px solid var(--line); color:var(--mute);
+  font-family:'Oswald',sans-serif; font-size:13px; padding:9px; border-radius:8px; cursor:pointer; }
+.gate-tab.active{ background:var(--foul); border-color:var(--foul); color:var(--night); font-weight:700; }
+.gate-auth input[type=email], .gate-auth input[type=password], .gate-auth input:not([type]){
+  width:100%; background:var(--night); border:1px solid var(--line); color:var(--white);
+  font-family:'Space Mono',monospace; font-size:13px; padding:11px 13px; border-radius:8px; margin-bottom:9px; }
+.gate-auth input:focus{ outline:none; border-color:var(--foul); }
+.gate-check{ display:flex; align-items:flex-start; gap:9px; margin:12px 0 14px; cursor:pointer; }
+.gate-check input{ margin-top:2px; flex-shrink:0; width:16px; height:16px; accent-color:var(--foul); }
+.gate-check span{ font-size:12px; color:var(--mute); line-height:1.55; }
+.gate-go{ width:100%; background:var(--foul); border:none; color:var(--night);
+  font-family:'Oswald',sans-serif; font-size:15px; font-weight:700; padding:13px;
+  border-radius:9px; cursor:pointer; }
+.gate-go:disabled{ opacity:.6; cursor:default; }
+.gate-offline{ font-size:12.5px; color:var(--warm); line-height:1.6; margin-bottom:4px; }
+
+@media (max-width:520px){
+  .gate-card{ margin-top:12px; }
+  .gate-title{ font-size:22px; }
+  .gate-logo{ width:46px; height:46px; }
+  .gate-disclaimer{ padding:15px 16px; }
+}
+.dw-modal{ position:fixed; inset:0; background:rgba(5,7,12,.82); z-index:1500; display:flex;
+  align-items:center; justify-content:center; padding:20px; }
+.dw-card{ background:var(--panel); border:1px solid var(--foul); border-radius:14px; padding:24px;
+  max-width:400px; width:100%; }
+.dw-card h3{ font-family:'Oswald',sans-serif; font-size:18px; margin-bottom:6px; }
+.dw-card p{ font-size:12.5px; color:var(--mute); line-height:1.6; margin-bottom:14px; }
+.dw-card input{ width:100%; background:var(--night); border:1px solid var(--line); color:var(--white);
+  font-family:'Space Mono',monospace; font-size:13px; padding:10px 12px; border-radius:8px; margin-bottom:9px; }
+.dw-card input:focus{ outline:none; border-color:var(--foul); }
+.dw-actions{ display:flex; gap:8px; margin-top:6px; }
+.dw-actions button{ flex:1; background:var(--night2); border:1px solid var(--line); color:var(--white);
+  font-family:'Oswald',sans-serif; font-size:13px; padding:10px; border-radius:8px; cursor:pointer; }
+.dw-actions button.primary{ background:var(--foul); border-color:var(--foul); color:var(--night); font-weight:700; }
+.dw-err{ color:var(--hot); font-size:11.5px; margin-top:8px; min-height:15px; }
+.dw-switch{ text-align:center; margin-top:12px; font-size:11.5px; color:var(--mute); }
+.dw-switch a{ color:var(--foul); cursor:pointer; text-decoration:underline; }
+
+.ap-wrap{ display:flex; flex-direction:column; align-items:center; margin-bottom:16px; }
+.ap-preview .dw-avatar{ box-shadow:0 6px 18px rgba(0,0,0,.5), inset 0 -4px 8px rgba(0,0,0,.3),
+  inset 0 3px 5px rgba(255,255,255,.15); }
+.ap-actions{ margin-top:10px; display:flex; align-items:center; gap:10px; }
+.ap-upload-btn{ background:var(--night2); border:1px solid var(--line); color:var(--white);
+  font-family:'Oswald',sans-serif; font-size:12.5px; padding:8px 14px; border-radius:20px; cursor:pointer; }
+.ap-upload-btn:hover{ border-color:var(--foul); }
+.ap-uploading{ font-family:'Space Mono',monospace; font-size:10.5px; color:var(--mute); }
+.ap-err{ color:var(--hot); font-size:11px; margin-top:6px; min-height:14px; }
+.ap-presets-label{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute);
+  text-transform:uppercase; letter-spacing:.08em; margin-top:12px; margin-bottom:8px; }
+.ap-presets{ display:grid; grid-template-columns:repeat(6, 1fr); gap:7px; width:100%; }
+.ap-preset{ aspect-ratio:1; border-radius:50%; border:2px solid transparent; cursor:pointer;
+  font-size:16px; display:flex; align-items:center; justify-content:center; transition:transform .1s ease; }
+.ap-preset:hover{ transform:scale(1.08); border-color:var(--white); }
+@media (max-width:420px){ .ap-presets{ grid-template-columns:repeat(4, 1fr); } }
+
+.chat-list{ display:flex; flex-direction:column; gap:8px; margin-top:14px; }
+.chat-msg{ display:flex; gap:10px; background:var(--night2); border:1px solid var(--line);
+  border-radius:10px; padding:10px 13px; }
+.dw-avatar{ border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  font-family:'Archivo Black',sans-serif; color:var(--night); object-fit:cover; overflow:hidden; }
+.chat-av{ width:30px; height:30px; border-radius:50%; flex-shrink:0; background:var(--foul);
+  display:flex; align-items:center; justify-content:center; font-family:'Archivo Black',sans-serif;
+  font-size:12px; color:var(--night); }
+.chat-body{ flex:1; min-width:0; }
+.chat-top{ display:flex; align-items:baseline; gap:8px; }
+.chat-user{ font-family:'Oswald',sans-serif; font-size:13px; color:var(--white); cursor:pointer; }
+.chat-user:hover{ color:var(--foul); }
+.chat-time{ font-family:'Space Mono',monospace; font-size:9px; color:var(--mute); }
+.chat-follow{ margin-left:auto; background:none; border:1px solid var(--line); color:var(--mute);
+  font-family:'Space Mono',monospace; font-size:9px; padding:2px 8px; border-radius:10px; cursor:pointer; }
+.chat-follow.following{ border-color:var(--grass-bright); color:var(--grass-bright); }
+.chat-txt{ font-size:12.5px; color:var(--white); margin-top:3px; line-height:1.5; word-break:break-word; }
+/* --- compact reactions on ranked cards --- */
+.rx-strip.compact{ margin-top:5px; gap:2px; }
+.rx-strip.compact .rx{ padding:1px 5px; font-size:10px; }
+.rx-more{ opacity:.55; }
+.rx-more:hover{ opacity:1; }
+
+/* --- online presence --- */
+#headerOnlineSlot{ position:relative; display:inline-flex; }
+.online-btn{ background:var(--night2); border:1px solid var(--line); color:var(--mute);
+  font-family:'Space Mono',monospace; font-size:10.5px; padding:5px 11px; border-radius:14px;
+  cursor:pointer; display:flex; align-items:center; gap:7px; }
+.online-btn:hover{ border-color:var(--grass-bright); color:var(--white); }
+.online-dot{ width:7px; height:7px; border-radius:50%; background:var(--grass-bright);
+  box-shadow:0 0 0 0 rgba(62,207,110,.6); animation:onlinePulse 2.2s infinite; }
+@keyframes onlinePulse{ 70%{ box-shadow:0 0 0 7px rgba(62,207,110,0);} 100%{ box-shadow:0 0 0 0 rgba(62,207,110,0);} }
+.online-pop{ display:none; position:absolute; top:calc(100% + 6px); right:0; background:var(--panel);
+  border:1px solid var(--line); border-radius:11px; padding:6px; min-width:190px; z-index:80;
+  box-shadow:0 10px 28px rgba(0,0,0,.55); max-height:280px; overflow-y:auto; }
+.online-pop.open{ display:block; }
+.online-user{ display:flex; align-items:center; gap:9px; width:100%; background:none; border:none;
+  color:var(--white); font-family:'Oswald',sans-serif; font-size:13px; padding:7px 9px;
+  border-radius:7px; cursor:pointer; text-align:left; }
+.online-user:hover{ background:var(--night2); }
+.online-user .chat-av{ width:24px; height:24px; font-size:10px; }
+.online-empty{ color:var(--mute); font-size:11.5px; padding:10px; text-align:center; }
+
+/* --- chat dock button --- */
+.chat-dock{ position:fixed; right:18px; bottom:calc(18px + env(safe-area-inset-bottom));
+  z-index:950; width:52px; height:52px; border-radius:50%; background:var(--foul); border:none;
+  color:var(--night); font-size:22px; cursor:pointer; box-shadow:0 6px 18px rgba(224,18,46,.4);
+  display:flex; align-items:center; justify-content:center; }
+.chat-dock:hover{ transform:translateY(-2px); }
+.chat-dock-badge{ position:absolute; top:-4px; right:-4px; background:var(--white); color:var(--night);
+  font-family:'Archivo Black',sans-serif; font-size:10px; min-width:19px; height:19px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center; padding:0 4px; border:2px solid var(--night); }
+/* Keep the dock from covering the bet slip tray when both are present. */
+body:has(.betslip-bar) .chat-dock{ bottom:calc(84px + env(safe-area-inset-bottom)); }
+
+/* --- chat panel --- */
+.chat-panel{ position:fixed; right:18px; bottom:calc(80px + env(safe-area-inset-bottom)); left:18px;
+  max-width:380px; margin-left:auto; height:min(70vh, 520px); background:var(--panel);
+  border:1px solid var(--line); border-radius:16px; z-index:960; display:flex; flex-direction:column;
+  box-shadow:0 16px 40px rgba(0,0,0,.55); opacity:0; pointer-events:none; transform:translateY(12px);
+  transition:opacity .18s ease, transform .18s ease; }
+.chat-panel.open{ opacity:1; pointer-events:auto; transform:translateY(0); }
+.chat-panel-head{ display:flex; align-items:center; justify-content:space-between; padding:14px 16px;
+  border-bottom:1px solid var(--line); font-family:'Oswald',sans-serif; font-size:14px; color:var(--white);
+  flex-shrink:0; }
+.chat-panel-close{ background:none; border:none; color:var(--mute); font-size:22px; line-height:1; cursor:pointer; }
+.chat-panel-close:hover{ color:var(--white); }
+.chat-panel-empty{ padding:24px; color:var(--mute); font-size:12.5px; line-height:1.7; text-align:center; }
+.chat-panel-empty code{ color:var(--foul); }
+.chat-panel .chat-list{ flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:8px; }
+.chat-panel .chat-err{ padding:0 14px; color:var(--hot); font-size:11px; font-family:'Space Mono',monospace; min-height:14px; }
+.chat-panel .chat-compose{ padding:10px 14px calc(12px + env(safe-area-inset-bottom)); margin-top:0;
+  position:static; background:transparent; border-top:1px solid var(--line); }
+@media (max-width:480px){
+  .chat-panel{ right:12px; left:12px; height:min(72vh, 480px); }
+}
+
+/* --- profile page --- */
+.profile-modal{ align-items:flex-start; padding-top:40px; overflow-y:auto; }
+.profile-card{ background:var(--panel); border:1px solid var(--line); border-radius:16px;
+  padding:24px; max-width:620px; width:100%; position:relative; margin-bottom:40px; }
+.pf-head{ display:flex; align-items:center; gap:14px; }
+.pf-av{ width:58px; height:58px; border-radius:50%; background:var(--foul); color:var(--night);
+  display:flex; align-items:center; justify-content:center; font-family:'Archivo Black',sans-serif;
+  font-size:22px; flex-shrink:0; }
+.pf-id{ flex:1; min-width:0; }
+.pf-name{ font-family:'Oswald',sans-serif; font-size:19px; }
+.pf-handle{ font-family:'Space Mono',monospace; font-size:11.5px; color:var(--mute); margin-top:2px; }
+.pf-btn{ background:var(--foul); border:1px solid var(--foul); color:var(--night); font-weight:700;
+  font-family:'Oswald',sans-serif; font-size:13px; padding:8px 18px; border-radius:20px; cursor:pointer; }
+.pf-btn.following{ background:none; color:var(--grass-bright); border-color:var(--grass-bright); font-weight:400; }
+.pf-bio{ font-size:13px; color:var(--white); line-height:1.6; margin-top:14px; }
+.pf-stats{ display:flex; gap:18px; margin-top:14px; padding-bottom:14px; border-bottom:1px solid var(--line);
+  font-family:'Space Mono',monospace; font-size:11.5px; color:var(--mute); }
+.pf-stats b{ color:var(--white); font-family:'Oswald',sans-serif; font-size:14px; }
+.pf-compose{ margin-top:16px; }
+.pf-compose textarea, .dw-card textarea{ width:100%; height:76px; background:var(--night);
+  border:1px solid var(--line); color:var(--white); font-size:13px; padding:11px; border-radius:9px;
+  resize:vertical; font-family:inherit; }
+.pf-compose textarea:focus, .dw-card textarea:focus{ outline:none; border-color:var(--foul); }
+.pf-compose-row{ display:flex; align-items:center; justify-content:space-between; margin-top:9px; gap:10px; }
+.pf-attach{ font-family:'Space Mono',monospace; font-size:10.5px; color:var(--mute); display:flex;
+  align-items:center; gap:6px; cursor:pointer; }
+.pf-statuses{ margin-top:18px; display:flex; flex-direction:column; gap:10px; }
+.pf-empty{ text-align:center; color:var(--mute); font-size:13px; padding:26px; }
+
+.status{ background:var(--night2); border:1px solid var(--line); border-radius:12px; padding:13px 15px; }
+.status-head{ display:flex; align-items:center; gap:9px; }
+.status-name{ font-family:'Oswald',sans-serif; font-size:14px; cursor:pointer; }
+.status-name:hover{ color:var(--foul); }
+.status-del{ margin-left:auto; background:none; border:none; color:var(--mute); font-size:17px;
+  cursor:pointer; line-height:1; }
+.status-del:hover{ color:var(--hot); }
+.status-body{ font-size:13px; color:var(--white); line-height:1.55; margin-top:7px; word-break:break-word; }
+.status-legs{ margin-top:10px; display:flex; flex-direction:column; gap:4px; }
+.sl-leg{ display:flex; justify-content:space-between; gap:10px; background:var(--night);
+  border:1px solid var(--line); border-radius:7px; padding:7px 10px; font-size:11.5px; }
+.sl-leg b{ color:var(--grass-bright); font-family:'Space Mono',monospace; }
+.status-foot{ display:flex; align-items:center; justify-content:space-between; margin-top:10px; gap:10px; }
+.status-rx{ margin-top:0 !important; justify-content:flex-start; }
+.status-comments{ background:none; border:1px solid var(--line); color:var(--mute);
+  font-family:'Space Mono',monospace; font-size:10.5px; padding:3px 10px; border-radius:12px; cursor:pointer; }
+.status-comments:hover{ border-color:var(--foul); color:var(--white); }
+.comment-box{ display:none; margin-top:11px; padding-top:11px; border-top:1px solid var(--line); }
+.comment-box.open{ display:block; }
+.comment{ display:flex; align-items:flex-start; gap:8px; font-size:12px; padding:5px 0; line-height:1.5; }
+.comment .dw-avatar{ flex-shrink:0; margin-top:1px; }
+.comment .chat-user{ color:var(--foul); flex-shrink:0; font-size:12px; }
+.comment-compose{ display:flex; gap:7px; margin-top:9px; }
+.comment-compose input{ flex:1; background:var(--night); border:1px solid var(--line); color:var(--white);
+  font-size:12px; padding:8px 10px; border-radius:7px; }
+.comment-compose input:focus{ outline:none; border-color:var(--foul); }
+.comment-compose button{ background:var(--night2); border:1px solid var(--line); color:var(--white);
+  font-family:'Oswald',sans-serif; font-size:12px; padding:8px 14px; border-radius:7px; cursor:pointer; }
+
+@media (max-width:520px){
+  .profile-card{ padding:18px; }
+  .pf-av{ width:48px; height:48px; font-size:18px; }
+  .pf-name{ font-size:17px; }
+}
+.chat-err{ color:var(--hot); font-size:11.5px; font-family:'Space Mono',monospace; min-height:15px;
+  margin-top:10px; line-height:1.5; }
+.chat-compose{ display:flex; gap:8px; margin-top:14px; position:sticky; bottom:0; background:var(--night);
+  padding:10px 0; }
+.chat-compose input{ flex:1; background:var(--night2); border:1px solid var(--line); color:var(--white);
+  font-size:13px; padding:11px 13px; border-radius:9px; }
+.chat-compose input:focus{ outline:none; border-color:var(--foul); }
+.chat-compose button{ background:var(--foul); border:none; color:var(--night); font-family:'Oswald',sans-serif;
+  font-size:13px; padding:11px 18px; border-radius:9px; cursor:pointer; font-weight:700; }
+.prop-tiles{ display:grid; grid-template-columns:repeat(auto-fit,minmax(108px,1fr)); gap:8px; }
+.prop-tile{ background:var(--night2); border:1px solid var(--line); border-radius:10px; padding:11px 8px;
+  text-align:center; border-top-width:3px; }
+.prop-tile.grade-a{ border-top-color:var(--grass-bright); }
+.prop-tile.grade-b{ border-top-color:#f4c430; }
+.prop-tile.grade-c{ border-top-color:var(--warm); }
+.prop-tile.grade-d{ border-top-color:var(--mute); }
+.pt-key{ font-family:'Space Mono',monospace; font-size:8.5px; color:var(--mute); text-transform:uppercase; letter-spacing:.06em; }
+.pt-grade{ font-family:'Archivo Black',sans-serif; font-size:22px; line-height:1.1; margin-top:3px; }
+.grade-a .pt-grade{ color:var(--grass-bright); } .grade-b .pt-grade{ color:#f4c430; }
+.grade-c .pt-grade{ color:var(--warm); }        .grade-d .pt-grade{ color:var(--mute); }
+.pt-pct{ font-family:'Oswald',sans-serif; font-size:13px; color:var(--white); }
+.pt-line{ font-family:'Space Mono',monospace; font-size:8px; color:var(--mute); margin-top:2px; }
+
+/* --- probability list --- */
+.prob-list{ display:flex; flex-direction:column; gap:5px; }
+.prob-row{ display:flex; align-items:center; gap:11px; background:var(--night2); border:1px solid var(--line);
+  border-radius:9px; padding:9px 12px; }
+.prob-name{ flex:0 0 150px; font-family:'Oswald',sans-serif; font-size:12.5px; color:var(--white); }
+.prob-name span{ color:var(--mute); font-size:10px; font-family:'Space Mono',monospace; }
+.prob-sub{ font-family:'Space Mono',monospace; font-size:8.5px; color:var(--mute); margin-top:2px; }
+.prob-bar{ flex:1; height:7px; background:var(--line); border-radius:4px; overflow:hidden; }
+.prob-bar-fill{ height:100%; border-radius:4px; }
+.prob-bar-fill.grade-a{ background:var(--grass-bright); } .prob-bar-fill.grade-b{ background:#f4c430; }
+.prob-bar-fill.grade-c{ background:var(--warm); }        .prob-bar-fill.grade-d{ background:var(--mute); }
+.prob-pct{ flex:0 0 44px; text-align:right; font-family:'Archivo Black',sans-serif; font-size:15px; }
+.prob-pct.grade-a{ color:var(--grass-bright); } .prob-pct.grade-b{ color:#f4c430; }
+.prob-pct.grade-c{ color:var(--warm); }        .prob-pct.grade-d{ color:var(--mute); }
+.prob-foot{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); margin-top:10px; text-align:center; }
+
+@media (max-width:520px){
+  .prob-name{ flex-basis:112px; font-size:11px; }
+  .verdict-ring{ width:74px; height:74px; }
+  .vr-grade{ font-size:21px; }
+}
+.props-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(102px,1fr)); gap:8px; }
+.prop-cell{ background:var(--night2); border:1px solid var(--line); border-radius:10px; padding:11px 10px; text-align:center; }
+.prop-cell.is-top{ border-color:var(--foul); background:rgba(224,18,46,.07); }
+.prop-cell-val{ font-family:'Archivo Black',sans-serif; font-size:19px; color:var(--white); line-height:1; }
+.prop-cell.is-top .prop-cell-val{ color:var(--foul); }
+.prop-cell-label{ font-family:'Oswald',sans-serif; font-size:11.5px; color:var(--white); margin-top:5px; }
+.prop-cell-rank{ font-family:'Space Mono',monospace; font-size:8.5px; color:var(--mute); margin-top:3px; }
+
+.edge-list{ display:flex; flex-direction:column; gap:6px; }
+.edge{ display:flex; align-items:center; gap:9px; background:var(--night2); border:1px solid var(--line); border-left-width:3px; border-radius:8px; padding:9px 12px; font-size:12.5px; }
+.edge.good{ border-left-color:var(--grass-bright); }
+.edge.bad{ border-left-color:var(--hot); }
+.edge.neutral{ border-left-color:var(--mute); }
+.edge-dot{ width:6px; height:6px; border-radius:50%; background:currentColor; flex-shrink:0; opacity:.5; }
+.edge.good .edge-dot{ background:var(--grass-bright); opacity:1; }
+.edge.bad .edge-dot{ background:var(--hot); opacity:1; }
+.edge.neutral .edge-dot{ background:var(--mute); opacity:1; }
+
+.pctl-table{ display:flex; flex-direction:column; gap:7px; }
+.pctl-row{ display:flex; align-items:center; gap:10px; }
+.pctl-label{ flex:0 0 88px; font-size:11.5px; color:var(--white); }
+.pctl-bar{ flex:1; height:8px; background:var(--line); border-radius:4px; overflow:hidden; }
+.pctl-bar-fill{ height:100%; border-radius:4px; transition:width .3s ease; }
+.pctl-val{ flex:0 0 62px; text-align:right; font-family:'Space Mono',monospace; font-size:11.5px; color:var(--white); }
+.pctl-rank{ flex:0 0 34px; text-align:right; font-family:'Space Mono',monospace; font-size:10px; color:var(--mute); }
+
+.bar-chart .bfill.blank{ background:var(--line); }
+
+@media (max-width:520px){
+  .pctl-label{ flex-basis:70px; font-size:10.5px; }
+  .pctl-val{ flex-basis:52px; font-size:10.5px; }
+  .prop-cell-val{ font-size:17px; }
+}
+.stat-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(130px,1fr)); gap:12px; margin-bottom: 16px;}
+.stat-box{ background: var(--night2); border:1px solid var(--line); border-radius:10px; padding:13px 15px; }
+.stat-box .sv{ font-family:'Oswald',sans-serif; font-size:20px; font-weight:600; }
+.stat-box .sl{ font-size:10px; color: var(--mute); text-transform:uppercase; letter-spacing:0.06em; font-family:'Space Mono',monospace; margin-top:2px;}
+.stat-box .sc{ font-size:10.5px; color: var(--mute); margin-top:5px; }
+.pctl-track{ height:5px; background: var(--line); border-radius:3px; margin-top:8px; overflow:hidden; }
+.pctl-fill{ height:100%; background: var(--grass-bright); }
+.matchup-block{ background: var(--night2); border:1px solid var(--line); border-radius:10px; padding:15px 17px; margin-bottom:11px; }
+.matchup-block h5{ font-family:'Oswald',sans-serif; font-size:13.5px; margin-bottom:7px; color: var(--foul); }
+.matchup-block p{ font-size:12.5px; color: var(--white); line-height:1.6; }
+.matchup-block .msub{ font-size:11px; color: var(--mute); margin-top:4px; }
+.narrative{ font-size:13px; color: var(--white); line-height:1.7; background: var(--night2); border:1px solid var(--line); border-radius:10px; padding:15px 17px; }
+
+.slate-list{ display:flex; flex-direction:column; gap:10px; margin-top:14px; }
+.slate-card{ background: var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 18px; cursor:pointer; transition: border-color .15s ease; }
+.slate-card:hover{ border-color: var(--foul); }
+.slate-card.is-live{ border-color: var(--foul); box-shadow: 0 0 0 1px rgba(224,18,46,0.25); }
+.slate-status-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.slate-badge{ font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.05em; padding:3px 9px; border-radius:20px; text-transform:uppercase; font-weight:700; }
+.slate-badge.live{ background:rgba(224,18,46,0.18); color:var(--foul); border:1px solid rgba(224,18,46,0.4); animation: pulse 1.8s infinite; }
+.slate-badge.final{ background: var(--night2); color: var(--mute); border:1px solid var(--line); }
+.slate-badge.pre{ background: var(--night2); color: var(--cool); border:1px solid var(--line); }
+.slate-time{ font-family:'Space Mono',monospace; font-size:11px; color: var(--mute); }
+.slate-teams{ display:flex; flex-direction:column; gap:8px; }
+.slate-team-row{ display:flex; align-items:center; gap:10px; }
+.slate-team-row.batting .slate-team-name{ color: var(--foul); }
+.slate-logo{ width:26px; height:26px; flex-shrink:0; object-fit:contain; }
+.slate-team-name{ font-family:'Oswald',sans-serif; font-weight:600; font-size:14.5px; flex:1; }
+.slate-runs{ font-family:'Archivo Black',sans-serif; font-size:20px; min-width:28px; text-align:right; }
+.slate-live-detail{ display:flex; align-items:center; justify-content:space-between; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); flex-wrap:wrap; gap:10px; }
+.slate-count{ display:flex; align-items:center; gap:14px; }
+.count-item{ text-align:center; }
+.count-label{ font-family:'Space Mono',monospace; font-size:8.5px; color: var(--mute); text-transform:uppercase; }
+.count-dots{ display:flex; gap:3px; margin-top:3px; }
+.count-dot{ width:7px; height:7px; border-radius:50%; background: var(--line); }
+.count-dot.on{ background: var(--foul); }
+.count-dot.out-on{ background: var(--hot); }
+.slate-matchup{ font-size:11.5px; color: var(--mute); font-family:'Space Mono',monospace; text-align:right; }
+.slate-matchup b{ color: var(--white); font-weight:600; }
+.prop-dropdown{ position:relative; display:inline-block; flex:0 0 auto; }
+/* The menu is moved to <body> when opened (see openPropMenu). The tab bar uses
+   overflow-x:auto for horizontal scrolling, which clips descendants; reparenting
+   to <body> escapes that and any other containing block, on every browser. */
+.prop-menu{ position:fixed; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:5px; min-width:180px; z-index:1000; display:none; box-shadow:0 10px 30px rgba(0,0,0,.6); max-height:70vh; overflow-y:auto; }
+.prop-menu.open{ display:block; }
+.prop-menu-backdrop{ display:none; position:fixed; inset:0; background:rgba(5,7,12,.6); z-index:999; }
+.prop-menu-backdrop.open{ display:block; }
+
+/* Mobile: an in-flow expanding panel, not an overlay. Nothing is positioned,
+   so no ancestor's overflow, stacking context, or transform can hide it. */
+.prop-menu-inline{ display:none; }
+.prop-menu-inline.open{
+  display:grid; grid-template-columns:1fr 1fr; gap:8px;
+  background:var(--panel); border:1px solid var(--foul); border-radius:12px;
+  padding:10px; margin-top:10px;
+}
+.prop-menu-inline .prop-menu-item{
+  background:var(--night2); border:1px solid var(--line); border-radius:8px;
+  padding:13px 10px; font-size:14px; text-align:center; color:var(--white);
+}
+.prop-menu-inline .prop-menu-item.active{ background:var(--foul); color:var(--night); border-color:var(--foul); font-weight:700; }
+@media (min-width:601px){ .prop-menu-inline{ display:none !important; } }
+@media (max-width:600px){ .prop-menu{ display:none !important; } }
+.prop-menu-item{ display:block; width:100%; text-align:left; background:none; border:none; color:var(--mute); font-family:'Oswald',sans-serif; font-size:13px; padding:8px 12px; border-radius:6px; cursor:pointer; white-space:nowrap; }
+.prop-menu-item:hover{ background:var(--night2); color:var(--white); }
+.prop-menu-item.active{ background:var(--foul); color:var(--night); font-weight:700; }
+.tab-badge{ display:inline-block; background:var(--foul); color:var(--night); font-family:'Space Mono',monospace; font-size:9px; font-weight:700; padding:1px 5px; border-radius:9px; margin-left:6px; vertical-align:middle; }
+.prop-tab.active .tab-badge{ background:var(--night); color:var(--foul); }
+
+.sub-modal{ position:fixed; inset:0; background:rgba(5,7,12,.8); z-index:2000; display:flex; align-items:center; justify-content:center; padding:20px; }
+.sub-card{ background:var(--panel); border:1px solid var(--foul); border-radius:14px; padding:22px; max-width:520px; width:100%; }
+.sub-card h3{ font-family:'Oswald',sans-serif; font-size:17px; margin-bottom:10px; }
+.sub-card p{ font-size:12.5px; color:var(--mute); line-height:1.6; margin-bottom:12px; }
+.sub-card code{ color:var(--foul); }
+.sub-card textarea{ width:100%; height:120px; background:var(--night); border:1px solid var(--line); border-radius:8px;
+  color:var(--white); font-family:'Space Mono',monospace; font-size:10px; padding:10px; resize:vertical; }
+.sub-actions{ display:flex; gap:10px; margin-top:12px; }
+.sub-actions button{ flex:1; background:var(--night2); border:1px solid var(--line); color:var(--white);
+  font-family:'Oswald',sans-serif; font-size:13px; padding:9px; border-radius:8px; cursor:pointer; }
+.sub-actions button:hover{ border-color:var(--foul); }
+.sub-note{ margin-top:12px !important; margin-bottom:0 !important; font-size:11px !important; }
+.ios-hint{ display:flex; gap:10px; align-items:flex-start; background:var(--night2); border:1px solid var(--foul);
+  border-radius:12px; padding:13px 15px; margin-top:14px; font-size:12.5px; line-height:1.55; color:var(--white); }
+.ios-hint b{ color:var(--foul); }
+.ios-hint-body{ flex:1; }
+.ios-hint-x{ background:none; border:none; color:var(--mute); font-size:20px; line-height:1; cursor:pointer; padding:0 2px; }
+.ios-hint-x:hover{ color:var(--white); }
+.feed-list{ display:flex; flex-direction:column; gap:10px; margin-top:14px; }
+.feed-item{ display:flex; gap:13px; background:var(--panel); border:1px solid var(--line); border-radius:13px; padding:14px 16px; cursor:pointer; transition:border-color .15s ease; }
+.feed-item:hover{ border-color:var(--foul); }
+.feed-item.is-new{ border-color:var(--foul); animation:feedPulse 2.2s ease-out; }
+@keyframes feedPulse{ 0%{ box-shadow:0 0 0 0 rgba(224,18,46,.55);} 100%{ box-shadow:0 0 0 14px rgba(224,18,46,0);} }
+.feed-icon{ flex-shrink:0; }
+.feed-headshot{ width:46px; height:46px; border-radius:50%; object-fit:cover; object-position:var(--headshot-crop); background:var(--night2); border:2px solid var(--line); }
+.feed-body{ flex:1; min-width:0; }
+.feed-top{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.feed-name{ font-family:'Oswald',sans-serif; font-size:16px; font-weight:600; }
+.feed-team{ font-family:'Space Mono',monospace; font-size:10.5px; color:var(--mute); }
+.feed-time{ font-family:'Space Mono',monospace; font-size:10px; color:var(--mute); margin-left:auto; }
+.feed-desc{ font-size:12.5px; color:var(--white); line-height:1.45; margin-top:4px; }
+.feed-rx{ margin-top:10px; justify-content:flex-start; }
+.feed-meta{ font-family:'Space Mono',monospace; font-size:10px; color:var(--mute); margin-top:8px; }
+@media (max-width:480px){ .feed-headshot{ width:38px; height:38px; } .feed-name{ font-size:14px; } }
+.slate-field{ display:flex; align-items:center; gap:16px; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }
+.sf-svg{ width:132px; height:110px; flex-shrink:0; }
+.sf-info{ flex:1; min-width:0; }
+.sf-wind{ font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; line-height:1.25; }
+.fw-stats{ display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
+.fw-stat{ background:var(--night2); border:1px solid var(--line); border-radius:7px; padding:4px 9px; min-width:46px; text-align:center; }
+.fw-stat-v{ font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; color:var(--white); line-height:1.1; }
+.fw-stat-l{ font-family:'Space Mono',monospace; font-size:8.5px; color:var(--mute); text-transform:uppercase; margin-top:1px; }
+.sf-note{ font-family:'Space Mono',monospace; font-size:10px; color:var(--mute); margin-top:8px; }
+@media (max-width:480px){
+  .slate-field{ gap:11px; }
+  .sf-svg{ width:104px; height:88px; }
+  .sf-wind{ font-size:12.5px; }
+}
+.linescore{ margin-top:12px; padding-top:12px; border-top:1px solid var(--line); overflow-x:auto; }
+
+.strike-zone{ margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }
+.gamecast{ margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }
+.gc-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:9px; }
+.gc-score{ display:flex; align-items:center; gap:7px; font-family:'Oswald',sans-serif; font-size:13px; color:var(--white); }
+.gc-at{ color:var(--mute); font-size:10px; }
+.gc-mid{ display:flex; align-items:center; gap:9px; }
+.gc-inning{ font-family:'Space Mono',monospace; font-size:11px; color:var(--mute); }
+.gc-count{ font-family:'Space Mono',monospace; font-size:11px; color:var(--white);
+  background:var(--night2); border:1px solid var(--line); padding:1px 7px; border-radius:9px; }
+.gc-outs{ display:flex; gap:3px; }
+.gc-out{ width:7px; height:7px; border-radius:50%; background:var(--line); }
+.gc-out.on{ background:var(--foul); box-shadow:0 0 5px var(--foul); }
+
+.field-svg{ width:100%; max-width:280px; height:auto; display:block; margin:0 auto;
+  border-radius:8px; box-shadow:0 6px 16px rgba(0,0,0,.35), inset 0 3px 8px rgba(0,0,0,.4); }
+
+.gc-result{ text-align:center; font-family:'Oswald',sans-serif; font-size:12px; color:var(--white);
+  text-transform:capitalize; margin-top:9px; }
+
+.gc-matchup{ display:flex; align-items:center; justify-content:center; gap:10px; margin-top:12px; }
+.gc-zone-col{ display:flex; flex-direction:column; align-items:center; flex-shrink:0; }
+.gc-zone-label{ font-family:'Space Mono',monospace; font-size:8px; color:var(--mute); margin-bottom:5px; text-align:center; }
+
+/* --- box score --- */
+.bx-empty{ text-align:center; color:var(--mute); font-size:12.5px; padding:26px; }
+.bx-team{ margin-bottom:20px; }
+.bx-team:last-child{ margin-bottom:0; }
+.bx-team-label{ font-family:'Oswald',sans-serif; font-size:14px; color:var(--white); font-weight:600;
+  margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid var(--line); }
+.bx-table{ width:100%; border-collapse:collapse; font-size:11.5px; }
+.bx-table th{ font-family:'Space Mono',monospace; font-size:9px; color:var(--mute); text-transform:uppercase;
+  text-align:center; padding:4px 3px; border-bottom:1px solid var(--line); }
+.bx-table th.bx-name, .bx-table td.bx-name{ text-align:left; }
+.bx-table td{ text-align:center; padding:5px 3px; color:var(--white); border-bottom:1px solid rgba(255,255,255,.05); }
+.bx-name{ font-family:'Oswald',sans-serif; }
+.bx-pos{ font-family:'Space Mono',monospace; font-size:9px; color:var(--mute); margin-left:5px; }
+.bx-current{ background:rgba(224,18,46,.08); }
+.bx-up{ font-family:'Space Mono',monospace; font-size:8.5px; color:var(--foul); }
+@media (max-width:480px){
+  .bx-table{ font-size:10px; }
+  .bx-pos{ display:none; }
+}
+
+.sz-matchup{ display:flex; align-items:center; justify-content:center; gap:10px; }
+.sz-center{ display:flex; flex-direction:column; align-items:center; flex-shrink:0; }
+.sz-vs-label{ font-family:'Space Mono',monospace; font-size:8.5px; color:var(--mute); letter-spacing:.12em; margin-bottom:5px; }
+
+.sz-player{ display:flex; flex-direction:column; align-items:center; gap:5px; width:64px; flex-shrink:0;
+  padding:8px 4px; border-radius:12px;
+  background:linear-gradient(180deg, rgba(255,255,255,.03) 0%, rgba(0,0,0,.08) 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 2px 6px rgba(0,0,0,.25);
+}
+.sz-player-empty{ visibility:hidden; }
+.sz-face{ width:52px; height:52px; border-radius:50%; object-fit:cover; background:var(--night2);
+  border:2px solid var(--line);
+  /* Raised, glossy ring: outer drop shadow lifts it off the card, the two
+     inset shadows fake a curved/lit sphere rather than a flat cutout photo. */
+  box-shadow:
+    0 5px 12px rgba(0,0,0,.5),
+    inset 0 -4px 7px rgba(0,0,0,.35),
+    inset 0 3px 4px rgba(255,255,255,.18);
+  transition: transform .15s ease;
+}
+.sz-face-fallback{ display:flex; align-items:center; justify-content:center; font-family:'Archivo Black',sans-serif;
+  font-size:18px; color:var(--mute);
+  background:linear-gradient(160deg, var(--night2) 0%, #0a0c0e 100%); }
+.sz-player-name{ font-family:'Oswald',sans-serif; font-size:11px; color:var(--white); text-align:center;
+  line-height:1.2; text-shadow:0 1px 2px rgba(0,0,0,.6); }
+.sz-player-stat{ font-family:'Space Mono',monospace; font-size:9px; color:var(--grass-bright); text-align:center;
+  line-height:1.3; }
+.sz-player-stat-empty{ color:var(--mute); }
+.sz-head{ display:flex; align-items:center; gap:7px; margin-bottom:8px; font-family:'Oswald',sans-serif; font-size:12.5px; }
+.sz-title{ color:var(--white); font-weight:600; }
+.sz-vs{ color:var(--mute); font-size:10px; }
+.sz-svg{ width:150px; height:178px; display:block; margin:0 auto; border-radius:8px;
+  /* Layered shadow reads as a recessed viewport (looking INTO the box) rather
+     than a flat image pasted on the card, plus a soft outer lift so it still
+     separates from the card behind it. */
+  box-shadow:
+    inset 0 3px 10px rgba(0,0,0,.55),
+    inset 0 -2px 5px rgba(255,255,255,.04),
+    0 6px 16px rgba(0,0,0,.35);
+}
+.sz-foot{ display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:9px; }
+.sz-legend{ display:flex; align-items:center; gap:5px; font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); }
+.sz-legend i{ width:8px; height:8px; border-radius:50%; display:inline-block; }
+.sz-count{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); }
+.sz-last{ text-align:center; font-family:'Space Mono',monospace; font-size:10.5px; color:var(--white); margin-top:7px; }
+
+/* --- batted-ball trajectory --- */
+.sz-bb-result{ text-align:center; font-family:'Oswald',sans-serif; font-size:12px; color:var(--white);
+  text-transform:capitalize; margin-top:8px; text-shadow:0 1px 2px rgba(0,0,0,.5); }
+.sz-bb-stats{ display:flex; gap:11px; justify-content:center; margin-top:5px; }
+.bb-stat{ font-family:'Space Mono',monospace; font-size:9.5px; color:var(--mute); }
+.bb-stat b{ color:var(--foul); font-size:11px; text-shadow:0 0 6px rgba(224,18,46,.5); }
+
+@media (max-width:480px){
+  .sz-player{ width:50px; }
+  .sz-face{ width:42px; height:42px; }
+  .sz-player-name{ font-size:9.5px; }
+  .sz-player-stat{ font-size:8px; }
+  .sz-svg{ width:120px; height:142px; }
+}
+.linescore table{ border-collapse:collapse; font-family:'Space Mono',monospace; font-size:11.5px; width:100%; min-width:max-content; }
+.linescore th, .linescore td{ padding:4px 7px; text-align:center; min-width:22px; }
+.linescore th{ color:var(--mute); font-size:9.5px; font-weight:400; border-bottom:1px solid var(--line); }
+.linescore td.team-cell, .linescore th.team-cell{ text-align:left; min-width:52px; padding-left:0; color:var(--white); font-family:'Oswald',sans-serif; font-size:12.5px; font-weight:600; }
+.linescore td.rhe{ font-weight:700; color:var(--white); }
+.linescore th.rhe-head{ color:var(--white); }
+.linescore .sep{ border-left:1px solid var(--line); }
+.linescore td.scored{ color:var(--foul); font-weight:700; }
+.linescore th.current-inn{ color:var(--foul); }
+.linescore tr.batting td.team-cell{ color:var(--foul); }
+.odds-grid{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; }
+.odds-col-head{ font-family:'Space Mono',monospace; font-size:9.5px; color: var(--mute); text-transform:uppercase; text-align:center; margin-bottom:8px; letter-spacing:0.05em; }
+.odds-team-row{ display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); gap:6px; }
+.odds-team-row:last-child{ border-bottom:none; }
+.odds-team-label{ font-family:'Oswald',sans-serif; font-size:12.5px; font-weight:500; }
+.odds-price{ font-family:'Space Mono',monospace; font-size:13px; font-weight:700; color: var(--foul); min-width:44px; text-align:right; }
+.odds-source-note{ font-size:10.5px; color: var(--mute); font-family:'Space Mono',monospace; margin-top:10px; text-align:center; }
+.wx-diagram-wrap{ display:flex; align-items:center; gap:16px; }
+.wx-diamond{ width:120px; height:120px; flex-shrink:0; }
+.wx-diagram-info{ flex:1; }
+.wx-temp{ font-family:'Archivo Black',sans-serif; font-size:26px; }
+.wx-wind-label{ font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; margin-top:4px; }
+.wx-wind-sub{ font-family:'Space Mono',monospace; font-size:11px; color: var(--mute); margin-top:2px; }
+.wx-diamond-note{ font-family:'Space Mono',monospace; font-size:12px; color: var(--mute); padding:10px 0; }
+.filter-bar{ background:var(--panel); border:1px solid var(--line); border-radius:12px; margin-top:14px; overflow:hidden; }
+.filter-head{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; cursor:pointer; gap:10px; }
+.filter-head:hover{ background:rgba(224,18,46,0.05); }
+.filter-title{ font-family:'Oswald',sans-serif; font-size:14px; display:flex; align-items:center; gap:8px; }
+.filter-count{ background:var(--foul); color:var(--night); font-family:'Space Mono',monospace; font-size:10px; font-weight:700; padding:2px 7px; border-radius:10px; }
+.filter-actions{ display:flex; align-items:center; gap:10px; }
+.filter-clear{ background:none; border:1px solid var(--line); color:var(--mute); font-family:'Space Mono',monospace; font-size:10px; padding:3px 9px; border-radius:10px; cursor:pointer; }
+.filter-clear:hover{ border-color:var(--hot); color:var(--hot); }
+.filter-body{ max-height:0; overflow:hidden; transition:max-height .25s ease; border-top:0 solid var(--line); }
+.filter-body.open{ max-height:900px; border-top:1px solid var(--line); }
+.filter-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); gap:12px; padding:14px 16px; }
+.filter-item{ background:var(--night2); border:1px solid var(--line); border-radius:9px; padding:10px 12px; }
+.filter-item.active{ border-color:var(--foul); }
+.filter-item-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:7px; }
+.filter-item-label{ font-family:'Oswald',sans-serif; font-size:12.5px; }
+.filter-item-val{ font-family:'Space Mono',monospace; font-size:10.5px; color:var(--foul); }
+.filter-inputs{ display:flex; align-items:center; gap:6px; }
+.filter-inputs input{ width:100%; background:var(--night); border:1px solid var(--line); color:var(--white); font-family:'Space Mono',monospace; font-size:11px; padding:4px 6px; border-radius:5px; }
+.filter-inputs input:focus{ outline:none; border-color:var(--foul); }
+.filter-inputs span{ color:var(--mute); font-size:10px; font-family:'Space Mono',monospace; }
+.filter-sort{ display:flex; align-items:center; gap:8px; padding:0 16px 14px; font-family:'Space Mono',monospace; font-size:10.5px; color:var(--mute); flex-wrap:wrap; }
+.filter-sort select{ background:var(--night2); border:1px solid var(--line); color:var(--white); font-family:'Space Mono',monospace; font-size:11px; padding:4px 8px; border-radius:6px; cursor:pointer; }
+.filter-result{ padding:0 16px 12px; font-family:'Space Mono',monospace; font-size:11px; color:var(--mute); }
+.filter-result b{ color:var(--foul); }
+.team-section{ margin-top:10px; }
+.team-section-head{
+  display:flex; align-items:center; justify-content:space-between; padding: 16px 4px 8px;
+  border-top: 1px solid var(--line); margin-top:14px;
+}
+.team-section:first-child .team-section-head{ border-top:none; margin-top:0; }
+.team-section-head h3{ font-family:'Oswald',sans-serif; font-size:16px; letter-spacing:0.02em; }
+.team-section-head span{ font-family:'Space Mono',monospace; font-size:10.5px; color: var(--mute); text-transform:uppercase; }
+.all-row{
+  display:flex; align-items:center; gap:12px; padding:11px 6px; border-bottom:1px solid var(--line);
+  cursor:pointer; border-radius:8px; transition: background .15s ease;
+}
+.all-row:hover{ background: rgba(224,18,46,0.08); }
+.all-row:last-child{ border-bottom:none; }
+.all-row .ar-name{ flex:1; min-width:0; font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; }
+.all-row .ar-pos{ font-family:'Space Mono',monospace; font-size:10.5px; color: var(--mute); }
+.all-row .ar-hr{ font-family:'Space Mono',monospace; font-size:11px; color: var(--mute); flex:0 0 60px; text-align:right; }
+.all-row .ar-idx{ font-family:'Archivo Black',sans-serif; font-size:16px; flex:0 0 50px; text-align:right; }
+.all-row .ar-idx.score-hi{ color: var(--grass-bright); }
+.all-row .ar-idx.score-mid{ color: #f4c430; }
+.all-row .ar-idx.score-lo{ color: var(--hot); }
+
+@media (max-width:500px){
+  .pick-chips{ display:none; }
+  .prop-tabs{ margin: 0 -20px; }
+  .pick-headshot{ width:40px; height:40px; }
+  .pick-summary{ font-size:11.5px; }
+  .env-item{ font-size:9px; }
+  .modal-headshot{ width:60px; height:60px; }
+}
+</style>
+</head>
+<body>
+
+<div id="loadSplash" class="load-splash">
+  <svg class="ls-scene" viewBox="0 0 200 120" aria-hidden="true">
+    <ellipse cx="100" cy="104" rx="70" ry="6" fill="rgba(0,0,0,.35)"/>
+    <!-- bat: pivots at the handle, swings through and connects with the ball -->
+    <g class="ls-bat" transform-origin="46 78">
+      <rect x="44" y="40" width="6" height="42" rx="3" fill="#c8a165"/>
+      <rect x="44" y="76" width="6" height="10" rx="3" fill="#5a4326"/>
+    </g>
+    <circle class="ls-ball" cx="100" cy="58" r="6" fill="#f4f1e8">
+      <animate attributeName="opacity" values="1;1;0;0;1" dur="1.6s" repeatCount="indefinite"/>
+    </circle>
+    <path class="ls-ball-seam" d="M96,54 Q100,58 96,62 M104,54 Q100,58 104,62" stroke="var(--foul)" stroke-width="1" fill="none" opacity=".8"/>
+    <g class="ls-impact">
+      <circle cx="108" cy="56" r="3" fill="#fff"/>
+      <line x1="108" y1="56" x2="118" y2="48" stroke="#fff" stroke-width="2"/>
+      <line x1="108" y1="56" x2="120" y2="58" stroke="#fff" stroke-width="2"/>
+      <line x1="108" y1="56" x2="116" y2="66" stroke="#fff" stroke-width="2"/>
+    </g>
+    <circle class="ls-flyball" cx="100" cy="58" r="5" fill="#f4f1e8"/>
+  </svg>
+  <div class="ls-title">DINGER<span>WATCH</span></div>
+  <div class="ls-text">Loading Dinger Watch<span class="ls-dots"><i>.</i><i>.</i><i>.</i></span></div>
+  <div class="ls-sub" id="lsSub">Running 10,000 simulations per player</div>
+</div>
+<script>
+  // Last-resort safety net, independent of the main app script entirely: if
+  // anything goes wrong badly enough that boot() never runs (a syntax error,
+  // a blocked resource, anything), this alone guarantees the splash cannot
+  // trap the user on a loading screen forever.
+  setTimeout(function(){
+    var el = document.getElementById('loadSplash');
+    if(el) el.remove();
+  }, 15000);
+</script>
+
+<header>
+  <div class="brand-row">
+    <svg class="brand-icon" viewBox="0 0 160 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <linearGradient id="trailGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#e0122e" stop-opacity="0"/>
+          <stop offset="100%" stop-color="#e0122e" stop-opacity="0.9"/>
+        </linearGradient>
+      </defs>
+      <path d="M4,70 Q40,66 74,54" stroke="url(#trailGrad)" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path d="M4,84 Q44,78 70,62" stroke="url(#trailGrad)" stroke-width="3.5" fill="none" stroke-linecap="round" opacity="0.7"/>
+      <path d="M10,56 Q42,52 66,46" stroke="url(#trailGrad)" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.5"/>
+      <circle cx="110" cy="42" r="34" fill="#f5f0f0"/>
+      <circle cx="110" cy="42" r="34" fill="none" stroke="#3a2424" stroke-width="1"/>
+      <path d="M84,20 Q100,42 84,64" stroke="#e0122e" stroke-width="3" fill="none"/>
+      <path d="M136,20 Q120,42 136,64" stroke="#e0122e" stroke-width="3" fill="none"/>
+      <g stroke="#e0122e" stroke-width="1.6">
+        <line x1="86" y1="24" x2="91" y2="21"/><line x1="83" y1="31" x2="88" y2="28.5"/>
+        <line x1="82" y1="39" x2="87.5" y2="38"/><line x1="82" y1="47" x2="87.5" y2="47.5"/>
+        <line x1="84" y1="55" x2="89" y2="57"/><line x1="87" y1="61" x2="92" y2="64.5"/>
+        <line x1="134" y1="24" x2="129" y2="21"/><line x1="137" y1="31" x2="132" y2="28.5"/>
+        <line x1="138" y1="39" x2="132.5" y2="38"/><line x1="138" y1="47" x2="132.5" y2="47.5"/>
+        <line x1="136" y1="55" x2="131" y2="57"/><line x1="133" y1="61" x2="128" y2="64.5"/>
+      </g>
+    </svg>
+    <div class="brand-text">DINGER<span>WATCH</span></div>
+  </div>
+  <h1>Who's Going <span>Deep</span></h1>
+  <div class="subhead">Top MLB prop picks ranked by Statcast contact quality, park factor, live weather, and pitching matchups.</div>
+  <div class="day-toggle" id="dayToggle">
+    <button class="active" data-day="today" id="todayBtn">Today</button>
+  </div>
+  <div class="day-note" id="dayNote">Loading slate…</div>
+  <div class="refresh-row">
+    <span id="lastUpdated">Updated just now</span>
+    <button id="refreshBtn" title="Refresh live data now">↻ Refresh</button>
+    <button id="exportBtn" title="Download every player's prop projections as an Excel workbook" hidden>⬇ Excel</button>
+  </div>
+
+  <!-- Pinned to the actual top-right corner of the screen, not just the
+       rightmost item in this row — stays visible while scrolling, the way a
+       profile icon behaves in most apps. -->
+  <div class="header-fixed-cluster">
+    <span id="headerOnlineSlot"></span>
+    <div class="notify-wrap">
+      <button id="notifyBtn" title="Get a notification for every home run">🔔</button>
+      <div class="notify-pop" id="notifyPop"></div>
+    </div>
+    <button id="authBtn" title="Sign in to react and chat">Sign in</button>
+  </div>
+  <div class="live-status">
+    <span><span class="dot pending" id="dotSlate"></span>Slate data (slate.json)</span>
+    <span><span class="dot pending" id="dotSchedule"></span>Live game state (MLB Stats API)</span>
+  </div>
+</header>
+
+<main>
+  <div class="prop-tabs" id="propTabs"></div>
+  <!-- Lives OUTSIDE #propTabs on purpose: that bar uses overflow-x:auto, which
+       clips its children. On mobile the props menu renders here as a normal
+       in-flow block, so there is no positioning to get clipped or mispainted. -->
+  <div id="propMenuInline"></div>
+  <div class="section-head">
+    <h2 id="sectionTitle">Top 20 · Home Run</h2>
+    <p id="sectionSub">Ranked by Home Run Index — Statcast profile, park, weather, and matchup combined.</p>
+  </div>
+  <div class="pick-list" id="pickList"></div>
+</main>
+
+<footer>
+  All game, roster, player, pitcher, and weather data is loaded from <b>slate.json</b>, rebuilt each morning by <code>build-slate.js</code> against the MLB Stats API and Open-Meteo. Because it is server-generated and served same-origin, it does not depend on the browser making cross-origin calls — and stats, trades, and injuries self-correct daily.
+  Live in-game score, inning, count, batter/pitcher, and the home run feed poll the MLB Stats API directly.
+  <b>Home run alerts</b> use your browser notifications. With Web Push configured (service worker plus the scheduled sender), they arrive even when the app is closed; without it they fire only while this page is open. On iPhone and iPad, add the site to your Home Screen first — iOS only permits notifications from installed apps.
+  Statcast metrics appear when the optional enrichment step has run; otherwise contact-quality values are derived from season rate stats and are flagged as such.
+  Odds are not included — no free public sportsbook feed exists. Everything here is modeled and directional, for entertainment only, not betting advice.
+</footer>
+
+<div class="modal-overlay" id="modalOverlay"><div class="modal" id="modalBody"></div></div>
+
+<script>
+const STADIUM_COORDS = {
+  'sd-hou': {lat:32.7076, lon:-117.1570}, 'az-lad': {lat:33.4455, lon:-112.0667},
+  'tex-bal': {lat:32.7473, lon:-97.0847}, 'stl-col': {lat:38.6226, lon:-90.1928},
+  'sf-det': {lat:37.7786, lon:-122.3893}, 'mil-min': {lat:43.0280, lon:-87.9712},
+  'cws-cle': {lat:41.8299, lon:-87.6338}, 'kc-chc': {lat:39.0517, lon:-94.4803},
+  'sea-tb': {lat:47.5914, lon:-122.3325}, 'nym-pit': {lat:40.4469, lon:-80.0057},
+  'ath-bos': {lat:42.3467, lon:-71.0972}, 'laa-mia': {lat:25.7781, lon:-80.2196},
+  'atl-nyy': {lat:40.8296, lon:-73.9262}, 'tor-phi': {lat:39.9061, lon:-75.1665}, 'cin-wsh': {lat:38.8730, lon:-77.0074}
 };
+// Approximate home-plate-to-center-field compass bearing per park (0=N, 90=E, clockwise).
+// Used only to express live wind relative to the field (out/in/across), the same
+// way RotoGrinders' MLB weather tool overlays wind on a diamond diagram. Most parks
+// are oriented NE-E by design (keeps the setting sun out of batters' eyes) — exact
+// degrees are approximate, not survey-precise.
+// ============================================================================
+// DATA LAYER — loaded from slate.json (built server-side by build-slate.js)
+// ----------------------------------------------------------------------------
+// Everything below used to be hardcoded: game matchups, park data, ~270 player
+// stat lines, and probable pitchers. All of it now comes from one same-origin
+// request, so it self-corrects daily and no longer needs manual patching when
+// players are traded, hit the IL, or their HR totals change.
+//
+// One request instead of ~50 cross-origin ones also means no CORS/CSP blocking
+// when the site is published.
+// ============================================================================
 
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
+let games = [];
+let allBatters = [];
+let allPitchers = [];
+let slateMeta = { date: null, generatedAt: null, warnings: [], sources: {} };
+
+const SLATE_URL = './slate.json';
+
+/** Team abbreviation → full nickname, for display. */
+function teamNickname(abbr, fallback) { return fallback || abbr; }
+
+/**
+ * Derive a qualitative weather effect from the wind sector the builder computed.
+ * The builder already did the hard part (translating compass degrees into
+ * out/in/across relative to that park's actual orientation).
+ */
+function weatherEffectFrom(weather, roof) {
+  if (!weather || weather.indoor || roof === 'fixed') return { effect: 'neu', note: 'Indoor — no wind effect' };
+  const sector = weather.wind?.sector;
+  if (sector === 'out') return { effect: 'pos', note: `Wind ${weather.wind.label.toLowerCase()} — helps carry` };
+  if (sector === 'in')  return { effect: 'neg', note: `Wind ${weather.wind.label.toLowerCase()} — suppresses carry` };
+  if (sector === 'across') return { effect: 'neu', note: `Wind ${weather.wind.label.toLowerCase()}` };
+  return { effect: 'neu', note: 'Neutral conditions' };
+}
+
+/** Format a UTC ISO timestamp as a local clock time for display. */
+function localTimeLabel(iso) {
+  try {
+    // Renders in the viewer's own timezone — a fan in NY and one in LA each
+    // see their correct local first pitch from the same UTC timestamp.
+    return new Date(iso).toLocaleTimeString('en-US', {
+      hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
+    });
+  } catch { return ''; }
+}
+
+/** Season stats → the statcast-shaped object the scoring model consumes. */
+/**
+ * Accept an upstream metric only if it falls in a physically plausible range.
+ * This is a defence-in-depth guard: a bug once fed barrel-rate PERCENTILES
+ * (0-100) into this field, so every hitter showed an ~85% barrel rate. Rather
+ * than trust the feed, implausible values are rejected here and the derived
+ * estimate is used instead — a slightly-wrong number beats an absurd one.
+ */
+function plausible(value, lo, hi, label) {
+  if (value == null || Number.isNaN(value)) return null;
+  if (value < lo || value > hi) {
+    if (!plausible._warned?.has(label)) {
+      (plausible._warned ??= new Set()).add(label);
+      console.warn(`[slate] ${label}=${value} outside plausible range [${lo}, ${hi}] — ` +
+                   `ignoring upstream value and using a derived estimate. ` +
+                   `Check enrich-statcast.py column mapping.`);
+    }
+    return null;
+  }
+  return value;
+}
+
+function toStatcastShape(season, statcast) {
+  // Prefer real Statcast when the enrichment step ran; otherwise derive a
+  // stand-in from season rate stats so scoring still works.
+  const slg = season.slg ?? 0.400;
+  const rawIso = Math.max(0, slg - (season.avg ?? 0.250));
+
+  /**
+   * Regress toward the league mean based on sample size.
+   *
+   * Without this a 60-PA callup on a hot streak produces the same derived
+   * barrel rate as a 600-PA superstar, because ISO alone carries no information
+   * about how much evidence is behind it. Small samples then dominate the
+   * rankings — which is exactly how a fringe player pins to the top 5.
+   *
+   * `regressionPA` is the sample size at which a player's own rate and the
+   * league mean are weighted equally.
+   */
+  const R = MODEL.regression;
+  const pa = season.pa ?? 0;
+  const w = pa / (pa + R.regressionPA);          // 0 = all league, 1 = all player
+  const iso = rawIso * w + R.leagueIso * (1 - w);
+
+  // Range-check every upstream metric before trusting it.
+  const barrel  = plausible(statcast?.barrelPct,   0,  35, 'barrelPct');
+  const ev      = plausible(statcast?.exitVelo,   60, 100, 'exitVelo');
+  const hardHit = plausible(statcast?.hardHitPct,  0,  80, 'hardHitPct');
+  const xwoba   = plausible(statcast?.xwoba,       0, 0.7, 'xwoba');
+  const xslg    = plausible(statcast?.xslg,        0, 1.2, 'xslg');
+  const maxEv   = plausible(statcast?.maxExitVelo, 80, 130, 'maxExitVelo');
+
+  const usedReal = barrel != null || ev != null || hardHit != null;
+
+  return {
+    // Flagged so the UI can mark a player whose profile is mostly assumption.
+    _regressed:  !usedReal && pa < R.lowSamplePA,
+    _pa:         pa,
+    barrel:      barrel  ?? +(iso * 42).toFixed(1),
+    ev:          ev      ?? +(86 + iso * 18).toFixed(1),
+    maxEv:       maxEv   ?? (ev != null ? +(ev + 20).toFixed(1) : +(104 + iso * 20).toFixed(1)),
+    hardHit:     hardHit ?? +(28 + iso * 70).toFixed(1),
+    xwoba:       xwoba   ?? +((season.obp ?? .310) * 0.6 + slg * 0.4).toFixed(3),
+    xslg:        xslg    ?? slg,
+    sweetSpot:   +(28 + iso * 22).toFixed(1),
+    pull:        +(35 + iso * 20).toFixed(1),
+    launchAngle: +(11 + iso * 16).toFixed(1),
+    _derived:    !usedReal,   // flagged so the UI can label it honestly
+  };
+}
+
+/** Speed score proxy — SB rate relative to opportunities, scaled by position.
+ *  All constants live in MODEL.sb so they're tunable via model-config.json. */
+function speedScore(season, pos) {
+  const S = MODEL.sb;
+  const sb = season.sb ?? 0;
+  const onBase = (season.h ?? 0) + (season.bb ?? 0);
+  const rate = onBase > 0 ? sb / onBase : 0;
+  const posBonus = S.posBonus[pos] ?? 0;
+  return clamp(Math.round(rate * S.rateMultiplier + S.baseline + posBonus), 1, 100);
+}
+
+/** Recent-form trend from the last-10 log vs. season baseline. */
+function formTrend(last10, season) {
+  if (!last10 || !last10.ab || last10.ab < 15) return 'flat';
+  const seasonAvg = season.avg ?? 0.250;
+  const diff = (last10.avg ?? seasonAvg) - seasonAvg;
+  return diff > 0.045 ? 'up' : diff < -0.045 ? 'down' : 'flat';
+}
+
+/** Rough tier from season power output — drives the RBI/form baselines. */
+function tierFromStats(season) {
+  const hr = season.hr ?? 0;
+  const paScale = season.pa ? 550 / season.pa : 1;
+  const projHR = hr * paScale;
+  return projHR >= 32 ? 1 : projHR >= 20 ? 2 : projHR >= 12 ? 3 : 4;
+}
+
+/** Convert one slate.json hitter into the player object the app expects. */
+function adaptHitter(h, teamAbbr, game, side) {
+  const s = h.season || {};
+  const statcast = toStatcastShape(s, h.statcast);
+  const l10 = h.last10 || {};
+  const trend = formTrend(l10, s);
+  const tier = tierFromStats(s);
+  const hr = s.hr ?? 0;
+  const ab = s.ab ?? 0;
+
+  const p = {
+    id: h.id,
+    name: h.name,
+    team: teamAbbr,
+    pos: h.pos,
+    hand: h.bats || h.hand || '?',   // batSide from the builder
+    hr, pa: s.pa ?? 0, ab,
+    avg: s.avg ?? 0.250,
+    slg: s.slg ?? null,      // needed for projected total bases (SLG = TB/AB)
+    r:   s.r ?? null,        // runs scored — needed for the H+R+RBI combo
+    h:   s.h ?? null,        // hits and walks feed the on-base fallback for runs
+    bb:  s.bb ?? null,
+    so:  s.so ?? null,
+    tb:  s.tb ?? null,          // exact total bases — better than deriving from SLG
+    doubles: s.doubles ?? null, // the simulator needs the hit-type breakdown to
+    triples: s.triples ?? null, // resolve each PA into a specific outcome
+    cs:  s.cs ?? 0,             // SB attempts = sb + cs
+    babip: s.babip ?? null,
+    iso: s.iso ?? null,
+    kPct: s.kPct ?? null,
+    bbPct: s.bbPct ?? null,
+    hrPerFly: s.hrPerFly ?? null,
+    gbFbRatio: s.gbFbRatio ?? null,
+    battingOrder: h.battingOrder ?? null,
+    // --- predictive rate stats ---
+    kPct: s.kPct ?? null,        // strikeout rate — caps every contact prop
+    bbPct: s.bbPct ?? null,
+    iso: s.iso ?? null,          // power with singles stripped out
+    babip: s.babip ?? null,      // luck indicator
+    airPct: s.airPct ?? null,    // can't homer on grounders
+    gbFb: s.gbFb ?? null,
+    sbAttempts: s.sbAttempts ?? null,
+    sbSuccess: s.sbSuccess ?? null,
+    sbRate: s.sbRate ?? null,
+    battingOrder: h.battingOrder ?? null,
+    obp: s.obp ?? null,
+    ops: s.ops ?? null,
+    g:   s.g ?? null,        // needed for per-game RBI / SB rates
+    rbi: s.rbi ?? 0,
+    sb: s.sb ?? 0,
+    speed: speedScore(s, h.pos),
+    tier,
+    statcast,
+    recentForm: {
+      last15: l10.hr != null ? `${l10.hr} HR / ${l10.ab} AB` : '—',
+      last30: l10.hr != null ? `${l10.hr} HR / ${l10.ab} AB (L10 G)` : '—',
+      trend,
+    },
+    gameLog: h.gameLog || [],
+    odds: h.odds || null,          // real prices + one-tap betslip deep links
+    splits: h.splits || null,      // season vs LHP / vs RHP
+    vsPitcher: h.vsPitcher || null, // career at-bats vs THIS game's starter
+    detail: h.detail || null,      // zone grid, pitch types, batted balls
+    note: tier === 1 ? 'Elite power threat'
+        : tier === 2 ? 'Consistent power bat'
+        : tier === 3 ? 'Everyday pop'
+        : 'Contact-first, occasional pop',
+    dataQuality: h.statcast ? 'sourced' : 'derived',
+    game, side,
+    oppPitcher: side === 'away' ? game.homePitcher : game.awayPitcher,
+    pace: hr > 0 && ab > 0 ? `1 per ${(ab / hr).toFixed(1)} AB` : '—',
+    rosterStatus: 'active',   // slate.json already excludes inactive players
+  };
+
+  p.narrative = buildNarrative(p, game);
+  scorePlayer(p, game);
+  p.index = p.hrIndex;
+  return p;
+}
+
+/** Short written "why" for the HR tab, assembled from this player's real numbers. */
+function surname(fullName){
+  const parts = String(fullName).trim().split(/\s+/);
+  if (parts.length === 1) return parts[0];
+  // Skip generational suffixes so "Fernando Tatis Jr." -> "Tatis", not "Jr."
+  const suffixes = new Set(['Jr.','Jr','Sr.','Sr','II','III','IV']);
+  for (let i = parts.length - 1; i > 0; i--) {
+    if (!suffixes.has(parts[i])) return parts[i];
+  }
+  return parts[parts.length - 1];
+}
+
+function buildNarrative(p, g) {
+  const last = surname(p.name);
+  const bits = [];
+  bits.push(`${last} has ${p.hr} HR in ${p.ab} AB (${p.pace})`);
+  if (p.statcast.barrel) bits.push(`${p.statcast.barrel}% barrel rate`);
+  if (p.recentForm.trend === 'up') bits.push('and is trending up over his last 10 games');
+  else if (p.recentForm.trend === 'down') bits.push('though he has cooled off recently');
+  const env = g.weatherEffect === 'pos' ? `${g.weatherNote} at ${g.parkShort}`
+            : g.weatherEffect === 'neg' ? `${g.weatherNote} at ${g.parkShort} works against him`
+            : `${g.parkShort} plays roughly neutral tonight`;
+  const opp = p.oppPitcher?.name ? ` Facing ${p.oppPitcher.name} (${p.oppPitcher.hr9 ?? '—'} HR/9).` : '';
+  return `${bits.join(', ')}. ${env}.${opp}`;
+}
+
+/** Convert one slate.json game into the app's game object. */
+function adaptGame(sg) {
+  const v = sg.venue || {};
+  const wx = sg.weather || null;
+  const { effect, note } = weatherEffectFrom(wx, v.roof);
+
+  const mkPitcher = (side) => {
+    const p = sg[side].pitcher;
+    if (!p) {
+      return {
+        name: `${sg[side].abbr} starter TBD`, throws: '?',
+        hr9: 1.05, k9: 9.0, barrelAllowed: 7.5,
+        mix: 'Probable starter not yet announced by MLB',
+        announced: false,
+      };
+    }
+    const st = p.stats || {};
+    return {
+      id: p.id, name: p.name, throws: p.throws || '?',
+      hr9: st.hr9 ?? 1.05, k9: st.k9 ?? 9.0, bb9: st.bb9 ?? null,
+      era: st.era ?? null, whip: st.whip ?? null, ip: st.ip ?? null,
+      arsenal: p.arsenal || null,
+      splits: p.splits || null,
+      kPct: st.kPct ?? null,
+      bbPct: st.bbPct ?? null,
+      gbFb: st.gbFb ?? null,       // ground-ball pitchers structurally suppress HR
+      airPct: st.airPct ?? null,
+      avgAgainst: st.avgAgainst ?? null,
+      barrelAllowed: st.hr9 != null ? +(st.hr9 * 6.8).toFixed(1) : 7.5,
+      mix: st.era != null
+        ? `${st.era} ERA · ${st.whip ?? '—'} WHIP · ${st.k9 ?? '—'} K/9 · ${st.hr9 ?? '—'} HR/9`
+        : 'Season stats unavailable',
+      announced: true,
+    };
+  };
+
+  const g = {
+    id: `${sg.away.abbr.toLowerCase()}-${sg.home.abbr.toLowerCase()}${sg.gameNumber > 1 ? '-g' + sg.gameNumber : ''}`,
+    gamePk: sg.gamePk,
+    startTimeUTC: sg.startTimeUTC,
+    timeToday: localTimeLabel(sg.startTimeUTC),
+    timeTomorrow: null,
+    mlbStatus: sg.status,
+    detailedState: sg.detailedStatus,
+    doubleHeader: sg.doubleHeader,
+    away: sg.away.abbr, home: sg.home.abbr,
+    awayName: teamNickname(sg.away.abbr, sg.away.name),
+    homeName: teamNickname(sg.home.abbr, sg.home.name),
+    park: v.name ? `${v.name}` : 'Unknown venue',
+    parkShort: (v.name || '').split(',')[0],
+    parkFactor: v.parkFactor ?? 100,
+    parkNote: v.parkFactor > 103 ? 'Hitter-friendly park'
+            : v.parkFactor < 94 ? 'Pitcher-friendly park'
+            : 'Roughly neutral park',
+    roof: v.roof || 'open-air',
+    cfBearing: v.cfBearing ?? null,
+    elevation: v.elevation ?? null,
+    weatherEffect: effect,
+    weatherNote: note,
+    liveWeather: !!wx && !wx.indoor,
+    tempF: wx?.tempF ?? null,
+    windMph: wx?.windMph ?? null,
+    windDeg: wx?.windDeg ?? null,
+    dewPoint: wx?.dewPoint ?? null,
+    precipChance: wx?.precipChance ?? null,
+    windLabel: wx?.wind?.label ?? null,
+    weather: wx && !wx.indoor
+      ? `${wx.tempF}°F, wind ${wx.windMph} mph — ${wx.wind?.label ?? 'direction n/a'}${wx.precipChance > 30 ? `, ${wx.precipChance}% precip` : ''}`
+      : 'Indoor / roof closed',
+    firstInningOdds: sg.firstInningOdds || null,   // 1st-inning total, with links
+  };
+
+  g.awayPitcher = mkPitcher('away');
+  g.homePitcher = mkPitcher('home');
+  g.awayRoster = (sg.away.lineup || []).map(h => adaptHitter(h, g.away, g, 'away'));
+  g.homeRoster = (sg.home.lineup || []).map(h => adaptHitter(h, g.home, g, 'home'));
+  return g;
+}
+
+/** Build the flat pools the ranking tabs read from. */
+function rebuildPools() {
+  allBatters = [];
+  games.forEach(g => { allBatters = allBatters.concat(g.awayRoster, g.homeRoster); });
+
+  allPitchers = [];
+  games.forEach(g => {
+    const mkP = (p, opp) => {
+      const expIP = p.k9 >= 10.5 ? 6.3 : p.k9 >= 9 ? 5.8 : p.k9 >= 8 ? 5.4 : 5.0;
+      return { ...p, opp, game: g, expIP, projK: +((p.k9 * expIP) / 9).toFixed(1) };
+    };
+    if (g.awayPitcher.announced) allPitchers.push(mkP(g.awayPitcher, g.home));
+    if (g.homePitcher.announced) allPitchers.push(mkP(g.homePitcher, g.away));
   });
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+/** Fetch slate.json and populate everything. Returns true on success. */
+async function loadSlate() {
+  const dot = document.getElementById('dotSlate');
+  try {
+    const res = await fetch(SLATE_URL, { cache: 'no-cache' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const slate = await res.json();
 
-  if (!WHOP_CLIENT_ID || !SUPABASE_URL || !SERVICE_ROLE) {
-    return json({ error: 'Edge Function is missing required secrets.' }, 500);
+    slateMeta = {
+      date: slate.date,
+      generatedAt: slate.generatedAt,
+      warnings: slate.warnings || [],
+      sources: slate.sources || {},
+      gameCount: slate.gameCount,
+    };
+
+    games = (slate.games || []).map(adaptGame);
+    rebuildPools();
+
+    if (dot) dot.className = 'dot ok';
+    return true;
+  } catch (err) {
+    if (dot) dot.className = 'dot fallback';
+    slateMeta.loadError = err.message;
+    games = [];
+    rebuildPools();
+    return false;
   }
+}
 
-  let body: { code?: string; redirect_uri?: string; code_verifier?: string };
-  try{ body = await req.json(); }
-  catch{ return json({ error: 'Malformed request body.' }, 400); }
+// Tier baselines retained for scoring (form + RBI weights by power tier).
+const TIER_RANGES = {
+  1: { base:{form:15, rbi:78} },
+  2: { base:{form:11, rbi:60} },
+  3: { base:{form:7,  rbi:42} },
+  4: { base:{form:3,  rbi:24} },
+};
 
-  const { code, redirect_uri, code_verifier } = body;
-  if (!code || !redirect_uri || !code_verifier) {
-    return json({ error: 'Missing code, redirect_uri, or code_verifier.' }, 400);
-  }
+// ============================================================================
+//  ⚙️  MODEL — every tunable number lives here.
+// ----------------------------------------------------------------------------
+//  These are the DEFAULTS. To change them permanently without editing this
+//  file, drop a `model-config.json` next to index.html — it is deep-merged
+//  over everything below at load time, so your tuning survives any future
+//  rebuild or redeploy of the app itself. See loadModelOverrides().
+//
+//  The four HR weights should sum to 100 (console check below).
+//  Each `*Scale` is "the input value that earns full marks" — lower it to make
+//  a category easier to max out, raise it to make it stricter.
+// ============================================================================
+const MODEL = {
 
-  // Identify the caller from their Supabase auth token — same reasoning as
-  // check-whop-access: never trust a user id passed in the request body.
-  const authHeader = req.headers.get('Authorization') ?? '';
-  const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
-  const { data: userData, error: userErr } = await admin.auth.getUser(
-    authHeader.replace(/^Bearer\s+/i, '')
-  );
-  if (userErr || !userData?.user) {
-    return json({ error: 'Not signed in.' }, 401);
-  }
-  const supabaseUser = userData.user;
+  // ---- Small-sample regression ----
+  //  Applied to DERIVED Statcast only. Real measured Statcast is left alone —
+  //  it already reflects actual contact, not an inference from rate stats.
+  regression: {
+    regressionPA: 220,    // PA at which player and league are weighted 50/50
+    leagueIso:    0.164,  // league-average ISO to regress toward
+    lowSamplePA:  150,    // below this, the card is flagged as small-sample
 
-  // ---- exchange the code for a short-lived Whop access token ----
-  let whopTokens: { access_token: string };
-  try{
-    const tokenRes = await fetch('https://api.whop.com/oauth/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri,
-        client_id: WHOP_CLIENT_ID,
-        code_verifier,
-      }),
-    });
-    if (!tokenRes.ok) {
-      const err = await tokenRes.json().catch(() => ({}));
-      throw new Error(err.error_description || `token exchange failed (${tokenRes.status})`);
+    // League-average per-plate-appearance rates, the target the simulation
+    // regresses toward. Roughly 2024 MLB. Adjust if the run environment shifts.
+    leagueRates: {
+      hr:   0.0317,   // ~19 HR per 600 PA
+      hits: 0.2250,   // ~135 H per 600 PA
+      dbl:  0.0433,
+      trp:  0.0033,
+      bb:   0.0867,
+      k:    0.2250,
+    },
+  },
+
+  // ---- Grading ----
+  //  How letter grades are assigned to prop probabilities.
+  grading: {
+    // 'percentile' = grade on rank within tonight's slate (recommended).
+    // 'absolute'   = grade on fixed probability thresholds in `cuts` below.
+    mode: 'percentile',
+
+    // Minimum slate percentile for each letter — applies to EVERY prop.
+    // With these values roughly 5% earn A+, 15% A, 20% B+, 20% B, 15% C+,
+    // 15% C, and the rest D. Raise aPlus to make the top grade rarer.
+    percentiles: { aPlus: 95, a: 80, bPlus: 60, b: 40, cPlus: 25, c: 10 },
+
+    // Optional per-prop overrides. Only the letters you list are changed;
+    // everything else inherits from `percentiles` above. Example — make A+
+    // rare for home runs but ordinary for hits:
+    //   byProp: { hr: { aPlus: 98 }, hits: { aPlus: 90, a: 70 } }
+    byProp: {},
+
+    // Used when mode is 'absolute', or when a slate is too small to rank.
+    // e = elite (A+), g = good (B+), f = fair (C+).
+    cuts: {
+      hr:   { e:27, g:23, f:16 },
+      hits: { e:77, g:74, f:70 },
+      tb:   { e:53, g:50, f:47 },
+      rbi:  { e:53, g:49, f:42 },
+      hrr:  { e:66, g:62, f:56 },
+      sb:   { e:9,  g:8,  f:5  },
+      hits15:  { e:33, g:28, f:22 },
+      tb25:    { e:33, g:28, f:22 },
+      hrr25:   { e:45, g:39, f:32 },
+      singles: { e:62, g:56, f:48 },
+      doubles: { e:20, g:16, f:12 },
+      runs:    { e:47, g:42, f:36 },
+    },
+  },
+
+  // ---- Home Run Index (the four bars in the player modal) ----
+  hr: {
+    weights:      { statcast: 50, form: 20, park: 15, matchup: 15 },  // must total 100
+
+    // Statcast half: how barrel% and hard-hit% split the statcast weight
+    barrelWeight: 0.60,   // remainder (0.40) goes to hard-hit%
+    barrelScale:  20,     // 20% barrel rate = full credit
+    hardHitScale: 55,     // 55% hard-hit rate = full credit
+
+    // Recent form: bonus/penalty applied to the tier's baseline
+    trendBonus:   4,      // "up" adds this; "down" subtracts it
+
+    // Environment: park factor / 100, then multiplied by the weather factor
+    weatherMult:  { pos: 1.08, neg: 0.90, neu: 1.00 },
+
+    // Matchup: opposing starter's HR/9 relative to league average
+    leagueHR9:    1.10,   // ~average HR/9; above this = favorable matchup
+    matchupCap:   1.50,   // don't let one bad pitcher run away with it
+
+    // Batted-ball profile. A hitter who pounds the ball into the ground can't
+    // homer no matter how hard he hits it, and a ground-ball pitcher suppresses
+    // home runs structurally rather than by luck.
+    airWeight:    0.30,   // how much the hitter's air rate scales the HR index
+    leagueAirPct: 62,     // league-average share of outs in the air
+    pitcherGbWeight: 0.20,// how much the pitcher's ground tendency suppresses
+    leagueGbFb:   1.15,   // league-average pitcher GB/FB
+  },
+
+  // ---- Hits ----
+  //  Base is AVG x expected AB, then adjusted for the things that actually move
+  //  a single game's hit total: how often he strikes out, how often the pitcher
+  //  strikes people out, and whether his BABIP suggests he's been lucky.
+  hits: {
+    expectedAB:   4,      // league-average AB per game
+    kSensitivity: 0.55,   // weight on the batter-vs-pitcher strikeout mismatch
+    leagueKPct:   22.5,   // league-average strikeout rate, both sides
+    babipWeight:  0.25,   // pull toward .300 — 0 disables regression entirely
+    leagueBabip:  0.300,
+  },
+
+  // ---- Batting order ----
+  //  Lineup slot changes plate appearances and run/RBI context more than any
+  //  rate stat. Multipliers are relative to an average slot.
+  order: {
+    // PA share by slot: leadoff sees ~4.7 PA/game, the nine-hole ~3.9.
+    paMult:  [1.09, 1.07, 1.05, 1.03, 1.00, 0.97, 0.95, 0.92, 0.90],
+    // Runs: top-of-order hitters are driven in by the big bats behind them.
+    runMult: [1.22, 1.18, 1.10, 1.02, 0.96, 0.92, 0.88, 0.85, 0.88],
+    // RBI: the 3-4-5 spots bat with runners on far more often.
+    rbiMult: [0.78, 0.92, 1.18, 1.24, 1.16, 1.02, 0.92, 0.85, 0.80],
+  },
+
+  // ---- Stolen bases ----
+  //  Raw SB totals hide opportunity. Attempt rate per time on base plus success
+  //  rate is far more predictive of a steal *tonight*.
+  steal: {
+    attemptWeight: 0.6,   // weight on attempts-per-time-on-base vs raw SB/game
+    successFloor:  0.65,  // below this success rate managers stop sending him
+  },
+
+  // ---- Total Bases ----
+  //  Projected TB = expectedAB × blended SLG × park × weather.
+  //  (SLG is total bases per at-bat by definition, so this identity is exact.)
+  tb: {
+    xslgWeight:   0.45,   // how much xSLG counts vs actual SLG; remainder to SLG
+    parkSensitivity: 0.5, // 0 = ignore park, 1 = apply park factor at full strength
+    weatherExponent: 0.5, // how strongly wind affects extra-base hits
+    xslgScale:    0.750,  // (legacy 0-100 index only)
+    avgScale:     0.350,  // (legacy 0-100 index only)
+  },
+
+  // ---- RBI ----
+  //  Projected RBI = season RBI/game × park run environment × recent form.
+  rbi: {
+    parkSensitivity: 0.6, // how much park factor scales run production
+    formSensitivity: 0.12,// max ±12% swing from a hot/cold streak
+    trendMultiplier: 2,   // (legacy 0-100 index only)
+    parkDivisor:     3,   // (legacy 0-100 index only)
+  },
+
+  // ---- HRR (Hits + Runs + RBIs) ----
+  //  The three components are projected independently, then summed. They do
+  //  overlap in reality — a solo homer is 1 H, 1 R and 1 RBI — but the standard
+  //  sportsbook H+R+RBI market counts each separately, so summing is correct
+  //  for this market rather than double-counting.
+  hrr: {
+    // Used only if the slate predates runs being captured: roughly a third of
+    // times-on-base come around to score.
+    runsFromOnBaseRate: 0.33,
+    parkSensitivity:    0.6,   // run scoring scales with park run environment
+  },
+
+  // ---- Stolen bases ----
+  sb: {
+    coldWeatherMult: 0.95,  // heavy air lightly damps the running game
+
+    // Speed score proxy: SB per time-on-base, scaled and shifted by position.
+    rateMultiplier: 120,    // how hard SB rate drives the score
+    baseline:       28,     // score for a zero-steal player at a neutral position
+    posBonus: { CF: 12, SS: 8, '2B': 6, LF: 4, RF: 0, '3B': -4, '1B': -10, DH: -12, C: -14 },
+  },
+};
+
+/**
+ * Deep-merge an optional `model-config.json` over MODEL.
+ *
+ * This exists so tuning lives OUTSIDE the app file. Ship a new index.html and
+ * your weights are untouched; they're only ever read from the sidecar config.
+ * Missing file is a normal, silent no-op — defaults above simply apply.
+ */
+/**
+ * Strips // line comments and block comments from JSONC, tracking whether
+ * the scan is inside a string literal so a value that legitimately contains
+ * "//" (a URL, say) is never corrupted. Also tolerates a trailing comma
+ * before a closing brace or bracket — the other thing people habitually
+ * leave behind when hand-editing config.
+ */
+function stripJSONComments(text){
+  let out = '';
+  let inString = false, inLineComment = false, inBlockComment = false;
+  for(let i = 0; i < text.length; i++){
+    const c = text[i], next = text[i+1];
+    if(inLineComment){ if(c === '\n'){ inLineComment = false; out += c; } continue; }
+    if(inBlockComment){ if(c === '*' && next === '/'){ inBlockComment = false; i++; } continue; }
+    if(inString){
+      out += c;
+      if(c === '\\'){ out += next; i++; continue; }
+      if(c === '"') inString = false;
+      continue;
     }
-    whopTokens = await tokenRes.json();
-  }catch(e){
-    return json({ error: `Could not complete Whop sign-in: ${(e as Error).message}` }, 502);
+    if(c === '"'){ inString = true; out += c; continue; }
+    if(c === '/' && next === '/'){ inLineComment = true; i++; continue; }
+    if(c === '/' && next === '*'){ inBlockComment = true; i++; continue; }
+    out += c;
   }
+  return out.replace(/,(\s*[}\]])/g, '$1');
+}
 
-  // ---- who did that token turn out to belong to? ----
-  let whopUserId: string, whopUsername: string | null = null;
+async function loadModelOverrides(){
   try{
-    const infoRes = await fetch('https://api.whop.com/oauth/userinfo', {
-      headers: { Authorization: `Bearer ${whopTokens.access_token}` },
-    });
-    if (!infoRes.ok) throw new Error(`userinfo request failed (${infoRes.status})`);
-    const info = await infoRes.json();
-    if (!info.sub) throw new Error('Whop did not return a user id.');
-    whopUserId = info.sub;
-    whopUsername = info.preferred_username ?? info.name ?? null;
+    const res = await fetch('model-config.json', { cache: 'no-cache' });
+    if(!res.ok) return false;                 // absent is fine — defaults stand
+    const raw = await res.text();
+    // Real // and /* */ comments are supported now, on top of the older
+    // sibling "// key": "text" convention deepMerge already skips — either
+    // style works, so nothing already written this way breaks.
+    const overrides = JSON.parse(stripJSONComments(raw));
+    deepMerge(MODEL, overrides);
+    validateModel();
+    // Log only the keys that actually differ — dumping the whole config buries
+    // the signal every page load.
+    const changed = Object.keys(overrides).filter(k => !k.startsWith('//'));
+    console.info('[model] model-config.json applied · sections:', changed.join(', '));
+    return true;
   }catch(e){
-    return json({ error: `Could not read the connected Whop account: ${(e as Error).message}` }, 502);
+    // A malformed override should not take the whole page down.
+    if(!(e instanceof SyntaxError)) return false;
+    console.warn('[model] model-config.json is not valid JSON — using defaults. Check for a trailing comma.', e.message);
+    return false;
   }
+}
 
-  // The short-lived access token has done its one job (proving identity) and
-  // is deliberately discarded here rather than stored — see the file header.
-
-  const { error: updateErr } = await admin.from('profiles').update({
-    whop_user_id: whopUserId,
-    whop_username: whopUsername,
-  }).eq('id', supabaseUser.id);
-  if (updateErr) {
-    // 23505 = unique_violation. profiles_whop_user_id_unique means this exact
-    // Whop account is already linked to a DIFFERENT Dinger Watch account —
-    // report that plainly rather than a raw database error.
-    if (updateErr.code === '23505') {
-      return json({ error: 'That Whop account is already connected to a different Dinger Watch account.' }, 409);
+function deepMerge(target, src){
+  for(const [k, v] of Object.entries(src || {})){
+    // "//" keys are documentation for whoever edits the file — never merge them.
+    if(k.startsWith('//')) continue;
+    if(v && typeof v === 'object' && !Array.isArray(v)){
+      target[k] = deepMerge(target[k] && typeof target[k] === 'object' ? target[k] : {}, v);
+    } else if(v !== undefined){
+      target[k] = v;
     }
-    return json({ error: `Connected to Whop, but couldn't save it: ${updateErr.message}` }, 500);
+  }
+  return target;
+}
+
+// Guard against a typo silently rescaling every HR index.
+function validateModel(){
+  const w = MODEL.hr.weights;
+  const total = w.statcast + w.form + w.park + w.matchup;
+  if (total !== 100) console.warn(`⚠ MODEL.hr.weights sum to ${total}, expected 100 — indexes will be mis-scaled.`);
+  if (MODEL.hr.barrelWeight < 0 || MODEL.hr.barrelWeight > 1) console.warn(`⚠ MODEL.hr.barrelWeight should be 0-1, got ${MODEL.hr.barrelWeight}`);
+  if (MODEL.tb.xslgWeight  < 0 || MODEL.tb.xslgWeight  > 1) console.warn(`⚠ MODEL.tb.xslgWeight should be 0-1, got ${MODEL.tb.xslgWeight}`);
+  if (MODEL.hits.expectedAB <= 0) console.warn(`⚠ MODEL.hits.expectedAB must be > 0, got ${MODEL.hits.expectedAB}`);
+  return total === 100;
+}
+validateModel();
+
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+/**
+ * True when a click landed on an interactive control inside a card — a reaction
+ * button, a betslip +, a username, a comment toggle. Card handlers check this
+ * so tapping a control never also opens the card's modal behind it.
+ *
+ * Defined here, above every consumer, because it is called from five separate
+ * click handlers; keeping it adjacent to any one feature makes it easy to
+ * delete by accident.
+ */
+/**
+ * A small set of baseball-themed clip-art avatars, defined inline (emoji +
+ * background gradient) rather than as external image files — nothing to
+ * upload, nothing that can 404, and they render identically offline.
+ * Referenced by id as avatar_url = "preset:N".
+ */
+const AVATAR_PRESETS = [
+  { id:1,  emoji:'⚾', bg:'linear-gradient(135deg,#c0392b,#e74c3c)' },
+  { id:2,  emoji:'💣', bg:'linear-gradient(135deg,#1a1a2e,#e0122e)' },
+  { id:3,  emoji:'🔥', bg:'linear-gradient(135deg,#d35400,#f39c12)' },
+  { id:4,  emoji:'🚀', bg:'linear-gradient(135deg,#2c3e50,#4ea1f7)' },
+  { id:5,  emoji:'🧢', bg:'linear-gradient(135deg,#0f4c3a,#1abc9c)' },
+  { id:6,  emoji:'🏆', bg:'linear-gradient(135deg,#8e6b1f,#f4c430)' },
+  { id:7,  emoji:'😤', bg:'linear-gradient(135deg,#4a148c,#8e44ad)' },
+  { id:8,  emoji:'🎯', bg:'linear-gradient(135deg,#7f1d1d,#dc2626)' },
+  { id:9,  emoji:'👑', bg:'linear-gradient(135deg,#78350f,#d97706)' },
+  { id:10, emoji:'🐐', bg:'linear-gradient(135deg,#1e3a2f,#3ecf6e)' },
+  { id:11, emoji:'🌩️', bg:'linear-gradient(135deg,#1e2a3a,#3b82f6)' },
+  { id:12, emoji:'🥶', bg:'linear-gradient(135deg,#083344,#0891b2)' },
+];
+const avatarPresetById = id => AVATAR_PRESETS.find(p => p.id === +id) || AVATAR_PRESETS[0];
+
+/**
+ * The ONE avatar renderer for the whole app — chat, online list, profile
+ * pages, statuses, comments, the header button. A user's picture can be a
+ * real uploaded photo (avatar_url is an https URL), a preset
+ * (avatar_url === "preset:N"), or nothing yet (falls back to their initial on
+ * a color derived from avatar_seed, same as before this feature existed).
+ * Routing every call site through this one function is what keeps a user's
+ * photo consistent everywhere instead of half the app still showing initials.
+ */
+function avatarHTML(user, sizePx = 32, cls = ''){
+  const size = sizePx;
+  const name = user?.username || user?.display_name || '?';
+  const initial = escapeHTML((name[0] || '?').toUpperCase());
+  const style = `width:${size}px;height:${size}px;font-size:${Math.round(size*0.42)}px;`;
+
+  const url = user?.avatar_url;
+  if(url && url.startsWith('preset:')){
+    const preset = avatarPresetById(url.slice(7));
+    return `<div class="dw-avatar ${cls}" style="${style}background:${preset.bg};">${preset.emoji}</div>`;
+  }
+  if(url && /^https?:\/\//.test(url)){
+    return `<img class="dw-avatar ${cls}" style="${style}" src="${url}" alt=""
+      loading="lazy" onerror="this.outerHTML=${JSON.stringify(`<div class="dw-avatar ${cls}" style="${style}background:var(--foul);">${initial}</div>`).replace(/"/g,'&quot;')}">`;
+  }
+  // No custom avatar yet — deterministic color from the seed so the same
+  // user always gets the same fallback color across sessions.
+  const seed = user?.avatar_seed || name;
+  let hash = 0; for(const ch of seed) hash = (hash*31 + ch.charCodeAt(0)) >>> 0;
+  const hue = hash % 360;
+  return `<div class="dw-avatar ${cls}" style="${style}background:hsl(${hue},55%,32%);">${initial}</div>`;
+}
+
+/**
+ * Updates one of the small status dots in the footer (dotSlate, dotSchedule)
+ * to reflect whether a data source loaded, fell back, or is still pending.
+ * Null-safe: an element that isn't on the current view shouldn't throw.
+ */
+function setDot(id, status){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.className = 'dot ' + (status === 'ok' ? 'ok' : status === 'fallback' ? 'fallback' : 'pending');
+}
+
+function isInteractiveClick(e){
+  return !!e.target?.closest?.('.rx, .add-leg, .chat-user, .status-comments, .status-del, .feed-share, button');
+}
+
+// The four HR components, rendered straight from MODEL.hr.weights. Percentages,
+// bar widths, and category order all derive from that single source — editing a
+// weight (here or in model-config.json) updates the modal automatically, with
+// nothing to keep in sync by hand.
+/**
+ * "What helps and hurts" — the factor list that replaced the old points
+ * breakdown. Each row reports the factor in its OWN units (HR/9, park index,
+ * barrel percentile) rather than as an abstract score, so it explains the grade
+ * instead of competing with it.
+ *
+ * Magnitude is derived from the same MODEL weights that drive the scoring, so
+ * tuning a weight still changes what this shows.
+ */
+function factorListHTML(p, prop){
+  const g = p.game, sp = p.oppPitcher || {};
+  const M = MODEL.hr;
+  const rows = [];
+
+  // --- shared context every prop cares about ---
+  // Environment matters enormously for home runs, moderately for extra bases,
+  // barely for singles, and not at all for steals. Weighting it per prop stops
+  // "the park helps" appearing on a stolen-base card where it's meaningless.
+  const envWeight = { hr:1, tb:0.6, hrr:0.35, hits:0.25, rbi:0.4, sb:0 }[prop] ?? 0.5;
+
+  if(envWeight > 0){
+    const parkDelta = g.parkFactor - 100;
+    rows.push({
+      label: 'Ballpark',
+      detail: `${g.parkShort || g.park} · ${parkDelta >= 0 ? '+' : ''}${parkDelta}%`,
+      impact: clamp(parkDelta / 12, -1, 1) * envWeight,
+    });
+
+    if(g.roof !== 'open-air'){
+      rows.push({ label:'Conditions', detail:'Indoor — no wind factor', impact:0 });
+    } else if(g.windLabel){
+      const sector = g.windLabel.toLowerCase();
+      rows.push({
+        label: 'Wind',
+        detail: `${g.windMph ?? '?'} mph · ${g.windLabel}`,
+        impact: (sector.includes('out') ? 0.55 : sector.includes('in') ? -0.55 : 0) * envWeight,
+      });
+    }
   }
 
-  return json({ ok: true, whopUserId, whopUsername });
+  const trend = p.recentForm?.trend;
+  if(trend){
+    rows.push({
+      label: 'Recent form',
+      detail: p.recentForm.last15 !== '—' ? `${p.recentForm.last15} · trending ${trend}` : `Trending ${trend}`,
+      impact: trend === 'up' ? 0.45 : trend === 'down' ? -0.45 : 0,
+    });
+  }
+
+  const platoon = platoonEdge(p, sp);
+  if(platoon){
+    rows.push({
+      label: 'Platoon',
+      detail: platoon.label.replace(/ — .*/, ''),
+      impact: (platoon.edge === 'good' ? 0.5 : -0.4) * (prop === 'sb' ? 0.3 : 1),
+    });
+  }
+
+  if(p.battingOrder){
+    const mult = (prop === 'rbi' ? MODEL.order.rbiMult : prop === 'runs' ? MODEL.order.runMult : MODEL.order.paMult)[p.battingOrder - 1] ?? 1;
+    rows.push({
+      label: 'Lineup spot',
+      detail: `Batting ${p.battingOrder}${['st','nd','rd'][p.battingOrder-1] || 'th'}`,
+      impact: clamp((mult - 1) * 4, -1, 1),
+    });
+  }
+
+  // --- prop-specific drivers ---
+  if(prop === 'hr'){
+    if(sp.hr9 != null){
+      rows.push({
+        label: 'The pitcher',
+        detail: `${sp.name || 'Starter'} · ${sp.hr9} HR/9 allowed`,
+        impact: clamp((sp.hr9 - M.leagueHR9) / 0.5, -1, 1),
+      });
+    }
+    const brlPctl = slatePercentile(p.statcast.barrel, x => x.statcast.barrel);
+    rows.push({
+      label: 'Contact quality',
+      detail: `${p.statcast.barrel}% barrel${brlPctl != null ? ` · ${brlPctl}th pct` : ''}`,
+      impact: clamp((p.statcast.barrel - 8) / 8, -1, 1),
+    });
+    if(p.airPct != null){
+      rows.push({
+        label: 'Ball in the air',
+        detail: `${p.airPct}% of outs airborne`,
+        impact: clamp((p.airPct - M.leagueAirPct) / 15, -1, 1),
+      });
+    }
+  }
+
+  if(prop === 'hits'){
+    rows.push({
+      label: 'Contact rate',
+      detail: `.${Math.round(p.avg*1000)} AVG${p.effAvg ? ` · .${Math.round(p.effAvg*1000)} adjusted` : ''}`,
+      impact: clamp((p.avg - 0.250) / 0.045, -1, 1),
+    });
+    if(p.kPct != null){
+      rows.push({
+        label: 'Strikeouts',
+        detail: `${p.kPct}% K rate`,
+        impact: clamp((MODEL.hits.leagueKPct - p.kPct) / 8, -1, 1),
+      });
+    }
+    if(sp.k9 != null){
+      rows.push({
+        label: 'Pitcher swing-and-miss',
+        detail: `${sp.name || 'Starter'} · ${sp.k9} K/9`,
+        impact: clamp((8.8 - sp.k9) / 2.5, -1, 1),
+      });
+    }
+    if(p.babip != null){
+      const luck = p.babip - MODEL.hits.leagueBabip;
+      rows.push({
+        label: 'Batted-ball luck',
+        detail: `.${Math.round(p.babip*1000)} BABIP · ${Math.abs(luck) < 0.02 ? 'neutral' : luck > 0 ? 'running hot' : 'running cold'}`,
+        impact: clamp(-luck / 0.05, -1, 1),   // regression cuts against recent luck
+      });
+    }
+  }
+
+  if(prop === 'tb'){
+    rows.push({
+      label: 'Power output',
+      detail: `.${Math.round((p.slg ?? 0)*1000)} SLG${p.iso ? ` · .${Math.round(p.iso*1000)} ISO` : ''}`,
+      impact: clamp(((p.slg ?? 0.400) - 0.410) / 0.09, -1, 1),
+    });
+    rows.push({
+      label: 'Expected power',
+      detail: `${p.statcast.xslg} xSLG`,
+      impact: clamp((p.statcast.xslg - 0.410) / 0.09, -1, 1),
+    });
+    if(sp.hr9 != null){
+      rows.push({
+        label: 'Pitcher contact allowed',
+        detail: `${sp.hr9} HR/9`,
+        impact: clamp((sp.hr9 - M.leagueHR9) / 0.5, -1, 1),
+      });
+    }
+  }
+
+  if(prop === 'rbi' || prop === 'hrr'){
+    rows.push({
+      label: 'Run production',
+      detail: `${p.rbi ?? 0} RBI in ${p.g ?? '—'} games`,
+      impact: clamp(((p.rbi ?? 0) / Math.max(1, p.g ?? 1) - 0.5) / 0.25, -1, 1),
+    });
+    rows.push({
+      label: 'Reaching base',
+      detail: `.${Math.round((p.obp ?? 0.320)*1000)} OBP`,
+      impact: clamp(((p.obp ?? 0.320) - 0.320) / 0.05, -1, 1),
+    });
+  }
+
+  if(prop === 'sb'){
+    rows.push({
+      label: 'Attempt rate',
+      detail: `${p.sb ?? 0} SB, ${p.cs ?? 0} CS in ${p.g ?? '—'} games`,
+      impact: clamp(((p.sb ?? 0) / Math.max(1, p.g ?? 1) - 0.08) / 0.12, -1, 1),
+    });
+    if(p.sbSuccess != null){
+      rows.push({
+        label: 'Success rate',
+        detail: `${Math.round(p.sbSuccess * 100)}% of attempts`,
+        impact: clamp((p.sbSuccess - 0.72) / 0.15, -1, 1),
+      });
+    }
+    rows.push({
+      label: 'Speed',
+      detail: `${p.speed}/100 speed score`,
+      impact: clamp((p.speed - 50) / 30, -1, 1),
+    });
+  }
+
+  // Strongest signals first — that's what a reader wants at the top.
+  rows.sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact));
+
+  const bar = imp => {
+    const pct = Math.min(100, Math.abs(imp) * 100);
+    const cls = imp > 0.12 ? 'fac-pos' : imp < -0.12 ? 'fac-neg' : 'fac-neu';
+    const side = imp >= 0 ? 'right' : 'left';
+    return `<div class="fac-track"><div class="fac-fill ${cls}" style="width:${pct/2}%;margin-${side === 'right' ? 'left' : 'right'}:50%;"></div></div>`;
+  };
+  const verdict = imp => imp > 0.35 ? 'helps' : imp > 0.12 ? 'slight help'
+                       : imp < -0.35 ? 'hurts' : imp < -0.12 ? 'slight drag' : 'neutral';
+
+  return `<div class="factor-list">
+    <div class="fac-head"><span>Factor</span><span></span><span>Effect</span></div>
+    ${rows.map(r => `
+      <div class="fac-row">
+        <div class="fac-label">${r.label}<div class="fac-detail">${r.detail}</div></div>
+        ${bar(r.impact)}
+        <div class="fac-verdict ${r.impact > 0.12 ? 'fac-pos' : r.impact < -0.12 ? 'fac-neg' : 'fac-neu'}">${verdict(r.impact)}</div>
+      </div>`).join('')}
+    <div class="fac-foot">Bars show direction and strength relative to a league-average matchup.</div>
+  </div>`;
+}
+
+function scorePlayer(base, game){
+  const M = MODEL.hr;
+  const W = M.weights;
+
+  const weatherMult = M.weatherMult[game.weatherEffect] ?? M.weatherMult.neu;
+
+  // Contact quality — the single biggest driver.
+  let statcastScore = clamp(Math.round(W.statcast * (
+      (base.statcast.barrel  / M.barrelScale)  * M.barrelWeight +
+      (base.statcast.hardHit / M.hardHitScale) * (1 - M.barrelWeight)
+  )), 0, W.statcast);
+  // Platoon: how THIS batter has actually hit tonight's specific pitcher
+  // handedness this year, not just his overall season line. SLG is the
+  // relevant split here (power), regressed toward season SLG by sample size.
+  statcastScore = clamp(Math.round(
+    statcastScore * platoonAdjustment(base.splits, base.oppPitcher?.throws, base.slg, "slg", M.platoonWeight, MODEL.regression.regressionPA)
+  ), 0, W.statcast);
+
+  // Recent form — tier baseline plus a hot/cold nudge.
+  const trendAdj = base.recentForm.trend==='up' ?  M.trendBonus
+                 : base.recentForm.trend==='down' ? -M.trendBonus : 0;
+  const r = TIER_RANGES[base.tier];
+  const formScore = clamp((r ? r.base.form : 12) + trendAdj, 0, W.form);
+
+  // Environment — park factor scaled by tonight's wind/weather.
+  const parkScore = clamp(Math.round(W.park * (game.parkFactor/100) * weatherMult), 0, W.park);
+
+  // Matchup — how homer-prone tonight's starter has been, scaled by whether he
+  // keeps the ball on the ground. A 1.30 HR/9 flyball arm is a very different
+  // proposition from a 1.30 HR/9 sinkerballer.
+  let matchupRatio = Math.min(M.matchupCap, base.oppPitcher.hr9 / M.leagueHR9);
+  if(base.oppPitcher.gbFb != null){
+    const gbSkew = base.oppPitcher.gbFb / M.leagueGbFb;        // >1 = more grounders
+    matchupRatio *= 1 - (gbSkew - 1) * M.pitcherGbWeight;
+  }
+  // Overall pitcher quality (ERA) — deliberately separate from HR9/GB-FB
+  // above. A pitcher can be homer-prone specifically (high HR9) while
+  // otherwise pitching well (low ERA), or the reverse — generally hittable
+  // without necessarily serving up homers. ERA is a genuinely different
+  // signal, not a restatement of HR9.
+  if(base.oppPitcher.era != null && M.pitcherEraWeight){
+    const eraSkew = base.oppPitcher.era / M.leagueEra;          // >1 = worse than average
+    matchupRatio *= 1 + (eraSkew - 1) * M.pitcherEraWeight;
+  }
+  const matchupScore = clamp(Math.round(W.matchup * Math.max(0, matchupRatio)), 0, W.matchup);
+
+  base.breakdown = { statcast: statcastScore, form: formScore, park: parkScore, matchup: matchupScore };
+  let hrRaw = statcastScore + formScore + parkScore + matchupScore;
+
+  // Air-ball gate: elite exit velocity on the ground produces singles, not homers.
+  if(base.airPct != null){
+    const airSkew = base.airPct / M.leagueAirPct;
+    hrRaw *= 1 + (airSkew - 1) * M.airWeight;
+  }
+  base.hrIndex = clamp(Math.round(hrRaw), 0, 100);
+
+  // ---- other props: PROJECTED COUNTS, not index scores ----
+  // Each of these is a real rate stat multiplied by expected playing time, so
+  // the number means something concrete ("1.2 hits") rather than an arbitrary
+  // 0-100 index. Rate definitions do the heavy lifting:
+  //   AVG = H/AB   → hits per AB
+  //   SLG = TB/AB  → total bases per AB   (this identity is exact)
+  //   RBI/G, SB/G  → per-game rates from season totals
+  const H = MODEL.hits;
+
+  const ab = H.expectedAB;
+
+  // Start from AVG, then regress toward league BABIP — a hitter running a .380
+  // BABIP has been getting lucky and is likely to come back toward the pack.
+  let effAvg = base.avg;
+  if(base.babip != null && H.babipWeight > 0){
+    const babipDrag = (H.leagueBabip - base.babip) * H.babipWeight;
+    effAvg = clamp(effAvg + babipDrag, 0.12, 0.42);
+  }
+
+  // Platoon: this batter's own AVG against tonight's specific pitcher
+  // handedness, regressed toward his season AVG by the split's sample size.
+  effAvg *= platoonAdjustment(base.splits, base.oppPitcher?.throws, base.avg, 'avg', H.platoonWeight, MODEL.regression.regressionPA);
+
+  // Strikeout mismatch: a contact hitter vs a low-K pitcher puts far more balls
+  // in play than a high-K hitter vs a power arm, which AVG alone doesn't capture.
+  if(base.kPct != null){
+    const oppK = base.oppPitcher.kPct ?? H.leagueKPct;
+    const combined = (base.kPct + oppK) / 2;
+    const kEdge = (H.leagueKPct - combined) / H.leagueKPct;   // >0 = more contact
+    effAvg *= 1 + kEdge * H.kSensitivity;
+  }
+  base.effAvg = +effAvg.toFixed(3);
+
+  // Lineup slot changes how many times he actually bats.
+  const slot = base.battingOrder;
+  const paMult = slot ? (MODEL.order.paMult[slot - 1] ?? 1) : 1;
+  const effAB = ab * paMult;
+  base.effAB = +effAB.toFixed(2);
+  // Plate appearances ≈ at-bats plus walks/HBP/sacs. The simulator needs PA,
+  // since a walk is a plate appearance that can still score a run.
+  const pa = Math.max(1, base.pa || 1);
+  const nonAbShare = clamp(1 - (base.ab ?? pa) / pa, 0.05, 0.20);
+  base.expPA = +(effAB / (1 - nonAbShare)).toFixed(2);
+
+  base.projHits = +(effAB * effAvg).toFixed(2);
+  base.hitProb = Math.round(100 * (1 - Math.pow(1 - effAvg, Math.round(effAB))));
+
+  // Projected total bases = expected AB × SLG, nudged by tonight's park.
+  // Prefer xSLG when real Statcast is present (it's more predictive than SLG),
+  // blended per MODEL.tb.xslgWeight.
+  const T = MODEL.tb;
+  // Prefer the exact TB/AB rate; SLG is the same thing but rounded.
+  const slgActual = (base.tb != null && base.ab) ? base.tb / base.ab : (base.slg ?? base.avg * 1.6);
+  const slgExpect = base.statcast?.xslg ?? slgActual;
+  let slgBlend = slgExpect * T.xslgWeight + slgActual * (1 - T.xslgWeight);
+  // Platoon: same mechanism as HR/Hits above, applied to the SLG this
+  // projection is built from — power against tonight's specific handedness.
+  slgBlend *= platoonAdjustment(base.splits, base.oppPitcher?.throws, slgActual, 'slg', T.platoonWeight, MODEL.regression.regressionPA);
+  const parkTB = 1 + ((game.parkFactor - 100) / 100) * T.parkSensitivity;
+  base.projTB = +(effAB * slgBlend * parkTB * weatherMult ** T.weatherExponent).toFixed(2);
+
+  // Projected RBI = season RBI/game, adjusted for park run environment and form.
+  const R = MODEL.rbi;
+  const gp = base.g && base.g > 0 ? base.g : Math.max(1, Math.round((base.pa || 0) / 4.2));
+  const rbiPerGame = (base.rbi ?? 0) / gp;
+  const parkRuns = 1 + ((game.parkFactor - 100) / 100) * R.parkSensitivity;
+  const formAdj = 1 + (trendAdj / M.trendBonus) * R.formSensitivity;
+  const rbiSlot = slot ? (MODEL.order.rbiMult[slot - 1] ?? 1) : 1;
+  base.projRBI = +(rbiPerGame * parkRuns * formAdj * rbiSlot).toFixed(2);
+
+  // Projected runs scored = season R/game, adjusted for park run environment.
+  // Older slates lack `r`; fall back to an on-base-derived estimate and flag it
+  // so the UI never presents a guess as if it were a real season total.
+  const HRR = MODEL.hrr;
+  let runsPerGame, runsDerived = false;
+  if (base.r != null) {
+    runsPerGame = base.r / gp;
+  } else {
+    const onBasePerGame = ((base.h ?? 0) + (base.bb ?? 0)) / gp;
+    runsPerGame = onBasePerGame * HRR.runsFromOnBaseRate;
+    runsDerived = true;
+  }
+  const runSlot = slot ? (MODEL.order.runMult[slot - 1] ?? 1) : 1;
+  base.projRuns = +(runsPerGame * (1 + ((game.parkFactor - 100) / 100) * HRR.parkSensitivity) * runSlot).toFixed(2);
+  base.runsDerived = runsDerived;
+
+  // HRR = Hits + Runs + RBIs, the standard combo prop.
+  base.projHRR = +(base.projHits + base.projRuns + base.projRBI).toFixed(2);
+
+  // Projected SB = season SB/game, lightly damped in heavy air.
+  const S = MODEL.sb;
+  // Blend raw SB/game with attempts-per-time-on-base: a fast player who reaches
+  // base often has more chances than his season total alone suggests.
+  const ST = MODEL.steal;
+  const sbPerGame = (base.sb ?? 0) / gp;
+  let sbProj = sbPerGame;
+  if(base.sbRate != null && base.obp != null){
+    const timesOnPerGame = base.obp * (effAB / Math.max(0.01, base.avg || 0.25)) / gp || 0;
+    const opportunity = base.sbRate * Math.min(2.2, timesOnPerGame || 1);
+    sbProj = sbPerGame * (1 - ST.attemptWeight) + opportunity * ST.attemptWeight;
+  }
+  // A poor success rate means the manager stops giving him the green light.
+  if(base.sbSuccess != null && base.sbSuccess < ST.successFloor){
+    sbProj *= base.sbSuccess / ST.successFloor;
+  }
+  base.projSB = +(sbProj * (game.weatherEffect === 'neg' ? S.coldWeatherMult : 1)).toFixed(2);
+
+  base.index = base.hrIndex;
+  delete base._sim;   // invalidate cached simulation — inputs just changed
+}
+
+
+// Top-level nav. The six player props collapse into one dropdown so the bar
+// doesn't overflow on mobile; everything else stays a direct button.
+const PROP_TABS = [
+  {id:'slate',       label:'Slate'},
+  {id:'feed',        label:'Feed'},
+  {id:'firstinning', label:'1st Inning O/U'},
+  {id:'__props__',   label:'Player Props', dropdown:true},
+  {id:'all',         label:'All Players'},
+];
+const PROP_MENU = [
+  {id:'hr',   label:'Home Runs'},
+  {id:'hits', label:'Hits'},
+  {id:'tb',   label:'Total Bases'},
+  {id:'rbi',  label:'RBIs'},
+  {id:'hrr',  label:'H+R+RBI'},
+  {id:'sb',   label:'Stolen Bases'},
+  {id:'k',    label:'Strikeouts'},
+];
+const PROP_IDS = new Set(PROP_MENU.map(p=>p.id));
+let activeTab = 'slate';
+let propMenuOpen = false;
+let propMenuBackdrop = null;   // created once, reused across re-renders
+const TOP_N = 20;
+
+function isPlayable(p){ return p.rosterStatus !== 'inactive'; }
+
+/**
+ * Blends a season rate stat toward the batter's OWN platoon split against
+ * tonight's specific pitcher handedness, regressed by the split's own sample
+ * size (a 12-PA split says much less than a 200-PA one) — the same regression
+ * philosophy already used for small-sample Statcast elsewhere in this file,
+ * applied here to a genuinely different, previously-unused signal: how this
+ * particular batter has actually hit lefties or righties this year, not just
+ * his overall season line.
+ *
+ * Returns a MULTIPLIER (1.0 = no change), not a replacement value, so it can
+ * be applied on top of whatever the season-average-based calculation already
+ * produced, scaled by `weight` (0 = platoon splits ignored entirely, 1 =
+ * fully trust the platoon-adjusted rate once the sample is large enough).
+ */
+function platoonAdjustment(splits, pitcherThrows, seasonRate, statKey, weight, regressionPA){
+  if(!weight || !splits || !pitcherThrows || !seasonRate) return 1;
+  const hand = pitcherThrows.toUpperCase();
+  const split = hand === 'L' ? splits.vsLHP : hand === 'R' ? splits.vsRHP : null;
+  if(!split || split[statKey] == null || !split.pa) return 1;
+
+  // Regress the split rate toward the season rate by sample size, exactly
+  // like the Statcast small-sample regression: at regressionPA, split and
+  // season are trusted equally; well below it, season dominates; well above
+  // it, the platoon-specific number is trusted almost fully.
+  const trust = split.pa / (split.pa + regressionPA);
+  const regressedRate = split[statKey] * trust + seasonRate * (1 - trust);
+  const ratio = seasonRate > 0 ? regressedRate / seasonRate : 1;
+
+  // weight controls how much of that ratio actually applies — a prop can
+  // partially trust platoon data without fully swinging on it. Clamped
+  // centrally here (±35%) rather than trusting every caller to bound it —
+  // a noisy-but-real split shouldn't be able to swing any prop wildly.
+  return clamp(1 + (ratio - 1) * weight, 0.65, 1.35);
+}
+
+function getTop5(tabId){
+  if(tabId==='k'){
+    // Only today's confirmed probable starters — no relievers, and no showing
+    // yesterday's pitchers as if they're starting again on a different date.
+    let pool = [...allPitchers].filter(isPlayable);
+    if(false){   // pitcher-confirmation filter only applied on a future slate
+      // For a future date, only trust starters MLB has actually posted and we've
+      // live-confirmed — not the previous day's starters carried over by default.
+      pool = pool.filter(p => p.liveConfirmed);
+    }
+    return pool.sort((a,b)=>b.projK-a.projK).slice(0,TOP_N);
+  }
+  let sorted;
+  if(TAB_SIM[tabId]){
+    const k = TAB_SIM[tabId].key;
+    sorted = [...allBatters].filter(isPlayable)
+      .sort((a,b)=>simulatePlayer(b)[k].pct - simulatePlayer(a)[k].pct);
+  }
+  else return [];
+  return sorted.slice(0,TOP_N);
+}
+
+function getAllByTeam(){
+  const byTeam = {};
+  allBatters.filter(isPlayable).forEach(p=>{ (byTeam[p.team] = byTeam[p.team] || []).push(p); });
+  const teams = Object.keys(byTeam).sort();
+  teams.forEach(t => byTeam[t].sort((a,b)=>b.hrIndex-a.hrIndex));
+  return teams.map(t => ({team:t, players:byTeam[t]}));
+}
+function chipsFor(tabId, p){
+  if(tabId==='k') return [`<span class="chip">K/9 <b>${p.k9}</b></span>`,`<span class="chip">Proj IP <b>${p.expIP}</b></span>`,`<span class="chip">Throws <b>${p.throws}</b></span>`];
+  const cfg = TAB_SIM[tabId];
+  if(cfg){
+    // Median and ceiling live in the score column's mini-stat row now, not
+    // here — this used to duplicate them in the chip row too.
+    const extra = {
+      hr:   [`<span class="chip">Barrel% <b>${p.statcast.barrel}%</b></span>`, `<span class="chip">Opp HR/9 <b>${p.oppPitcher.hr9}</b></span>`],
+      hits: [`<span class="chip">AVG <b>.${Math.round(p.avg*1000)}</b></span>`, `<span class="chip">Opp K/9 <b>${p.oppPitcher.k9 ?? '—'}</b></span>`],
+      tb:   [`<span class="chip">SLG <b>${p.slg!=null?p.slg.toFixed(3).replace(/^0/,''):'—'}</b></span>`, `<span class="chip">Park <b>${p.game.parkFactor}</b></span>`],
+      rbi:  [`<span class="chip">RBI/G <b>${p.g?(p.rbi/p.g).toFixed(2):'—'}</b></span>`, `<span class="chip">Slot <b>${p.battingOrder ?? '—'}</b></span>`],
+      hrr:  [`<span class="chip">OBP <b>${p.obp!=null?p.obp.toFixed(3).replace(/^0/,''):'—'}</b></span>`, `<span class="chip">RBI/G <b>${p.g?(p.rbi/p.g).toFixed(2):'—'}</b></span>`],
+      sb:   [`<span class="chip">SB/G <b>${p.g?(p.sb/p.g).toFixed(2):'—'}</b></span>`, `<span class="chip">Success <b>${p.sbSuccess!=null?Math.round(p.sbSuccess*100)+'%':'—'}</b></span>`],
+    }[tabId] || [];
+    return extra;
+  }
+  return [];
+}
+/**
+ * Which simulated line each tab ranks by. Keeping the tab, the modal and the
+ * grade on one number is what stops the app quoting three different figures
+ * for the same player.
+ */
+const TAB_SIM = {
+  hr:   { key:'hr',     grade:'hr',   line:'over 0.5' },
+  hits: { key:'hits05', grade:'hits', line:'over 0.5' },
+  tb:   { key:'tb15',   grade:'tb',   line:'over 1.5' },
+  rbi:  { key:'rbi',    grade:'rbi',  line:'over 0.5' },
+  hrr:  { key:'hrr15',  grade:'hrr',  line:'over 1.5' },
+  sb:   { key:'sb',     grade:'sb',   line:'over 0.5' },
+};
+
+function scoreFor(tabId, p){
+  if(tabId==='k') return p.projK;
+  const cfg = TAB_SIM[tabId];
+  if(!cfg) return 0;
+  return simulatePlayer(p)[cfg.key].pct;
+}
+// ============================================================================
+//  All Players — multi-filter over Statcast and season stats
+// ============================================================================
+// Each filter is an independent range. Active filters combine with AND, so
+// "barrel ≥ 10 AND exit velo ≥ 91" narrows to players clearing both bars.
+const FILTER_DEFS = [
+  { id:'barrel',   label:'Barrel %',      get:p=>p.statcast.barrel,      min:0,  max:25,  step:0.5, unit:'%'  },
+  { id:'ev',       label:'Exit Velo',     get:p=>p.statcast.ev,          min:80, max:98,  step:0.5, unit:' mph'},
+  { id:'hardHit',  label:'Hard-Hit %',    get:p=>p.statcast.hardHit,     min:0,  max:70,  step:1,   unit:'%'  },
+  { id:'xwoba',    label:'xwOBA',         get:p=>p.statcast.xwoba,       min:0.2,max:0.5, step:0.005,unit:''   },
+  { id:'xslg',     label:'xSLG',          get:p=>p.statcast.xslg,        min:0.2,max:0.8, step:0.01, unit:''   },
+  { id:'launchAngle',label:'Launch Angle',get:p=>p.statcast.launchAngle, min:0,  max:25,  step:0.5, unit:'°'  },
+  { id:'avg',      label:'AVG',           get:p=>p.avg,                  min:0.1,max:0.4, step:0.005,unit:''   },
+  { id:'hr',       label:'Season HR',     get:p=>p.hr,                   min:0,  max:50,  step:1,   unit:''   },
+  { id:'hrIndex',  label:'HR Index',      get:p=>p.hrIndex,              min:0,  max:100, step:1,   unit:'%'  },
+  { id:'speed',    label:'Speed',         get:p=>p.speed,                min:0,  max:100, step:1,   unit:''   },
+];
+
+// { barrel:{min:10}, ev:{max:95}, ... } — only keys the user has touched.
+let activeFilters = {};
+let allPlayersSort = 'sim_hr';
+
+// Sort options for All Players: the six graded props first, then raw stats.
+const ALL_SORTS = [
+  { id:'sim_hr',   label:'HR probability',      sim:'hr'   },
+  { id:'sim_hits', label:'Hits probability',    sim:'hits' },
+  { id:'sim_tb',   label:'Total Bases prob.',   sim:'tb'   },
+  { id:'sim_rbi',  label:'RBI probability',     sim:'rbi'  },
+  { id:'sim_hrr',  label:'H+R+RBI probability', sim:'hrr'  },
+  { id:'sim_sb',   label:'Stolen Base prob.',   sim:'sb'   },
+];
+const simSortCfg = id => {
+  const o = ALL_SORTS.find(x => x.id === id);
+  return o ? TAB_SIM[o.sim] : null;
+};
+
+function filteredPlayers(){
+  let list = allBatters.filter(isPlayable);
+  for(const [id, range] of Object.entries(activeFilters)){
+    const def = FILTER_DEFS.find(d=>d.id===id);
+    if(!def) continue;
+    list = list.filter(p=>{
+      const v = def.get(p);
+      if(v == null || Number.isNaN(v)) return false;   // unknown fails an explicit filter
+      if(range.min != null && v < range.min) return false;
+      if(range.max != null && v > range.max) return false;
+      return true;
+    });
+  }
+  const simCfg = simSortCfg(allPlayersSort);
+  if(simCfg){
+    return list.sort((a,b)=> simulatePlayer(b)[simCfg.key].pct - simulatePlayer(a)[simCfg.key].pct);
+  }
+  const sortDef = FILTER_DEFS.find(d=>d.id===allPlayersSort);
+  return list.sort((a,b)=> (sortDef ? sortDef.get(b) - sortDef.get(a) : b.hrIndex - a.hrIndex));
+}
+
+function activeFilterCount(){ return Object.keys(activeFilters).length; }
+
+/** Only the HR index is a percentage; every other prop is a projected count. */
+function isPercentTab(tabId){ return tabId === 'hr'; }
+function scoreLabel(tabId){
+  if(tabId === 'k') return 'PROJ K';
+  const cfg = TAB_SIM[tabId];
+  if(!cfg) return '';
+  const name = { hr:'HR', hits:'HITS', tb:'TB', rbi:'RBI', hrr:'H+R+RBI', sb:'SB' }[tabId] || '';
+  return `${name} ${cfg.line.replace('over ','')}+`;
+}
+// Simulations per player. Higher is steadier but slower; the whole slate is
+// simulated once on first use and cached, so this cost is paid on load rather
+// than on every interaction. 10,000 keeps run-to-run variance around 1 point.
+const SIM_RUNS = 10000;
+
+const SECTION_META = {
+  slate: {title:'Today\'s Slate', sub:'Live scores, inning, count, and current batter/pitcher — updates automatically while games are in progress.'},
+  chat: {title:'Chat', sub:'Talk through tonight\'s slate. Sign in to post and react.'},
+  feed: {title:'Home Run Feed', sub:'Every homer as it happens, with exit velocity, launch angle, and distance.'},
+  firstinning: {title:'1st Inning Over/Under', sub:'Modeled probability of a run scoring in the 1st inning — top-of-order contact quality vs. both starters, park, and weather.'},
+  hr: {title:'Top 20 · Home Run', sub:`Probability of going deep tonight, graded against the slate. From ${SIM_RUNS.toLocaleString()} simulated games per player.`},
+  hits: {title:'Top 20 · Projected Hits', sub:'Batting average × expected at-bats. Cards also show the chance of at least one hit.'},
+  tb: {title:'Top 20 · Projected Total Bases', sub:'Slugging (blended with xSLG) × expected at-bats, adjusted for park and weather.'},
+  rbi: {title:'Top 20 · Projected RBIs', sub:'Season RBI per game, adjusted for tonight\'s park run environment and recent form.'},
+  hrr: {title:'Top 20 · H+R+RBI', sub:'Probability of clearing 1.5 combined hits, runs and RBIs.'},
+  sb: {title:'Top 20 · Projected Stolen Bases', sub:'Season stolen bases per game, lightly damped in heavy air.'},
+  k: {title:'Top 20 · Pitcher Strikeouts', sub:'Today\'s confirmed probable starters only, ranked by projected strikeouts from K/9 and expected innings pitched.'},
+  all: {title:'All Players', sub:'Every hitter tonight. Sort by any graded prop or raw stat, and stack Statcast filters.'},
+};
+
+const pickList = document.getElementById('pickList');
+const propTabsEl = document.getElementById('propTabs');
+const sectionTitle = document.getElementById('sectionTitle');
+const sectionSub = document.getElementById('sectionSub');
+
+function renderTabs(){
+  // If a previous menu was reparented to <body>, drop it before we write fresh
+  // tab markup — otherwise two elements would share the id #propMenu and
+  // getElementById would start returning the stale, detached one.
+  const stale = document.getElementById('propMenu');
+  if(stale && stale.parentElement === document.body) stale.remove();
+
+  const propActive = PROP_IDS.has(activeTab);
+  propTabsEl.innerHTML = PROP_TABS.map(t => {
+    if(t.dropdown){
+      // Label reflects the current selection so you can see what's showing
+      // without opening the menu.
+      const current = propActive ? PROP_MENU.find(p=>p.id===activeTab).label : t.label;
+      const unread = activeTab!=='feed' && feedUnread>0 ? '' : '';
+      return `<div class="prop-dropdown">
+        <button class="prop-tab ${propActive?'active':''}" id="propMenuBtn">
+          ${current} <span style="opacity:.7;font-size:10px;">▾</span>
+        </button>
+        <div class="prop-menu ${propMenuOpen?'open':''}" id="propMenu">
+          ${PROP_MENU.map(p=>`<button class="prop-menu-item ${p.id===activeTab?'active':''}" data-tab="${p.id}">${p.label}</button>`).join('')}
+        </div>
+      </div>`;
+    }
+    const badge = (t.id==='feed' && feedUnread>0 && activeTab!=='feed')
+      ? `<span class="tab-badge">${feedUnread>99?'99+':feedUnread}</span>` : '';
+    return `<button class="prop-tab ${t.id===activeTab?'active':''}" data-tab="${t.id}">${t.label}${badge}</button>`;
+  }).join('');
+
+  const selectTab = id => {
+    activeTab = id;
+    closePropMenu();
+    if(id==='feed') markFeedRead();
+    renderTabs();
+    renderList();
+    window.scrollTo({top:0, behavior:'smooth'});
+  };
+
+  propTabsEl.querySelectorAll('.prop-tab[data-tab]').forEach(btn=>{
+    btn.addEventListener('click', ()=> selectTab(btn.dataset.tab));
+  });
+  propTabsEl.querySelectorAll('.prop-menu-item').forEach(btn=>{
+    btn.addEventListener('click', e=>{ e.stopPropagation(); selectTab(btn.dataset.tab); });
+  });
+
+  renderInlinePropMenu();
+
+  const menuBtn = document.getElementById('propMenuBtn');
+  if(menuBtn) menuBtn.addEventListener('click', e=>{
+    e.stopPropagation();
+    propMenuOpen ? closePropMenu() : openPropMenu(menuBtn);
+  });
+}
+
+/** Mobile menu: plain in-flow markup, re-rendered whenever the tabs change. */
+function renderInlinePropMenu(){
+  const host = document.getElementById('propMenuInline');
+  if(!host) return;
+  host.className = 'prop-menu-inline' + (propMenuOpen ? ' open' : '');
+  host.innerHTML = propMenuOpen
+    ? PROP_MENU.map(p=>`<button class="prop-menu-item ${p.id===activeTab?'active':''}" data-tab="${p.id}">${p.label}</button>`).join('')
+    : '';
+  host.querySelectorAll('.prop-menu-item').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      e.stopPropagation();
+      activeTab = btn.dataset.tab;
+      closePropMenu();
+      renderTabs();
+      renderList();
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
+  });
+}
+
+/**
+ * Open the props menu. The element is physically moved to <body> so no ancestor
+ * (the tab bar's overflow, a stacking context, anything) can clip or hide it.
+ * Desktop gets a popover anchored to the button; phones get a bottom sheet,
+ * whose placement is handled entirely in CSS.
+ */
+function openPropMenu(btn){
+  const menu = document.getElementById('propMenu');
+  const isMobile = window.innerWidth <= 600;
+
+  // Mobile uses the in-flow panel only — no overlay, no reparenting.
+  if(isMobile){
+    propMenuOpen = true;
+    renderInlinePropMenu();
+    return;
+  }
+  if(!menu) return;
+
+  if(menu.parentElement !== document.body) document.body.appendChild(menu);
+
+  if(!propMenuBackdrop){
+    propMenuBackdrop = document.createElement('div');
+    propMenuBackdrop.id = 'propMenuBackdrop';
+    propMenuBackdrop.className = 'prop-menu-backdrop';
+    propMenuBackdrop.addEventListener('click', closePropMenu);
+    document.body.appendChild(propMenuBackdrop);
+  }
+  const backdrop = propMenuBackdrop;
+
+  propMenuOpen = true;
+  menu.classList.add('open');
+  backdrop.classList.add('open');
+  renderInlinePropMenu();
+
+  // Phones use the CSS bottom sheet; only the desktop popover needs coordinates.
+  if(window.innerWidth > 600) positionPropMenu(btn, menu);
+  else { menu.style.top = ''; menu.style.left = ''; menu.style.visibility = 'visible'; }
+}
+
+function closePropMenu(){
+  propMenuOpen = false;
+  const menu = document.getElementById('propMenu');
+  if(menu) menu.classList.remove('open');
+  if(propMenuBackdrop) propMenuBackdrop.classList.remove('open');
+  renderInlinePropMenu();
+}
+
+/** Anchor the desktop popover under its button, kept inside the viewport. */
+function positionPropMenu(btn, menu){
+  const r = btn.getBoundingClientRect();
+  menu.style.visibility = 'hidden';
+  menu.style.top = '0px';
+  menu.style.left = '0px';
+  const mh = menu.offsetHeight || 260;
+  const mw = menu.offsetWidth || 180;
+  const gap = 6, margin = 8;
+
+  const spaceBelow = window.innerHeight - r.bottom;
+  const top = (spaceBelow < mh + gap && r.top > mh + gap) ? r.top - mh - gap : r.bottom + gap;
+
+  let left = r.left;
+  if(left + mw > window.innerWidth - margin) left = window.innerWidth - mw - margin;
+  if(left < margin) left = margin;
+
+  menu.style.top = `${Math.max(margin, top)}px`;
+  menu.style.left = `${left}px`;
+  menu.style.visibility = 'visible';
+}
+
+// The desktop popover is anchored to a button that moves with the page, so close
+// it on scroll/resize. The mobile sheet is viewport-anchored and stays put.
+['scroll','resize'].forEach(evt =>
+  window.addEventListener(evt, ()=>{
+    if(propMenuOpen && window.innerWidth > 600) closePropMenu();
+  }, true)
+);
+
+// Close the props menu when clicking anywhere else.
+document.addEventListener('click', (e)=>{
+  if(!propMenuOpen) return;
+  // Don't close when the tap landed inside the inline panel or on the trigger.
+  const inline = document.getElementById('propMenuInline');
+  if(inline && typeof inline.contains === 'function' && inline.contains(e.target)) return;
+  closePropMenu();
 });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape' && propMenuOpen) closePropMenu(); });
+// ---- Player headshots (real MLB.com CDN, keyed off the live player-ID map) ----
+const AVATAR_PLACEHOLDER = "data:image/svg+xml;utf8," + encodeURIComponent(`
+  <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
+    <circle cx='50' cy='50' r='50' fill='#1c1414'/>
+    <circle cx='50' cy='38' r='19' fill='#3a2424'/>
+    <path d='M14,92 Q50,58 86,92 Z' fill='#3a2424'/>
+  </svg>`);
+/**
+ * Prefer the MLBAM id that slate.json already carries. Resolving by NAME is
+ * ambiguous — MLB has had two active players called Max Muncy (LAD and ATH),
+ * and a name-keyed map can only hold one of them, so both showed the same face.
+ * The id is unique by construction; the name lookup is only a fallback for
+ * surfaces that don't have one.
+ */
+function headshotUrl(name, playerId){
+  const id = playerId || resolvePlayerId(name);
+  if(!id) return null;
+  return `https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_180,q_auto:best/v1/people/${id}/headshot/67/current`;
+}
+function headshotImgTag(name, cls, teamAbbr, playerId){
+  cls = cls || 'pick-headshot';
+  // Inline style beats the stylesheet's default border, so the ring can be
+  // per-player without needing 30 generated CSS classes.
+  const ring = teamAbbr ? ` style="border-color:${teamColor(teamAbbr)};"` : '';
+  const url = headshotUrl(name, playerId);
+  if(url){
+    return `<img class="${cls}" src="${url}"${ring} alt="${name}" onerror="this.onerror=null;this.src='${AVATAR_PLACEHOLDER}';this.classList.add('placeholder');">`;
+  }
+  return `<img class="${cls} placeholder" src="${AVATAR_PLACEHOLDER}"${ring} alt="${name}">`;
+}
+
+// ---- Small inline ballpark + wind icons (custom SVG — no external image dependency) ----
+function ballparkIconSVG(roof){
+  const roofBit = roof === 'retractable'
+    ? `<path d="M6,16 Q24,6 42,16" stroke="#e0122e" stroke-width="2.5" fill="none" opacity="0.85"/>`
+    : `<circle cx="12" cy="8" r="1.3" fill="#e0122e" opacity="0.7"/><circle cx="20" cy="5" r="1" fill="#e0122e" opacity="0.5"/><circle cx="34" cy="7" r="1.3" fill="#e0122e" opacity="0.7"/>`;
+  return `<svg class="env-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+    ${roofBit}
+    <path d="M4,34 Q24,14 44,34 L44,38 Q24,20 4,38 Z" fill="#3a2424"/>
+    <path d="M24,22 L34,32 L24,42 L14,32 Z" fill="none" stroke="#9a8484" stroke-width="1.4"/>
+    <line x1="24" y1="22" x2="24" y2="42" stroke="#9a8484" stroke-width="1"/>
+  </svg>`;
+}
+function windArrowSVG(deg){
+  if(deg==null){
+    return `<svg class="wind-arrow" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="9" fill="none" stroke="#9a8484" stroke-width="1.5"/><line x1="12" y1="12" x2="12" y2="12" stroke="#9a8484" stroke-width="1.5"/></svg>`;
+  }
+  // meteorological wind direction = where wind is coming FROM; rotate an arrow pointing that way
+  return `<svg class="wind-arrow" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="transform:rotate(${deg}deg);">
+    <line x1="12" y1="20" x2="12" y2="5" stroke="#e0122e" stroke-width="2" stroke-linecap="round"/>
+    <path d="M12,3 L16,10 L8,10 Z" fill="#e0122e"/>
+  </svg>`;
+}
+
+// ---- Short "why" summaries per prop type ----
+function propSummary(tabId, p){
+  if(tabId==='k'){
+    return `${surname(p.name)} carries a ${p.k9} K/9 and projects for roughly ${p.expIP} innings tonight — that pencils out to about ${p.projK} strikeouts against ${p.opp}.`;
+  }
+  const last = surname(p.name);
+  if(tabId==='hr') return p.narrative;
+  if(tabId==='hits'){
+    return `${last} is hitting .${Math.round(p.avg*1000)}; across an expected ${MODEL.hits.expectedAB} at-bats that projects to <b>${p.projHits.toFixed(2)} hits</b> (${p.hitProb}% chance of at least one). Form is trending ${p.recentForm.trend}.`;
+  }
+  if(tabId==='tb'){
+    const slgTxt = p.slg!=null ? p.slg.toFixed(3).replace(/^0/,'') : '—';
+    return `Slugging ${slgTxt} (xSLG ${p.statcast.xslg}) over ${MODEL.hits.expectedAB} at-bats projects to <b>${p.projTB.toFixed(2)} total bases</b>, adjusted for ${p.game.parkShort || p.game.park} at a ${p.game.parkFactor} park factor.`;
+  }
+  if(tabId==='rbi'){
+    const rate = p.g ? (p.rbi/p.g).toFixed(2) : '—';
+    return `${last} has ${p.rbi} RBI in ${p.g ?? '—'} games (${rate}/game); adjusted for tonight's park and ${p.recentForm.trend} form that projects to <b>${p.projRBI.toFixed(2)} RBI</b>.`;
+  }
+  if(tabId==='hrr'){
+    const rNote = p.runsDerived ? ' (runs estimated from on-base rate — rebuild the slate for exact totals)' : '';
+    return `${last} projects to <b>${p.projHits.toFixed(2)} hits + ${p.projRuns.toFixed(2)} runs + ${p.projRBI.toFixed(2)} RBI = ${p.projHRR.toFixed(2)} H+R+RBI</b>. Built from ${p.g ?? '—'} games of season rates at a ${p.game.parkFactor} park factor${rNote}.`;
+  }
+  if(tabId==='sb'){
+    const rate = p.g ? (p.sb/p.g).toFixed(2) : '—';
+    return `${last} has ${p.sb} steals in ${p.g ?? '—'} games (${rate}/game), projecting to <b>${p.projSB.toFixed(2)} stolen bases</b> tonight from the ${p.pos} spot.`;
+  }
+  return '';
+}
+
+/**
+ * Colour bands. The HR tab is a 0-100 index so it uses percentage thresholds;
+ * every other tab is now a projected COUNT, where "90" is meaningless — those
+ * get bands calibrated to what a strong single-game projection actually is.
+ */
+const SCORE_BANDS = {
+  k: null,                          // raw projected K count — no grade colouring
+};
+function scoreTierClass(tabId, score){
+  // Prop tabs grade against the calibrated cutoffs, so the colour on a card
+  // always agrees with the letter in the modal.
+  if(TAB_SIM[tabId]) return gradeFor(TAB_SIM[tabId].grade, score).cls;
+  const b = SCORE_BANDS[tabId];
+  if(!b) return '';
+  if(score >= b.hi) return 'score-hi';
+  if(score >= b.mid) return 'score-mid';
+  return 'score-lo';
+}
+
+function filterBarHTML(shown, total){
+  const items = FILTER_DEFS.map(d=>{
+    const f = activeFilters[d.id] || {};
+    const isOn = f.min != null || f.max != null;
+    const summary = isOn
+      ? `${f.min != null ? '≥'+f.min : ''}${f.min != null && f.max != null ? ' ' : ''}${f.max != null ? '≤'+f.max : ''}${d.unit}`
+      : 'any';
+    return `<div class="filter-item ${isOn?'active':''}">
+      <div class="filter-item-head"><span class="filter-item-label">${d.label}</span><span class="filter-item-val">${summary}</span></div>
+      <div class="filter-inputs">
+        <input type="number" data-fid="${d.id}" data-bound="min" placeholder="min" step="${d.step}" value="${f.min ?? ''}">
+        <span>to</span>
+        <input type="number" data-fid="${d.id}" data-bound="max" placeholder="max" step="${d.step}" value="${f.max ?? ''}">
+      </div>
+    </div>`;
+  }).join('');
+
+  const n = activeFilterCount();
+  return `<div class="filter-bar">
+    <div class="filter-head" id="filterToggle">
+      <span class="filter-title">Filters ${n ? `<span class="filter-count">${n}</span>` : ''}</span>
+      <span class="filter-actions">
+        ${n ? '<button class="filter-clear" id="filterClear">Clear all</button>' : ''}
+        <span id="filterChevron" style="color:var(--mute);">${filterPanelOpen ? '▴' : '▾'}</span>
+      </span>
+    </div>
+    <div class="filter-body ${filterPanelOpen?'open':''}" id="filterBody">
+      <div class="filter-grid">${items}</div>
+      <div class="filter-sort">
+        <span>Sort by</span>
+        <select id="filterSort">
+          <optgroup label="Graded props">
+            ${ALL_SORTS.map(o=>`<option value="${o.id}" ${allPlayersSort===o.id?'selected':''}>${o.label}</option>`).join('')}
+          </optgroup>
+          <optgroup label="Raw stats">
+            ${FILTER_DEFS.map(d=>`<option value="${d.id}" ${allPlayersSort===d.id?'selected':''}>${d.label}</option>`).join('')}
+          </optgroup>
+        </select>
+      </div>
+    </div>
+    <div class="filter-result">Showing <b>${shown}</b> of ${total} hitters${n?` · ${n} filter${n>1?'s':''} active`:''}</div>
+  </div>`;
+}
+
+let filterPanelOpen = false;
+
+function renderAllPlayers(){
+  const total = allBatters.filter(isPlayable).length;
+  const list = filteredPlayers();
+  const simCfg = simSortCfg(allPlayersSort);
+  const sortDef = FILTER_DEFS.find(d=>d.id===allPlayersSort);
+  const sortLabel = simCfg
+    ? ALL_SORTS.find(o=>o.id===allPlayersSort).label
+    : (sortDef ? sortDef.label : 'HR Index');
+
+  // Same card format as the Home Runs tab, so scanning feels identical.
+  const cards = list.map((p,i)=>{
+    const g = p.game;
+    // When sorting by a prop, the headline is that prop's graded probability;
+    // otherwise it's the raw stat being sorted on.
+    const simData = simCfg ? simulatePlayer(p)[simCfg.key] : null;
+    const gr = simCfg ? gradeFor(simCfg.grade, simData.pct) : null;
+    const sortVal = simCfg ? simData.pct : (sortDef ? sortDef.get(p) : p.hrIndex);
+    const display = simCfg ? `${simData.pct}%`
+                  : (Number.isInteger(sortVal) ? sortVal : (+sortVal).toFixed(sortDef.step < 0.01 ? 3 : 1));
+    const windTemp = g.roof==='open-air'
+      ? `${g.tempF!=null ? g.tempF+'°F' : ''} ${g.windMph!=null ? 'wind '+windDirLabel(g.windDeg)+' '+g.windMph+'mph' : ''}`.trim()
+      : 'Indoor / roof closed';
+    return `
+      <div class="pick-card" data-team="${p.team}" data-pname="${p.name}">
+        <div class="pick-rank ${i===0?'':(i===1?'r2':(i===2?'r3':'r5'))}">${i+1}</div>
+        ${headshotImgTag(p.name, 'pick-headshot', p.team, p.id)}
+        <div class="pick-body">
+          <div class="pick-name-row"><span class="pick-name">${p.name}</span><span class="pick-team">${p.team} · ${p.pos||''}</span>${watchStarHTML(p)}</div>
+          <div class="pick-matchup">${g.awayName} @ ${g.homeName} · ${gameTime(g)}</div>
+          <div class="pick-summary">${p.narrative}</div>
+          <div class="pick-chips grid">
+            <span class="chip">Barrel% <b>${p.statcast.barrel}%</b></span>
+            <span class="chip">EV <b>${p.statcast.ev}</b></span>
+            <span class="chip">HR <b>${p.hr}</b></span>
+            ${p.statcast._regressed?`<span class="chip" style="color:var(--warm);">small sample · ${p.statcast._pa} PA</span>`
+              : p.statcast._derived?'<span class="chip" style="color:var(--warm);">est. Statcast</span>':''}
+          </div>
+          <div class="pick-env">
+            <div class="env-item">${ballparkIconSVG(g.roof)}<b>${g.parkShort||g.park}</b> · idx ${g.parkFactor}</div>
+            <div class="env-item">${windArrowSVG(g.roof==='open-air'?g.windDeg:null)}<b>${windTemp}</b></div>
+          </div>
+          ${matchupFooterHTML(p)}
+        </div>
+        <div class="pick-score">
+          ${gr ? `<div class="ps-grade-ring ${gr.cls}"><div class="ps-grade-letter">${gr.g}</div></div>` : ''}
+          <div class="pick-score-val ${gr ? gr.cls : ''}">${display}</div>
+          <div class="pick-score-label">${simCfg ? simCfg.line : sortLabel}</div>
+          ${simData ? `<div class="ps-divider"></div>
+            <div class="ps-minirow">
+              <div class="ps-mini"><b>${simData.p50}</b><span>median</span></div>
+              <div class="ps-mini"><b>${simData.ceiling}</b><span>ceiling</span></div>
+            </div>` : ''}
+          ${simCfg ? addLegBtn({
+              id: legId(p.name, ALL_SORTS.find(o=>o.id===allPlayersSort).label, simCfg.line.replace('over ','')),
+              kind:'prop', player:p.name,
+              market:{hr:'HR',hits:'HITS',tb:'TOTAL BASES',rbi:'RBI',hrr:'H+R+RBI',sb:'STOLEN BASE'}[ALL_SORTS.find(o=>o.id===allPlayersSort).sim],
+              line:simCfg.line.replace('over ',''), pct:simData.pct,
+              game:`${g.awayName} @ ${g.homeName}` }) : ''}
+        </div>
+      </div>`;
+  }).join('');
+
+  pickList.innerHTML = filterBarHTML(list.length, total) +
+    (list.length ? `<div class="pick-list" style="margin-top:14px;">${cards}</div>`
+                 : `<div style="text-align:center;padding:40px 20px;color:var(--mute);font-family:'Oswald',sans-serif;font-size:14px;">
+                      No hitters match all ${activeFilterCount()} filters. Try widening a range or clearing one.
+                    </div>`);
+
+  wireFilterBar();
+  pickList.querySelectorAll('.pick-card').forEach(card=>{
+    card.addEventListener('click', (e)=>{
+      if(isInteractiveClick(e)) return;
+      const p = allBatters.find(x=>x.team===card.dataset.team && x.name===card.dataset.pname);
+      if(p) openBatterModal(p);
+    });
+  });
+  primeVisibleReactions();
+}
+
+function wireFilterBar(){
+  const toggle = document.getElementById('filterToggle');
+  if(toggle) toggle.addEventListener('click', e=>{
+    if(e.target.id === 'filterClear') return;      // handled separately
+    filterPanelOpen = !filterPanelOpen;
+    const body = document.getElementById('filterBody');
+    const chev = document.getElementById('filterChevron');
+    if(body) body.classList.toggle('open', filterPanelOpen);
+    if(chev) chev.textContent = filterPanelOpen ? '▴' : '▾';
+  });
+
+  const clear = document.getElementById('filterClear');
+  if(clear) clear.addEventListener('click', e=>{
+    e.stopPropagation();
+    activeFilters = {};
+    renderAllPlayers();
+  });
+
+  const sort = document.getElementById('filterSort');
+  if(sort) sort.addEventListener('change', e=>{
+    allPlayersSort = e.target.value;
+    renderAllPlayers();
+  });
+
+  pickList.querySelectorAll('.filter-inputs input').forEach(input=>{
+    // 'change' rather than 'input' so the list doesn't re-render (and steal
+    // focus) on every keystroke while a number is still being typed.
+    input.addEventListener('change', e=>{
+      const {fid, bound} = e.target.dataset;
+      const raw = e.target.value.trim();
+      if(raw === ''){
+        if(activeFilters[fid]){
+          delete activeFilters[fid][bound];
+          if(activeFilters[fid].min == null && activeFilters[fid].max == null) delete activeFilters[fid];
+        }
+      } else {
+        const v = parseFloat(raw);
+        if(Number.isNaN(v)) return;
+        (activeFilters[fid] ??= {})[bound] = v;
+      }
+      filterPanelOpen = true;    // keep the panel open across the re-render
+      renderAllPlayers();
+    });
+  });
+}
+
+/**
+ * Reactions live in Supabase, so a freshly rendered list has no counts until
+ * they're fetched. Prime the cache for the visible props, then repaint the
+ * strips in place rather than re-rendering the whole list.
+ */
+function primeVisibleReactions(){
+  const s = social();
+  if(!s?.socialReady || !s.primeReactions) return;
+  const keys = [...document.querySelectorAll('.rx-strip')]
+    .map(el => el.dataset.propkey).filter(Boolean);
+  if(!keys.length) return;
+  s.primeReactions([...new Set(keys)], () => {
+    // Each surface has its own strip layout, so repaint with the matching
+    // renderer rather than flattening them all into the prop version.
+    document.querySelectorAll('.rx-strip').forEach(el => {
+      const k = el.dataset.propkey;
+      if(!k) return;
+      if(el.classList.contains('feed-rx')){
+        const ev = feedEvents.find(x => `hr|${x.key}` === k);
+        if(ev) el.outerHTML = hrReactionStripHTML(ev);
+      } else if(el.classList.contains('compact')){
+        el.outerHTML = reactionStripCompactHTML(k);
+      } else {
+        el.outerHTML = reactionStripHTML(k);
+      }
+    });
+  });
+}
+
+function renderList(){
+  const meta = SECTION_META[activeTab];
+  sectionTitle.textContent = meta.title;
+  sectionSub.textContent = meta.sub;
+
+  // Tomorrow is a genuinely different slate (different matchups entirely, not just
+  // different times), and this build only carries today's curated game data. Rather
+  // than show today's games mislabeled as tomorrow's, say so plainly.
+  if(activeTab==='slate'){
+    renderSlate();
+    return;
+  }
+  if(activeTab==='feed'){
+    renderFeed();
+    return;
+  }
+
+  if(activeTab==='firstinning'){
+    renderFirstInning();
+    return;
+  }
+
+  if(activeTab==='all'){
+    renderAllPlayers();
+    return;
+  }
+
+  const top5 = getTop5(activeTab);
+  if(top5.length === 0){
+    const emptyMsg = false
+      ? `Tomorrow's probable starters haven't been officially posted by MLB yet — check back closer to game time, or switch to Today for confirmed starters.`
+      : `No qualifying players found for this list right now.`;
+    pickList.innerHTML = `<div style="text-align:center; padding:40px 20px; color:var(--mute); font-family:'Oswald',sans-serif; font-size:14px;">${emptyMsg}</div>`;
+    return;
+  }
+  const rankClasses = Array.from({length:TOP_N}, (_,i)=> i===0?'':(i===1?'r2':(i===2?'r3':'r5')));
+  pickList.innerHTML = top5.map((p, i) => {
+    const isPitcher = activeTab==='k';
+    const team = isPitcher ? '' : p.team;
+    const g = p.game;
+    // Pitcher entries carry `opp` (who they face), so their own club is the
+    // other side of the matchup.
+    const ringTeam = isPitcher ? (p.opp === g.home ? g.away : g.home) : p.team;
+    const matchupTxt = isPitcher ? `vs ${p.opp} · ${g.awayName} @ ${g.homeName} · ${gameTime(g)}` : `${g.awayName} @ ${g.homeName} · ${gameTime(g)}`;
+    const score = scoreFor(activeTab, p);
+    // Every prop is now a probability; only the pitcher K tab is a raw count.
+    const scoreDisplay = activeTab==='k' ? score.toFixed(1) : `${score}%`;
+    const windTemp = g.roof==='open-air'
+      ? `${g.tempF!=null ? g.tempF+'°F' : ''} ${g.windMph!=null ? 'wind '+windDirLabel(g.windDeg)+' '+g.windMph+'mph' : g.weather}`.trim()
+      : 'Indoor / roof closed';
+    return `
+      <div class="pick-card" data-tab="${activeTab}" data-idx="${i}">
+        <div class="pick-rank ${rankClasses[i]}">${i+1}</div>
+        ${headshotImgTag(p.name, 'pick-headshot', ringTeam, p.id)}
+        <div class="pick-body">
+          <div class="pick-name-row"><span class="pick-name">${p.name}</span><span class="pick-team">${isPitcher ? '' : team+' · '+(p.pos||'')}</span>${isPitcher ? '' : watchStarHTML(p)}</div>
+          <div class="pick-matchup">${matchupTxt}</div>
+          <div class="pick-summary">${propSummary(activeTab, p)}</div>
+          <div class="pick-chips grid">${chipsFor(activeTab, p).join('')}</div>
+          <div class="pick-env">
+            <div class="env-item">${ballparkIconSVG(g.roof)}<b>${g.park.split(',')[0]}</b> · idx ${g.parkFactor}</div>
+            <div class="env-item">${windArrowSVG(g.roof==='open-air' ? g.windDeg : null)}<b>${windTemp}</b></div>
+          </div>
+          ${isPitcher ? '' : matchupFooterHTML(p)}
+        </div>
+        <div class="pick-score">
+          ${(() => {
+            // Same data as before — HR grade, probability, and the median/
+            // ceiling that used to live in the chip row — just distributed
+            // across the column's full height instead of clustering at the
+            // top with empty space below.
+            if(!TAB_SIM[activeTab]) return `
+              <div class="pick-score-val ${scoreTierClass(activeTab, score)}">${scoreDisplay}</div>
+              <div class="pick-score-label">${scoreLabel(activeTab)}</div>`;
+            const cfg = TAB_SIM[activeTab];
+            const gr = gradeFor(cfg.grade, score);
+            const sim = simulatePlayer(p)[cfg.key];
+            const propName = {hr:'HR',hits:'HITS',tb:'TOTAL BASES',rbi:'RBI',hrr:'H+R+RBI',sb:'STOLEN BASE'}[activeTab];
+            return `
+              <div class="ps-grade-ring ${gr.cls}">
+                <div class="ps-grade-letter">${gr.g}</div>
+              </div>
+              <div class="pick-score-val ${gr.cls}">${scoreDisplay}</div>
+              <div class="pick-score-label">${scoreLabel(activeTab)}</div>
+              <div class="ps-divider"></div>
+              <div class="ps-minirow">
+                <div class="ps-mini"><b>${sim.p50}</b><span>median</span></div>
+                <div class="ps-mini"><b>${sim.ceiling}</b><span>ceiling</span></div>
+              </div>
+              ${reactionStripCompactHTML(propKeyFor(p, propName, cfg.line.replace('over ','')))}`;
+          })()}
+          ${TAB_SIM[activeTab] ? addLegBtn({
+              id: legId(p.name, scoreLabel(activeTab).split(' ')[0], TAB_SIM[activeTab].line.replace('over ','')),
+              kind:'prop', player:p.name,
+              market:{hr:'HR',hits:'HITS',tb:'TOTAL BASES',rbi:'RBI',hrr:'H+R+RBI',sb:'STOLEN BASE'}[activeTab],
+              line:TAB_SIM[activeTab].line.replace('over ',''), pct:score,
+              game:`${g.awayName} @ ${g.homeName}` }) : ''}
+        </div>
+      </div>`;
+  }).join('');
+
+  pickList.querySelectorAll('.pick-card').forEach(card=>{
+    card.addEventListener('click', (e)=>{
+      if(isInteractiveClick(e)) return;
+      const top5cur = getTop5(activeTab);
+      const p = top5cur[parseInt(card.dataset.idx)];
+      if(activeTab==='k') openPitcherModal(p); else openBatterModal(p);
+    });
+  });
+}
+
+function windDirLabel(deg){ const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW']; return dirs[Math.round(deg/22.5)%16]; }
+
+// ---- RotoGrinders-style ballpark wind diagram ----
+function windRelativeToPark(windFromDeg, cfDeg){
+  const blowTo = (windFromDeg + 180) % 360; // meteorological wind deg is FROM; flip to get blow-TO direction
+  let rel = ((blowTo - cfDeg + 540) % 360) - 180; // -180..180, 0 = straight out to CF
+  let label, sector;
+  const a = Math.abs(rel);
+  if(a <= 22.5){ label = 'Blowing OUT to center'; sector='out'; }
+  else if(rel > 22.5 && rel <= 67.5){ label = 'Blowing OUT to right field'; sector='out'; }
+  else if(rel > 67.5 && rel <= 112.5){ label = 'Blowing ACROSS, toward 1B/RF side'; sector='across'; }
+  else if(rel > 112.5 && rel <= 157.5){ label = 'Blowing IN, from right field'; sector='in'; }
+  else if(a > 157.5){ label = 'Blowing IN, straight in'; sector='in'; }
+  else if(rel < -112.5){ label = 'Blowing IN, from left field'; sector='in'; }
+  else if(rel < -67.5){ label = 'Blowing ACROSS, toward 3B/LF side'; sector='across'; }
+  else { label = 'Blowing OUT to left field'; sector='out'; }
+  return {label, sector, arrowDeg: rel};
+}
+// Derive each game's qualitative weather effect ('pos'/'neg'/'neu' — used throughout
+// the scoring model) from the actual live wind reading, instead of leaving it frozen
+// at a hardcoded guess forever. Falls back to the original snapshot label if live
+// wind data or park orientation isn't available.
+function deriveWeatherEffect(g){
+  const cfDeg = g.cfBearing;
+  if(g.roof !== 'open-air' || cfDeg==null || g.windDeg==null) return; // leave as-is (indoor or no live data yet)
+  const rel = windRelativeToPark(g.windDeg, cfDeg);
+  g.weatherEffect = rel.sector === 'out' ? 'pos' : (rel.sector === 'in' ? 'neg' : 'neu');
+}
+// Re-run every player's score using current game state (live weather-derived
+// conditions, any reconciled probable-pitcher swap, current park data). Called
+// after live weather/schedule fetches resolve and whenever the day toggle changes,
+// so the Top 20 lists actually reflect the selected day instead of staying frozen
+// at whatever was computed on first page load.
+function rescoreAllPlayers(){
+  games.forEach(g => deriveWeatherEffect(g));
+  allBatters.forEach(p => scorePlayer(p, p.game));
+  invalidateGradeCache();   // ranks shift whenever probabilities change
+}
+
+/**
+ * Pre-game field graphic for the Slate tab: a ballpark seen from behind home
+ * plate, with the wind arrow rotated to blow the way it actually will relative
+ * to THIS park's orientation, plus the weather read alongside.
+ *
+ * Only shown before first pitch — once a game starts, the linescore is the more
+ * useful thing in that space.
+ */
+function slateFieldHTML(g){
+  const cfDeg = g.cfBearing;
+  const isOpen = g.roof === 'open-air';
+  const haveWind = isOpen && cfDeg != null && g.windDeg != null;
+  const rel = haveWind ? windRelativeToPark(g.windDeg, cfDeg) : null;
+
+  const sectorColor = !rel ? 'var(--mute)'
+    : rel.sector === 'out' ? 'var(--foul)'
+    : rel.sector === 'in'  ? 'var(--cool)' : 'var(--warm)';
+
+  // Wind arrow sits over the infield and points the way the ball gets pushed.
+  const arrow = haveWind ? `
+    <g transform="translate(100,104) rotate(${rel.arrowDeg})" opacity="0.95">
+      <line x1="0" y1="30" x2="0" y2="-26" stroke="${sectorColor}" stroke-width="5" stroke-linecap="round"/>
+      <path d="M0,-36 L11,-16 L-11,-16 Z" fill="${sectorColor}"/>
+      <circle cx="0" cy="30" r="3.5" fill="${sectorColor}"/>
+    </g>` : '';
+
+  const roofBadge = !isOpen
+    ? `<text x="100" y="150" text-anchor="middle" font-size="10" fill="var(--mute)" font-family="monospace">ROOF CLOSED</text>`
+    : '';
+
+  const stat = (label, value) =>
+    `<div class="fw-stat"><div class="fw-stat-v">${value}</div><div class="fw-stat-l">${label}</div></div>`;
+
+  const precip = g.precipChance != null ? g.precipChance : null;
+
+  return `
+  <div class="slate-field">
+    <svg class="sf-svg" viewBox="0 0 200 165" xmlns="http://www.w3.org/2000/svg">
+      <!-- outfield grass + warning track -->
+      <path d="M100,150 L18,86 A104,104 0 0,1 182,86 Z" fill="#16301c"/>
+      <path d="M100,150 L22,88 A98,98 0 0,1 178,88 Z" fill="#1d4326"/>
+      <!-- outfield wall -->
+      <path d="M18,86 A104,104 0 0,1 182,86" fill="none" stroke="${sectorColor}" stroke-width="2.5" opacity="0.55"/>
+      <!-- infield dirt -->
+      <path d="M100,150 L66,116 A48,48 0 0,1 134,116 Z" fill="#4a3226"/>
+      <!-- basepath diamond -->
+      <path d="M100,146 L128,118 L100,90 L72,118 Z" fill="#1d4326" stroke="#c9c2bc" stroke-width="1.4"/>
+      <!-- bases -->
+      <rect x="125.5" y="115.5" width="5" height="5" fill="#f0ece8" transform="rotate(45 128 118)"/>
+      <rect x="97.5" y="87.5" width="5" height="5" fill="#f0ece8" transform="rotate(45 100 90)"/>
+      <rect x="69.5" y="115.5" width="5" height="5" fill="#f0ece8" transform="rotate(45 72 118)"/>
+      <!-- pitcher's mound + home plate -->
+      <circle cx="100" cy="118" r="6" fill="#4a3226"/>
+      <circle cx="100" cy="118" r="1.8" fill="#f0ece8"/>
+      <path d="M97,148 L103,148 L103,151 L100,153.5 L97,151 Z" fill="#f0ece8"/>
+      <!-- foul lines -->
+      <line x1="100" y1="150" x2="20" y2="84" stroke="#f0ece8" stroke-width="1" opacity="0.45"/>
+      <line x1="100" y1="150" x2="180" y2="84" stroke="#f0ece8" stroke-width="1" opacity="0.45"/>
+      <!-- field labels -->
+      <text x="100" y="78" text-anchor="middle" font-size="9" fill="var(--mute)" font-family="monospace">CF</text>
+      <text x="34"  y="98" text-anchor="middle" font-size="9" fill="var(--mute)" font-family="monospace">LF</text>
+      <text x="166" y="98" text-anchor="middle" font-size="9" fill="var(--mute)" font-family="monospace">RF</text>
+      ${arrow}
+      ${roofBadge}
+    </svg>
+
+    <div class="sf-info">
+      <div class="sf-wind" style="color:${sectorColor};">
+        ${rel ? rel.label : (isOpen ? 'Wind data pending' : 'Indoor — no wind effect')}
+      </div>
+      <div class="fw-stats">
+        ${g.tempF != null ? stat('Temp', g.tempF + '°F') : ''}
+        ${isOpen && g.windMph != null ? stat('Wind', g.windMph + ' mph') : ''}
+        ${isOpen && g.windDeg != null ? stat('From', windDirLabel(g.windDeg)) : ''}
+        ${g.dewPoint != null ? stat('Dew', g.dewPoint + '°') : ''}
+        ${precip != null ? stat('Precip', precip + '%') : ''}
+        ${stat('Park HR', g.parkFactor)}
+      </div>
+      <div class="sf-note">${g.parkShort || g.park} · ${g.parkNote}</div>
+    </div>
+  </div>`;
+}
+
+function weatherDiagramHTML(g){
+  const cfDeg = g.cfBearing;
+  if(g.roof !== 'open-air' || cfDeg==null || g.windDeg==null){
+    return `<div class="wx-diagram-wrap">
+      <div class="wx-diamond-note">${g.roof==='open-air' ? 'Live wind data pending' : 'Indoor / roof closed — no wind effect'}</div>
+    </div>`;
+  }
+  const rel = windRelativeToPark(g.windDeg, cfDeg);
+  const sectorColor = rel.sector==='out' ? 'var(--foul)' : (rel.sector==='in' ? 'var(--cool)' : 'var(--warm)');
+  return `
+    <div class="wx-diagram-wrap">
+      <svg class="wx-diamond" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <path d="M100,175 L30,105 Q100,20 170,105 Z" fill="#1c2e1c" stroke="#3a2424" stroke-width="1.5"/>
+        <path d="M100,175 L60,135 L100,95 L140,135 Z" fill="#3a2424" opacity="0.5"/>
+        <circle cx="100" cy="175" r="5" fill="#e8e2e2"/>
+        <text x="100" y="35" text-anchor="middle" font-size="9" fill="#9a8484" font-family="monospace">CF</text>
+        <text x="45" y="80" text-anchor="middle" font-size="9" fill="#9a8484" font-family="monospace">LF</text>
+        <text x="155" y="80" text-anchor="middle" font-size="9" fill="#9a8484" font-family="monospace">RF</text>
+        <g transform="translate(100,105) rotate(${rel.arrowDeg})">
+          <line x1="0" y1="35" x2="0" y2="-35" stroke="${sectorColor}" stroke-width="4" stroke-linecap="round"/>
+          <path d="M0,-42 L10,-24 L-10,-24 Z" fill="${sectorColor}"/>
+        </g>
+      </svg>
+      <div class="wx-diagram-info">
+        <div class="wx-temp">${g.tempF!=null?g.tempF+'°F':''}</div>
+        <div class="wx-wind-label" style="color:${sectorColor};">${rel.label}</div>
+        <div class="wx-wind-sub">${g.windMph!=null?g.windMph+' mph':''} from ${windDirLabel(g.windDeg)}</div>
+      </div>
+    </div>`;
+}
+
+// ---- Real-clock date handling (so "today"/"tomorrow" always track the actual date) ----
+/**
+ * The date the loaded slate is actually for, read from slate.json rather than
+ * hardcoded. This used to be a constant baked into the page, which meant the
+ * staleness warning kept naming whatever date the file was last hand-edited —
+ * not the date the data was really built for.
+ *
+ * Falls back to today so a slate that hasn't loaded yet doesn't read as stale.
+ */
+function slateDate(){ return slateMeta.date || realTodayStr(); }
+function ymd(d){ return d.toISOString().slice(0,10); }
+function addDays(dateStr, n){ const d = new Date(dateStr+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+n); return ymd(d); }
+function shortLabel(dateStr){
+  const d = new Date(dateStr+'T12:00:00Z');
+  return d.toLocaleDateString('en-US', {month:'short', day:'numeric', timeZone:'UTC'});
+}
+/**
+ * Today's date in US Central. `toISOString()` is UTC, which flips at 7pm CDT /
+ * 6pm CST — so the app would advance to "tomorrow" while that evening's games
+ * were still being played. Anchoring to Chicago makes the rollover happen at
+ * local midnight, and handles daylight saving automatically.
+ */
+function realTodayStr(){
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Chicago',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());          // en-CA formats as YYYY-MM-DD
+}
+
+/** Full label for the single Today button, e.g. "Today · Sun, Aug 9". */
+function todayLabel(){
+  const d = new Date(realTodayStr() + 'T12:00:00Z');
+  return 'Today · ' + d.toLocaleDateString('en-US',
+    { weekday:'short', month:'short', day:'numeric', timeZone:'UTC' });
+}
+
+// The app shows one day: today. Kept as a constant so any straggling reference
+// still reads correctly rather than becoming an undefined variable.
+const selectedDay = 'today';
+function gameTime(g){ return g.timeToday; }
+function timeToMinutes(timeStr){
+  const m = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if(!m) return 9999;
+  let [_, h, min, ap] = m;
+  h = parseInt(h) % 12;
+  if(ap.toUpperCase()==='PM') h += 12;
+  return h*60 + parseInt(min);
+}
+function sortedGames(){
+  return [...games].sort((a,b) => timeToMinutes(gameTime(a)) - timeToMinutes(gameTime(b)));
+}
+function fmtOdds(n){ return n>0 ? `+${n}` : `${n}`; }
+let currentDates = { today: realTodayStr() };
+
+function refreshDayLabelsAndStaleness(){
+  const realToday = realTodayStr();
+  const changed = realToday !== currentDates.today;
+  currentDates = { today: realToday };
+
+  const todayBtn = document.getElementById('todayBtn');
+  if(todayBtn) todayBtn.textContent = todayLabel();
+
+  const builtFor = slateDate();
+  const daysStale = Math.round((new Date(realToday+'T00:00:00Z') - new Date(builtFor+'T00:00:00Z')) / 86400000);
+  const note = document.getElementById('dayNote');
+  if(daysStale > 1){
+    note.innerHTML = `<span style="color:var(--hot)">Slate is for ${shortLabel(builtFor)} — ${daysStale} days old</span> · rerun the daily build workflow for today's games`;
+  } else if(daysStale === 1){
+    note.innerHTML = 'Auto-rolled to today\'s date · <span style="color:var(--warm)">showing yesterday\'s slate — rerun the build for tonight\'s games</span>';
+  } else {
+    updateSlateFooter();   // healthy slate — show provenance instead
+  }
+  return changed;
+}
+
+// Weather now arrives pre-fetched inside slate.json (server-side), so this is a
+// no-op kept only so older call sites don't throw. Kept intentionally rather than
+// deleted, to make the migration obvious to anyone reading the diff.
+async function fetchLiveWeather(){ return true; }
+async function _legacyFetchLiveWeather(){
+  const dot = document.getElementById('dotWeather'); // may be absent — guarded below
+  try{
+    const dayIdx = 0;
+    const entries = Object.entries(STADIUM_COORDS);
+    const results = await Promise.all(entries.map(async ([id, s]) => {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${s.lat}&longitude=${s.lon}&hourly=temperature_2m,wind_speed_10m,wind_direction_10m,relative_humidity_2m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=2`;
+      const res = await fetch(url);
+      if(!res.ok) throw new Error('bad response');
+      const data = await res.json();
+      const hourIdx = dayIdx*24 + 19;
+      return [id, {temp:data.hourly.temperature_2m[hourIdx], wind:data.hourly.wind_speed_10m[hourIdx], dir:data.hourly.wind_direction_10m[hourIdx], hum:data.hourly.relative_humidity_2m[hourIdx]}];
+    }));
+    const liveMap = Object.fromEntries(results);
+    games.forEach(g => {
+      const live = liveMap[g.id];
+      if(live && g.roof === 'open-air' && live.temp!=null){
+        g.weather = `${Math.round(live.temp)}°F, wind ${windDirLabel(live.dir)} ${Math.round(live.wind)}mph, ${Math.round(live.hum)}% humidity`;
+        g.liveWeather = true;
+        g.tempF = Math.round(live.temp);
+        g.windMph = Math.round(live.wind);
+        g.windDeg = live.dir;
+      }
+    });
+    if(dot) dot.className = 'dot ok';
+    return true;
+  }catch(e){ if(dot) dot.className = 'dot fallback'; return false; }
+}
+async function fetchLiveSchedule(){
+  const dot = document.getElementById('dotSchedule');
+  try{
+    const date = currentDates.today;
+    const url = `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${date}&hydrate=probablePitcher,linescore`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('bad response');
+    const data = await res.json();
+
+    // Reconcile our tracked games against the real live schedule: confirm/replace
+    // probable starters with whoever MLB actually has listed for this date.
+    const idToTeam = Object.fromEntries(Object.entries(TEAM_IDS).map(([k,v])=>[v,k]));
+    const scheduledGames = (data.dates && data.dates[0] && data.dates[0].games) || [];
+    scheduledGames.forEach(gm => {
+      const awayAbbr = idToTeam[gm.teams.away.team.id];
+      const homeAbbr = idToTeam[gm.teams.home.team.id];
+      if(!awayAbbr || !homeAbbr) return; // a team we're not tracking in this slate
+      const g = games.find(x => x.away===awayAbbr && x.home===homeAbbr);
+      if(!g) return;
+      g.gamePk = gm.gamePk;
+      g.mlbStatus = gm.status && gm.status.abstractGameState; // Preview / Live / Final
+      const applyPitcher = (slot, probable) => {
+        if(!probable || !probable.fullName) return;
+        if(probable.fullName !== g[slot].name){
+          // a different starter than our curated snapshot — swap in the real name,
+          // keep tendency stats at league-average placeholders since we haven't
+          // researched this specific pitcher's HR9/K9/barrel% yet
+          Object.assign(g[slot], {
+            name: probable.fullName, hr9:1.05, k9:9.0, barrelAllowed:7.5,
+            mix:'Live-confirmed starter — detailed pitch-mix profile not yet synced', liveConfirmed:true
+          });
+        } else {
+          g[slot].liveConfirmed = true; // matches our curated data exactly
+        }
+      };
+      applyPitcher('awayPitcher', gm.teams.away.probablePitcher);
+      applyPitcher('homePitcher', gm.teams.home.probablePitcher);
+    });
+
+    if(dot) dot.className = 'dot ok';
+    return true;
+  }catch(e){ if(dot) dot.className = 'dot fallback'; return false; }
+}
+
+// ---- Live scoreboard: real-time score/inning/count/batter/pitcher per game ----
+// Each club's primary identity colour, used to ring player headshots.
+const TEAM_COLORS = {
+  AZ:'#A71930',  ATL:'#CE1141', BAL:'#DF4601', BOS:'#BD3039', CHC:'#0E3386',
+  CWS:'#27251F', CIN:'#C6011F', CLE:'#00385D', COL:'#333366', DET:'#0C2340',
+  HOU:'#EB6E1F', KC:'#004687',  LAA:'#BA0021', LAD:'#005A9C', MIA:'#00A3E0',
+  MIL:'#12284B', MIN:'#002B5C', NYM:'#FF5910', NYY:'#0C2340', ATH:'#003831',
+  PHI:'#E81828', PIT:'#FDB827', SD:'#2F241D',  SF:'#FD5A1E',  SEA:'#0C2C56',
+  STL:'#C41E3A', TB:'#092C5C',  TEX:'#003278', TOR:'#134A8E', WSH:'#AB0003',
+};
+/** Falls back to the app accent for any club not in the map. */
+function teamColor(abbr){ return TEAM_COLORS[abbr] || 'var(--foul)'; }
+
+function teamLogoUrl(abbr){
+  const id = TEAM_IDS[abbr];
+  return id ? `https://www.mlbstatic.com/team-logos/${id}.svg` : null;
+}
+async function fetchLiveGameStates(){
+  const todaysGames = games.filter(g => g.gamePk);
+  if(!todaysGames.length) return false;
+  try{
+    await Promise.all(todaysGames.map(async g => {
+      try{
+        const res = await fetch(`https://statsapi.mlb.com/api/v1.1/game/${g.gamePk}/feed/live`);
+        if(!res.ok) return;
+        const data = await res.json();
+        const status = data.gameData && data.gameData.status;
+        const line = data.liveData && data.liveData.linescore;
+        g.mlbStatus = status ? status.abstractGameState : g.mlbStatus;
+        g.detailedState = status ? status.detailedState : null;
+        if(line){
+          const t = line.teams || {};
+          g.liveScore = {
+            away: t.away ? t.away.runs : null,
+            home: t.home ? t.home.runs : null,
+            // R/H/E totals for the linescore footer
+            awayHits: t.away ? t.away.hits : null, homeHits: t.home ? t.home.hits : null,
+            awayErrors: t.away ? t.away.errors : null, homeErrors: t.home ? t.home.errors : null,
+            inning: line.currentInning, inningState: line.inningState,
+            balls: line.balls, strikes: line.strikes, outs: line.outs,
+            batter: line.offense && line.offense.batter ? line.offense.batter.fullName : null,
+            pitcher: line.defense && line.defense.pitcher ? line.defense.pitcher.fullName : null,
+            // Baserunners: linescore.offense carries first/second/third as a
+            // player object when occupied, absent when the base is empty.
+            onFirst:  !!(line.offense && line.offense.first),
+            onSecond: !!(line.offense && line.offense.second),
+            onThird:  !!(line.offense && line.offense.third),
+            // Per-inning runs. The API omits the bottom half when the home team
+            // hasn't batted yet (or doesn't need to), so `runs` can be undefined —
+            // that's meaningfully different from 0 and is rendered as a blank cell.
+            innings: (line.innings || []).map(inn => ({
+              num: inn.num,
+              away: inn.away ? inn.away.runs : undefined,
+              home: inn.home ? inn.home.runs : undefined,
+            })),
+            scheduledInnings: line.scheduledInnings || 9,
+          };
+        }
+
+        /**
+         * Pitch-by-pitch location for the CURRENT at-bat, so the strike zone
+         * widget can plot every pitch thrown to the batter standing in right
+         * now — not just the last one. The same live feed response already
+         * carries this; nothing extra to fetch.
+         *
+         * pitchData.coordinates.pX/pZ are the ball's plate-crossing position in
+         * feet from the center of home plate (pX) and off the ground (pZ).
+         * sZTop/sZBot are THIS batter's actual strike zone for that pitch — MLB
+         * adjusts it per batter stance, so it isn't a fixed box.
+         */
+        const currentPlay = data.liveData?.plays?.currentPlay;
+        if(currentPlay?.playEvents?.length){
+          const pitches = currentPlay.playEvents
+            .filter(pe => pe.isPitch && pe.pitchData?.coordinates)
+            .map(pe => ({
+              x: pe.pitchData.coordinates.pX,
+              z: pe.pitchData.coordinates.pZ,
+              zTop: pe.pitchData.strikeZoneTop ?? 3.5,
+              zBot: pe.pitchData.strikeZoneBottom ?? 1.5,
+              type: pe.details?.type?.description ?? null,
+              code: pe.details?.type?.code ?? null,
+              speed: pe.pitchData.startSpeed ?? null,
+              call: pe.details?.description ?? null,        // "Ball", "Called Strike", "In play, ..."
+              isStrike: pe.details?.isStrike ?? null,
+              isBall: pe.details?.isBall ?? null,
+              inPlay: pe.details?.isInPlay ?? false,
+            }));
+
+          // The pitch event that ended the at-bat in play, if any — carries the
+          // batted-ball data (exit velo, launch angle, distance, spray angle).
+          const hitEvent = currentPlay.playEvents.find(pe => pe.details?.isInPlay && pe.hitData);
+          let battedBall = null;
+          if(hitEvent){
+            const hd = hitEvent.hitData;
+            // hitData.coordinates on the live feed is an undocumented pixel
+            // convention (roughly a 0-250 grid centred on home plate), and this
+            // build has no live network access to verify it against a real
+            // response. Rather than risk animating a confidently-wrong flight
+            // path, the trajectory below is derived from launch angle + total
+            // distance instead — real physical quantities with a known meaning
+            // — and the raw coordinates are kept only as an optional override
+            // if they turn out to look right once this runs against live data.
+            battedBall = {
+              result: currentPlay.result?.event ?? currentPlay.result?.description ?? null,
+              description: currentPlay.result?.description ?? null,
+              exitVelo: hd.launchSpeed ?? null,
+              launchAngle: hd.launchAngle ?? null,
+              distance: hd.totalDistance ?? null,
+              trajectory: hd.trajectory ?? null,         // 'fly_ball' | 'line_drive' | 'ground_ball' | 'popup'
+              hardness: hd.hardness ?? null,
+              rawCoordX: hd.coordinates?.coordX ?? null, // unverified — see note above
+              rawCoordY: hd.coordinates?.coordY ?? null,
+            };
+          }
+
+          if(pitches.length){
+            g.currentAtBat = {
+              batter: currentPlay.matchup?.batter?.fullName ?? null,
+              batterId: currentPlay.matchup?.batter?.id ?? null,
+              pitcher: currentPlay.matchup?.pitcher?.fullName ?? null,
+              pitcherId: currentPlay.matchup?.pitcher?.id ?? null,
+              batSide: currentPlay.matchup?.batSide?.code ?? null,
+              pitches,
+              battedBall,
+            };
+          }
+        }
+
+        /**
+         * Today's in-game box score line for the current batter and pitcher —
+         * distinct from their season stats, which live elsewhere. Only fetched
+         * while a game is live, and only for the two players actually at bat,
+         * so this doesn't add a request per player on the roster.
+         */
+        if(g.currentAtBat?.batterId || g.currentAtBat?.pitcherId){
+          const box = data.liveData?.boxscore;
+          const findPlayer = (id) => {
+            if(!id || !box) return null;
+            for(const side of ['away','home']){
+              const p = box.teams?.[side]?.players?.[`ID${id}`];
+              if(p) return p;
+            }
+            return null;
+          };
+          if(g.currentAtBat.batterId){
+            const bp = findPlayer(g.currentAtBat.batterId);
+            const bs = bp?.stats?.batting;
+            if(bs) g.currentAtBat.batterGameStats = {
+              ab: bs.atBats ?? 0, h: bs.hits ?? 0, hr: bs.homeRuns ?? 0,
+              rbi: bs.rbi ?? 0, bb: bs.baseOnBalls ?? 0, so: bs.strikeOuts ?? 0,
+            };
+          }
+          if(g.currentAtBat.pitcherId){
+            const pp = findPlayer(g.currentAtBat.pitcherId);
+            const ps = pp?.stats?.pitching;
+            if(ps) g.currentAtBat.pitcherGameStats = {
+              ip: ps.inningsPitched ?? '0.0', h: ps.hits ?? 0, er: ps.earnedRuns ?? 0,
+              bb: ps.baseOnBalls ?? 0, so: ps.strikeOuts ?? 0,
+            };
+          }
+
+          // Full box score — every batter and pitcher on both sides, not just
+          // the two currently in the at-bat. box.teams[side].batters/pitchers
+          // are ordered id arrays (batting order, appearance order); the full
+          // stat line for each id lives in .players["ID{id}"].
+          if(box){
+            const side_ = (teamKey) => {
+              const t = box.teams?.[teamKey];
+              if(!t) return { batters: [], pitchers: [] };
+              const batters = (t.batters || []).map(id => {
+                const p = t.players?.[`ID${id}`];
+                const bs = p?.stats?.batting;
+                if(!p || !bs) return null;
+                return {
+                  id, name: p.person?.fullName ?? '?',
+                  pos: p.position?.abbreviation ?? '',
+                  ab: bs.atBats ?? 0, r: bs.runs ?? 0, h: bs.hits ?? 0,
+                  rbi: bs.rbi ?? 0, bb: bs.baseOnBalls ?? 0, so: bs.strikeOuts ?? 0,
+                  avg: p.seasonStats?.batting?.avg ?? null,
+                };
+              }).filter(Boolean);
+              const pitchers = (t.pitchers || []).map(id => {
+                const p = t.players?.[`ID${id}`];
+                const ps = p?.stats?.pitching;
+                if(!p || !ps) return null;
+                return {
+                  id, name: p.person?.fullName ?? '?',
+                  ip: ps.inningsPitched ?? '0.0', h: ps.hits ?? 0, r: ps.runs ?? 0,
+                  er: ps.earnedRuns ?? 0, bb: ps.baseOnBalls ?? 0, so: ps.strikeOuts ?? 0,
+                  era: p.seasonStats?.pitching?.era ?? null,
+                };
+              }).filter(Boolean);
+              return { batters, pitchers };
+            };
+            g.boxscore = { away: side_('away'), home: side_('home') };
+          }
+        }
+      }catch(e){ /* leave this game's state as last-known on a per-game fetch failure */ }
+    }));
+    return true;
+  }catch(e){ return false; }
+}
+/**
+ * ESPN-style linescore. Shown for live and completed games only — a Preview
+ * game has no innings to display.
+ *
+ * Two details the raw feed forces us to handle:
+ *  - A half-inning with no `runs` value hasn't been played (home team in a
+ *    walk-off or an in-progress top half). Blank ≠ 0, so it renders empty.
+ *  - Extra-inning games return more than 9 innings; the header is built from
+ *    the actual innings array, not a hardcoded 9.
+ */
+/**
+ * Live strike zone. Coordinates come straight from MLB's pitch-tracking data:
+ *   pX — horizontal position, feet from the center of the plate (catcher's view)
+ *   pZ — height off the ground, in feet
+ *   zTop/zBot — THIS batter's actual zone for that pitch (adjusts per stance)
+ *
+ * The box is drawn to a fixed real-world scale (feet -> px) rather than
+ * stretched to fit, so a pitch just off the corner actually LOOKS just off the
+ * corner instead of the zone rubber-banding to whatever pitches happened to be
+ * thrown. Ball width (~2.94in) is added to each side, matching how a pitch is
+ * ruled a strike if any part of the ball clips the zone.
+ */
+/**
+ * Live field diamond — foul lines, bases, baserunners, and (once a ball is
+ * put in play) the landing spot plotted on the actual field rather than an
+ * abstract straight-up arc.
+ *
+ * COORDINATE NOTE: hitData.coordinates on the live feed uses an
+ * undocumented-but-widely-observed convention (roughly a 0-250 grid, home
+ * plate near x=125/y=204 — the same one common third-party spray-chart tools
+ * rely on). This build has no live network access to confirm it against a
+ * real payload, so the plot is defended: coordinates outside a plausible
+ * range are rejected and the marker falls back to a distance-only straight-up
+ * placement with a small "approx" label, rather than risk drawing a batted
+ * ball on the wrong side of the field with unwarranted confidence.
+ */
+function fieldDiamondSVG(g, battedBall){
+  const W = 220, H = 200;
+  const homeX = W/2, homeY = H - 14;
+  const baseDist = 62;                 // px from home to a base along the line
+  const firstX  = homeX + baseDist * Math.SQRT1_2, firstY  = homeY - baseDist * Math.SQRT1_2;
+  const thirdX  = homeX - baseDist * Math.SQRT1_2, thirdY  = homeY - baseDist * Math.SQRT1_2;
+  const secondX = homeX, secondY = homeY - baseDist * Math.SQRT2;
+
+  const foulLen = 175;
+  const rfX = homeX + foulLen * Math.SQRT1_2, rfY = homeY - foulLen * Math.SQRT1_2;
+  const lfX = homeX - foulLen * Math.SQRT1_2, lfY = homeY - foulLen * Math.SQRT1_2;
+
+  const baseSq = (cx, cy, on) => `<rect x="${(cx-4.5).toFixed(1)}" y="${(cy-4.5).toFixed(1)}" width="9" height="9"
+    transform="rotate(45 ${cx.toFixed(1)} ${cy.toFixed(1)})"
+    fill="${on ? '#f4c430' : 'rgba(255,255,255,.5)'}" stroke="rgba(0,0,0,.4)" stroke-width="1"/>`;
+
+  let landing = '';
+  if(battedBall){
+    const cx = battedBall.rawCoordX, cy = battedBall.rawCoordY;
+    // Plausible-range check on the raw feed coordinates before trusting them.
+    const looksReal = typeof cx === 'number' && typeof cy === 'number'
+      && cx > 0 && cx < 250 && cy > 0 && cy < 250;
+
+    let lx, ly, approx = false;
+    if(looksReal){
+      // Feed grid -> this SVG's coordinate space, home plate aligned to homeX/homeY.
+      const scale = (foulLen * 1.15) / 210;   // rough grid-to-field scale
+      lx = homeX + (cx - 125) * scale;
+      ly = homeY - (204 - cy) * scale;
+    } else {
+      // Fallback: distance only, straight up the middle. Honest about being
+      // an approximation rather than a real spray direction.
+      const dist = battedBall.distance ?? 150;
+      const reach = Math.min(1, dist / 420);
+      lx = homeX; ly = homeY - reach * (foulLen * 1.1);
+      approx = true;
+    }
+    const isHR = /home_run/.test(battedBall.result || '');
+    landing = `
+      <circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="6" fill="${isHR?'var(--foul)':'var(--warm)'}"
+        stroke="#fff" stroke-width="1.5">
+        <animate attributeName="r" values="2;7;6" dur="0.5s"/>
+      </circle>
+      ${approx ? `<text x="${lx.toFixed(1)}" y="${(ly-10).toFixed(1)}" text-anchor="middle" font-size="7"
+        fill="var(--mute)" font-family="monospace">approx</text>` : ''}`;
+  }
+
+  return `<svg class="field-svg" viewBox="0 0 ${W} ${H}">
+    <defs>
+      <radialGradient id="fieldGrass" cx="50%" cy="90%" r="100%">
+        <stop offset="0%" stop-color="#234a2e"/>
+        <stop offset="100%" stop-color="#132818"/>
+      </radialGradient>
+    </defs>
+    <rect x="0" y="0" width="${W}" height="${H}" fill="url(#fieldGrass)" rx="8"/>
+    <path d="M ${homeX},${homeY} L ${lfX},${lfY}" stroke="rgba(255,255,255,.5)" stroke-width="1.5"/>
+    <path d="M ${homeX},${homeY} L ${rfX},${rfY}" stroke="rgba(255,255,255,.5)" stroke-width="1.5"/>
+    <path d="M ${homeX},${homeY} L ${firstX},${firstY} L ${secondX},${secondY} L ${thirdX},${thirdY} Z"
+      fill="rgba(196,164,132,.18)" stroke="rgba(196,164,132,.5)" stroke-width="1"/>
+    ${baseSq(secondX, secondY, g.onSecond)}
+    ${baseSq(firstX,  firstY,  g.onFirst)}
+    ${baseSq(thirdX,  thirdY,  g.onThird)}
+    <rect x="${(homeX-3.5).toFixed(1)}" y="${(homeY-3.5).toFixed(1)}" width="7" height="7" fill="#fff" stroke="#000" stroke-width=".5"/>
+    ${landing}
+  </svg>`;
+}
+
+/** Balls-strikes-outs strip, plus inning and score — the header of the gamecast panel. */
+function gamecastHeaderHTML(g){
+  const ls = g.liveScore || {};
+  const half = ls.inningState === 'Top' ? '▲' : ls.inningState === 'Bottom' ? '▼' : '';
+  const outDots = [0,1,2].map(i => `<span class="gc-out ${i < (ls.outs??0) ? 'on':''}"></span>`).join('');
+  return `<div class="gc-header">
+    <div class="gc-score">
+      <span>${g.awayAbbr||g.away||''} ${ls.away ?? 0}</span>
+      <span class="gc-at">@</span>
+      <span>${g.homeAbbr||g.home||''} ${ls.home ?? 0}</span>
+    </div>
+    <div class="gc-mid">
+      <span class="gc-inning">${half}${ls.inning ?? ''}</span>
+      <span class="gc-count">${ls.balls ?? 0}-${ls.strikes ?? 0}</span>
+      <span class="gc-outs">${outDots}</span>
+    </div>
+  </div>`;
+}
+
+/** The pitch-location panel alone — extracted so it can sit beside the field diamond. */
+function pitchZonePanelSVG(ab){
+  const zTop = ab.pitches[ab.pitches.length-1].zTop ?? 3.5;
+  const zBot = ab.pitches[ab.pitches.length-1].zBot ?? 1.5;
+  const PLATE_HALF = 0.708, VIEW_HALF_X = 1.9, VIEW_TOP = 4.6, VIEW_BOT = 0.8;
+  const W = 130, H = 154;
+  const px = x => ((x + VIEW_HALF_X) / (VIEW_HALF_X*2)) * W;
+  const pz = z => H - ((z - VIEW_BOT) / (VIEW_TOP - VIEW_BOT)) * H;
+  const zoneX0 = px(-PLATE_HALF), zoneX1 = px(PLATE_HALF);
+  const zoneY0 = pz(zTop), zoneY1 = pz(zBot);
+
+  const VANISH_X = W/2;
+  const perspAt = (x, amt) => x + (VANISH_X - x) * amt;
+  const farAmt = 0.16;
+  const depthAt = y => Math.max(0, Math.min(1, 1 - (y / H)));
+  const dotColor = p => p.inPlay ? 'var(--white)' : p.isStrike ? 'var(--foul)' : p.isBall ? '#4ea1f7' : 'var(--mute)';
+
+  const dots = ab.pitches.map((p, i) => {
+    const isLast = i === ab.pitches.length - 1;
+    const rawX = px(p.x ?? 0), cy = pz(p.z ?? 2.5);
+    const cx = perspAt(rawX, farAmt * depthAt(cy));
+    const r = isLast ? 7 : 4;
+    const op = isLast ? 1 : 0.35 + (i / ab.pitches.length) * 0.4;
+    return `<g opacity="${op.toFixed(2)}">
+      <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r}" fill="${dotColor(p)}"
+        stroke="${isLast?'#fff':'none'}" stroke-width="${isLast?1.3:0}">
+        <title>${p.speed?p.speed+' mph ':''}${p.type||''} — ${p.call||''}</title>
+      </circle>
+    </g>`;
+  }).join('');
+
+  return `<svg class="sz-svg" viewBox="0 0 ${W} ${H}">
+    <rect x="0" y="0" width="${W}" height="${H}" fill="#0d1a12" rx="6"/>
+    <polygon points="
+      ${perspAt(zoneX0,0).toFixed(1)},${zoneY1.toFixed(1)}
+      ${perspAt(zoneX1,0).toFixed(1)},${zoneY1.toFixed(1)}
+      ${perspAt(zoneX1,farAmt).toFixed(1)},${zoneY0.toFixed(1)}
+      ${perspAt(zoneX0,farAmt).toFixed(1)},${zoneY0.toFixed(1)}"
+      fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.55)" stroke-width="1.3"/>
+    ${dots}
+  </svg>`;
+}
+
+/**
+ * Full gamecast: score/count/outs header, live field diamond with
+ * baserunners, batter/pitcher photos, and the pitch-location panel — with the
+ * batted-ball landing spot plotted on the field once the at-bat ends in play,
+ * replacing the earlier abstract "ball travels off-field" arc entirely.
+ */
+function gamecastHTML(g){
+  const ab = g.currentAtBat;
+  if(!ab || !ab.pitches?.length){
+    // Even with no in-progress at-bat data yet, the field/score header is
+    // still useful (inning, count, runners) while the feed catches up.
+    return `<div class="gamecast">${gamecastHeaderHTML(g)}${fieldDiamondSVG(g, null)}</div>`;
+  }
+
+  const resultLine = ab.battedBall
+    ? `<div class="gc-result">${(ab.battedBall.result || ab.battedBall.description || 'In play').replace(/_/g,' ')}
+        ${ab.battedBall.exitVelo!=null ? ` · ${ab.battedBall.exitVelo} mph`:''}
+        ${ab.battedBall.launchAngle!=null ? ` · ${ab.battedBall.launchAngle}°`:''}
+        ${ab.battedBall.distance!=null ? ` · ${ab.battedBall.distance} ft`:''}</div>`
+    : '';
+
+  return `<div class="gamecast">
+    ${gamecastHeaderHTML(g)}
+    ${fieldDiamondSVG(g, ab.battedBall)}
+    ${resultLine}
+    <div class="gc-matchup">
+      ${playerCardMini(ab.batter, ab.batterId, g.currentAtBat.battingTeam, ab.batterGameStats, 'bat')}
+      <div class="gc-zone-col">
+        <div class="gc-zone-label">${ab.pitches.length} pitch${ab.pitches.length===1?'':'es'} this AB</div>
+        ${pitchZonePanelSVG(ab)}
+      </div>
+      ${playerCardMini(ab.pitcher, ab.pitcherId, g.currentAtBat.pitchingTeam, ab.pitcherGameStats, 'pitch')}
+    </div>
+  </div>`;
+}
+
+function playerCardMini(name, id, teamAbbr, gameStats, kind){
+  if(!name) return `<div class="sz-player sz-player-empty"></div>`;
+  const initial = name.split(' ').slice(-1)[0]?.[0] || '?';
+  const url = id ? headshotUrl(name, id) : null;
+  const img = url
+    ? `<img src="${url}" alt="" class="sz-face" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'sz-face sz-face-fallback',textContent:'${initial}'}))">`
+    : `<div class="sz-face sz-face-fallback">${initial}</div>`;
+
+  let statLine = '';
+  if(kind === 'bat' && gameStats){
+    statLine = `${gameStats.h}-${gameStats.ab}${gameStats.hr?`, ${gameStats.hr} HR`:''}${gameStats.rbi?`, ${gameStats.rbi} RBI`:''}`;
+  } else if(kind === 'pitch' && gameStats){
+    statLine = `${gameStats.ip} IP, ${gameStats.so} K, ${gameStats.er} ER`;
+  }
+
+  return `<div class="sz-player">
+    ${img}
+    <div class="sz-player-name">${name.split(' ').slice(-1)[0]}</div>
+    ${statLine ? `<div class="sz-player-stat">${statLine}</div>` : '<div class="sz-player-stat sz-player-stat-empty">—</div>'}
+  </div>`;
+}
+
+/**
+ * Batted-ball result, shown in place of the zone box once the at-bat ends in
+ * play. The flight path is drawn from launch angle + total distance — real
+ * physical quantities — rather than the feed's raw landing coordinates, whose
+ * pixel convention this build has no way to verify without live network access
+ * (see the capture-side note where battedBall is built). The arc is therefore
+ * an honest approximation of shape and distance, always straightaway, not a
+ * literal pull/oppo spray chart.
+ */
+
+
+function linescoreHTML(g){
+  const ls = g.liveScore;
+  if(!ls || !ls.innings || !ls.innings.length) return '';
+
+  const scheduled = ls.scheduledInnings || 9;
+  const played = ls.innings.length;
+  const cols = Math.max(scheduled, played);       // pad to 9, extend for extras
+  const nums = Array.from({length: cols}, (_,i)=> i+1);
+  const byNum = Object.fromEntries(ls.innings.map(i => [i.num, i]));
+
+  const isLive = (g.mlbStatus === 'Live');
+  const cell = (v, isCurrent) => {
+    if(v === undefined || v === null) return '<td></td>';
+    return `<td class="${v > 0 ? 'scored' : ''}">${v}</td>`;
+  };
+
+  const head = nums.map(n =>
+    `<th class="${isLive && n === ls.inning ? 'current-inn' : ''}">${n}</th>`).join('');
+
+  const row = (side, label) => {
+    const battingNow = isLive &&
+      ((side === 'away' && ls.inningState === 'Top') || (side === 'home' && ls.inningState === 'Bottom'));
+    const cells = nums.map(n => cell(byNum[n] ? byNum[n][side] : undefined)).join('');
+    const r = side === 'away' ? ls.away : ls.home;
+    const h = side === 'away' ? ls.awayHits : ls.homeHits;
+    const e = side === 'away' ? ls.awayErrors : ls.homeErrors;
+    return `<tr class="${battingNow ? 'batting' : ''}">
+      <td class="team-cell">${label}</td>${cells}
+      <td class="rhe sep">${r ?? '–'}</td><td class="rhe">${h ?? '–'}</td><td class="rhe">${e ?? '–'}</td>
+    </tr>`;
+  };
+
+  return `<div class="linescore"><table>
+    <thead><tr><th class="team-cell"></th>${head}
+      <th class="rhe-head sep">R</th><th class="rhe-head">H</th><th class="rhe-head">E</th></tr></thead>
+    <tbody>${row('away', g.away)}${row('home', g.home)}</tbody>
+  </table></div>`;
+}
+
+function renderSlate(){
+  const cards = sortedGames().map(g => {
+    const status = g.mlbStatus || 'Preview';
+    const isLive = status === 'Live';
+    const isFinal = status === 'Final' || status === 'Completed Early';
+    const badge = isLive ? `<span class="slate-badge live">● Live</span>` : (isFinal ? `<span class="slate-badge final">Final</span>` : `<span class="slate-badge pre">Scheduled</span>`);
+    const ls = g.liveScore || {};
+    const awayRuns = isLive || isFinal ? (ls.away!=null ? ls.away : '–') : '';
+    const homeRuns = isLive || isFinal ? (ls.home!=null ? ls.home : '–') : '';
+    const battingHome = isLive && ls.inningState === 'Bottom';
+    const battingAway = isLive && ls.inningState === 'Top';
+    const inningTxt = isLive && ls.inning ? `${ls.inningState==='Top'?'▲':'▼'} ${ls.inning===1?'1st':ls.inning===2?'2nd':ls.inning===3?'3rd':ls.inning+'th'}` : '';
+
+    let liveDetail = '';
+    if(isLive){
+      const balls = ls.balls||0, strikes = ls.strikes||0, outs = ls.outs||0;
+      const dots = (n, max, cls) => Array.from({length:max}, (_,i)=>`<span class="count-dot ${i<n?cls:''}"></span>`).join('');
+      liveDetail = `
+        <div class="slate-live-detail">
+          <div class="slate-count">
+            <div class="count-item"><div class="count-dots">${dots(balls,4,'on')}</div><div class="count-label">Balls</div></div>
+            <div class="count-item"><div class="count-dots">${dots(strikes,3,'on')}</div><div class="count-label">Strikes</div></div>
+            <div class="count-item"><div class="count-dots">${dots(outs,3,'out-on')}</div><div class="count-label">Outs</div></div>
+          </div>
+          <div class="slate-matchup">${ls.pitcher?`<b>${ls.pitcher}</b> pitching`:''} ${ls.batter?`vs <b>${ls.batter}</b>`:''}</div>
+        </div>`;
+    }
+
+    return `
+      <div class="slate-card ${isLive?'is-live':''}" data-gid="${g.id}">
+        <div class="slate-status-row">
+          ${badge}
+          <span class="slate-time">${isLive ? inningTxt : (isFinal ? g.park.split(',')[0] : gameTime(g))}</span>
+        </div>
+        <div class="slate-teams">
+          <div class="slate-team-row ${battingAway?'batting':''}">
+            <img class="slate-logo" src="${teamLogoUrl(g.away)}" alt="${g.away}" onerror="this.style.visibility='hidden'">
+            <span class="slate-team-name">${g.awayName}</span>
+            <span class="slate-runs">${awayRuns}</span>
+          </div>
+          <div class="slate-team-row ${battingHome?'batting':''}">
+            <img class="slate-logo" src="${teamLogoUrl(g.home)}" alt="${g.home}" onerror="this.style.visibility='hidden'">
+            <span class="slate-team-name">${g.homeName}</span>
+            <span class="slate-runs">${homeRuns}</span>
+          </div>
+        </div>
+        ${(isLive || isFinal) ? linescoreHTML(g) : slateFieldHTML(g)}
+        ${isLive ? gamecastHTML(g) : ''}
+        ${liveDetail}
+      </div>`;
+  }).join('');
+  pickList.innerHTML = `<div class="slate-list">${cards}</div>`;
+  pickList.querySelectorAll('.slate-card').forEach(card=>{
+    card.addEventListener('click', (e)=>{
+      if(isInteractiveClick(e)) return;
+      const g = games.find(x=>x.id===card.dataset.gid);
+      if(!g) return;
+      // A thrown error inside the modal builder would otherwise leave the card
+      // feeling inert with no explanation — surface it instead of swallowing it.
+      try { openGameModal(g); }
+      catch(err){
+        console.error('[slate] game modal failed:', err);
+        modalBody.innerHTML = `<div class="modal-head"><button class="modal-close" id="modalClose">&times;</button>
+          <div class="modal-head-text"><div class="modal-name">${g.awayName} @ ${g.homeName}</div>
+          <div class="modal-tag" style="color:var(--hot)">Couldn't render this matchup: ${err.message}</div></div></div>`;
+        overlay.classList.add('open');
+        const c = document.getElementById('modalClose'); if(c) c.onclick = closeModal;
+      }
+    });
+  });
+}
+
+// ---- 1st Inning Over/Under model ----
+// Estimates the probability of at least one run in each half-inning by combining
+// the top-of-the-order offense (avg hit probability of a team's best 3 hitters,
+// used as a leadoff-quality proxy since our roster data isn't lineup-ordered),
+// the opposing starter's hittability (HR/9, K/9), park factor, and weather —
+// then combines top + bottom of the 1st as independent events for a full-inning
+// Over/Under read. This is an illustrative model, not a sportsbook feed.
+function halfInningRunProb(offenseHitAvg, pitcher, parkFactor, weatherEffect){
+  let p = 28; // rough league-average chance of a run in a given half-inning
+  p += (offenseHitAvg - 55) * 0.35;
+  p += (pitcher.hr9 - 1.05) * 12;
+  p -= (pitcher.k9 - 9.0) * 1.4;
+  p += (parkFactor - 100) * 0.08;
+  p += weatherEffect==='pos' ? 2 : (weatherEffect==='neg' ? -2 : 0);
+  return Math.max(8, Math.min(65, p));
+}
+function topOrderQuality(roster){
+  const top3 = [...roster].sort((a,b)=>b.hitProb-a.hitProb).slice(0,3);
+  return top3.reduce((s,p)=>s+p.hitProb,0) / top3.length;
+}
+function firstInningModel(g){
+  const awayQ = topOrderQuality(g.awayRoster);
+  const homeQ = topOrderQuality(g.homeRoster);
+  const top1 = halfInningRunProb(awayQ, g.homePitcher, g.parkFactor, g.weatherEffect); // home SP faces away order
+  const bot1 = halfInningRunProb(homeQ, g.awayPitcher, g.parkFactor, g.weatherEffect); // away SP faces home order
+  const overProb = Math.round((1 - (1-top1/100)*(1-bot1/100)) * 100);
+  let lean, leanClass;
+  const diff = overProb - 50;
+  if(diff >= 15){ lean='OVER'; leanClass='score-hi'; }
+  else if(diff >= 5){ lean='Lean Over'; leanClass='score-mid'; }
+  else if(diff <= -15){ lean='UNDER'; leanClass='score-hi'; }
+  else if(diff <= -5){ lean='Lean Under'; leanClass='score-mid'; }
+  else { lean='Toss-up'; leanClass='score-lo'; }
+  return {overProb, lean, leanClass, top1:Math.round(top1), bot1:Math.round(bot1), awayQ:Math.round(awayQ), homeQ:Math.round(homeQ)};
+}
+function renderFirstInning(){
+  const cards = sortedGames().map(g => {
+    if(!g.awayRoster || !g.homeRoster) return '';
+    const m = firstInningModel(g);
+    const isUnder = m.lean.toLowerCase().includes('under');
+    const isToss = m.lean==='Toss-up';
+    return `
+      <div class="pick-card" data-gid="${g.id}">
+        <div class="pick-body">
+          <div class="pick-name-row"><span class="pick-name">${g.awayName} @ ${g.homeName}</span><span class="pick-team">${gameTime(g)}</span></div>
+          <div class="pick-matchup">${g.awayPitcher.name} (${g.away}) vs ${g.homePitcher.name} (${g.home}) · ${g.park.split(',')[0]}</div>
+          <div class="pick-summary">Top of 1st (${g.awayName} bat, face ${g.homePitcher.name}): ~${m.top1}% run chance, top-order quality ${m.awayQ}. Bottom of 1st (${g.homeName} bat, face ${g.awayPitcher.name}): ~${m.bot1}%, top-order quality ${m.homeQ}. ${g.parkNote}, ${g.weatherEffect==='pos'?'wind helping the ball carry':g.weatherEffect==='neg'?'wind suppressing carry':'neutral conditions'}.</div>
+        </div>
+        <div class="pick-score">
+          <div class="pick-score-val ${isToss?'score-lo':(isUnder?'score-mid':'score-hi')}">${m.overProb}%</div>
+          <div class="pick-score-label">Over 0.5</div>
+          <div class="fi-adds">
+            ${addLegBtn({ id: legId(g.id, 'F1 OVER', '0.5'), kind:'firstinning',
+                          game:`${g.awayName} @ ${g.homeName}`, side:'over', line:'0.5', pct:m.overProb }, '+ O')}
+            ${addLegBtn({ id: legId(g.id, 'F1 UNDER', '0.5'), kind:'firstinning',
+                          game:`${g.awayName} @ ${g.homeName}`, side:'under', line:'0.5', pct:100-m.overProb }, '+ U')}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+  pickList.innerHTML = `<div class="pick-list">${cards}</div>
+    <div class="odds-source-note" style="margin-top:14px;">Modeled from top-order contact quality, starter HR/9 &amp; K/9, park factor, and live weather — not a sportsbook line. "Over 0.5" = probability at least one run scores in the 1st inning (top or bottom).</div>`;
+  pickList.querySelectorAll('.pick-card').forEach(card=>{
+    card.addEventListener('click', (e)=>{
+      if(isInteractiveClick(e)) return;
+      const g = games.find(x=>x.id===card.dataset.gid);
+      if(g) openGameModal(g);
+    });
+  });
+}
+
+// ============================================================================
+//  HOME RUN FEED — live notifications as homers happen
+// ----------------------------------------------------------------------------
+//  Polls each in-progress game's play-by-play and surfaces every home run with
+//  its Statcast batted-ball data (exit velo, launch angle, distance), which MLB
+//  attaches to the play event itself — no separate Savant call needed.
+// ============================================================================
+// ---------------------------------------------------------------- notifications
+// Uses the Web Notifications API, which needs three things: HTTPS, explicit user
+// permission, and the page to be open. There's no push server here, so nothing
+// fires with the tab fully closed — that would require a service worker plus a
+// backend to push to it.
+let notifyEnabled = false;
+
+/** localStorage throws in some sandboxed frames; never let that break the app. */
+const store = {
+  get(k, d = null){ try { return localStorage.getItem(k) ?? d; } catch { return d; } },
+  set(k, v){ try { localStorage.setItem(k, v); } catch {} },
+};
+
+const notifySupported = () => typeof Notification !== 'undefined';
+
+/** iOS only allows notifications once the site is installed to the Home Screen. */
+function isIOS(){ return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream; }
+function isStandalone(){
+  return window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true;
+}
+
+// ---------------------------------------------------------------- web push
+// The PUBLIC half of the VAPID keypair. Safe to ship in the page — browsers
+// need it to subscribe. The matching PRIVATE key must stay a repo secret
+// (VAPID_PRIVATE_KEY); it signs pushes and must never appear here.
+//
+// If this is ever blank the app silently falls back to in-page notifications,
+// which only fire while the tab is open.
+const VAPID_PUBLIC_KEY = 'BEY26FqtYMS_-69aFB0zG1aIVv4j3sTrE7DzrNcfXB04WpArVE13gHETbn7U_3H_KUCJanA5Dp3QGV4uXNqiMKU';
+
+let swRegistration = null;
+
+function urlB64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+const pushSupported = () =>
+  'serviceWorker' in navigator && 'PushManager' in window && VAPID_PUBLIC_KEY;
+
+async function registerServiceWorker(){
+  if(!('serviceWorker' in navigator)) return null;
+  try{
+    swRegistration = await navigator.serviceWorker.register('sw.js');
+    // The worker asks us to open the Feed when a notification is tapped.
+    navigator.serviceWorker.addEventListener('message', e => {
+      if(e.data?.type === 'open-feed'){
+        activeTab = 'feed'; markFeedRead(); renderTabs(); renderList();
+      }
+    });
+    return swRegistration;
+  }catch(e){
+    console.warn('[push] service worker registration failed:', e.message);
+    return null;
+  }
+}
+
+/**
+ * Subscribe this device for background push. The resulting subscription must
+ * reach the sender — with no backend, that means adding it to the repo, so we
+ * show it for copying.
+ */
+async function subscribeToPush(){
+  if(!pushSupported()) return null;
+  const reg = swRegistration || await registerServiceWorker();
+  if(!reg) return null;
+  try{
+    const existing = await reg.pushManager.getSubscription();
+    if(existing){
+      // A subscription is bound to the origin AND the VAPID key it was created
+      // with. If the site moved domains or the key changed, the old endpoint is
+      // dead but still returned here — pushes to it silently fail forever.
+      // Detect the mismatch and re-subscribe instead.
+      const oldKey = existing.options?.applicationServerKey;
+      const wanted = urlB64ToUint8Array(VAPID_PUBLIC_KEY);
+      const same = oldKey && new Uint8Array(oldKey).length === wanted.length &&
+                   new Uint8Array(oldKey).every((b, i) => b === wanted[i]);
+      const sameOrigin = existing.endpoint && store.get('dw_sub_origin') === location.origin;
+      if(same && sameOrigin) return existing;
+
+      console.info('[push] re-subscribing (origin or key changed)');
+      try{ await existing.unsubscribe(); }catch{}
+      store.set('dw_sub_shown', '');   // prompt for the new subscription JSON
+    }
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+    store.set('dw_sub_origin', location.origin);
+    return sub;
+  }catch(e){
+    console.warn('[push] subscribe failed:', e.message);
+    return null;
+  }
+}
+
+/** Show the subscription JSON so it can be added to push-subscriptions.json. */
+function showSubscriptionForCopy(sub){
+  const json = JSON.stringify(sub.toJSON());
+  const box = document.createElement('div');
+  box.className = 'sub-modal';
+  box.innerHTML = `
+    <div class="sub-card">
+      <h3>One more step for background alerts</h3>
+      <p>This device is subscribed. To finish, add the line below to
+         <code>public/push-subscriptions.json</code> in your repo (it's a JSON array —
+         add this as a new item), then commit.</p>
+      <textarea readonly id="subJson">${json}</textarea>
+      <div class="sub-actions">
+        <button id="subCopy">Copy</button>
+        <button id="subClose">Done</button>
+      </div>
+      <p class="sub-note">Until it's committed, alerts still work while the app is open —
+         they just won't arrive when it's closed.</p>
+    </div>`;
+  document.body.appendChild(box);
+  document.getElementById('subCopy').onclick = async () => {
+    try{ await navigator.clipboard.writeText(json); document.getElementById('subCopy').textContent = 'Copied'; }
+    catch{ document.getElementById('subJson').select(); }
+  };
+  document.getElementById('subClose').onclick = () => box.remove();
+  box.onclick = e => { if(e.target === box) box.remove(); };
+}
+
+/**
+ * Why notifications can't be enabled right now. Returns null when they can.
+ *
+ * "Blocked" has several distinct causes that look identical to a user, and the
+ * two that matter most after a domain move are:
+ *   - the page is served over http (secure context required), or
+ *   - the page is inside a cross-origin iframe, which is what registrar
+ *     "URL masking" does. In a frame the Notification API is unavailable, the
+ *     manifest is ignored, and the viewport is the frame's — which also makes
+ *     the layout look subtly different from the real site.
+ */
+function notifyBlockReason(){
+  if(window.self !== window.top){
+    return { code:'framed',
+      msg:'This page is running inside a frame, which browsers do not allow to send notifications.',
+      fix:'Your domain is set up as URL forwarding with masking. Change it to a real custom domain: point a CNAME at jthomas0786.github.io and set the domain in GitHub Settings → Pages.' };
+  }
+  if(!window.isSecureContext){
+    return { code:'insecure',
+      msg:`This page is served over ${(typeof location!=='undefined'?location.protocol:'http:').replace(':','')}, and notifications require https.`,
+      fix:'Enable "Enforce HTTPS" in GitHub Settings → Pages. If it is greyed out, the certificate is still being issued — that can take up to an hour after DNS changes.' };
+  }
+  if(typeof Notification === 'undefined'){
+    if(isIOS() && !isStandalone()){
+      return { code:'ios-install',
+        msg:'On iPhone and iPad, notifications only work once the site is installed.',
+        fix:'Tap Share → Add to Home Screen, open it from there, then turn Alerts on.' };
+    }
+    return { code:'unsupported', msg:'This browser does not support notifications.', fix:'' };
+  }
+  if(Notification.permission === 'denied'){
+    return { code:'denied',
+      msg:'Notifications are blocked for this site.',
+      fix:'Tap the padlock or ⓘ in the address bar → Notifications → Allow, then try again. Note that permission is per-domain, so a previous "Allow" on the old address does not carry over.' };
+  }
+  return null;
+}
+
+async function toggleNotifications(){
+  // Explain the real cause rather than a generic "not supported".
+  const blocked = notifyBlockReason();
+  if(blocked){
+    alert(blocked.msg + (blocked.fix ? '\n\n' + blocked.fix : ''));
+    console.warn('[notify] blocked:', blocked.code, blocked);
+    return;
+  }
+  if(!notifySupported()){
+    if(isIOS() && !isStandalone()){
+      alert('On iPhone or iPad, notifications work only after you add this site to your Home Screen.\n\nTap the Share button, choose "Add to Home Screen", then open it from there and turn notifications on again.');
+    } else {
+      alert("This browser doesn't support notifications.");
+    }
+    return;
+  }
+
+  // Turning alerts off now lives inside the dropdown (see wireNotifyPop),
+  // not on the bell tap — once alerts are on, tapping the bell opens the
+  // notification list instead. This function still handles the OFF -> ON
+  // transition and is also called by that dropdown's own toggle-off control.
+  let perm = Notification.permission;
+  if(perm === 'default') perm = await Notification.requestPermission();
+
+  if(perm === 'granted'){
+    notifyEnabled = true;
+    store.set('dw_notify', '1');
+    const bg = pushSupported();
+    new Notification('Dinger Watch', {
+      body: bg
+        ? "Alerts are on. Background delivery activates once this device is registered."
+        : "You'll get a notification for every home run while this page is open.",
+      icon: NOTIFY_ICON, badge: NOTIFY_BADGE, tag: 'dw-test',
+    });
+    if(bg){
+      const sub = await subscribeToPush();
+      // Only prompt once per device — the subscription is stable after that.
+      if(sub && store.get('dw_sub_shown') !== '1'){
+        store.set('dw_sub_shown', '1');
+        showSubscriptionForCopy(sub);
+      }
+    }
+  } else if(perm === 'denied'){
+    alert('Notifications are blocked for this site.\n\nRe-enable them in your browser settings (the padlock or ⓘ icon next to the address bar), then try again.');
+  }
+  renderNotifyBtn();
+}
+
+function disableNotifications(){
+  notifyEnabled = false;
+  store.set('dw_notify', '0');
+  renderNotifyBtn();
+  closeNotifyPop();
+}
+
+// App icon, shared by notifications and the installed-app shortcut. Relative
+// path so it resolves wherever the site is hosted.
+const NOTIFY_ICON = 'icon-192.png';
+const NOTIFY_BADGE = 'icon-192.png';   // Android status-bar glyph
+
+/**
+ * Fire a notification for a home run. Uses the event key as the tag so a
+ * re-poll can never surface the same homer twice.
+ */
+function notifyHomeRun(ev){
+  if(!notifyEnabled || !notifySupported() || Notification.permission !== 'granted') return;
+  const bits = [];
+  if(ev.exitVelo) bits.push(`${ev.exitVelo} mph`);
+  if(ev.distance) bits.push(`${ev.distance} ft`);
+  if(ev.launchAngle != null) bits.push(`${ev.launchAngle}°`);
+  try{
+    const n = new Notification(`💣 ${ev.batter} — HOME RUN`, {
+      body: [bits.join(' · '), `${ev.half} ${ev.inning} · ${ev.battingTeam} vs ${ev.opponent}`]
+              .filter(Boolean).join('\n'),
+      icon: NOTIFY_ICON,
+      badge: NOTIFY_BADGE,
+      tag: ev.key,               // dedupe
+      renotify: false,
+      silent: false,
+    });
+    n.onclick = () => { window.focus(); activeTab = 'feed'; markFeedRead(); renderTabs(); renderList(); n.close(); };
+    setTimeout(() => n.close(), 20000);
+  }catch(e){ /* some browsers throw on tag reuse — not worth surfacing */ }
+}
+
+/**
+ * Notifications aren't attached to real events yet — the dropdown they open
+ * is empty scaffolding, ready for that data. This array and the two functions
+ * below are the whole surface that future work needs to touch:
+ *
+ *   pushAppNotification({ title, body, ... }) — adds one and repaints the badge
+ *   notifyItems — the list the dropdown renders from
+ *
+ * Nothing elsewhere needs to change once real notifications start arriving.
+ */
+let notifyItems = [];   // newest first: { id, title, body, ts, read }
+let notifyUnsub = null;
+
+function notifyUnreadCount(){
+  return notifyItems.filter(n => !n.read).length;
+}
+
+/** Add one notification to the in-memory list and repaint. */
+function pushAppNotification({ title, body = '', id = null, ts = Date.now(), read = false } = {}){
+  notifyItems.unshift({ id: id ?? `n${Date.now()}`, title, body, ts, read });
+  notifyItems = notifyItems.slice(0, 50);   // cap so this can't grow unbounded
+  renderNotifyBtn();
+  const pop = document.getElementById('notifyPop');
+  if(pop?.classList.contains('open')) renderNotifyPop();
+}
+
+/** Turn a raw DB notification row into the {title, body} shape the bell shows. */
+function formatNotification(row){
+  const p = row.payload || {};
+  switch(row.type){
+    case 'comment':
+      return { title: `@${p.username || 'someone'} commented on your post`, body: p.body || '' };
+    case 'follow':
+      return { title: `@${p.username || 'someone'} started following you`, body: '' };
+    case 'atbat_up':
+      return { title: `⚾ ${p.player_name} is up to bat`, body: p.game || '' };
+    case 'atbat_result':
+      return { title: `${p.emoji || '💥'} ${p.player_name}: ${p.result || 'at-bat over'}`, body: p.detail || '' };
+    default:
+      return { title: 'Notification', body: '' };
+  }
+}
+
+/** Load history + subscribe to new ones arriving live. Called once per sign-in. */
+async function startNotifications(){
+  const s = social();
+  if(!s || !s.socialEnabled() || !s.getUser?.()) return;
+
+  const rows = await s.loadNotifications();
+  notifyItems = rows.map(r => ({ id: r.id, ts: new Date(r.created_at).getTime(),
+    read: r.read, ...formatNotification(r) }));
+  renderNotifyBtn();
+
+  if(notifyUnsub) notifyUnsub();
+  notifyUnsub = s.subscribeNotifications(row => {
+    pushAppNotification({ id: row.id, ts: new Date(row.created_at).getTime(),
+      read: false, ...formatNotification(row) });
+  });
+}
+
+function stopNotifications(){
+  if(notifyUnsub){ notifyUnsub(); notifyUnsub = null; }
+  notifyItems = [];
+}
+
+function notifyPopHTML(){
+  if(!notifyItems.length){
+    return `<div class="notify-empty">No notifications yet.</div>`;
+  }
+  return notifyItems.map(n => `
+    <div class="notify-item ${n.read?'':'unread'}" data-nid="${n.id}">
+      <div class="notify-item-title">${escapeHTML(n.title || 'Notification')}</div>
+      ${n.body ? `<div class="notify-item-body">${escapeHTML(n.body)}</div>` : ''}
+      <div class="notify-item-time">${timeAgo(n.ts)}</div>
+    </div>`).join('');
+}
+
+function renderNotifyPop(){
+  const pop = document.getElementById('notifyPop');
+  if(!pop) return;
+  pop.innerHTML = notifyPopHTML() + `
+    <div class="notify-pop-foot">
+      <button id="notifyOffBtn">Turn off alerts</button>
+    </div>`;
+  document.getElementById('notifyOffBtn')?.addEventListener('click', e => {
+    e.stopPropagation();
+    disableNotifications();
+  });
+}
+
+function closeNotifyPop(){
+  document.getElementById('notifyPop')?.classList.remove('open');
+}
+
+function toggleNotifyPop(){
+  const pop = document.getElementById('notifyPop');
+  if(!pop) return;
+  const opening = !pop.classList.contains('open');
+  pop.classList.toggle('open', opening);
+  if(opening){
+    // Opening the list is what "reads" it — same convention as every phone's
+    // notification tray. Repaint locally first for instant feedback, then
+    // persist so read-state survives a reload or another device.
+    notifyItems.forEach(n => n.read = true);
+    renderNotifyPop();
+    renderNotifyBtn();
+    social()?.markAllNotificationsRead?.();
+    document.addEventListener('click', function onOutside(e){
+      if(!pop.contains(e.target) && e.target.id !== 'notifyBtn'){
+        closeNotifyPop();
+        document.removeEventListener('click', onOutside);
+      }
+    });
+  }
+}
+
+/**
+ * Two states behind one button:
+ *   OFF  — a plain bell, click to request permission and turn alerts on.
+ *   ON   — the bell becomes a badge showing unread notifications; click opens
+ *          the dropdown instead of toggling alerts off (turning alerts off
+ *          entirely lives in the dropdown itself, not on the icon tap).
+ */
+function renderNotifyBtn(){
+  const btn = document.getElementById('notifyBtn');
+  if(!btn) return;
+  const blocked = notifySupported() && Notification.permission === 'denied';
+  const unread = notifyUnreadCount();
+
+  btn.classList.toggle('active', notifyEnabled);
+  btn.classList.toggle('blocked', blocked && !notifyEnabled);
+
+  if(notifyEnabled){
+    btn.innerHTML = `🔔${unread > 0 ? `<span class="notify-badge">${unread > 99 ? '99+' : unread}</span>` : ''}`;
+    btn.title = `${unread} notification${unread===1?'':'s'} — click to view`;
+  } else {
+    btn.innerHTML = blocked ? '🔕' : '🔔';
+    btn.title = blocked ? 'Blocked in browser settings' : 'Get a notification for every home run';
+  }
+}
+
+let feedEvents = [];          // newest first
+let feedUnread = 0;
+/**
+ * gamePk:atBatIndex for every home run we've already surfaced.
+ *
+ * This MUST persist across page loads. When it lived only in memory, every
+ * reload started empty and re-notified for the entire day's home runs.
+ * Keyed by date so it self-clears overnight instead of growing forever.
+ */
+const seenHRKeys = new Set();
+let notifiedKeys = new Set();          // separate: what we've actually alerted on
+let feedPrimed = false;                // false until the first poll completes
+
+function seenStorageKey(){ return 'dw_notified_' + (slateMeta.date || 'today'); }
+
+function loadNotifiedKeys(){
+  try{
+    const raw = store.get(seenStorageKey());
+    notifiedKeys = new Set(raw ? JSON.parse(raw) : []);
+  }catch{ notifiedKeys = new Set(); }
+
+  // Drop any previous day's ledgers so localStorage doesn't accumulate.
+  try{
+    for(let i = localStorage.length - 1; i >= 0; i--){
+      const k = localStorage.key(i);
+      if(k?.startsWith('dw_notified_') && k !== seenStorageKey()) localStorage.removeItem(k);
+    }
+  }catch{}
+}
+
+function rememberNotified(key){
+  notifiedKeys.add(key);
+  try{ store.set(seenStorageKey(), JSON.stringify([...notifiedKeys].slice(-500))); }catch{}
+}
+
+function markFeedRead(){ feedUnread = 0; }
+
+// Dedup keys for watch-list at-bat alerts. Unlike seenHRKeys/notifiedKeys
+// above, these were originally in-memory only — which reset on every page
+// load. Within a single session that's masked by the feedPrimed backlog
+// guard, but it's fragile compared to the proven persisted pattern already
+// used for home runs, and doesn't survive things like two tabs open at once.
+// Persisted the same way, date-scoped, for the same reason.
+let seenWatchUpKeys = new Set();
+let seenWatchResultKeys = new Set();
+
+function watchKeysStorageKey(suffix){ return `dw_watchseen_${suffix}_` + (slateMeta.date || 'today'); }
+
+function loadWatchSeenKeys(){
+  try{ seenWatchUpKeys = new Set(JSON.parse(store.get(watchKeysStorageKey('up')) || '[]')); }
+  catch{ seenWatchUpKeys = new Set(); }
+  try{ seenWatchResultKeys = new Set(JSON.parse(store.get(watchKeysStorageKey('result')) || '[]')); }
+  catch{ seenWatchResultKeys = new Set(); }
+  try{
+    for(let i = localStorage.length - 1; i >= 0; i--){
+      const k = localStorage.key(i);
+      if(k?.startsWith('dw_watchseen_') && k !== watchKeysStorageKey('up') && k !== watchKeysStorageKey('result')){
+        localStorage.removeItem(k);
+      }
+    }
+  }catch{}
+}
+
+function rememberWatchKey(set, suffix, key){
+  set.add(key);
+  try{ store.set(watchKeysStorageKey(suffix), JSON.stringify([...set].slice(-500))); }catch{}
+}
+
+/**
+ * Checks one play against the signed-in user's own daily watch list and fires
+ * an in-app notification when relevant. Runs once per play per poll cycle,
+ * reusing the play-by-play data pollHomeRunFeed already fetched for the home
+ * run feed — no extra network request.
+ *
+ * LIMITATION worth being upfront about: this only works while this browser
+ * tab is open and polling, the same limitation the original notification
+ * system had before background push existed for home runs specifically.
+ * True background alerts (app closed) for watch-list at-bats would need a
+ * server-side job — similar in shape to send-push.js — that cross-references
+ * every user's watch list against live at-bat data and sends a real push.
+ * That's a larger, separate piece of work and hasn't been built here.
+ */
+function checkWatchlistPlay(g, play){
+  if(!watchedPlayerIds.size) return;      // nobody signed in, or nothing watched
+  const batterId = play.matchup?.batter?.id;
+  if(!batterId || !watchedPlayerIds.has(batterId)) return;
+
+  const complete = play.about?.isComplete;
+  const atBatKey = `${g.gamePk}:${play.atBatIndex}`;
+
+  if(!complete){
+    // In progress — this is the "up to bat" moment. Fire once per at-bat.
+    if(seenWatchUpKeys.has(atBatKey)) return;
+    rememberWatchKey(seenWatchUpKeys, 'up', atBatKey);
+    if(!feedPrimed) return;               // first poll after load = backlog, don't alert
+    const name = play.matchup?.batter?.fullName ?? 'Watched player';
+    social()?.selfNotify?.('atbat_up', {
+      player_name: name, player_id: batterId, atbat_key: atBatKey,
+      game: `${g.awayName} @ ${g.homeName}`,
+    });
+    pushAppNotification({ title: `⚾ ${name} is up to bat`, body: `${g.awayName} @ ${g.homeName}` });
+    return;
+  }
+
+  // Completed — the result. Only fires once per at-bat, and only after the
+  // in-progress alert already fired for it (or would have, had backlog
+  // suppression not blocked it) — either way this key guards it from repeats.
+  if(seenWatchResultKeys.has(atBatKey)) return;
+  rememberWatchKey(seenWatchResultKeys, 'result', atBatKey);
+  if(!feedPrimed) return;
+
+  const name = play.matchup?.batter?.fullName ?? 'Watched player';
+  const hitEvent = [...(play.playEvents || [])].reverse().find(e => e.hitData?.launchSpeed != null);
+  const hd = hitEvent?.hitData;
+  const result = play.result?.event || play.result?.eventType?.replace(/_/g, ' ') || 'at-bat over';
+  const emoji = play.result?.eventType === 'home_run' ? '💣'
+              : play.result?.eventType === 'strikeout' ? '❌'
+              : play.result?.eventType === 'walk' ? '🚶' : '⚾';
+  const detail = hd ? `${hd.launchSpeed} mph, ${hd.totalDistance ?? '?'} ft` : (play.result?.description || '');
+
+  social()?.selfNotify?.('atbat_result', {
+    player_name: name, player_id: batterId, result, detail, emoji, atbat_key: atBatKey,
+  });
+  pushAppNotification({ title: `${emoji} ${name}: ${result}`, body: detail });
+}
+
+async function pollHomeRunFeed(){
+  const live = games.filter(g => g.gamePk && (g.mlbStatus === 'Live' || g.mlbStatus === 'Final'));
+  if(!live.length) return;
+
+  await Promise.all(live.map(async g => {
+    try{
+      const res = await fetch(`https://statsapi.mlb.com/api/v1/game/${g.gamePk}/playByPlay`);
+      if(!res.ok) return;
+      const data = await res.json();
+      for(const play of (data.allPlays || [])){
+        // Watchlist check runs for every play, not just home runs, and is
+        // independent of the HR-feed logic below — different event, different
+        // dedup keys, same play-by-play data so no extra fetch is needed.
+        checkWatchlistPlay(g, play);
+
+        if(play.result?.eventType !== 'home_run') continue;
+        const key = `${g.gamePk}:${play.atBatIndex}`;
+        if(seenHRKeys.has(key)) continue;
+        seenHRKeys.add(key);
+        const alreadyNotified = notifiedKeys.has(key);
+
+        // Statcast comes from the pitch event that ended the at-bat.
+        const hitEvent = [...(play.playEvents || [])].reverse()
+          .find(e => e.hitData && e.hitData.launchSpeed != null);
+        const hd = hitEvent?.hitData || {};
+
+        feedEvents.push({
+          key,
+          gamePk: g.gamePk,
+          batter: play.matchup?.batter?.fullName ?? 'Unknown',
+          batterId: play.matchup?.batter?.id ?? null,
+          pitcher: play.matchup?.pitcher?.fullName ?? null,
+          battingTeam: play.about?.isTopInning ? g.away : g.home,
+          opponent:    play.about?.isTopInning ? g.home : g.away,
+          inning: play.about?.inning,
+          half: play.about?.isTopInning ? 'Top' : 'Bot',
+          outs: play.count?.outs,
+          rbi: play.result?.rbi ?? 0,
+          desc: play.result?.description ?? '',
+          awayScore: play.result?.awayScore, homeScore: play.result?.homeScore,
+          exitVelo: hd.launchSpeed ?? null,
+          launchAngle: hd.launchAngle ?? null,
+          distance: hd.totalDistance ?? null,
+          hardness: hd.hardness ?? null,
+          park: g.parkShort || g.park,
+          matchupLabel: `${g.awayName} @ ${g.homeName}`,
+          ts: play.about?.endTime ? new Date(play.about.endTime).getTime() : Date.now(),
+          isNew: true,
+        });
+        const justAdded = feedEvents[feedEvents.length - 1];
+
+        // Only alert on home runs that happen while the page is open.
+        //   - feedPrimed=false  → this is the first poll after load, so every HR
+        //     found is pre-existing backlog. Record it, don't alert.
+        //   - alreadyNotified   → a previous session already alerted on it.
+        // Without both guards, reloading the page replays the whole day.
+        const isBacklog = !feedPrimed || alreadyNotified;
+        justAdded.isNew = !isBacklog;
+
+        if(isBacklog){
+          rememberNotified(key);
+        } else {
+          if(activeTab !== 'feed') feedUnread++;
+          notifyHomeRun(justAdded);
+          rememberNotified(key);
+        }
+      }
+    }catch(e){ /* a single game failing shouldn't stall the whole feed */ }
+  }));
+
+  feedEvents.sort((a,b) => b.ts - a.ts);   // newest first
+  if(feedEvents.length > 200) feedEvents.length = 200;
+
+  // Everything found from here on is genuinely live.
+  feedPrimed = true;
+}
+
+function timeAgo(ts){
+  const s = Math.round((Date.now() - ts)/1000);
+  if(s < 60) return 'just now';
+  if(s < 3600) return `${Math.round(s/60)}m ago`;
+  return `${Math.round(s/3600)}h ago`;
+}
+
+function iosInstallHintHTML(){
+  if(!isIOS() || isStandalone() || store.get('dw_ios_hint_dismissed') === '1') return '';
+  return `<div class="ios-hint" id="iosHint">
+    <div class="ios-hint-body">
+      <b>Want home run alerts on your iPhone?</b>
+      iOS only allows notifications from installed apps. Tap <b>Share</b> → <b>Add to Home Screen</b>, then open Dinger Watch from your Home Screen and turn on Alerts.
+    </div>
+    <button class="ios-hint-x" id="iosHintX" aria-label="Dismiss">&times;</button>
+  </div>`;
+}
+
+function renderFeed(){
+  if(!feedEvents.length){
+    const anyLive = games.some(g => g.mlbStatus === 'Live');
+    pickList.innerHTML = iosInstallHintHTML() + `<div style="text-align:center;padding:46px 22px;color:var(--mute);font-family:'Oswald',sans-serif;font-size:14px;line-height:1.7;">
+      <div style="font-size:34px;margin-bottom:10px;">⚾</div>
+      <div style="font-size:16px;color:var(--white);margin-bottom:8px;">No home runs yet</div>
+      ${anyLive
+        ? 'Games are underway — this updates automatically the moment one goes out.'
+        : 'Nothing has started yet. Homers will appear here live, with exit velo, launch angle, and distance.'}
+    </div>`;
+    return;
+  }
+
+  pickList.innerHTML = iosInstallHintHTML() + `<div class="feed-list">` + feedEvents.map(ev => {
+    const stat = (v, label, unit='') => v == null ? '' :
+      `<div class="fw-stat"><div class="fw-stat-v">${v}${unit}</div><div class="fw-stat-l">${label}</div></div>`;
+    return `
+      <div class="feed-item ${ev.isNew?'is-new':''}" data-batter="${ev.batter}">
+        <div class="feed-icon">${headshotImgTag(ev.batter, 'feed-headshot', ev.battingTeam, ev.batterId)}</div>
+        <div class="feed-body">
+          <div class="feed-top">
+            <span class="feed-name">${ev.batter}</span>
+            <span class="feed-team">${ev.battingTeam} vs ${ev.opponent}</span>
+            <span class="feed-time">${timeAgo(ev.ts)}</span>
+          </div>
+          <div class="feed-desc">${ev.desc}</div>
+          <div class="fw-stats">
+            ${stat(ev.exitVelo, 'Exit Velo', ' mph')}
+            ${stat(ev.launchAngle, 'Launch', '°')}
+            ${stat(ev.distance, 'Distance', ' ft')}
+            ${stat(ev.rbi, 'RBI')}
+          </div>
+          ${hrReactionStripHTML(ev)}
+          <div class="feed-meta">
+            ${ev.half} ${ev.inning} · ${ev.park}
+            ${ev.pitcher ? ` · off ${ev.pitcher}` : ''}
+            ${ev.awayScore != null ? ` · ${ev.awayScore}-${ev.homeScore}` : ''}
+            ${ev.exitVelo == null ? ' · <span style="color:var(--warm)">Statcast pending</span>' : ''}
+          </div>
+        </div>
+      </div>`;
+  }).join('') + `</div>
+  <div class="odds-source-note" style="margin-top:14px;">Live from the MLB Stats API play-by-play feed. Batted-ball data is attached by Statcast moments after each swing — occasionally it lags the play by a few seconds.</div>`;
+
+  feedEvents.forEach(ev => ev.isNew = false);   // clear highlight after one render
+  primeVisibleReactions();
+
+  document.getElementById('iosHintX')?.addEventListener('click', e=>{
+    e.stopPropagation();
+    store.set('dw_ios_hint_dismissed', '1');
+    document.getElementById('iosHint')?.remove();
+  });
+
+  pickList.querySelectorAll('.feed-item').forEach(item=>{
+    item.addEventListener('click', (e)=>{
+      if(isInteractiveClick(e)) return;
+      const p = allBatters.find(x => x.name === item.dataset.batter);
+      if(p) openBatterModal(p);
+    });
+  });
+}
+
+// ---- Live player ID resolution + last-10-game logs (real MLB Stats API data) ----
+let playerIdMap = null;
+let playerIdMapPromise = null;
+function loadPlayerIdMap(){
+  if(playerIdMapPromise) return playerIdMapPromise;
+  const setStatus = st => setDot('dotSlate', st);
+  playerIdMapPromise = (async () => {
+    try{
+      const res = await fetch('https://statsapi.mlb.com/api/v1/sports/1/players?season=2026');
+      if(!res.ok) throw new Error('bad response');
+      const data = await res.json();
+      const map = {};
+      (data.people||[]).forEach(p => { map[p.fullName.toLowerCase()] = p.id; });
+      playerIdMap = map;
+      setStatus('ok');
+      return map;
+    }catch(e){
+      setStatus('fallback');
+      playerIdMap = {};
+      return {};
+    }
+  })();
+  return playerIdMapPromise;
+}
+function resolvePlayerId(name){
+  if(!playerIdMap) return null;
+  const key = name.toLowerCase().replace(/[.'']/g,'').trim();
+  if(playerIdMap[name.toLowerCase()]) return playerIdMap[name.toLowerCase()];
+  // fallback: fuzzy match ignoring punctuation/suffixes
+  const norm = s => s.toLowerCase().replace(/[.'']/g,'').replace(/\s+jr\.?$/,'').trim();
+  const target = norm(name);
+  for(const full in playerIdMap){ if(norm(full)===target) return playerIdMap[full]; }
+  return null;
+}
+async function fetchLast10(name, playerId){
+  // Same ambiguity as headshots: two active players can share a name, so use
+  // the MLBAM id when we have it rather than looking one up by name.
+  let id = playerId;
+  if(!id){
+    await loadPlayerIdMap();
+    id = resolvePlayerId(name);
+  }
+  if(!id) throw new Error('Player ID not found in live roster feed');
+  const url = `https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=gameLog&group=hitting&season=2026&gameType=R`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('gameLog fetch failed');
+  const data = await res.json();
+  const splits = (data.stats && data.stats[0] && data.stats[0].splits) || [];
+  return splits.slice(-10).map(s => ({
+    date: s.date, opp: s.opponent ? s.opponent.abbreviation : '',
+    ab: s.stat.atBats, h: s.stat.hits, hr: s.stat.homeRuns, rbi: s.stat.rbi
+  }));
+}
+
+// ---- Live active-roster / injury status check (real MLB Stats API) ----
+const TEAM_IDS = {
+  HOU:117, SD:135, LAD:119, AZ:109, BAL:110, TEX:140, STL:138, COL:115,
+  DET:116, SF:137, MIN:142, MIL:158, CLE:114, CWS:145, CHC:112, KC:118,
+  TB:139, SEA:136, NYM:121, PIT:134, ATH:133, BOS:111, LAA:108, MIA:146,
+  NYY:147, ATL:144, TOR:141, PHI:143, WSH:120, CIN:113
+};
+function normName(s){
+  return s.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // strip accents
+    .replace(/[.'']/g,'')
+    .replace(/\s+jr\.?$/,'')
+    .trim();
+}
+let activeRosterPromise = null;
+// Injured/optioned players are already excluded server-side by build-slate.js
+// (active roster vs 40-man diff), so this client-side check is no longer needed.
+function loadActiveRosters(){ return Promise.resolve({activeSets:{}, injuredSets:{}}); }
+function _legacyLoadActiveRosters(){
+  if(activeRosterPromise) return activeRosterPromise;
+  const setStatus = st => setDot('dotSlate', st);
+  activeRosterPromise = (async () => {
+    const activeSets = {}; // team -> Set of normalized active player names
+    const injuredSets = {}; // team -> Set of normalized IL/injured player names
+    try{
+      const entries = Object.entries(TEAM_IDS);
+      await Promise.all(entries.map(async ([team, id]) => {
+        try{
+          const [activeRes, fullRes] = await Promise.all([
+            fetch(`https://statsapi.mlb.com/api/v1/teams/${id}/roster?rosterType=active&season=2026`),
+            fetch(`https://statsapi.mlb.com/api/v1/teams/${id}/roster?rosterType=40Man&season=2026`)
+          ]);
+          const activeData = activeRes.ok ? await activeRes.json() : {roster:[]};
+          const fullData = fullRes.ok ? await fullRes.json() : {roster:[]};
+          const activeNames = new Set((activeData.roster||[]).map(p => normName(p.person.fullName)));
+          activeSets[team] = activeNames;
+          // players on the 40-man but NOT on the active roster are typically IL/minors/inactive
+          injuredSets[team] = new Set(
+            (fullData.roster||[])
+              .map(p => normName(p.person.fullName))
+              .filter(n => !activeNames.has(n))
+          );
+        }catch(e){
+          activeSets[team] = null; // unknown — fetch failed for this team
+          injuredSets[team] = new Set();
+        }
+      }));
+      setStatus('ok');
+    }catch(e){
+      setStatus('fallback');
+    }
+    return {activeSets, injuredSets};
+  })();
+  return activeRosterPromise;
+}
+function applyActiveStatus(){ /* handled server-side now */ }
+function _legacyApplyActiveStatus(rosterData){
+  const {activeSets} = rosterData;
+  [...allBatters, ...allPitchers].forEach(p => {
+    const teamSet = activeSets[p.team];
+    if(teamSet === undefined || teamSet === null){
+      p.rosterStatus = 'unknown'; // couldn't verify — keep, don't falsely flag as out
+    } else if(teamSet.has(normName(p.name))){
+      p.rosterStatus = 'active';
+    } else {
+      p.rosterStatus = 'inactive'; // not on today's active roster — injured, optioned, or DFA'd
+    }
+  });
+}
+
+// One button now, so this only refreshes live data — there is no day to switch.
+document.getElementById('dayToggle').addEventListener('click', (e)=>{
+  if(!e.target.closest('button')) return;
+  refreshDayLabelsAndStaleness();
+  fetchLiveWeather().then(()=>{ rescoreAllPlayers(); renderList(); });
+  fetchLiveSchedule().then(ok=>{ if(ok){ rescoreAllPlayers(); renderList(); } });
+});
+
+const overlay = document.getElementById('modalOverlay');
+const modalBody = document.getElementById('modalBody');
+function pctl(val, max){ return Math.min(100, Math.round((val/max)*100)); }
+function closeModal(){ overlay.classList.remove('open'); }
+overlay.addEventListener('click', (e)=>{ if(e.target===overlay) closeModal(); });
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeModal(); });
+function wireTabs(playerName, player){
+  wireTabs._player = player;
+  modalBody.querySelectorAll('.tab').forEach(t=>{
+    t.addEventListener('click', ()=>{
+      modalBody.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      modalBody.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));
+      t.classList.add('active');
+      modalBody.querySelector(`.tab-content[data-panel="${t.dataset.tab}"]`).classList.add('active');
+      if(t.dataset.tab==='last10' && playerName) loadLast10(playerName, wireTabs._player);
+    });
+  });
+}
+async function loadLast10(name, p){
+  const container = document.getElementById('last10Container');
+  if(!container || container.dataset.loaded==='1') return;
+  try{
+    const games = await fetchLast10(name, p?.id);
+    if(!games.length){
+      container.innerHTML = `<div class="live-note err">No live game log rows found for ${name} yet this season.</div>`;
+      container.dataset.loaded = '1';
+      return;
+    }
+    const totalHR = games.reduce((s,g)=>s+g.hr,0);
+    const totalH = games.reduce((s,g)=>s+g.h,0);
+    const totalAB = games.reduce((s,g)=>s+g.ab,0);
+    const totalRBI = games.reduce((s,g)=>s+(g.rbi||0),0);
+    const ins = gameLogInsights(games);
+
+    // Bars are scaled to total bases so a HR game visibly towers over a single.
+    const tbOf = g => (g.h||0) + (g.hr||0)*3;   // rough: HR counts 4 TB
+    const maxTB = Math.max(...games.map(tbOf), 1);
+    const bars = games.map(g => {
+      const tb = tbOf(g);
+      const cls = g.hr>0 ? 'hr' : (g.h>0 ? '' : 'blank');
+      return `<div class="bcol" title="${g.date} vs ${g.opp}: ${g.h}-for-${g.ab}, ${g.hr} HR, ${g.rbi||0} RBI">
+        <div style="font-size:9px;color:var(--foul);min-height:11px;">${g.hr>0?'●'.repeat(Math.min(g.hr,3)):''}</div>
+        <div class="bfill ${cls}" style="height:${Math.max(4,(tb/maxTB)*100)}%;"></div>
+        <div class="blabel">${g.opp||''}</div>
+      </div>`;
+    }).join('');
+
+    container.innerHTML = `
+      <div class="live-note">● Live from MLB Stats API — most recent ${games.length} games</div>
+
+      <div class="section-mini">Consistency · how often he delivers</div>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="sv">${ins?ins.hitRate:'—'}%</div><div class="sl">Games with a hit</div><div class="sc">floor for hit props</div></div>
+        <div class="stat-box"><div class="sv">${ins?ins.multiHitRate:'—'}%</div><div class="sl">Multi-hit games</div><div class="sc">ceiling indicator</div></div>
+        <div class="stat-box"><div class="sv">${ins?ins.rbiRate:'—'}%</div><div class="sl">Games with an RBI</div></div>
+        <div class="stat-box"><div class="sv">${ins?ins.hrRate:'—'}%</div><div class="sl">Games with a HR</div></div>
+      </div>
+
+      <div class="chart-wrap">
+        <div class="chart-title">Total bases per game · dots mark home runs</div>
+        <div class="bar-chart">${bars}</div>
+        <div class="chart-legend">
+          <span><span class="legend-dot" style="background:var(--cool);"></span>Hit game</span>
+          <span><span class="legend-dot" style="background:var(--foul);"></span>HR game</span>
+          <span><span class="legend-dot" style="background:var(--line);"></span>Hitless</span>
+        </div>
+      </div>
+
+      <div class="section-mini">Totals over this span</div>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="sv">${totalHR}</div><div class="sl">HR</div></div>
+        <div class="stat-box"><div class="sv">${totalH}</div><div class="sl">Hits</div><div class="sc">${totalAB} AB</div></div>
+        <div class="stat-box"><div class="sv">${totalRBI}</div><div class="sl">RBI</div></div>
+        <div class="stat-box"><div class="sv">${totalAB ? (totalH/totalAB).toFixed(3).replace(/^0/,'') : '—'}</div><div class="sl">AVG</div>
+          <div class="sc">${p ? 'season .'+Math.round(p.avg*1000) : ''}</div></div>
+      </div>
+
+      <table class="gamelog-table">
+        <thead><tr><th>Date</th><th>Opp</th><th>AB</th><th>H</th><th>HR</th><th>RBI</th></tr></thead>
+        <tbody>${games.slice().reverse().map(g=>`<tr><td>${g.date}</td><td>${g.opp}</td><td>${g.ab}</td><td>${g.h}</td><td class="${g.hr>0?'hr-cell':''}">${g.hr}</td><td>${g.rbi ?? '—'}</td></tr>`).join('')}</tbody>
+      </table>
+    `;
+    container.dataset.loaded = '1';
+  }catch(e){
+    // Distinguish a genuine data gap (player not in the feed) from a code fault.
+    // Blaming the player name for what was actually a null DOM reference sent
+    // debugging in entirely the wrong direction once already.
+    const isDataGap = /player id not found|gameLog fetch failed|HTTP \d+/i.test(e.message);
+    if(isDataGap){
+      container.innerHTML = `<div class="live-note err">No game log available for "${name}" — this player may not be on a 2026 active roster in the MLB Stats API feed.</div>`;
+    } else {
+      console.error('[last10] unexpected error for', name, e);
+      container.innerHTML = `<div class="live-note err">Couldn't load the game log — this looks like an app error rather than missing data.<br><span style="font-family:'Space Mono',monospace;font-size:10.5px;">${e.message}</span><br>Details are in the browser console.</div>`;
+    }
+  }
+}
+// ============================================================================
+//  Player modal analytics — context that actually informs a prop decision
+// ============================================================================
+
+/** Where a value sits among tonight's hitters (0-100). Rank beats a raw number:
+ *  "12% barrel" means little until you know it's 88th percentile on this slate. */
+function slatePercentile(value, accessor){
+  if(value == null) return null;
+  const pool = allBatters.filter(isPlayable).map(accessor).filter(v=>v!=null && !Number.isNaN(v));
+  if(pool.length < 5) return null;
+  const below = pool.filter(v => v < value).length;
+  return Math.round((below / pool.length) * 100);
+}
+
+/** Rank within tonight's slate for a projection (1 = best). */
+function slateRank(p, key){
+  const pool = allBatters.filter(isPlayable).filter(x=>x[key]!=null).sort((a,b)=>b[key]-a[key]);
+  const i = pool.findIndex(x => x === p);
+  return i >= 0 ? { rank: i+1, of: pool.length } : null;
+}
+
+/** Platoon edge — the single biggest matchup swing in baseball. */
+function platoonEdge(p, pitcher){
+  const bat = (p.hand || '').toUpperCase();
+  const thr = (pitcher?.throws || '').toUpperCase();
+  if(!bat || !thr || bat === '?' || thr === '?') return null;
+  if(bat === 'S' || bat === 'B') return { label:'Switch hitter — always has the platoon edge', edge:'good' };
+  if(bat !== thr) return { label:`${bat}HB vs ${thr}HP — platoon advantage`, edge:'good' };
+  return { label:`${bat}HB vs ${thr}HP — same-side matchup`, edge:'bad' };
+}
+
+/** Consistency read from the live game log: floor vs ceiling matters for props. */
+function gameLogInsights(log){
+  if(!log || log.length < 3) return null;
+  const withAB = log.filter(x => (x.ab||0) > 0);
+  if(!withAB.length) return null;
+  const hitGames = withAB.filter(x => (x.h||0) > 0).length;
+  const multiHit = withAB.filter(x => (x.h||0) >= 2).length;
+  const hrGames  = withAB.filter(x => (x.hr||0) > 0).length;
+  const rbiGames = withAB.filter(x => (x.rbi||0) > 0).length;
+  const totAB = withAB.reduce((t,x)=>t+(x.ab||0),0);
+  const totH  = withAB.reduce((t,x)=>t+(x.h||0),0);
+  return {
+    games: withAB.length,
+    hitRate: Math.round(hitGames / withAB.length * 100),
+    multiHitRate: Math.round(multiHit / withAB.length * 100),
+    hrRate: Math.round(hrGames / withAB.length * 100),
+    rbiRate: Math.round(rbiGames / withAB.length * 100),
+    avg: totAB ? (totH/totAB) : null,
+  };
+}
+
+/** A horizontal percentile bar with the raw value alongside. */
+function pctlBarHTML(label, value, pctl, suffix=''){
+  const pct = pctl == null ? 0 : pctl;
+  const color = pct >= 75 ? 'var(--grass-bright)' : pct >= 45 ? '#f4c430' : 'var(--hot)';
+  return `<div class="pctl-row">
+    <div class="pctl-label">${label}</div>
+    <div class="pctl-bar"><div class="pctl-bar-fill" style="width:${pct}%;background:${color};"></div></div>
+    <div class="pctl-val">${value ?? '—'}${suffix}</div>
+    <div class="pctl-rank">${pctl != null ? pctl + 'th' : '—'}</div>
+  </div>`;
+}
+
+/** All six props at a glance, each with its slate rank. */
+// ============================================================================
+//  Matchup visualisations — arsenal, pitch-type performance, zone, batted balls
+// ============================================================================
+const PITCH_COLORS = {
+  FF:'#e0122e', FA:'#e0122e', SI:'#ff7043', FT:'#ff7043', FC:'#ffa726',
+  SL:'#42a5f5', ST:'#29b6f6', SV:'#26c6da', CU:'#7e57c2', KC:'#9575cd', CS:'#b39ddb',
+  CH:'#66bb6a', FS:'#26a69a', FO:'#26a69a', SC:'#8d6e63', KN:'#bdbdbd', EP:'#bdbdbd',
+};
+const PITCH_NAMES = {
+  FF:'4-Seam', FA:'Fastball', SI:'Sinker', FT:'2-Seam', FC:'Cutter',
+  SL:'Slider', ST:'Sweeper', SV:'Slurve', CU:'Curveball', KC:'Knuckle-Curve', CS:'Slow Curve',
+  CH:'Changeup', FS:'Splitter', FO:'Forkball', SC:'Screwball', KN:'Knuckleball', EP:'Eephus',
+};
+const pitchColor = c => PITCH_COLORS[c] || 'var(--mute)';
+const pitchName  = c => PITCH_NAMES[c] || c;
+
+/** Donut of the opposing starter's pitch mix, with a usage legend. */
+function arsenalDonutHTML(arsenal){
+  if(!arsenal || !arsenal.length) return '';
+  const R = 52, C = 62, circ = 2 * Math.PI * R;
+  let offset = 0;
+  const segs = arsenal.map(a => {
+    const frac = (a.usagePct ?? 0) / 100;
+    const seg = `<circle cx="${C}" cy="${C}" r="${R}" fill="none"
+      stroke="${pitchColor(a.code)}" stroke-width="18"
+      stroke-dasharray="${(circ*frac).toFixed(2)} ${(circ*(1-frac)).toFixed(2)}"
+      stroke-dashoffset="${(-circ*offset).toFixed(2)}"
+      transform="rotate(-90 ${C} ${C})"><title>${pitchName(a.code)} ${a.usagePct}%</title></circle>`;
+    offset += frac;
+    return seg;
+  }).join('');
+  const legend = arsenal.map(a => `
+    <div class="ars-row">
+      <span class="ars-swatch" style="background:${pitchColor(a.code)}"></span>
+      <span class="ars-name">${pitchName(a.code)}</span>
+      <span class="ars-usage">${a.usagePct ?? '—'}%</span>
+      <span class="ars-velo">${a.avgSpeed ? a.avgSpeed.toFixed(1)+' mph' : ''}</span>
+    </div>`).join('');
+  return `<div class="arsenal-wrap">
+    <svg class="arsenal-donut" viewBox="0 0 124 124">${segs}
+      <text x="${C}" y="${C-4}" text-anchor="middle" font-size="15" fill="var(--white)" font-family="Oswald, sans-serif">${arsenal.length}</text>
+      <text x="${C}" y="${C+9}" text-anchor="middle" font-size="7.5" fill="var(--mute)" font-family="monospace">PITCHES</text>
+    </svg>
+    <div class="arsenal-legend">${legend}</div>
+  </div>`;
+}
+
+/** How the hitter has performed against each pitch type he'll see tonight. */
+function pitchMatchupHTML(detail, arsenal){
+  const pt = detail?.pitchTypes;
+  if(!pt || !Object.keys(pt).length) return '';
+  const order = (arsenal || []).map(a => a.code).filter(Boolean);
+  const codes = Object.keys(pt).sort((a,b)=>{
+    const ia = order.indexOf(a), ib = order.indexOf(b);
+    if(ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    return (pt[b].seen||0) - (pt[a].seen||0);
+  }).slice(0, 7);
+  const maxEV = Math.max(...codes.map(c => pt[c].ev || 0), 95);
+  return `<div class="pmix-table">
+    <div class="pmix-head"><span>Pitch</span><span>Avg</span><span>Exit velo</span><span>Whiff%</span><span>HR</span></div>
+    ${codes.map(c=>{
+      const d = pt[c];
+      const inArsenal = order.includes(c);
+      const evPct = d.ev ? Math.max(4, ((d.ev - 70) / (maxEV - 70)) * 100) : 0;
+      return `<div class="pmix-row ${inArsenal?'faces-tonight':''}">
+        <span class="pmix-name"><span class="ars-swatch" style="background:${pitchColor(c)}"></span>${pitchName(c)}${inArsenal?'<b class="pmix-flag">•</b>':''}</span>
+        <span class="pmix-val">${d.avg != null ? d.avg.toFixed(3).replace(/^0/,'') : '—'}</span>
+        <span class="pmix-bar"><span class="pmix-bar-fill" style="width:${evPct}%;background:${pitchColor(c)}"></span><em>${d.ev ?? '—'}</em></span>
+        <span class="pmix-val">${d.whiffPct != null ? d.whiffPct+'%' : '—'}</span>
+        <span class="pmix-val">${d.hr ?? 0}</span>
+      </div>`;
+    }).join('')}
+    <div class="pmix-note">• marks a pitch tonight's starter actually throws</div>
+  </div>`;
+}
+
+/** Strike-zone heat map — Statcast zones 1-9, catcher's view. */
+function strikeZoneHTML(detail){
+  const z = detail?.zones;
+  if(!z || !Object.keys(z).length) return '';
+  const inZone = [1,2,3,4,5,6,7,8,9];
+  const vals = inZone.map(n => z[n]?.avg).filter(v => v != null);
+  if(!vals.length) return '';
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const shade = v => {
+    if(v == null) return 'rgba(255,255,255,.04)';
+    const t = hi === lo ? .5 : (v - lo) / (hi - lo);
+    return t > .66 ? `rgba(224,18,46,${.35 + t*.5})`
+         : t > .33 ? `rgba(244,196,48,${.25 + t*.4})`
+                   : `rgba(120,140,170,${.18 + (1-t)*.22})`;
+  };
+  const cell = n => {
+    const d = z[n] || {};
+    return `<div class="zone-cell" style="background:${shade(d.avg)}" title="Zone ${n}: ${d.hits||0}-for-${d.abs||0}${d.ev?', '+d.ev+' mph':''}">
+      <span class="zone-avg">${d.avg != null ? d.avg.toFixed(3).replace(/^0/,'') : '–'}</span>
+      <span class="zone-sub">${d.ev ? d.ev : ''}</span>
+    </div>`;
+  };
+  const chase = [11,12,13,14].map(n => z[n]).filter(Boolean);
+  const chaseAvg = chase.length
+    ? (chase.reduce((t,d)=>t+(d.hits||0),0) / Math.max(1, chase.reduce((t,d)=>t+(d.abs||0),0)))
+    : null;
+  return `<div class="zone-wrap">
+    <div class="zone-grid-outer">
+      <div class="zone-grid">${inZone.map(cell).join('')}</div>
+      <div class="zone-label-top">↑ up in the zone</div>
+      <div class="zone-label-bottom">↓ down in the zone</div>
+    </div>
+    <div class="zone-side">
+      <div class="zone-legend">
+        <span><i style="background:rgba(224,18,46,.7)"></i>Hot</span>
+        <span><i style="background:rgba(244,196,48,.6)"></i>Average</span>
+        <span><i style="background:rgba(120,140,170,.4)"></i>Cold</span>
+      </div>
+      <div class="zone-stat"><b>${chaseAvg != null ? chaseAvg.toFixed(3).replace(/^0/,'') : '—'}</b><span>outside the zone</span></div>
+      <div class="zone-note">Batting average by location, catcher's view. Big number is AVG, small is exit velo.</div>
+    </div>
+  </div>`;
+}
+
+/** EV vs launch-angle scatter, highlighting balls hit off this handedness. */
+function battedBallScatterHTML(detail, opposingHand){
+  const pts = detail?.battedBalls?.filter(b => b.ev != null && b.la != null) || [];
+  if(pts.length < 5) return '';
+  const W = 300, H = 190, PAD = 26;
+  const x = ev => PAD + ((Math.min(Math.max(ev,60),120) - 60) / 60) * (W - PAD*2);
+  const y = la => H - PAD - ((Math.min(Math.max(la,-40),60) + 40) / 100) * (H - PAD*2);
+  const barrel = `<path d="M ${x(98)},${y(26)} L ${x(120)},${y(50)} L ${x(120)},${y(8)} L ${x(98)},${y(24)} Z"
+     fill="rgba(224,18,46,.14)" stroke="rgba(224,18,46,.4)" stroke-width="1"/>`;
+  const dots = pts.map(b=>{
+    const matches = opposingHand && b.hand === opposingHand;
+    const isHR = b.result === 'home_run';
+    return `<circle cx="${x(b.ev).toFixed(1)}" cy="${y(b.la).toFixed(1)}"
+      r="${isHR ? 4.5 : matches ? 3.4 : 2.4}"
+      fill="${isHR ? 'var(--foul)' : matches ? 'rgba(224,18,46,.75)' : 'rgba(154,132,132,.45)'}"
+      stroke="${isHR ? '#fff' : 'none'}" stroke-width="${isHR ? .8 : 0}">
+      <title>${b.ev} mph, ${b.la}° vs ${b.hand}HP${b.dist?` · ${b.dist} ft`:''}</title></circle>`;
+  }).join('');
+  const vsHand = opposingHand ? pts.filter(b => b.hand === opposingHand) : [];
+  const avgEV = a => a.length ? (a.reduce((t,b)=>t+b.ev,0)/a.length).toFixed(1) : '—';
+  return `<div class="scatter-wrap">
+    <svg class="scatter" viewBox="0 0 ${W} ${H}">
+      <line x1="${PAD}" y1="${H-PAD}" x2="${W-PAD}" y2="${H-PAD}" stroke="var(--line)"/>
+      <line x1="${PAD}" y1="${PAD}" x2="${PAD}" y2="${H-PAD}" stroke="var(--line)"/>
+      <line x1="${PAD}" y1="${y(0)}" x2="${W-PAD}" y2="${y(0)}" stroke="var(--line)" stroke-dasharray="3 3" opacity=".6"/>
+      ${barrel}${dots}
+      <text x="${W/2}" y="${H-6}" text-anchor="middle" font-size="8.5" fill="var(--mute)" font-family="monospace">EXIT VELOCITY (mph)</text>
+      <text x="9" y="${H/2}" text-anchor="middle" font-size="8.5" fill="var(--mute)" font-family="monospace" transform="rotate(-90 9 ${H/2})">LAUNCH ANGLE</text>
+    </svg>
+    <div class="scatter-legend">
+      <span><i style="background:var(--foul)"></i>Home run</span>
+      ${opposingHand?`<span><i style="background:rgba(224,18,46,.75)"></i>vs ${opposingHand}HP (${vsHand.length})</span>`:''}
+      <span><i style="background:rgba(154,132,132,.45)"></i>Other</span>
+      <span class="scatter-shade">shaded = barrel zone</span>
+    </div>
+    ${opposingHand?`<div class="zone-note">Avg exit velo vs ${opposingHand}HP: <b style="color:var(--white)">${avgEV(vsHand)} mph</b> · overall ${avgEV(pts)} mph</div>`:''}
+  </div>`;
+}
+
+/** Season platoon splits, with tonight's relevant row highlighted. */
+function platoonSplitHTML(p, pitcher){
+  const hs = p.splits;
+  if(!hs) return '';
+  const hand = (pitcher?.throws || '').toUpperCase();
+  const relevant = hand === 'L' ? 'vsLHP' : hand === 'R' ? 'vsRHP' : null;
+  const row = (label, d, hi) => d ? `
+    <div class="split-row ${hi?'is-relevant':''}">
+      <span class="split-label">${label}${hi?' <b>← tonight</b>':''}</span>
+      <span class="split-stat">${d.avg != null ? d.avg.toFixed(3).replace(/^0/,'') : '—'}</span>
+      <span class="split-stat">${d.slg != null ? d.slg.toFixed(3).replace(/^0/,'') : '—'}</span>
+      <span class="split-stat">${d.ops != null ? d.ops.toFixed(3).replace(/^0/,'') : '—'}</span>
+      <span class="split-stat">${d.hr ?? '—'}</span>
+      <span class="split-stat">${d.pa ?? '—'}</span>
+    </div>` : '';
+  return `<div class="split-table">
+    <div class="split-row split-head"><span class="split-label">Hitter splits</span><span>AVG</span><span>SLG</span><span>OPS</span><span>HR</span><span>PA</span></div>
+    ${row('vs LHP', hs.vsLHP, relevant === 'vsLHP')}
+    ${row('vs RHP', hs.vsRHP, relevant === 'vsRHP')}
+  </div>`;
+}
+
+// ============================================================================
+//  BETSLIP
+// ----------------------------------------------------------------------------
+//  Collects picks, then hands them off to Gambly.
+//
+//  IMPORTANT: Gambly publishes no public API or deep-link URL format — their
+//  one-click betslips are generated internally. Inventing a URL here would
+//  produce links that silently fail. What IS supported is GamblyBot's natural
+//  language parsing (chat, X, Discord, Telegram, iMessage), so the slip exports
+//  as a clean bet description in the phrasing their bot expects.
+// ============================================================================
+let betslip = [];
+
+function loadBetslip(){
+  try{
+    const raw = store.get('dw_betslip');
+    betslip = raw ? JSON.parse(raw) : [];
+  }catch{ betslip = []; }
+}
+function saveBetslip(){
+  try{ store.set('dw_betslip', JSON.stringify(betslip.slice(0, 40))); }catch{}
+}
+
+/** Stable identity for a pick, so the same leg can't be added twice. */
+const fmtAmerican = p => p == null ? '' : (p > 0 ? `+${p}` : `${p}`);
+
+/** Prop key used by the odds fetcher, per app tab. */
+const ODDS_KEY = { hr:'hr', hits:'hits', tb:'tb', rbi:'rbi', hrr:null, sb:'sb', runs:'runs' };
+
+/**
+ * Best available offer for a player's prop, if the odds step has run.
+ * Returns null when unpriced, which every caller must handle — bench players
+ * and short-notice callups frequently have no market.
+ */
+/**
+ * Compact matchup line for the bottom of a card: batter's hand vs the
+ * opposing starter's hand, plus that batter's season line against that
+ * handedness. Pulls from `p.splits` (vs LHP / vs RHP season splits) rather
+ * than head-to-head at-bats — real head-to-head samples are almost always too
+ * small to mean anything, while the platoon split is the number that
+ * genuinely predicts tonight's matchup.
+ */
+function matchupFooterHTML(p){
+  const bat = (p.hand || '').toUpperCase();
+  const sp = p.oppPitcher || {};
+  const thr = (sp.throws || '').toUpperCase();
+  if(!bat && !thr) return '';
+
+  const batLabel = bat === 'S' ? 'Switch' : bat ? `${bat}HB` : '?';
+  const thrLabel = thr ? `${thr}HP` : '?';
+  const edge = (!bat || !thr || bat === '?' || thr === '?') ? 'neu'
+             : bat === 'S' ? 'good'
+             : bat !== thr ? 'good' : 'bad';
+
+  const h2h = p.vsPitcher;   // real career AB vs THIS specific starter
+
+  let statLine, sourceNote;
+  if(h2h && h2h.pa){
+    // What was asked for: this batter against this pitcher, specifically.
+    statLine = `<span class="mf-stat">${h2h.h ?? 0}-for-${h2h.ab ?? 0}</span>
+      <span class="mf-stat">.${String(Math.round((h2h.avg??0)*1000)).padStart(3,'0')} AVG</span>
+      <span class="mf-stat">${h2h.hr ?? 0} HR</span>
+      <span class="mf-stat">${h2h.bb ?? 0} BB</span>
+      <span class="mf-stat">${h2h.so ?? 0} K</span>
+      <span class="mf-stat mf-pa">${h2h.pa} career PA</span>`;
+    sourceNote = h2h.pa < 10
+      ? '<span class="mf-tiny">small sample</span>'   // honest about a 3-AB history
+      : '';
+  } else if(!sp.name || sp.announced === false){
+    statLine = `<span class="mf-stat mf-none">starter not yet announced</span>`;
+    sourceNote = '';
+  } else {
+    statLine = `<span class="mf-stat mf-none">no prior at-bats vs ${thrLabel==='?'?'this pitcher':sp.name.split(' ').slice(-1)[0]}</span>`;
+    sourceNote = '';
+  }
+
+  return `<div class="matchup-foot mf-${edge}">
+    <div class="mf-hands">
+      <span class="mf-side">${p.name.split(' ').slice(-1)[0]} <b>${batLabel}</b></span>
+      <span class="mf-vs">vs</span>
+      <span class="mf-side">${sp.name ? sp.name.split(' ').slice(-1)[0] : 'SP'} <b>${thrLabel}</b></span>
+      ${sourceNote}
+    </div>
+    <div class="mf-stats">${statLine}</div>
+  </div>`;
+}
+
+function propOdds(p, prop){
+  const k = ODDS_KEY[prop];
+  if(!k || !p.odds || !p.odds[k]) return null;
+  return p.odds[k];
+}
+
+// ---------------------------------------------------------------- watchlist
+let watchedPlayerIds = new Set();
+
+function isWatched(playerId){ return watchedPlayerIds.has(playerId); }
+
+/** Loaded once per sign-in; kept in sync locally as the user toggles stars. */
+async function loadWatchlistCache(){
+  const s = social();
+  if(!s || !s.socialEnabled() || !s.getUser?.()) { watchedPlayerIds = new Set(); return; }
+  const rows = await s.getWatchlist();
+  watchedPlayerIds = new Set(rows.map(r => r.player_id));
+}
+
+/** The star. `p` needs id, name, team — same shape every card already has. */
+function watchStarHTML(p){
+  const on = isWatched(p.id);
+  return `<button class="watch-star ${on?'active':''}" data-pid="${p.id}"
+    data-pname="${escapeHTML(p.name)}" data-pteam="${escapeHTML(p.team||'')}"
+    title="${on ? 'Remove from watch list' : 'Watch — get notified when he bats'}">★</button>`;
+}
+
+/** Repaint every star for one player currently on screen (card + modal, if open). */
+function syncWatchStars(playerId){
+  document.querySelectorAll(`.watch-star[data-pid="${playerId}"]`).forEach(btn => {
+    const on = isWatched(playerId);
+    btn.classList.toggle('active', on);
+    btn.title = on ? 'Remove from watch list' : 'Watch — get notified when he bats';
+  });
+}
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest?.('.watch-star');
+  if(!btn) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const s = social();
+  if(!s?.getUser?.()){ promptSignIn(); return; }
+
+  const pid = +btn.dataset.pid;
+  const player = { id: pid, name: btn.dataset.pname, team: btn.dataset.pteam };
+
+  (async () => {
+    if(isWatched(pid)){
+      watchedPlayerIds.delete(pid);      // optimistic — feels instant
+      syncWatchStars(pid);
+      const res = await s.removeFromWatchlist(pid);
+      if(res?.error){ watchedPlayerIds.add(pid); syncWatchStars(pid); }
+    } else {
+      watchedPlayerIds.add(pid);
+      syncWatchStars(pid);
+      const res = await s.addToWatchlist(player);
+      if(res?.error){ watchedPlayerIds.delete(pid); syncWatchStars(pid); }
+    }
+  })();
+}, true);
+
+const legId = (player, market, line) => `${player}|${market}|${line}`;
+const inSlip = id => betslip.some(l => l.id === id);
+
+function toggleLeg(leg){
+  const i = betslip.findIndex(l => l.id === leg.id);
+  if(i > -1) betslip.splice(i, 1);
+  else betslip.push(leg);
+  saveBetslip();
+  renderBetslipBar();
+  syncAddButtons();
+  return i === -1;   // true when added
+}
+
+/** Reflect slip membership on every visible + button without a full re-render. */
+function syncAddButtons(){
+  document.querySelectorAll('.add-leg').forEach(btn => {
+    const on = inSlip(btn.dataset.legid);
+    btn.classList.toggle('in-slip', on);
+    btn.textContent = on ? '✓' : '+';
+    btn.title = on ? 'Remove from slip' : 'Add to slip';
+  });
+}
+
+/** The + control. Rendered anywhere a pick can be made. */
+function addLegBtn(leg, label){
+  const on = inSlip(leg.id);
+  // Over/under pairs need a label; a lone control just shows +.
+  const face = on ? '✓' : (label || '+');
+  const what = leg.kind === 'firstinning'
+    ? `1st inning ${leg.side} ${leg.line} — ${leg.game}`
+    : `${leg.player} ${leg.market} over ${leg.line}`;
+  return `<button class="add-leg ${on?'in-slip':''} ${label?'labelled':''}" data-legid="${leg.id}"
+    data-leg="${encodeURIComponent(JSON.stringify(leg))}"
+    title="${on?'Remove from slip: ':'Add to slip: '}${what}">${face}</button>`;
+}
+
+/**
+ * Delegated click handling — survives every re-render.
+ *
+ * Registered in the CAPTURE phase (the trailing `true`). A listener on document
+ * during bubbling runs LAST, after the card's own handler has already opened the
+ * modal, so stopPropagation there is too late. Capturing lets us intercept the
+ * click on the way down and stop it before any card sees it.
+ */
+document.addEventListener('click', e => {
+  const btn = e.target.closest?.('.add-leg');
+  if(!btn) return;
+  e.stopPropagation();          // don't also open the player modal
+  e.preventDefault();
+  try{ toggleLeg(JSON.parse(decodeURIComponent(btn.dataset.leg))); }
+  catch(err){ console.warn('[betslip] bad leg payload', err); }
+}, true);
+
+/** One line of natural language per leg, in the phrasing GamblyBot parses. */
+function legToText(l){
+  if(l.kind === 'firstinning'){
+    return `${l.game} first inning ${l.side} ${l.line} runs`;
+  }
+  return `${l.player} ${l.market} over ${l.line}`;
+}
+
+function betslipText(){
+  if(!betslip.length) return '';
+  const legs = betslip.map(legToText);
+  const head = legs.length === 1
+    ? 'Find me the best odds on '
+    : `Build me a ${legs.length}-leg parlay with `;
+  return head + legs.join(', ') + '.';
+}
+
+function renderBetslipBar(){
+  let bar = document.getElementById('betslipBar');
+  if(!betslip.length){ if(bar) bar.remove(); return; }
+  if(!bar){
+    bar = document.createElement('div');
+    bar.id = 'betslipBar';
+    bar.className = 'betslip-bar';
+    document.body.appendChild(bar);
+  }
+  const priced = betslip.filter(l => l.link).length;
+  const legs = betslip.map((l,i) => `
+    <div class="bs-leg">
+      <span class="bs-leg-txt">${legToText(l)}</span>
+      ${l.price != null ? `<span class="bs-price">${fmtAmerican(l.price)}</span>` : '<span class="bs-price unpriced">no line</span>'}
+      <button class="bs-remove" data-i="${i}" title="Remove">&times;</button>
+    </div>`).join('');
+
+  bar.innerHTML = `
+    <div class="bs-head" id="bsHead">
+      <span class="bs-count">${betslip.length}</span>
+      <span class="bs-title">Bet slip</span>
+      <span class="bs-toggle">${betslipOpen ? '▾' : '▴'}</span>
+    </div>
+    <div class="bs-body ${betslipOpen?'open':''}">
+      <div class="bs-legs">${legs}</div>
+      <div class="bs-note" id="bsNote">${priced === betslip.length && priced > 0
+        ? 'Every leg has a live line — this opens the betslip already loaded.'
+        : priced > 0
+          ? `${priced} of ${betslip.length} legs have live lines; the rest will be skipped.`
+          : 'No live lines in this slate. Run fetch-odds.js for one-tap betslips.'}</div>
+      <div class="bs-actions">
+        <button class="bs-btn primary" id="bsBuild">${priced ? 'Place bet' : 'Send picks'}</button>
+        <button class="bs-btn" id="bsText">Text GamblyBot</button>
+        <button class="bs-btn ghost" id="bsClear">Clear</button>
+      </div>
+    </div>`;
+
+  document.getElementById('bsHead').onclick = () => {
+    betslipOpen = !betslipOpen;
+    renderBetslipBar();
+  };
+  bar.querySelectorAll('.bs-remove').forEach(b => b.onclick = ev => {
+    ev.stopPropagation();
+    betslip.splice(+b.dataset.i, 1);
+    saveBetslip(); renderBetslipBar(); syncAddButtons();
+  });
+  /**
+   * Place the slip.
+   *
+   * When the odds step has run, each leg carries a sportsbook deep link that
+   * opens the bet already loaded — no assistant, no copy/paste, no round trip.
+   *
+   * Sportsbooks accept one selection per addToBetslip URL, so a parlay opens
+   * a tab per leg. They land in the same betslip because the book keeps slip
+   * state server-side per session. A single-leg slip is therefore a true
+   * one-tap bet, and a parlay is one tap per leg.
+   */
+  const buildBtn = document.getElementById('bsBuild');
+  if(buildBtn) buildBtn.onclick = async () => {
+    const note = document.getElementById('bsNote');
+    const withLinks = betslip.filter(l => l.link);
+    const noLinks   = betslip.filter(l => !l.link);
+
+    if(withLinks.length){
+      // Open the first immediately — inside the click handler, so it is never
+      // treated as an unsolicited popup. Stagger the rest slightly.
+      window.open(withLinks[0].link, '_blank', 'noopener');
+      withLinks.slice(1).forEach((l, i) => setTimeout(() => window.open(l.link, '_blank', 'noopener'), (i + 1) * 350));
+
+      buildBtn.textContent = withLinks.length > 1 ? `Opening ${withLinks.length} legs…` : 'Opened ✓';
+      setTimeout(()=>{ buildBtn.textContent = 'Place bet'; }, 2600);
+
+      if(note){
+        note.textContent = withLinks.length > 1
+          ? `${withLinks.length} tabs opened — each leg loads into the same betslip at ${withLinks[0].book}. Allow popups if some are blocked.`
+          : `Loaded at ${withLinks[0].book}. Review the stake and confirm.`;
+        if(noLinks.length) note.textContent += ` ${noLinks.length} leg(s) had no market and were skipped.`;
+      }
+      return;
+    }
+
+    // Nothing priced: fall back to the text handoff.
+    const txt = betslipText();
+    let copied = false;
+    try{ await navigator.clipboard.writeText(txt); copied = true; }catch{}
+    const win = window.open('https://gambly.com/chat?q=' + encodeURIComponent(txt), '_blank', 'noopener');
+    if(note){
+      note.innerHTML = win
+        ? 'No live prices in this slate yet, so these picks were sent as text.' +
+          (copied ? ' They are also on your clipboard — paste if the box is empty.' : '') +
+          '<br><span style="color:var(--warm)">Run fetch-odds.js to enable one-tap betslips.</span>'
+        : '<b style="color:var(--hot)">Popup blocked.</b> Allow popups for this site.';
+    }
+  };
+
+  const textBtn = document.getElementById('bsText');
+  if(textBtn) textBtn.onclick = () => {
+    const body = encodeURIComponent('GamblyBot ' + betslipText());
+    window.location.href = `sms:+13058572288${/iPhone|iPad|Mac/.test(navigator.userAgent) ? '&' : '?'}body=${body}`;
+  };
+
+  const clearBtn = document.getElementById('bsClear');
+  if(clearBtn) clearBtn.onclick = () => { betslip = []; saveBetslip(); renderBetslipBar(); syncAddButtons(); };
+}
+let betslipOpen = false;
+
+// ============================================================================
+//  MONTE CARLO — per-prop probabilities, p50, and ceiling
+// ----------------------------------------------------------------------------
+//  Point estimates ("1.04 projected hits") can't answer the question that
+//  actually matters for a prop: what are the odds he clears 0.5, or 1.5? Those
+//  need a distribution, so we simulate the night's plate appearances thousands
+//  of times and count outcomes.
+//
+//  Each PA resolves to exactly one outcome via a cumulative draw, using rates
+//  derived from the player's season line adjusted for tonight's matchup. That
+//  keeps outcomes mutually exclusive — a common way these models go wrong is
+//  rolling each event independently and letting a single PA be both a single
+//  and a homer.
+// ============================================================================
+
+/** Per-PA outcome rates for tonight, from season rates × matchup adjustments. */
+function paRates(p){
+  const g = p.game;
+  const pa = Math.max(1, p.pa || 1);
+
+  /**
+   * Regress every per-PA rate toward league average by sample size.
+   *
+   * This is the number that actually drives the rankings — hrIndex only scales
+   * it afterwards. Previously these came straight from raw season totals, so a
+   * callup with 5 HR in 60 PA showed an 8.3% per-PA home run rate (2.6x league)
+   * and outranked established sluggers no matter how the model weights were
+   * tuned. Regressing here is what fixes that; regressing the derived Statcast
+   * alone could not.
+   */
+  const R = MODEL.regression;
+  const w = pa / (pa + R.regressionPA);        // 0 = all league, 1 = all player
+  const reg = (rate, leagueRate) => rate * w + leagueRate * (1 - w);
+
+  // League-average per-PA baselines, used as the regression target.
+  const LG = R.leagueRates;
+
+  const bb   = reg((p.bb ?? 0) / pa,  LG.bb);
+  const k    = reg((p.so ?? 0) / pa,  LG.k);
+  const hr   = reg((p.hr ?? 0) / pa,  LG.hr);
+  const dbl  = reg((p.doubles ?? 0) / pa, LG.dbl);
+  const trp  = reg((p.triples ?? 0) / pa, LG.trp);
+  const hits = reg((p.h ?? 0) / pa,   LG.hits);
+  const sgl  = Math.max(0, hits - hr - dbl - trp);
+
+  // Tonight's environment. hrIndex already folds in park, weather, barrel
+  // quality and the pitcher's HR tendency, so use it as the HR multiplier
+  // rather than re-deriving those factors and double-counting them.
+  const hrMult = clamp((p.hrIndex ?? 50) / 50, 0.45, 2.10);
+
+  // Extra-base hits move with the park too, but less sharply than homers.
+  const parkXB = 1 + ((g.parkFactor - 100) / 100) * 0.35;
+
+  // Strikeouts scale with the opposing starter relative to league average.
+  const kMult = clamp((p.oppPitcher?.k9 ?? 8.8) / 8.8, 0.75, 1.35);
+
+  let rHR  = hr * hrMult;
+  let rDbl = dbl * parkXB;
+  let rTrp = trp * parkXB;
+  let rSgl = sgl;
+  let rBB  = bb;
+  let rK   = k * kMult;
+
+  // Everything left over is a non-strikeout out.
+  const used = rHR + rDbl + rTrp + rSgl + rBB + rK;
+  if(used >= 0.98){                       // renormalise if adjustments overshoot
+    const scale = 0.98 / used;
+    rHR*=scale; rDbl*=scale; rTrp*=scale; rSgl*=scale; rBB*=scale; rK*=scale;
+  }
+  const rOut = Math.max(0.02, 1 - (rHR + rDbl + rTrp + rSgl + rBB + rK));
+
+  return { hr:rHR, dbl:rDbl, trp:rTrp, sgl:rSgl, bb:rBB, k:rK, out:rOut };
+}
+
+/**
+ * Simulate the game SIM_RUNS times. Returns, for every prop, the share of
+ * simulations clearing each line plus the median and 90th-percentile outcome.
+ */
+function simulatePlayer(p){
+  if(p._sim) return p._sim;                       // cached per scoring pass
+
+  const r = paRates(p);
+  // Cumulative thresholds — one draw picks exactly one outcome.
+  const cHR = r.hr, cDbl = cHR + r.dbl, cTrp = cDbl + r.trp,
+        cSgl = cTrp + r.sgl, cBB = cSgl + r.bb, cK = cBB + r.k;
+
+  const expPA = p.expPA || 4.3;
+  // RBI opportunity. Homers are handled separately below, so this rate covers
+  // only non-HR run production — otherwise the HR-driven RBI get counted twice
+  // and the season total no longer reconciles.
+  const hrRbi = (p.hr ?? 0) * 1.6;                       // ~1.6 RBI per homer
+  const nonHrRbi = Math.max(0, (p.rbi ?? 0) - hrRbi);
+  // Every ball in play is an RBI chance — hits, sac flies, fielder's choices
+  // and productive groundouts all drive runs in.
+  const ballsInPlay = Math.max(1, (p.ab ?? p.pa ?? 1) - (p.so ?? 0));
+  let rbiRate = p.g ? clamp(nonHrRbi / ballsInPlay, 0.02, 0.40) : 0.12;
+  // Runners-on context varies enormously by lineup slot; the 3-4-5 hitters bat
+  // with men aboard far more than the bottom of the order.
+  const rbiSlot = p.battingOrder ? (MODEL.order.rbiMult[p.battingOrder - 1] ?? 1) : 1;
+  rbiRate = clamp(rbiRate * rbiSlot * 1.35, 0.02, 0.45);
+  const runRate = p.g ? (p.r   ?? 0) / p.g / expPA : 0.13;
+  const sbPerG  = p.projSB ?? 0;
+
+  const tally = { hr:[], hits:[], tb:[], rbi:[], runs:[], sb:[], sgl:[], dbl:[], hrr:[] };
+
+  for(let i = 0; i < SIM_RUNS; i++){
+    // Plate appearances vary game to game; a lineup can turn over an extra time.
+    const pa = Math.random() < (expPA % 1) ? Math.ceil(expPA) : Math.floor(expPA);
+    let hr=0, h=0, tb=0, rbi=0, runs=0, sgl=0, dbl=0;
+
+    for(let a = 0; a < pa; a++){
+      const roll = Math.random();
+      let hadHR = false;
+      if(roll < cHR)      { hr++; h++; tb+=4; runs++; hadHR = true; }  // his own HR scores him
+      else if(roll < cDbl){ h++; tb+=2; dbl++; }
+      else if(roll < cTrp){ h++; tb+=3; }
+      else if(roll < cSgl){ h++; tb+=1; sgl++; }
+      else if(roll < cBB) { /* walk — no AB, no TB */ }
+      else if(roll < cK)  { /* strikeout */ }
+
+      // Driving in other runners, and scoring after reaching base.
+      if(roll >= cHR && roll < cBB){                 // reached base, not via HR
+        if(Math.random() < runRate * 2.2) runs++;
+      }
+      // A homer always drives in at least himself; additional RBI depend on
+      // runners aboard. Non-HR plate appearances use the base RBI rate.
+      if(hadHR){
+        rbi += 1 + (Math.random() < 0.55 ? 1 : 0);   // ~1.6 RBI per HR league-wide
+      } else if(roll < cSgl){
+        // Extra-base hits clear the bases more often than singles.
+        const xbh = roll >= cHR && roll < cTrp;
+        if(Math.random() < rbiRate * (xbh ? 1.5 : 1)) rbi += (Math.random() < 0.25 ? 2 : 1);
+      } else if(roll >= cK){
+        // Outs in play — sac flies and RBI groundouts.
+        if(Math.random() < rbiRate * 0.55) rbi++;
+      }
+    }
+
+    const sb = Math.random() < sbPerG ? 1 : 0;
+    tally.hr.push(hr); tally.hits.push(h); tally.tb.push(tb);
+    tally.rbi.push(rbi); tally.runs.push(runs); tally.sb.push(sb);
+    tally.sgl.push(sgl); tally.dbl.push(dbl);
+    tally.hrr.push(h + runs + rbi);
+  }
+
+  const pct = (arr, line) => Math.round(100 * arr.filter(v => v > line).length / arr.length);
+  const quant = (arr, q) => { const s=[...arr].sort((a,b)=>a-b); return s[Math.floor(q*(s.length-1))]; };
+  const stat = (arr, line) => ({ pct: pct(arr, line), p50: quant(arr,0.5), ceiling: quant(arr,0.9) });
+
+  p._sim = {
+    hr:      stat(tally.hr, 0.5),
+    hits05:  stat(tally.hits, 0.5),
+    hits15:  stat(tally.hits, 1.5),
+    singles: stat(tally.sgl, 0.5),
+    doubles: stat(tally.dbl, 0.5),
+    runs:    stat(tally.runs, 0.5),
+    rbi:     stat(tally.rbi, 0.5),
+    tb15:    stat(tally.tb, 1.5),
+    tb25:    stat(tally.tb, 2.5),
+    hrr15:   stat(tally.hrr, 1.5),
+    hrr25:   stat(tally.hrr, 2.5),
+    sb:      stat(tally.sb, 0.5),
+    rates: r,
+  };
+  return p._sim;
+}
+
+/**
+ * Grade cutoffs per prop, calibrated to the real spread across a full slate:
+ *   elite ≈ 90th percentile, good ≈ 75th, fair ≈ 50th.
+ * Anchoring to the distribution is what makes an A+ mean something — a fixed
+ * threshold below the median grades the whole slate A+.
+ */
+/**
+ * Grading. Two modes, switchable in model-config.json:
+ *
+ *   MODEL.grading.mode = 'percentile'  (default)
+ *     A player's grade depends on where he RANKS among tonight's hitters for
+ *     that prop. The share of the slate earning each letter is fixed by
+ *     MODEL.grading.percentiles, so "A+" always means "top N%" no matter how
+ *     hot or cold the overall slate is.
+ *
+ *   MODEL.grading.mode = 'absolute'
+ *     Grades come from fixed probability thresholds in MODEL.grading.cuts.
+ *     An A+ then means "cleared this number", which can grade the whole slate
+ *     A+ on a good night and nobody on a bad one.
+ *
+ * Percentile mode is the default because it does what you actually want from a
+ * grade: separate tonight's best plays from the rest.
+ */
+
+/** Cache of sorted slate values per prop, rebuilt whenever scores change. */
+let _gradeDist = {};
+function gradeDistribution(prop){
+  if(_gradeDist[prop]) return _gradeDist[prop];
+  const key = (TAB_SIM[prop] || {}).key || prop;
+  const vals = allBatters.filter(isPlayable)
+    .map(p => { const s = simulatePlayer(p); return s[key] ? s[key].pct : null; })
+    .filter(v => v != null)
+    .sort((a, b) => a - b);
+  _gradeDist[prop] = vals;
+  return vals;
+}
+function invalidateGradeCache(){ _gradeDist = {}; }
+
+/**
+ * Runs every batter's 10,000-iteration simulation upfront, at load, instead
+ * of lazily on first click of a prop tab. That moves the ~1-3s cost from "the
+ * first tab you tap after the page looks ready" to "before the page looks
+ * ready at all" — worse for time-to-first-paint, better for every interaction
+ * afterward, which is the trade being made here deliberately.
+ *
+ * Chunked rather than one giant synchronous loop: simulating 10,000 draws for
+ * 60+ players back-to-back would monopolize the main thread long enough to
+ * freeze the loading animation itself, which would look broken rather than
+ * reassuring. Yielding every few players keeps the animation rendering
+ * smoothly throughout.
+ */
+async function primeAllSimulations(){
+  const batters = allBatters.filter(isPlayable);
+  const CHUNK = 4;
+  const sub = document.getElementById('lsSub');
+
+  for(let i = 0; i < batters.length; i += CHUNK){
+    const chunk = batters.slice(i, i + CHUNK);
+    for(const p of chunk) simulatePlayer(p);   // populates p._sim
+    if(sub) sub.textContent = `Simulating ${Math.min(i + CHUNK, batters.length)} of ${batters.length} players…`;
+    // Yield back to the browser so the CSS animation keeps painting and the
+    // tab doesn't appear to hang during the heaviest part of load.
+    await new Promise(r => setTimeout(r, 0));
+  }
+}
+
+function hideLoadSplash(){
+  const el = document.getElementById('loadSplash');
+  if(!el) return;
+  el.classList.add('fading');
+  setTimeout(() => el.remove(), 400);
+}
+
+/** Share of the slate scoring at or below this value. */
+function percentileOf(prop, pct){
+  const vals = gradeDistribution(prop);
+  if(vals.length < 8) return null;              // too few to rank meaningfully
+  let below = 0;
+  for(const v of vals){ if(v < pct) below++; else break; }
+  return (below / vals.length) * 100;
+}
+
+// Grades are percentile-only now — a player's letter depends on where he
+// RANKS among tonight's hitters for that prop, not a fixed probability
+// threshold. This tiny table is a SAFETY NET, not a second grading system:
+// it only ever fires when a slate is too small to rank meaningfully (a
+// 2-3 game night), and it lives in code rather than model-config.json on
+// purpose, so the config file only ever presents the one real system to tune.
+const SMALL_SLATE_FALLBACK_CUTS = { e: 60, g: 45, f: 30 };
+
+const gradeFor = (prop, pct) => {
+  const G = MODEL.grading;
+  const pctl = percentileOf(prop, pct);
+
+  if(pctl != null){
+    // Per-prop overrides layer on top of the global block, so you can make
+    // one prop stricter without touching the others. Any letter left out of
+    // an override falls back to the global value.
+    const P = { ...G.percentiles, ...((G.byProp || {})[prop] || {}) };
+    if(pctl >= P.aPlus) return { g:'A+', cls:'grade-a' };
+    if(pctl >= P.a)     return { g:'A',  cls:'grade-a' };
+    if(pctl >= P.bPlus) return { g:'B+', cls:'grade-b' };
+    if(pctl >= P.b)     return { g:'B',  cls:'grade-b' };
+    if(pctl >= P.cPlus) return { g:'C+', cls:'grade-c' };
+    if(pctl >= P.c)     return { g:'C',  cls:'grade-c' };
+    return { g:'D', cls:'grade-d' };
+  }
+
+  // Slate too small to rank — fall back to a fixed threshold rather than
+  // crash or show a meaningless grade.
+  const c = SMALL_SLATE_FALLBACK_CUTS;
+  return propGrade(pct, c.e, c.g, c.f);
+};
+
+/** Letter grade from a probability, relative to what's realistic for that prop. */
+function propGrade(pct, elite, good, fair){
+  if(pct >= elite) return { g:'A+', cls:'grade-a' };
+  if(pct >= elite*0.85) return { g:'A', cls:'grade-a' };
+  if(pct >= good) return { g:'B+', cls:'grade-b' };
+  if(pct >= good*0.8) return { g:'B', cls:'grade-b' };
+  if(pct >= fair) return { g:'C+', cls:'grade-c' };
+  if(pct >= fair*0.75) return { g:'C', cls:'grade-c' };
+  return { g:'D', cls:'grade-d' };
+}
+
+/**
+ * Graded prop tiles — the headline read. Each shows a letter grade, the
+ * simulated probability, and the line it refers to.
+ */
+// ---------------------------------------------------------------- social glue
+// These are thin wrappers so the main app never has to care whether the social
+// module loaded. Each returns empty / no-ops when it hasn't.
+const social = () => (typeof window !== 'undefined' ? window.DW_SOCIAL : null);
+
+function propKeyFor(p, market, line){
+  return `${slateMeta.date || 'today'}|${p.name}|${market}|${line}`;
+}
+
+const REACTION_SET = ['🔥','💣','🔒','👀','🤡','💀'];
+// Home run feed gets its own emoji set — reacting to something that already
+// happened reads differently than reacting to a prediction.
+const HR_EMOJI = ['🔥','💣','🚀','😱','🫡'];
+
+/**
+ * Reactions on one home run. Keyed by the specific play (gamePk:atBatIndex),
+ * not by player + date, so a hitter with two homers in one game gets two
+ * independently reactable events rather than one shared count.
+ */
+function hrReactionStripHTML(ev){
+  const s = social();
+  if(!s || !s.socialReady) return '';
+  const key = `hr|${ev.key}`;
+  const counts = s.reactionsFor ? s.reactionsFor(key) : {};
+  return `<div class="rx-strip feed-rx" data-propkey="${key}">` +
+    HR_EMOJI.map(e => {
+      const c = counts[e];
+      return `<button class="rx ${c?.mine ? 'mine' : ''}" data-emoji="${e}"
+        title="${c?.count || 0} reaction${c?.count === 1 ? '' : 's'}">${e}${c?.count ? `<b>${c.count}</b>` : ''}</button>`;
+    }).join('') + `</div>`;
+}
+
+/**
+ * Compact variant for ranked lists: only emoji that someone has actually used
+ * are shown, plus a muted "+" to open the full picker. A full six-emoji row on
+ * every card would drown out the ranking itself.
+ */
+function reactionStripCompactHTML(key){
+  const s = social();
+  if(!s || !s.socialReady) return '';
+  const counts = s.reactionsFor ? s.reactionsFor(key) : {};
+  const used = REACTION_SET.filter(e => counts[e]?.count);
+  const total = used.reduce((t,e) => t + counts[e].count, 0);
+  return `<div class="rx-strip compact" data-propkey="${key}">` +
+    (used.length
+      ? used.map(e => `<button class="rx ${counts[e].mine?'mine':''}" data-emoji="${e}"
+          title="${counts[e].count}">${e}<b>${counts[e].count}</b></button>`).join('')
+      : '') +
+    `<button class="rx rx-more" data-more="1" title="React">${used.length ? '+' : '🔥+'}</button>` +
+    `</div>`;
+}
+
+/** Emoji row under a prop. Renders nothing until social is available. */
+function reactionStripHTML(key){
+  const s = social();
+  if(!s || !s.socialReady) return '';
+  const counts = s.reactionsFor ? s.reactionsFor(key) : {};
+  return `<div class="rx-strip" data-propkey="${key}">` +
+    REACTION_SET.map(e => {
+      const c = counts[e];
+      return `<button class="rx ${c?.mine ? 'mine' : ''}" data-emoji="${e}"
+        title="${c?.count || 0} reaction${c?.count === 1 ? '' : 's'}">${e}${c?.count ? `<b>${c.count}</b>` : ''}</button>`;
+    }).join('') + `</div>`;
+}
+
+/** Re-render just the strips for one prop, after an optimistic toggle. */
+function renderReactionsFor(key){
+  document.querySelectorAll(`.rx-strip[data-propkey="${CSS.escape(key)}"]`).forEach(strip => {
+    if(strip.classList.contains('feed-rx')){
+      const ev = feedEvents.find(x => `hr|${x.key}` === key);
+      if(ev) strip.outerHTML = hrReactionStripHTML(ev);
+    } else if(strip.classList.contains('compact')){
+      strip.outerHTML = reactionStripCompactHTML(key);
+    } else {
+      strip.outerHTML = reactionStripHTML(key);
+    }
+  });
+}
+
+// Delegated so it survives every re-render.
+// Any @username opens that profile, and never the card behind it.
+document.addEventListener('click', e => {
+  const u = e.target.closest?.('.chat-user');
+  if(!u?.dataset.username) return;
+  e.stopPropagation();
+  e.preventDefault();
+  openProfile(u.dataset.username);
+}, true);
+
+// Capture phase, same reason as above: the card's own click handler would
+// otherwise already have fired by the time this runs.
+document.addEventListener('click', e => {
+  const btn = e.target.closest?.('.rx');
+  if(!btn) return;
+
+  const strip = btn.closest('.rx-strip');
+  const key = strip?.dataset.propkey;
+
+  // Status reactions live in .status-rx and are wired directly on the button.
+  // Only claim the event when this is a PROP reaction, or those would be
+  // swallowed here and never reach their own handler.
+  if(!key) return;
+
+  e.stopPropagation();
+  e.preventDefault();
+  const s = social();
+  if(!s) return;
+
+  // The "+" swaps the compact strip for the full picker in place.
+  if(btn.dataset.more){
+    if(!s.getUser?.()){ promptSignIn(); return; }
+    strip.outerHTML = reactionStripHTML(key);
+    return;
+  }
+  if(s.toggleReaction) s.toggleReaction(key, btn.dataset.emoji);
+}, true);
+
+// ---------------------------------------------------------------- gate
+/**
+ * First-run gate: responsible-gambling disclaimer, then sign-in.
+ *
+ * The account requirement is an onboarding decision, not a security boundary —
+ * slate.json is served publicly, so this gates the experience, not the data.
+ *
+ * It deliberately fails OPEN when Supabase is unreachable: locking everyone out
+ * of a working app because an optional backend is down would be worse than
+ * letting them in without an account.
+ */
+const GATE_ACK_KEY = 'dw_disclaimer_ack_v1';
+
+function gateHTML(mode){
+  const acked = store.get(GATE_ACK_KEY) === '1';
+  const s = social();
+  const canAuth = !!(s && s.socialEnabled() && !s.needsSchema?.());
+
+  return `<div class="gate" id="gate">
+    <div class="gate-card">
+      <div class="gate-brand">
+        <img src="icon-192.png" alt="" class="gate-logo" onerror="this.style.display='none'">
+        <div>
+          <div class="gate-title">DINGER<span>WATCH</span></div>
+          <div class="gate-tag">Who's Going Deep</div>
+        </div>
+      </div>
+
+      <div class="gate-disclaimer">
+        <h3>Before you start</h3>
+        <ul>
+          <li><b>These are projections, not predictions.</b> Every grade comes from a
+              statistical model. A 38% home run chance means it usually doesn't happen.</li>
+          <li><b>No one can guarantee a win.</b> Dinger Watch doesn't, and anyone who
+              tells you otherwise is selling something.</li>
+          <li><b>Only bet what you can afford to lose</b> — treat it as the price of
+              entertainment, not an investment or a way to make money back.</li>
+          <li><b>Chasing losses is the warning sign.</b> If you're betting to recover,
+              stop for the day.</li>
+          <li>21+ where legal. If gambling stops being fun, call
+              <a href="tel:18004262537">1-800-GAMBLER</a> — free, confidential, 24/7.</li>
+        </ul>
+      </div>
+
+      ${canAuth ? `
+        <div class="gate-auth" id="gateAuth">
+          <div class="gate-auth-head">
+            <button class="gate-tab ${mode==='signin'?'active':''}" data-mode="signin">Sign in</button>
+            <button class="gate-tab ${mode==='signup'?'active':''}" data-mode="signup">Create account</button>
+          </div>
+          ${mode==='signup' ? '<input id="gUser" placeholder="username" autocomplete="username" maxlength="20">' : ''}
+          <input id="gEmail" type="email" placeholder="email" autocomplete="email">
+          <input id="gPass" type="password" placeholder="password"
+                 autocomplete="${mode==='signup'?'new-password':'current-password'}">
+          <label class="gate-check">
+            <input type="checkbox" id="gAck" ${acked?'checked':''}>
+            <span>I'm 21+ and I understand these are projections with no guaranteed outcome.</span>
+          </label>
+          <button class="gate-go" id="gGo">${mode==='signup'?'Create account & enter':'Sign in & enter'}</button>
+          <div class="dw-err" id="gErr"></div>
+        </div>`
+      : `
+        <div class="gate-auth">
+          <div class="gate-offline">Accounts are unavailable right now, so you can continue without one.</div>
+          <label class="gate-check">
+            <input type="checkbox" id="gAck" ${acked?'checked':''}>
+            <span>I'm 21+ and I understand these are projections with no guaranteed outcome.</span>
+          </label>
+          <button class="gate-go" id="gGo">Continue</button>
+          <div class="dw-err" id="gErr"></div>
+        </div>`}
+    </div>
+  </div>`;
+}
+
+function showGate(mode = 'signin'){
+  const existing = document.getElementById('gate');
+  if(existing) existing.remove();
+  document.body.insertAdjacentHTML('beforeend', gateHTML(mode));
+  document.body.classList.add('gated');
+
+  const s = social();
+  const canAuth = !!(s && s.socialEnabled() && !s.needsSchema?.());
+
+  document.querySelectorAll('.gate-tab').forEach(b => {
+    b.onclick = () => showGate(b.dataset.mode);
+  });
+
+  const go = document.getElementById('gGo');
+  const err = document.getElementById('gErr');
+  const ack = document.getElementById('gAck');
+
+  go.onclick = async () => {
+    err.textContent = '';
+    if(!ack.checked){ err.textContent = 'Please confirm you\'ve read the above.'; return; }
+    store.set(GATE_ACK_KEY, '1');
+
+    if(!canAuth){ dismissGate(); return; }
+
+    const email = document.getElementById('gEmail').value.trim();
+    const pass = document.getElementById('gPass').value;
+    if(!email || !pass){ err.textContent = 'Email and password are required.'; return; }
+
+    go.disabled = true;
+    const label = go.textContent;
+    go.textContent = mode === 'signup' ? 'Creating…' : 'Signing in…';
+
+    let res;
+    try{
+      res = mode === 'signup'
+        ? await s.signUp(email, pass, document.getElementById('gUser').value.trim())
+        : await s.signIn(email, pass);
+    }catch(ex){ res = { error: ex?.message || 'Something went wrong.' }; }
+
+    go.disabled = false;
+    go.textContent = label;
+
+    if(res.error){ err.textContent = res.error; return; }
+    if(res.needsConfirm){
+      err.innerHTML = '<span style="color:var(--grass-bright)">Account created. Check your email for the confirmation link, then sign in.</span>';
+      return;
+    }
+    if(!s.getUser?.()){ err.textContent = 'Signed in, but your profile didn\'t load. Reload and try again.'; return; }
+
+    // A subscription is required to enter, checked fresh right after every
+    // successful sign-in or account creation — never trusted from cache here.
+    err.textContent = 'Checking your subscription…';
+    const access = await s.checkWhopAccess(true);
+    if(access.error){
+      err.innerHTML = `<span style="color:var(--hot)">Signed in, but couldn't verify your subscription: \${escapeHTML(access.error)}</span>`;
+      return;
+    }
+    if(!access.hasAccess){ showSubscribeGate(access.checkoutUrl, access.connected); return; }
+    dismissGate();
+  };
+
+  // Enter submits.
+  document.querySelectorAll('#gateAuth input').forEach(i => {
+    i.onkeydown = e => { if(e.key === 'Enter') go.click(); };
+  });
+}
+
+function dismissGate(){
+  document.getElementById('gate')?.remove();
+  document.body.classList.remove('gated');
+  renderAuthButton();
+  refreshExportVisibility();
+  refreshSocialUI();
+}
+
+/**
+ * Blocks entry when signed in but not subscribed. Not part of the normal
+ * sign-in/sign-up gate flow above — this is its own state, reachable only
+ * after a real account exists, so "sign out and try a different account" is
+ * always the escape hatch rather than a dead end.
+ */
+/**
+ * Two distinct states share this screen: never connected a Whop account at
+ * all (primary action: connect via OAuth), versus connected but no active
+ * subscription found on that account (primary action: subscribe, then
+ * recheck). `connected` tells them apart — see check-whop-access's response.
+ */
+// Set by the OAuth callback handler when a connect attempt just failed —
+// shown once on the very next gate render, then cleared so it doesn't
+// reappear on a later, unrelated visit.
+let pendingWhopError = null;
+
+function showSubscribeGate(checkoutUrl, connected){
+  const existing = document.getElementById('gate');
+  if(existing) existing.remove();
+  const s = social();
+  const url = checkoutUrl || 'https://whop.com/';
+  const canConnect = s?.whopOAuthConfigured?.();
+
+  const primaryAction = (!connected && canConnect)
+    ? `<button class="gate-go" id="swConnect">Connect Whop account</button>`
+    : `<a class="gate-go" style="display:block;text-align:center;text-decoration:none;box-sizing:border-box;"
+         href="${url}" target="_blank" rel="noopener">Subscribe on Whop</a>`;
+
+  const explain = !connected
+    ? "Dinger Watch requires an active Whop subscription. Connect your Whop account to check — this takes one click and doesn't share your password with us."
+    : "Your Whop account is connected, but no active Dinger Watch subscription was found on it. Subscribe below, then tap \u201cCheck again\u201d \u2014 activation is usually instant but can take a minute.";
+
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="gate" id="gate">
+      <div class="gate-card">
+        <div class="gate-brand">
+          <img src="icon-192.png" alt="" class="gate-logo" onerror="this.style.display='none'">
+          <div>
+            <div class="gate-title">DINGER<span>WATCH</span></div>
+            <div class="gate-tag">Who's Going Deep</div>
+          </div>
+        </div>
+        <div class="gate-disclaimer">
+          <h3>Subscription required</h3>
+          <p style="font-size:12.5px;color:var(--mute);line-height:1.6;margin-bottom:14px;">${explain}</p>
+          <div id="swErr" class="dw-err"></div>
+        </div>
+        <div class="gate-auth">
+          ${primaryAction}
+          <button class="gate-go" id="swRecheck" style="margin-top:10px;background:var(--night2);color:var(--white);border:1px solid var(--line);">
+            ${connected ? 'Check again' : "I've subscribed — check again"}
+          </button>
+          <div class="dw-switch"><a id="swSignOut">Sign out</a></div>
+        </div>
+      </div>
+    </div>`);
+  document.body.classList.add('gated');
+
+  const err = document.getElementById('swErr');
+  const recheckBtn = document.getElementById('swRecheck');
+  const connectBtn = document.getElementById('swConnect');
+
+  // Show a connect attempt that just failed, right here, right now — this is
+  // the whole reason pendingWhopError exists: so a real Whop rejection is
+  // visible instead of only ever reaching the console.
+  if(pendingWhopError){
+    err.textContent = pendingWhopError;
+    pendingWhopError = null;
+  }
+
+  if(connectBtn) connectBtn.onclick = async () => {
+    connectBtn.disabled = true;
+    connectBtn.textContent = 'Redirecting to Whop…';
+    const res = await s.startWhopConnect();   // navigates away on success — this line rarely returns
+    if(res?.error){ err.textContent = res.error; connectBtn.disabled = false; connectBtn.textContent = 'Connect Whop account'; }
+  };
+
+  recheckBtn.onclick = async () => {
+    err.textContent = '';
+    recheckBtn.disabled = true;
+    const label = recheckBtn.textContent;
+    recheckBtn.textContent = 'Checking…';
+    const access = await s.checkWhopAccess(true);
+    recheckBtn.disabled = false;
+    recheckBtn.textContent = label;
+
+    if(access.error){ err.textContent = access.error; return; }
+    if(access.hasAccess){ dismissGate(); return; }
+    err.textContent = access.connected
+      ? "Still no active subscription found on the connected account."
+      : "Not connected yet — tap \u201cConnect Whop account\u201d above.";
+    if(access.connected !== connected) showSubscribeGate(access.checkoutUrl, access.connected);
+  };
+
+  document.getElementById('swSignOut').onclick = async () => {
+    await s.signOut();
+    showGate('signin');
+  };
+}
+
+/** Decide whether the gate is needed. Called once social has settled. */
+async function evaluateGate(){
+  const s = social();
+  const canAuth = !!(s && s.socialEnabled() && !s.needsSchema?.());
+  const signedIn = !!s?.getUser?.();
+  const acked = store.get(GATE_ACK_KEY) === '1';
+
+  // Backend unavailable and already acknowledged: don't block a working app —
+  // there's no subscription check possible without the backend either, so
+  // failing open here matches the existing policy for the disclaimer gate.
+  if(!canAuth && acked){ dismissGate(); return; }
+
+  // Signed in and already acknowledged: still needs a subscription check —
+  // covers a returning visit with a persisted session, not just a fresh
+  // sign-in. Rate-limited internally (see checkWhopAccess), so this doesn't
+  // hit the Edge Function on every single page load.
+  if(signedIn && acked){
+    const access = await s.checkWhopAccess();
+    if(access.error){
+      // Don't lock a paying subscriber out because of a transient network
+      // blip or a not-yet-deployed Edge Function — fail open with a console
+      // warning rather than fail closed on an error that isn't theirs.
+      console.warn('[whop] access check failed, allowing entry:', access.error);
+      dismissGate();
+      return;
+    }
+    if(access.hasAccess){ dismissGate(); } else { showSubscribeGate(access.checkoutUrl, access.connected); }
+    return;
+  }
+
+  showGate(signedIn ? 'signin' : 'signup');
+}
+
+// ---------------------------------------------------------------- auth UI
+function renderAuthButton(){
+  const btn = document.getElementById('authBtn');
+  if(!btn) return;
+  const s = social();
+  if(!s || !s.socialEnabled()){ btn.style.display = 'none'; return; }
+  btn.style.display = '';
+  const u = s.getUser?.();
+  // Signed in: the button IS your profile picture. Signed out: a plain
+  // "Sign in" pill, since there's no photo to show yet.
+  btn.innerHTML = u ? avatarHTML(u, 34, 'auth-avatar') : 'Sign in';
+  btn.classList.toggle('signed-in', !!u);
+}
+
+function promptSignIn(){ openAuthModal('signin'); }
+
+function openAuthModal(mode = 'signin'){
+  const s = social();
+  if(!s) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'dw-modal';
+  const isUp = mode === 'signup';
+  wrap.innerHTML = `
+    <div class="dw-card">
+      <h3>${isUp ? 'Create an account' : 'Sign in'}</h3>
+      <p>${isUp ? 'Pick a handle — it shows on your reactions, picks, and messages.'
+                : 'React to props, post picks, and join the chat.'}</p>
+      ${isUp ? '<input id="dwUser" placeholder="username" autocomplete="username" maxlength="20">' : ''}
+      <input id="dwEmail" type="email" placeholder="email" autocomplete="email">
+      <input id="dwPass" type="password" placeholder="password" autocomplete="${isUp?'new-password':'current-password'}">
+      <div class="dw-actions">
+        <button class="primary" id="dwGo">${isUp ? 'Create account' : 'Sign in'}</button>
+        <button id="dwCancel">Cancel</button>
+      </div>
+      <div class="dw-err" id="dwErr"></div>
+      <div class="dw-switch">${isUp ? 'Already have an account? <a id="dwSwitch">Sign in</a>'
+                                    : 'New here? <a id="dwSwitch">Create an account</a>'}</div>
+    </div>`;
+  document.body.appendChild(wrap);
+
+  const close = () => wrap.remove();
+  wrap.onclick = e => { if(e.target === wrap) close(); };
+  document.getElementById('dwCancel').onclick = close;
+  document.getElementById('dwSwitch').onclick = () => { close(); openAuthModal(isUp ? 'signin' : 'signup'); };
+
+  const goBtn = document.getElementById('dwGo');
+  goBtn.onclick = async () => {
+    const err = document.getElementById('dwErr');
+    const email = document.getElementById('dwEmail').value.trim();
+    const pass = document.getElementById('dwPass').value;
+    err.textContent = '';
+    if(!email || !pass){ err.textContent = 'Email and password are required.'; return; }
+
+    // Disable while in flight so a double-tap can't fire two sign-ins.
+    goBtn.disabled = true;
+    const label = goBtn.textContent;
+    goBtn.textContent = isUp ? 'Creating…' : 'Signing in…';
+
+    let res;
+    try{
+      res = isUp
+        ? await s.signUp(email, pass, document.getElementById('dwUser').value.trim())
+        : await s.signIn(email, pass);
+    }catch(ex){
+      // A thrown error used to leave the modal open with no message at all.
+      res = { error: ex?.message || 'Something went wrong. Check the console.' };
+    }
+    goBtn.disabled = false;
+    goBtn.textContent = label;
+
+    if(res.error){ err.textContent = res.error; return; }
+    if(res.needsConfirm){
+      // Supabase sends a confirmation email by default; say so rather than
+      // leaving the user wondering why nothing happened.
+      wrap.querySelector('.dw-card').innerHTML =
+        `<h3>Check your email</h3><p>We sent a confirmation link to <b>${email}</b>. ` +
+        `Click it, then sign in.</p><div class="dw-actions"><button class="primary" id="dwOk">Got it</button></div>`;
+      document.getElementById('dwOk').onclick = close;
+      return;
+    }
+    // Only close once we can actually see a signed-in user; otherwise the modal
+    // vanishing is indistinguishable from a silent failure.
+    if(!s.getUser?.()){
+      err.textContent = 'Signed in, but your profile didn\'t load. Refresh and try again.';
+      return;
+    }
+    close();
+    renderAuthButton();
+    refreshSocialUI();
+  };
+}
+
+/** Repaint anything that depends on who's signed in. */
+function refreshSocialUI(){
+  if(activeTab === 'chat') renderList();
+  document.querySelectorAll('.rx-strip').forEach(strip => {
+    const k = strip.dataset.propkey;
+    if(k) strip.outerHTML = reactionStripHTML(k);
+  });
+}
+
+// ---------------------------------------------------------------- chat tab
+let chatUnsub = null;
+
+function chatMsgHTML(m){
+  const name = m.profiles?.username || 'unknown';
+  const t = new Date(m.created_at);
+  const ago = timeAgo(t.getTime());
+  return `<div class="chat-msg">
+    ${avatarHTML({ username:name, avatar_url:m.profiles?.avatar_url, avatar_seed:m.profiles?.avatar_seed }, 30)}
+    <div class="chat-body">
+      <div class="chat-top">
+        <span class="chat-user" data-username="${escapeHTML(name)}">@${escapeHTML(name)}</span>
+        <span class="chat-time">${ago}</span>
+      </div>
+      <div class="chat-txt">${escapeHTML(m.body)}</div>
+    </div>
+  </div>`;
+}
+
+// Chat is user-generated, so it must never be injected as markup.
+function escapeHTML(str){
+  return String(str).replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+// ---------------------------------------------------------------- presence UI
+// Now lives in the header, not the (removed) chat tab, so it's visible from
+// anywhere in the app rather than only while chat happens to be open.
+let onlineUnsub = null;
+let onlineList = [];
+
+function headerOnlineBtnHTML(){
+  const n = onlineList.length;
+  return `<button class="online-btn" id="onlineBtn" title="Who's online">
+    <span class="online-dot"></span>${n}
+  </button>
+  <div class="online-pop" id="onlinePop">
+    ${n ? onlineList.map(u => `
+      <button class="online-user" data-username="${escapeHTML(u.username)}">
+        ${avatarHTML(u, 24)}
+        <span>@${escapeHTML(u.username)}</span>
+      </button>`).join('')
+      : '<div class="online-empty">Nobody else right now.</div>'}
+  </div>`;
+}
+
+function renderHeaderOnline(){
+  const slot = document.getElementById('headerOnlineSlot');
+  if(!slot) return;
+  const s = social();
+  if(!s || !s.socialEnabled()){ slot.innerHTML = ''; return; }
+  const wasOpen = document.getElementById('onlinePop')?.classList.contains('open');
+  slot.innerHTML = headerOnlineBtnHTML();
+  const btn = document.getElementById('onlineBtn');
+  const pop = document.getElementById('onlinePop');
+  if(btn && pop){
+    btn.onclick = e => { e.stopPropagation(); pop.classList.toggle('open'); };
+    if(wasOpen) pop.classList.add('open');
+    pop.querySelectorAll('.online-user').forEach(b => {
+      b.onclick = () => { pop.classList.remove('open'); openProfile(b.dataset.username); };
+    });
+    document.addEventListener('click', () => pop.classList.remove('open'), { once: true });
+  }
+}
+
+/** Join presence as soon as social is ready, independent of any panel being open. */
+function startPresence(){
+  const s = social();
+  if(!s || !s.socialEnabled() || !s.getUser?.()) return;
+  if(onlineUnsub) onlineUnsub();
+  onlineUnsub = s.joinPresence(users => {
+    onlineList = users;
+    renderHeaderOnline();
+  });
+}
+
+// ---------------------------------------------------------------- floating chat
+// Replaces the old Chat tab. A docked button at the bottom of the screen opens
+// a slide-up panel; an unread badge tracks messages that arrive while it's
+// closed, via a chat subscription that stays alive for the whole session
+// rather than only while a tab happened to be open.
+let chatPanelOpen = false;
+let chatUnreadCount = 0;
+let chatMsgsCache = [];
+let chatSeenIds = new Set();
+let chatGlobalUnsub = null;
+
+function chatDockHTML(){
+  return `<button class="chat-dock" id="chatDock" title="Chat">
+    💬
+    ${chatUnreadCount > 0 ? `<span class="chat-dock-badge">${chatUnreadCount > 99 ? '99+' : chatUnreadCount}</span>` : ''}
+  </button>`;
+}
+
+function renderChatDock(){
+  let dock = document.getElementById('chatDock');
+  const s = social();
+  if(!s || !s.socialEnabled()){ if(dock) dock.remove(); return; }
+  if(!dock){
+    document.body.insertAdjacentHTML('beforeend', chatDockHTML());
+    document.getElementById('chatDock').onclick = toggleChatPanel;
+  } else {
+    dock.outerHTML = chatDockHTML();
+    document.getElementById('chatDock').onclick = toggleChatPanel;
+  }
+}
+
+function toggleChatPanel(){
+  chatPanelOpen ? closeChatPanel() : openChatPanel();
+}
+
+async function openChatPanel(){
+  chatPanelOpen = true;
+  chatUnreadCount = 0;
+  renderChatDock();
+
+  let panel = document.getElementById('chatPanel');
+  if(!panel){
+    document.body.insertAdjacentHTML('beforeend', `<div class="chat-panel" id="chatPanel"></div>`);
+    panel = document.getElementById('chatPanel');
+  }
+  panel.classList.add('open');
+  await renderChatPanelBody(panel);
+}
+
+function closeChatPanel(){
+  chatPanelOpen = false;
+  document.getElementById('chatPanel')?.classList.remove('open');
+}
+
+// ---------------------------------------------------------------- profiles
+// Rebuilt here (a previous edit accidentally deleted this whole system —
+// caught via a post-edit function-existence check, see below).
+const STATUS_EMOJI = ['🔥','💯','😂','🤝','💀'];
+
+function statusHTML(st, canDelete){
+  const s = social();
+  const rx = s?.statusReactionsFor ? s.statusReactionsFor(st.id) : {};
+  const name = st.display_name || st.username;
+  const legs = st.legs ? (Array.isArray(st.legs) ? st.legs : []) : [];
+  return `<div class="status" data-sid="${st.id}">
+    <div class="status-head">
+      ${avatarHTML({username:st.username, avatar_url:st.avatar_url, avatar_seed:st.avatar_seed}, 30)}
+      <span class="status-name chat-user" data-username="${escapeHTML(st.username)}">${escapeHTML(name)}</span>
+      <span class="chat-time">${timeAgo(new Date(st.created_at).getTime())}</span>
+      ${canDelete ? `<button class="status-del" data-del="${st.id}" title="Delete">&times;</button>` : ''}
+    </div>
+    <div class="status-body">${escapeHTML(st.body)}</div>
+    ${legs.length ? `<div class="status-legs">${legs.map(l => `
+      <div class="sl-leg"><span>${escapeHTML(l.text || '')}</span>
+      ${l.price != null ? `<b>${fmtAmerican(l.price)}</b>` : ''}</div>`).join('')}</div>` : ''}
+    <div class="status-foot">
+      <div class="rx-strip status-rx" data-sid="${st.id}">
+        ${STATUS_EMOJI.map(e => {
+          const c = rx[e];
+          return `<button class="rx ${c?.mine?'mine':''}" data-semoji="${e}">${e}${c?.count?`<b>${c.count}</b>`:''}</button>`;
+        }).join('')}
+      </div>
+      <button class="status-comments" data-comments="${st.id}">
+        💬 ${st.comment_count || 0}
+      </button>
+    </div>
+    <div class="comment-box" data-cbox="${st.id}"></div>
+  </div>`;
+}
+
+async function openProfile(username){
+  const s = social();
+  if(!s?.socialReady) return;
+  const prof = await s.getProfile(username);
+  if(!prof){ return; }
+
+  const me = s.getUser?.();
+  const isMe = me && me.id === prof.id;
+  const [counts, following, statuses] = await Promise.all([
+    s.followCounts(prof.id),
+    isMe ? Promise.resolve(false) : s.isFollowing(prof.id),
+    s.loadStatuses({ userId: prof.id }),
+  ]);
+  await s.loadStatusReactions(statuses.map(x => x.id));
+
+  const wrap = document.createElement('div');
+  wrap.className = 'dw-modal profile-modal';
+  wrap.innerHTML = `
+    <div class="profile-card">
+      <button class="modal-close" id="pfClose">&times;</button>
+      <div class="pf-head">
+        ${avatarHTML(prof, 58, 'pf-av')}
+        <div class="pf-id">
+          <div class="pf-name">${escapeHTML(prof.display_name || prof.username)}</div>
+          <div class="pf-handle">@${escapeHTML(prof.username)}${prof.team ? ` · ${escapeHTML(prof.team)}` : ''}</div>
+        </div>
+        ${isMe
+          ? `<button class="pf-btn" id="pfEdit">Edit</button>`
+          : `<button class="pf-btn ${following?'following':''}" id="pfFollow">${following?'Following':'Follow'}</button>`}
+      </div>
+      ${prof.bio ? `<div class="pf-bio">${escapeHTML(prof.bio)}</div>` : ''}
+      <div class="pf-stats">
+        <span><b id="pfFollowers">${counts.followers}</b> followers</span>
+        <span><b>${counts.following}</b> following</span>
+        <span><b>${statuses.length}</b> posts</span>
+      </div>
+      ${isMe ? `
+        <div class="pf-compose">
+          <textarea id="pfStatus" placeholder="Post a status or share a parlay…" maxlength="500"></textarea>
+          <div class="pf-compose-row">
+            ${betslip.length ? `<label class="pf-attach"><input type="checkbox" id="pfAttach" checked> Attach slip (${betslip.length})</label>` : '<span></span>'}
+            <button class="bs-btn primary" id="pfPost">Post</button>
+          </div>
+          <div class="dw-err" id="pfErr"></div>
+        </div>` : ''}
+      <div class="pf-statuses" id="pfStatuses">
+        ${statuses.length ? statuses.map(st => statusHTML({...st, avatar_url: prof.avatar_url, avatar_seed: prof.avatar_seed}, isMe)).join('')
+          : '<div class="pf-empty">No posts yet.</div>'}
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+
+  const close = () => wrap.remove();
+  document.getElementById('pfClose').onclick = close;
+  wrap.onclick = e => { if(e.target === wrap) close(); };
+
+  const fBtn = document.getElementById('pfFollow');
+  if(fBtn) fBtn.onclick = async () => {
+    if(!me){ promptSignIn(); return; }
+    fBtn.disabled = true;
+    const res = await s.toggleFollow(prof.id);
+    fBtn.disabled = false;
+    if(res?.error) return;
+    const now = !!res?.following;
+    fBtn.textContent = now ? 'Following' : 'Follow';
+    fBtn.classList.toggle('following', now);
+    const el = document.getElementById('pfFollowers');
+    if(el) el.textContent = Math.max(0, (+el.textContent) + (now ? 1 : -1));
+  };
+
+  const eBtn = document.getElementById('pfEdit');
+  if(eBtn) eBtn.onclick = () => { close(); openProfileEditor(prof); };
+
+  const postBtn = document.getElementById('pfPost');
+  if(postBtn) postBtn.onclick = async () => {
+    const ta = document.getElementById('pfStatus');
+    const err = document.getElementById('pfErr');
+    const attach = document.getElementById('pfAttach')?.checked;
+    err.textContent = '';
+    postBtn.disabled = true;
+    const legs = attach ? betslip.map(l => ({ text: legToText(l), price: l.price ?? null })) : null;
+    const res = await s.postStatus(ta.value, legs, slateMeta.date || null);
+    postBtn.disabled = false;
+    if(res.error){ err.textContent = res.error; return; }
+    ta.value = '';
+    const list = document.getElementById('pfStatuses');
+    if(list){
+      if(list.querySelector('.pf-empty')) list.innerHTML = '';
+      list.insertAdjacentHTML('afterbegin', statusHTML({...res.status, avatar_url: prof.avatar_url, avatar_seed: prof.avatar_seed}, true));
+      wireStatusInteractions(list, true);
+    }
+  };
+
+  wireStatusInteractions(wrap, isMe);
+}
+
+function wireStatusInteractions(root, canDelete){
+  const s = social();
+
+  root.querySelectorAll('.status-rx .rx').forEach(b => b.onclick = async e => {
+    e.stopPropagation();
+    if(!s.getUser?.()){ promptSignIn(); return; }
+    const sid = +b.closest('.status-rx').dataset.sid;
+    await s.toggleStatusReaction(sid, b.dataset.semoji);
+    const strip = b.closest('.status-rx');
+    const rx = s.statusReactionsFor(sid);
+    strip.innerHTML = STATUS_EMOJI.map(em => {
+      const c = rx[em];
+      return `<button class="rx ${c?.mine?'mine':''}" data-semoji="${em}">${em}${c?.count?`<b>${c.count}</b>`:''}</button>`;
+    }).join('');
+    wireStatusInteractions(strip.closest('.status'), canDelete);
+  });
+
+  root.querySelectorAll('[data-comments]').forEach(b => b.onclick = async e => {
+    e.stopPropagation();
+    const sid = +b.dataset.comments;
+    const box = root.querySelector(`[data-cbox="${sid}"]`);
+    if(!box) return;
+    if(box.classList.contains('open')){ box.classList.remove('open'); box.innerHTML = ''; return; }
+
+    const comments = await s.loadComments(sid);
+    const signedIn = !!s.getUser?.();
+    box.classList.add('open');
+    box.innerHTML = `
+      ${comments.map(c => `<div class="comment">
+        ${avatarHTML({ username:c.profiles?.username, avatar_url:c.profiles?.avatar_url, avatar_seed:c.profiles?.avatar_seed }, 20)}
+        <span class="chat-user" data-username="${escapeHTML(c.profiles?.username||'')}">@${escapeHTML(c.profiles?.username||'?')}</span>
+        <span>${escapeHTML(c.body)}</span>
+      </div>`).join('')}
+      <div class="comment-compose">
+        <input placeholder="${signedIn ? 'Reply…' : 'Sign in to reply'}" maxlength="300" ${signedIn?'':'disabled'}>
+        <button ${signedIn?'':'disabled'}>Reply</button>
+      </div>`;
+
+    const input = box.querySelector('input');
+    const send = async () => {
+      if(!input.value.trim()) return;
+      const res = await s.postComment(sid, input.value);
+      if(res.error){ return; }
+      input.value = '';
+      box.querySelector('.comment-compose').insertAdjacentHTML('beforebegin',
+        `<div class="comment">${avatarHTML(res.comment.profiles, 20)}<span class="chat-user">@${escapeHTML(res.comment.profiles.username)}</span>
+         <span>${escapeHTML(res.comment.body)}</span></div>`);
+      b.textContent = `💬 ${comments.length + 1}`;
+    };
+    box.querySelector('button').onclick = send;
+    input.onkeydown = ev => { if(ev.key === 'Enter') send(); };
+    if(!signedIn) input.onclick = promptSignIn;
+  });
+
+  root.querySelectorAll('[data-del]').forEach(b => b.onclick = async e => {
+    e.stopPropagation();
+    const res = await s.deleteStatus(+b.dataset.del);
+    if(!res.error) b.closest('.status')?.remove();
+  });
+}
+
+/**
+ * Avatar picker: upload from device (camera roll / file picker) or choose
+ * from the preset clip-art set. Lives inside the profile editor.
+ */
+function avatarPickerHTML(prof){
+  return `<div class="ap-wrap">
+    <div class="ap-preview" id="apPreview">${avatarHTML(prof, 72)}</div>
+    <div class="ap-actions">
+      <label class="ap-upload-btn">
+        📷 Choose photo
+        <input type="file" accept="image/*" id="apFile" hidden>
+      </label>
+      <span class="ap-uploading" id="apUploading" hidden>Uploading…</span>
+    </div>
+    <div class="ap-err" id="apErr"></div>
+    <div class="ap-presets-label">Or pick one</div>
+    <div class="ap-presets">
+      ${AVATAR_PRESETS.map(p => `<button class="ap-preset" data-preset="${p.id}"
+          style="background:${p.bg}" title="Use this avatar">${p.emoji}</button>`).join('')}
+    </div>
+  </div>`;
+}
+
+function wireAvatarPicker(root, onChanged){
+  const s = social();
+  const preview = root.querySelector('#apPreview');
+  const err = root.querySelector('#apErr');
+  const fileInput = root.querySelector('#apFile');
+  const uploading = root.querySelector('#apUploading');
+
+  fileInput.onchange = async () => {
+    const file = fileInput.files?.[0];
+    if(!file) return;
+    err.textContent = '';
+    uploading.hidden = false;
+    const res = await s.uploadAvatar(file);
+    uploading.hidden = true;
+    fileInput.value = '';
+    if(res.error){ err.textContent = res.error; return; }
+    preview.innerHTML = avatarHTML(res.profile, 72);
+    if(onChanged) onChanged(res.profile);
+  };
+
+  root.querySelectorAll('.ap-preset').forEach(btn => btn.onclick = async () => {
+    err.textContent = '';
+    const res = await s.setAvatarPreset(btn.dataset.preset);
+    if(res.error){ err.textContent = res.error; return; }
+    preview.innerHTML = avatarHTML(res.profile, 72);
+    if(onChanged) onChanged(res.profile);
+  });
+}
+
+function openProfileEditor(prof){
+  const s = social();
+  const wrap = document.createElement('div');
+  wrap.className = 'dw-modal';
+  wrap.innerHTML = `
+    <div class="dw-card">
+      <h3>Edit profile</h3>
+      ${avatarPickerHTML(prof)}
+      <input id="peName" placeholder="display name" maxlength="40" value="${escapeHTML(prof.display_name||'')}">
+      <input id="peUser" placeholder="username" maxlength="20" value="${escapeHTML(prof.username||'')}">
+      <input id="peTeam" placeholder="team (e.g. LAD)" maxlength="4" value="${escapeHTML(prof.team||'')}">
+      <textarea id="peBio" placeholder="bio (280 max)" maxlength="280">${escapeHTML(prof.bio||'')}</textarea>
+      <div class="dw-actions">
+        <button class="primary" id="peSave">Save</button>
+        <button id="peCancel">Cancel</button>
+      </div>
+      <div class="dw-err" id="peErr"></div>
+      <div class="dw-switch"><a id="peSignOut">Sign out</a></div>
+    </div>`;
+  document.body.appendChild(wrap);
+
+  let latestAvatarProfile = prof;
+  wireAvatarPicker(wrap, (updated) => {
+    latestAvatarProfile = updated;
+    renderAuthButton();   // header avatar reflects the change immediately
+  });
+
+  const close = () => wrap.remove();
+  document.getElementById('peCancel').onclick = close;
+  wrap.onclick = e => { if(e.target === wrap) close(); };
+  document.getElementById('peSignOut').onclick = async () => {
+    await s.signOut();
+    close();
+    renderAuthButton();
+    refreshSocialUI();
+    await evaluateGate();
+  };
+  document.getElementById('peSave').onclick = async () => {
+    const err = document.getElementById('peErr');
+    const btn = document.getElementById('peSave');
+    btn.disabled = true;
+    const res = await s.updateProfile({
+      display_name: document.getElementById('peName').value.trim() || null,
+      username: document.getElementById('peUser').value.trim(),
+      team: document.getElementById('peTeam').value.trim().toUpperCase() || null,
+      bio: document.getElementById('peBio').value.trim() || null,
+    });
+    btn.disabled = false;
+    if(res.error){ err.textContent = res.error; return; }
+    close();
+    renderAuthButton();
+    openProfile(res.profile.username);
+  };
+}
+
+async function renderChatPanelBody(panel){
+  const s = social();
+
+  if(!s || !s.socialEnabled()){
+    panel.innerHTML = `<div class="chat-panel-head"><span>Chat</span><button class="chat-panel-close" id="chatPanelClose">&times;</button></div>
+      <div class="chat-panel-empty">Chat isn't set up yet. Add your Supabase URL and anon key to
+      <code>social.js</code>, then run <code>supabase-schema.sql</code>.</div>`;
+    document.getElementById('chatPanelClose').onclick = closeChatPanel;
+    return;
+  }
+  if(s.needsSchema?.()){
+    panel.innerHTML = `<div class="chat-panel-head"><span>Chat</span><button class="chat-panel-close" id="chatPanelClose">&times;</button></div>
+      <div class="chat-panel-empty" style="color:var(--hot)">Database tables are missing.<br>
+      Run <code>supabase-schema.sql</code> in the Supabase SQL editor, then reload.</div>`;
+    document.getElementById('chatPanelClose').onclick = closeChatPanel;
+    return;
+  }
+
+  const msgs = chatMsgsCache.length ? chatMsgsCache : await s.loadChat('general');
+  chatMsgsCache = msgs;
+  chatSeenIds = new Set(msgs.map(m => m.id));
+  const signedIn = !!s.getUser?.();
+
+  panel.innerHTML = `
+    <div class="chat-panel-head">
+      <span>Chat</span>
+      <button class="chat-panel-close" id="chatPanelClose">&times;</button>
+    </div>
+    <div class="chat-list" id="chatList">${msgs.map(chatMsgHTML).join('') ||
+      '<div style="text-align:center;padding:30px;color:var(--mute);font-size:13px;">No messages yet — say something.</div>'}</div>
+    <div class="chat-err" id="chatErr"></div>
+    <div class="chat-compose">
+      <input id="chatInput" placeholder="${signedIn ? 'Message the room…' : 'Sign in to chat'}"
+             maxlength="500" ${signedIn ? '' : 'disabled'}>
+      <button id="chatSend" ${signedIn ? '' : 'disabled'}>Send</button>
+    </div>`;
+
+  const list = document.getElementById('chatList');
+  if(list) list.scrollTop = list.scrollHeight;
+
+  if(!signedIn) document.getElementById('chatInput').onclick = promptSignIn;
+
+  const input = document.getElementById('chatInput');
+  const errBox = document.getElementById('chatErr');
+  const sendBtn = document.getElementById('chatSend');
+
+  const send = async () => {
+    const body = input.value;
+    if(!body.trim()) return;
+    errBox.textContent = '';
+    input.value = '';
+    sendBtn.disabled = true;
+    const res = await s.sendMessage(body, 'general');
+    sendBtn.disabled = false;
+    if(res.error){
+      if(res.error === 'not signed in'){ promptSignIn(); }
+      else errBox.textContent = res.error;
+      input.value = body;
+      return;
+    }
+    if(res.message && !chatSeenIds.has(res.message.id)){
+      chatSeenIds.add(res.message.id);
+      chatMsgsCache.push(res.message);
+      const l = document.getElementById('chatList');
+      if(l){
+        if(l.querySelector('div[style]')) l.innerHTML = '';
+        l.insertAdjacentHTML('beforeend', chatMsgHTML(res.message));
+        l.scrollTop = l.scrollHeight;
+      }
+    }
+    input.focus();
+  };
+  document.getElementById('chatSend').onclick = send;
+  input.onkeydown = e => { if(e.key === 'Enter') send(); };
+  document.getElementById('chatPanelClose').onclick = closeChatPanel;
+}
+
+/**
+ * One chat subscription for the whole session, started as soon as social is
+ * ready — not tied to any panel being open. This is what makes the unread
+ * badge actually work: a message that arrives while the panel is closed still
+ * increments the dock badge, exactly like a normal chat app.
+ */
+function startGlobalChatSubscription(){
+  const s = social();
+  if(!s || !s.socialEnabled() || s.needsSchema?.()) return;
+  if(chatGlobalUnsub) chatGlobalUnsub();
+  chatGlobalUnsub = s.subscribeChat('general', m => {
+    if(chatSeenIds.has(m.id)) return;
+    chatSeenIds.add(m.id);
+    chatMsgsCache.push(m);
+
+    if(chatPanelOpen){
+      const list = document.getElementById('chatList');
+      if(list){
+        if(list.querySelector('div[style]')) list.innerHTML = '';
+        list.insertAdjacentHTML('beforeend', chatMsgHTML(m));
+        list.scrollTop = list.scrollHeight;
+      }
+    } else {
+      // Don't badge your own message echoing back through realtime.
+      const mine = s.getUser?.()?.id === m.user_id;
+      if(!mine){ chatUnreadCount++; renderChatDock(); }
+    }
+  });
+}
+
+
+
+function propsGridHTML(p){
+  const sim = simulatePlayer(p);
+  const tiles = [
+    { label:'HR',          line:'over 0.5', d:sim.hr,      k:'hr' },
+    { label:'H+R+RBI',     line:'over 1.5', d:sim.hrr15,   k:'hrr' },
+    { label:'TOTAL BASES', line:'over 1.5', d:sim.tb15,    k:'tb' },
+    { label:'HITS',        line:'over 0.5', d:sim.hits05,  k:'hits' },
+    { label:'RBI',         line:'over 0.5', d:sim.rbi,     k:'rbi' },
+    { label:'DOUBLE',      line:'over 0.5', d:sim.doubles, k:'doubles' },
+    { label:'HITS',        line:'over 1.5', d:sim.hits15,  k:'hits15' },
+    { label:'RUN',         line:'over 0.5', d:sim.runs,    k:'runs' },
+  ];
+  return `<div class="prop-tiles">` + tiles.map(t => {
+    const gr = gradeFor(t.k, t.d.pct);
+    const od = propOdds(p, t.k);
+    const leg = { id: legId(p.name, t.label, t.line.replace('over ','')), kind:'prop',
+                  player:p.name, market:t.label, line:t.line.replace('over ',''),
+                  pct:t.d.pct, grade:gr.g, game:`${p.game.awayName} @ ${p.game.homeName}`,
+                  price: od?.best?.price ?? null, link: od?.best?.link ?? null,
+                  book: od?.best?.bookTitle ?? null };
+    return `<div class="prop-tile ${gr.cls}">
+      ${addLegBtn(leg)}
+      <div class="pt-key">${t.label}</div>
+      <div class="pt-grade">${gr.g}</div>
+      <div class="pt-pct">${t.d.pct}%</div>
+      <div class="pt-line">${od?.best?.price != null ? fmtAmerican(od.best.price) : t.line}</div>
+      ${reactionStripHTML(propKeyFor(p, t.label, t.line.replace('over ','')))}
+    </div>`;
+  }).join('') + `</div>`;
+}
+
+/** Full probability table with median and ceiling for every line. */
+function propProbabilitiesHTML(p){
+  const sim = simulatePlayer(p);
+  const rows = [
+    ['HOME RUN',    'over 0.5', sim.hr,      'hr'],
+    ['HITS',        'over 0.5', sim.hits05,  'hits'],
+    ['HITS',        'over 1.5', sim.hits15,  'hits15'],
+    ['SINGLES',     'over 0.5', sim.singles, 'singles'],
+    ['DOUBLES',     'over 0.5', sim.doubles, 'doubles'],
+    ['RUNS SCORED', 'over 0.5', sim.runs,    'runs'],
+    ['RBIS',        'over 0.5', sim.rbi,     'rbi'],
+    ['TOTAL BASES', 'over 1.5', sim.tb15,    'tb'],
+    ['TOTAL BASES', 'over 2.5', sim.tb25,    'tb25'],
+    ['H+R+RBI',     'over 1.5', sim.hrr15,   'hrr'],
+    ['H+R+RBI',     'over 2.5', sim.hrr25,   'hrr25'],
+    ['STOLEN BASE', 'over 0.5', sim.sb,      'sb'],
+  ];
+  return `<div class="prob-list">` + rows.map(([name, line, d, key]) => {
+    const gr = gradeFor(key, d.pct);
+    const leg = { id: legId(p.name, name, line.replace('over ','')), kind:'prop',
+                  player:p.name, market:name, line:line.replace('over ',''),
+                  pct:d.pct, grade:gr.g, game:`${p.game.awayName} @ ${p.game.homeName}` };
+    return `<div class="prob-row">
+      <div class="prob-name">${name} <span>${line}</span>
+        <div class="prob-sub">p50: ${d.p50} · ceiling: ${d.ceiling}</div>
+      </div>
+      <div class="prob-bar"><div class="prob-bar-fill ${gr.cls}" style="width:${Math.min(100,d.pct)}%"></div></div>
+      <div class="prob-pct ${gr.cls}">${d.pct}%</div>
+      ${addLegBtn(leg)}
+    </div>`;
+  }).join('') + `</div>
+  <div class="prob-foot">Based on ${SIM_RUNS.toLocaleString()} simulated games · p50 = median outcome · ceiling = 90th percentile</div>`;
+}
+
+/** Plain-language summary of why this matchup grades the way it does. */
+function matchupVerdictHTML(p){
+  const sim = simulatePlayer(p);
+  const sp = p.oppPitcher || {};
+  const gr = gradeFor('hr', sim.hr.pct);
+  const last = surname(p.name);
+
+  const bits = [];
+  if(p.statcast?.barrel) bits.push(`${p.statcast.barrel}% barrel rate`);
+  if(sp.hr9) bits.push(`${sp.hr9} HR/9 allowed by ${surname(sp.name || 'the starter')}`);
+  if(p.game.parkFactor !== 100) bits.push(`${p.game.parkShort} at ${p.game.parkFactor} park factor`);
+
+  // Verdict follows the grade, so the words and the letter never disagree.
+  const verdict = gr.g === 'A+' ? 'ELITE SETUP'
+                : gr.g.startsWith('A') ? 'STRONG SPOT'
+                : gr.g.startsWith('B') ? 'PLAYABLE' : 'TOUGH DRAW';
+
+  return `<div class="verdict">
+    <div class="verdict-ring ${gr.cls}">
+      <div class="vr-grade">${gr.g}</div>
+      <div class="vr-sub">${sim.hr.pct}% HR</div>
+    </div>
+    <div class="verdict-body">
+      <div class="verdict-title ${gr.cls}">${verdict}</div>
+      <p>${sim.hr.pct}% home run shot for ${last}. ${bits.join(' · ')}.</p>
+    </div>
+  </div>`;
+}
+
+/** Grade header plus the factor list for a single prop. */
+function propFactorBlockHTML(p, prop){
+  const sim = simulatePlayer(p);
+  const cfg = {
+    hr:   { d:sim.hr,     line:'over 0.5', label:'HOME RUN'    },
+    hits: { d:sim.hits05, line:'over 0.5', label:'HITS'        },
+    tb:   { d:sim.tb15,   line:'over 1.5', label:'TOTAL BASES' },
+    rbi:  { d:sim.rbi,    line:'over 0.5', label:'RBI'         },
+    hrr:  { d:sim.hrr15,  line:'over 1.5', label:'H+R+RBI'     },
+    sb:   { d:sim.sb,     line:'over 0.5', label:'STOLEN BASE' },
+  }[prop];
+  const gr = gradeFor(prop, cfg.d.pct);
+  return `
+    <div class="prop-head ${gr.cls}">
+      <div class="ph-grade">${gr.g}</div>
+      <div class="ph-mid">
+        <div class="ph-label">${cfg.label} <span>${cfg.line}</span></div>
+        <div class="ph-sub">median ${cfg.d.p50} · ceiling ${cfg.d.ceiling}</div>
+      </div>
+      <div class="ph-pct">${cfg.d.pct}%</div>
+    </div>
+    ${factorListHTML(p, prop)}`;
+}
+
+function openBatterModal(p){
+  const dqLabel = p.dataQuality==='sourced' ? 'Sourced (Statcast page)' : 'Modeled (tier/role estimate)';
+  const dqClass = p.dataQuality==='sourced' ? 'sourced' : 'modeled';
+  const g = p.game;
+  modalBody.innerHTML = `
+    <div class="modal-head">
+      <button class="modal-close" id="modalClose">&times;</button>
+      ${headshotImgTag(p.name, 'modal-headshot', p.team, p.id)}
+      <div class="modal-head-text">
+      <div class="modal-name">${p.name} <span class="dq-badge ${dqClass}">${dqLabel}</span></div>
+      <div class="modal-tag">${p.team} · ${p.pos||''} · Bats ${p.hand||'?'} · ${g.awayName} @ ${g.homeName} · ${gameTime(g)}</div>
+      ${(() => {
+        // Header now reports the simulated HR probability and its grade, which
+        // is the same number shown on the tiles below. The old raw index was an
+        // internal 0-100 score, not a probability, so the two disagreed.
+        const sim = simulatePlayer(p);
+        const gr = gradeFor('hr', sim.hr.pct);
+        return `<div class="modal-index">
+          <div class="modal-grade ${gr.cls}">${gr.g}</div>
+          <div class="modal-index-num ${gr.cls}">${sim.hr.pct}%</div>
+          <div class="modal-index-bar">
+            <div class="mi-label">HOME RUN · OVER 0.5</div>
+            <div class="modal-index-track"><div class="modal-index-fill ${gr.cls}" style="width:${Math.min(100, sim.hr.pct * 3)}%"></div></div>
+            <div class="mi-sub">index ${p.hrIndex} · ${SIM_RUNS.toLocaleString()} sims</div>
+          </div>
+        </div>`;
+      })()}
+      </div>
+    </div>
+    <div class="tabs">
+      <div class="tab active" data-tab="overview">Overview</div>
+      <div class="tab" data-tab="last10">Last 10 Games</div>
+      <div class="tab" data-tab="statcast">Statcast Profile</div>
+      <div class="tab" data-tab="arsenal">Arsenal &amp; Zone</div>
+      <div class="tab" data-tab="matchup">Matchup</div>
+      <div class="tab" data-tab="breakdown">Why</div>
+    </div>
+    <div class="tab-content active" data-panel="overview">
+      ${matchupVerdictHTML(p)}
+
+      <div class="section-mini">Tonight's props · graded</div>
+      ${propsGridHTML(p)}
+
+      <div class="section-mini">Full probabilities</div>
+      ${propProbabilitiesHTML(p)}
+
+      <div class="section-mini">Season</div>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="sv">${p.hr}</div><div class="sl">HR</div><div class="sc">${p.pace}</div></div>
+        <div class="stat-box"><div class="sv">.${Math.round(p.avg*1000)}</div><div class="sl">AVG</div><div class="sc">${p.h ?? '—'} H / ${p.ab} AB</div></div>
+        <div class="stat-box"><div class="sv">${p.slg!=null?p.slg.toFixed(3).replace(/^0/,''):'—'}</div><div class="sl">SLG</div><div class="sc">OPS ${p.ops!=null?p.ops.toFixed(3).replace(/^0/,''):'—'}</div></div>
+        <div class="stat-box"><div class="sv">${p.rbi}</div><div class="sl">RBI</div><div class="sc">${p.g?(p.rbi/p.g).toFixed(2):'—'}/game</div></div>
+        <div class="stat-box"><div class="sv">${p.r ?? '—'}</div><div class="sl">Runs</div><div class="sc">${p.g&&p.r!=null?(p.r/p.g).toFixed(2)+'/game':''}</div></div>
+        <div class="stat-box"><div class="sv">${p.sb}</div><div class="sl">SB</div><div class="sc">${p.g?(p.sb/p.g).toFixed(2):'—'}/game</div></div>
+      </div>
+
+      <div class="section-mini">Tonight's edges</div>
+      <div class="edge-list">
+        ${(()=>{ const pl = platoonEdge(p, p.oppPitcher);
+          return pl ? `<div class="edge ${pl.edge}"><span class="edge-dot"></span>${pl.label}</div>` : ''; })()}
+        <div class="edge ${p.game.parkFactor>=103?'good':p.game.parkFactor<=94?'bad':'neutral'}">
+          <span class="edge-dot"></span>${p.game.parkShort||p.game.park} · park HR factor ${p.game.parkFactor}
+        </div>
+        <div class="edge ${p.game.weatherEffect==='pos'?'good':p.game.weatherEffect==='neg'?'bad':'neutral'}">
+          <span class="edge-dot"></span>${p.game.weatherNote}
+        </div>
+        <div class="edge ${p.oppPitcher.hr9>1.25?'good':p.oppPitcher.hr9<0.85?'bad':'neutral'}">
+          <span class="edge-dot"></span>${p.oppPitcher.name} allows ${p.oppPitcher.hr9} HR/9${p.oppPitcher.k9?` · ${p.oppPitcher.k9} K/9`:''}
+        </div>
+        <div class="edge ${p.recentForm.trend==='up'?'good':p.recentForm.trend==='down'?'bad':'neutral'}">
+          <span class="edge-dot"></span>Recent form trending ${p.recentForm.trend}
+        </div>
+      </div>
+
+      <div class="narrative" style="margin-top:14px;">${p.narrative}</div>
+    </div>
+    <div class="tab-content" data-panel="last10">
+      <div id="last10Container">
+        <div class="live-note pending" id="last10Status"><span class="dot pending" style="width:6px;height:6px;"></span> Fetching live game log from MLB Stats API…</div>
+      </div>
+    </div>
+    <div class="tab-content" data-panel="statcast">
+      <div class="section-mini">Contact quality · percentile vs tonight's slate</div>
+      <div class="pctl-table">
+        ${pctlBarHTML('Barrel %',     p.statcast.barrel,  slatePercentile(p.statcast.barrel,  x=>x.statcast.barrel), '%')}
+        ${pctlBarHTML('Exit Velo',    p.statcast.ev,      slatePercentile(p.statcast.ev,      x=>x.statcast.ev), ' mph')}
+        ${pctlBarHTML('Max EV',       p.statcast.maxEv,   slatePercentile(p.statcast.maxEv,   x=>x.statcast.maxEv), ' mph')}
+        ${pctlBarHTML('Hard-Hit %',   p.statcast.hardHit, slatePercentile(p.statcast.hardHit, x=>x.statcast.hardHit), '%')}
+        ${pctlBarHTML('xwOBA',        p.statcast.xwoba,   slatePercentile(p.statcast.xwoba,   x=>x.statcast.xwoba))}
+        ${pctlBarHTML('xSLG',         p.statcast.xslg,    slatePercentile(p.statcast.xslg,    x=>x.statcast.xslg))}
+        ${pctlBarHTML('Sweet-Spot %', p.statcast.sweetSpot, slatePercentile(p.statcast.sweetSpot, x=>x.statcast.sweetSpot), '%')}
+        ${pctlBarHTML('Launch Angle', p.statcast.launchAngle, slatePercentile(p.statcast.launchAngle, x=>x.statcast.launchAngle), '°')}
+        ${pctlBarHTML('Pull %',       p.statcast.pull,    slatePercentile(p.statcast.pull,    x=>x.statcast.pull), '%')}
+        ${pctlBarHTML('Speed',        p.speed,            slatePercentile(p.speed,            x=>x.speed))}
+      </div>
+      <div class="narrative" style="margin-top:14px;">
+        Percentiles are relative to the ${allBatters.filter(isPlayable).length} hitters on tonight's slate — not the whole league — so they answer "who's the best option available right now".
+        ${p.statcast._regressed
+          ? `<br><span style="color:var(--warm)">Only ${p.statcast._pa} plate appearances. These values are estimated and regressed toward league average, so treat them as a weak signal rather than a read on this hitter.</span>`
+          : p.statcast._derived ? '<br><span style="color:var(--warm)">These Statcast values are estimated from season rate stats; the enrichment step hasn\'t run for this player.</span>' : ''}
+      </div>
+    </div>
+    <div class="tab-content" data-panel="arsenal">
+      ${(() => {
+        const sp = p.oppPitcher;
+        const hasArsenal = sp?.arsenal?.length;
+        const hasDetail  = p.detail && (Object.keys(p.detail.pitchTypes||{}).length || Object.keys(p.detail.zones||{}).length);
+        if(!hasArsenal && !hasDetail && !p.splits){
+          return `<div class="narrative">
+            Pitch-level data isn't in this slate yet. Run <code style="color:var(--foul)">build-slate.js</code> for arsenal and platoon splits,
+            then <code style="color:var(--foul)">enrich-statcast.py</code> for zone maps, pitch-type performance, and batted-ball charts.
+          </div>`;
+        }
+        return `
+        ${hasArsenal ? `<div class="section-mini">${sp.name} · arsenal${sp.throws&&sp.throws!=='?'?` (${sp.throws}HP)`:''}</div>
+          ${arsenalDonutHTML(sp.arsenal)}` : ''}
+
+        ${p.splits ? `<div class="section-mini">Platoon splits</div>${platoonSplitHTML(p, sp)}` : ''}
+
+        ${p.detail?.pitchTypes ? `<div class="section-mini">${p.name.split(' ').slice(-1)[0]} vs pitch type · last ${p.detail.windowDays||45} days</div>
+          ${pitchMatchupHTML(p.detail, sp.arsenal)}` : ''}
+
+        ${p.detail?.zones ? `<div class="section-mini">Strike zone · where he does damage</div>
+          ${strikeZoneHTML(p.detail)}` : ''}
+
+        ${p.detail?.battedBalls ? `<div class="section-mini">Recent contact · exit velo vs launch angle</div>
+          ${battedBallScatterHTML(p.detail, sp.throws)}` : ''}
+        `;
+      })()}
+    </div>
+    <div class="tab-content" data-panel="matchup">
+      <div class="matchup-block"><h5>Tonight's Starter</h5><p>${p.oppPitcher.name} (throws ${p.oppPitcher.throws})</p>
+        <div class="msub">HR/9 allowed: ${p.oppPitcher.hr9} · Barrel% allowed: ${p.oppPitcher.barrelAllowed}% · K/9: ${p.oppPitcher.k9}</div>
+        <div class="msub">Arsenal: ${p.oppPitcher.mix}</div></div>
+      <div class="matchup-block"><h5>Ballpark Tonight</h5><p>${g.park}</p>
+        <div class="msub">Park HR factor: ${g.parkFactor} (100 = league average) · ${g.parkNote}</div></div>
+      <div class="matchup-block"><h5>Weather ${g.liveWeather ? '<span style="color:var(--grass-bright);font-size:10px;">● live-fetched</span>' : ''}</h5><p>${g.weather}</p>
+        <div class="msub">${g.weatherNote}</div></div>
+    </div>
+    <div class="tab-content" data-panel="breakdown">
+      <div class="section-mini">Pick a prop to see what drives it</div>
+      <div class="prop-switch" id="propSwitch">
+        ${[['hr','Home Run'],['hits','Hits'],['tb','Total Bases'],['rbi','RBI'],['hrr','H+R+RBI'],['sb','Stolen Base']]
+          .map(([k,l],i)=>`<button class="ps-btn ${i===0?'active':''}" data-prop="${k}">${l}</button>`).join('')}
+      </div>
+      <div id="factorHost">${propFactorBlockHTML(p, 'hr')}</div>
+    </div>
+  `;
+  overlay.classList.add('open');
+  document.getElementById('modalClose').onclick = closeModal;
+  wireTabs(p.name, p);
+
+  // Prop switcher inside the Why tab — re-renders the grade + factors in place.
+  modalBody.querySelectorAll('#propSwitch .ps-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      modalBody.querySelectorAll('#propSwitch .ps-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const host = document.getElementById('factorHost');
+      if(host) host.innerHTML = propFactorBlockHTML(p, btn.dataset.prop);
+    });
+  });
+}
+/**
+ * Batting + pitching lines for both teams. Only meaningful once the game has
+ * actually started — box.teams[side].batters/pitchers are ordered id arrays
+ * MLB fills in as players appear, so this naturally grows over the course of
+ * the game rather than needing separate "pregame" handling.
+ */
+function boxScoreHTML(g){
+  const box = g.boxscore;
+  if(!box || (!box.away.batters.length && !box.home.batters.length)){
+    return `<div class="bx-empty">Box score isn't available yet — check back once the game starts.</div>`;
+  }
+  const currentBatterId = g.currentAtBat?.batterId;
+
+  const teamBlock = (label, side) => {
+    const batters = side.batters.length ? `
+      <table class="bx-table">
+        <thead><tr><th class="bx-name">Batter</th><th>AB</th><th>R</th><th>H</th><th>RBI</th><th>BB</th><th>SO</th><th>AVG</th></tr></thead>
+        <tbody>${side.batters.map(b => `
+          <tr class="${b.id === currentBatterId ? 'bx-current' : ''}">
+            <td class="bx-name">${escapeHTML(b.name)}${b.id === currentBatterId ? ' <span class="bx-up">● AT BAT</span>' : ''}
+              <span class="bx-pos">${b.pos}</span></td>
+            <td>${b.ab}</td><td>${b.r}</td><td>${b.h}</td><td>${b.rbi}</td><td>${b.bb}</td><td>${b.so}</td>
+            <td>${b.avg != null ? `.${String(Math.round(b.avg*1000)).padStart(3,'0')}` : '—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>` : `<div class="bx-empty">No batters yet.</div>`;
+
+    const pitchers = side.pitchers.length ? `
+      <table class="bx-table" style="margin-top:10px;">
+        <thead><tr><th class="bx-name">Pitcher</th><th>IP</th><th>H</th><th>R</th><th>ER</th><th>BB</th><th>SO</th><th>ERA</th></tr></thead>
+        <tbody>${side.pitchers.map(p => `
+          <tr>
+            <td class="bx-name">${escapeHTML(p.name)}</td>
+            <td>${p.ip}</td><td>${p.h}</td><td>${p.r}</td><td>${p.er}</td><td>${p.bb}</td><td>${p.so}</td>
+            <td>${p.era != null ? p.era : '—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>` : '';
+
+    return `<div class="bx-team">
+      <div class="bx-team-label">${label}</div>
+      ${batters}${pitchers}
+    </div>`;
+  };
+
+  return `<div class="box-score">
+    ${teamBlock(g.awayName, box.away)}
+    ${teamBlock(g.homeName, box.home)}
+  </div>`;
+}
+
+function openGameModal(g){
+  // g.odds is null whenever no sportsbook feed is configured (the default), so
+  // everything below must tolerate its absence — dereferencing it unguarded
+  // threw before the modal ever rendered, which made cards look unclickable.
+  const o = g.odds || null;
+  const dqLabel = o?.dataQuality==='sourced' ? 'Sourced (FanDuel)' : 'Modeled estimate';
+  const dqClass = o?.dataQuality==='sourced' ? 'sourced' : 'modeled';
+  const status = g.mlbStatus || 'Preview';
+  const isLive = status === 'Live';
+  const isFinal = status === 'Final';
+  const ls = g.liveScore || {};
+  const topHR_away = g.awayRoster?.length ? [...g.awayRoster].sort((a,b)=>b.hrIndex-a.hrIndex)[0] : null;
+  const topHR_home = g.homeRoster?.length ? [...g.homeRoster].sort((a,b)=>b.hrIndex-a.hrIndex)[0] : null;
+  const rlFavName = o?.runline?.favorite==='away' ? g.awayName : g.homeName;
+  const rlDogName = o?.runline?.favorite==='away' ? g.homeName : g.awayName;
+
+  modalBody.innerHTML = `
+    <div class="modal-head">
+      <button class="modal-close" id="modalClose">&times;</button>
+      <div class="modal-head-text">
+        <div class="modal-name">${g.awayName} @ ${g.homeName}</div>
+        <div class="modal-tag">${g.park} · ${gameTime(g)} ${isLive?' · <span style="color:var(--foul);">● LIVE</span>':''}${isFinal?' · Final':''}</div>
+        ${isLive || isFinal ? `<div class="modal-index" style="margin-top:14px;"><div class="modal-index-num" style="font-size:32px;">${ls.away!=null?ls.away:'–'} – ${ls.home!=null?ls.home:'–'}</div></div>` : ''}
+      </div>
+    </div>
+    <div class="tabs">
+      ${!isLive ? '<div class="tab active" data-tab="overview">Matchup</div>' : ''}
+      ${(isLive || isFinal) ? `<div class="tab ${isLive?'active':''}" data-tab="boxscore">Box Score</div>` : ''}
+      ${o ? '<div class="tab" data-tab="odds">Odds</div>' : ''}
+    </div>
+    ${!isLive ? `<div class="tab-content active" data-panel="overview">
+      <div class="matchup-block"><h5>Starting Pitchers</h5>
+        <p>${g.awayName}: ${g.awayPitcher.name} (${g.awayPitcher.throws}) &nbsp;·&nbsp; ${g.homeName}: ${g.homePitcher.name} (${g.homePitcher.throws})</p>
+        <div class="msub">${g.awayPitcher.mix}</div>
+        <div class="msub">${g.homePitcher.mix}</div>
+      </div>
+      <div class="matchup-block"><h5>Ballpark &amp; Conditions</h5>
+        <p>${g.park}</p>
+        <div class="msub">Park HR factor: ${g.parkFactor} (100 = league average) · ${g.parkNote} ${g.liveWeather?'<span style="color:var(--grass-bright);font-size:10px;">● live weather</span>':''}</div>
+        ${weatherDiagramHTML(g)}
+      </div>
+      ${topHR_away || topHR_home ? `<div class="matchup-block"><h5>Top Home Run Threats</h5>
+        <p>${topHR_away ? `${g.awayName}: <b>${topHR_away.name}</b> (${topHR_away.hrIndex}% HR Index)`:''}</p>
+        <p>${topHR_home ? `${g.homeName}: <b>${topHR_home.name}</b> (${topHR_home.hrIndex}% HR Index)`:''}</p>
+      </div>` : ''}
+    </div>` : ''}
+    ${(isLive || isFinal) ? `<div class="tab-content ${isLive?'active':''}" data-panel="boxscore">${boxScoreHTML(g)}</div>` : ''}
+    ${o ? `<div class="tab-content" data-panel="odds">
+      <div class="live-note" style="margin-bottom:14px;"><span class="dq-badge ${dqClass}">${dqLabel}</span> — sportsbook odds have no public live API; this is a point-in-time snapshot, not a real-time line.</div>
+      <div class="odds-grid">
+        <div><div class="odds-col-head">Moneyline</div>
+          <div class="odds-team-row"><span class="odds-team-label">${g.awayName}</span><span class="odds-price">${fmtOdds(o.moneyline.away)}</span></div>
+          <div class="odds-team-row"><span class="odds-team-label">${g.homeName}</span><span class="odds-price">${fmtOdds(o.moneyline.home)}</span></div>
+        </div>
+        <div><div class="odds-col-head">Run Line</div>
+          <div class="odds-team-row"><span class="odds-team-label">${rlFavName} ${o.runline.line}</span><span class="odds-price">${fmtOdds(o.runline.favPrice)}</span></div>
+          <div class="odds-team-row"><span class="odds-team-label">${rlDogName} +${Math.abs(o.runline.line)}</span><span class="odds-price">${fmtOdds(o.runline.dogPrice)}</span></div>
+        </div>
+        <div><div class="odds-col-head">Total Runs</div>
+          <div class="odds-team-row"><span class="odds-team-label">Over ${o.total.line}</span><span class="odds-price">${fmtOdds(o.total.overPrice)}</span></div>
+          <div class="odds-team-row"><span class="odds-team-label">Under ${o.total.line}</span><span class="odds-price">${fmtOdds(o.total.underPrice)}</span></div>
+        </div>
+      </div>
+      <div class="odds-source-note">Odds via FanDuel Sportsbook · for reference only, not betting advice</div>
+    </div>` : ''}
+  `;
+  overlay.classList.add('open');
+  document.getElementById('modalClose').onclick = closeModal;
+  wireTabs();
+}
+
+function openPitcherModal(p){
+  const g = p.game;
+  // allPitchers stores the OPPONENT on `opp`, so a pitcher's own club is
+  // whichever side of this game he isn't facing.
+  const ownTeam = p.opp === g.home ? g.away : g.home;
+  modalBody.innerHTML = `
+    <div class="modal-head">
+      <button class="modal-close" id="modalClose">&times;</button>
+      ${headshotImgTag(p.name, 'modal-headshot', ownTeam, p.id)}
+      <div class="modal-head-text">
+      <div class="modal-name">${p.name} <span class="dq-badge modeled">Modeled</span></div>
+      <div class="modal-tag">Throws ${p.throws} · vs ${p.opp} · ${g.awayName} @ ${g.homeName} · ${gameTime(g)}</div>
+      <div class="modal-index">
+        <div class="modal-index-num">${p.projK}</div>
+        <div class="modal-index-bar"><div style="font-size:11px;color:var(--mute);margin-bottom:6px;font-family:'Space Mono',monospace;">PROJECTED STRIKEOUTS</div>
+        <div class="modal-index-track"><div class="modal-index-fill" style="width:${Math.min(100,p.projK*8)}%"></div></div></div>
+      </div>
+      </div>
+    </div>
+    <div class="tab-content active" data-panel="overview" style="display:block;">
+      <div class="stat-grid">
+        <div class="stat-box"><div class="sv">${p.k9}</div><div class="sl">K/9 (season)</div></div>
+        <div class="stat-box"><div class="sv">${p.expIP}</div><div class="sl">Projected IP</div></div>
+        <div class="stat-box"><div class="sv">${p.hr9}</div><div class="sl">HR/9 allowed</div></div>
+        <div class="stat-box"><div class="sv">${p.barrelAllowed}%</div><div class="sl">Barrel% allowed</div></div>
+      </div>
+      <div class="matchup-block"><h5>Arsenal</h5><p>${p.mix}</p></div>
+      <div class="narrative">Projected strikeouts = season K/9 rate × expected innings pitched tonight (scaled by role: workhorse arms projected deeper into games). Treat as a directional estimate, not a locked line.</div>
+    </div>
+  `;
+  overlay.classList.add('open');
+  document.getElementById('modalClose').onclick = closeModal;
+}
+
+// ---------------------------------------------------------------- boot
+// One same-origin request replaces the old ~50 cross-origin fetches. Everything
+// downstream (rankings, modals, 1st-inning model) reads from what this returns.
+async function boot(){
+  renderTabs();
+  renderList();                       // paint the shell immediately
+
+  // Restore the notification preference. Permission can be revoked in browser
+  // settings between visits, so re-check it rather than trusting the flag alone.
+  if(notifySupported() && Notification.permission === 'granted' && store.get('dw_notify') === '1'){
+    notifyEnabled = true;
+  }
+  renderNotifyBtn();
+  document.getElementById('notifyBtn')?.addEventListener('click', e => {
+    // Once alerts are on, the bell's job is to open the dropdown; the OFF -> ON
+    // request flow is what toggleNotifications() still handles.
+    if(notifyEnabled){ e.stopPropagation(); toggleNotifyPop(); }
+    else toggleNotifications();
+  });
+  registerServiceWorker();
+
+  // A framed or insecure origin breaks push, install, and layout at once. That
+  // is a deployment problem the user can't discover from the UI, so say it
+  // plainly rather than letting features fail one by one.
+  (function warnAboutOrigin(){
+    const framed = window.self !== window.top;
+    const insecure = !window.isSecureContext;
+    if(!framed && !insecure) return;
+
+    const bar = document.createElement('div');
+    bar.className = 'origin-warn';
+    bar.innerHTML = framed
+      ? `<b>This site is running inside a frame.</b> Notifications, the installable app,
+         and correct mobile layout all need the page loaded directly.
+         <span>Switch your domain from URL forwarding/masking to a real custom domain
+         (CNAME → jthomas0786.github.io, then set it in GitHub Settings → Pages).</span>`
+      : `<b>This page isn't served over HTTPS.</b> Notifications and offline support are
+         disabled on insecure origins.
+         <span>Enable "Enforce HTTPS" in GitHub Settings → Pages.</span>`;
+    document.body.insertBefore(bar, document.body.firstChild);
+    console.warn('[origin]', framed ? 'page is framed' : 'insecure context',
+                 '· location:', location.href, '· top:', framed ? '(cross-origin)' : 'self');
+  })();
+
+  loadBetslip();
+  renderBetslipBar();
+
+  // Social is optional: if the module didn't load, everything above still works.
+  const startSocial = async () => {
+    const s = social();
+    if(!s){ evaluateGate().catch(e => console.error('[gate] evaluateGate rejected:', e)); return; }
+    await s.initSocial();
+
+    // If this page load is Whop redirecting back after "Connect Whop
+    // account" (?code=...&state=...), finish that before deciding whether to
+    // show the gate — otherwise a freshly-connected user would still see
+    // "not connected" for one extra reload.
+    try{
+      const cb = await s.handleWhopOAuthCallback?.();
+      if(cb?.error){
+        // This used to only go to console.warn, which nobody without devtools
+        // open would ever see — a real rejection from Whop looked identical
+        // to nothing having happened at all. Now it's shown on the very next
+        // gate render, whichever state that turns out to be.
+        console.warn('[whop] connect callback failed:', cb.error);
+        pendingWhopError = cb.error;
+      }
+    }catch(e){ console.warn('[whop] connect callback threw:', e); pendingWhopError = e?.message || String(e); }
+
+    // Each of these is independent — a header widget, a gate check, presence,
+    // a chat subscription. They used to run as one unguarded sequence, which
+    // meant a single throw (in ANY of them) silently killed everything after
+    // it. That's the exact failure mode where several unrelated header
+    // elements vanish together: not because each is individually broken, but
+    // because the first failure stopped the chain before the rest ran.
+    const steps = [
+      ['auth button',         () => renderAuthButton()],
+      ['export visibility',   () => refreshExportVisibility()],
+      ['disclaimer gate',     () => { evaluateGate().catch(e => console.error('[gate] evaluateGate rejected:', e)); }],
+      ['online button',       () => renderHeaderOnline()],
+      ['chat dock',           () => renderChatDock()],
+      ['presence',            () => startPresence()],
+      ['chat subscription',   () => startGlobalChatSubscription()],
+      ['notifications',       () => startNotifications()],
+      ['watchlist',            () => { loadWatchlistCache().then(() => renderList()); }],
+    ];
+    for(const [label, fn] of steps){
+      try{ fn(); }
+      catch(e){ console.error(`[social] "${label}" failed — the rest still ran:`, e); }
+    }
+
+    document.getElementById('authBtn')?.addEventListener('click', () => {
+      const u = s.getUser?.();
+      if(u) openProfile(u.username);
+      else openAuthModal('signin');
+    });
+  };
+  // Repaint whenever auth settles, including sign-ins completed in another tab.
+  window.addEventListener('dw-auth-changed', () => {
+    // Same isolation as startSocial() above — this fires on every sign-in and
+    // sign-out, so one bad step here would re-break the header every time.
+    const steps = [
+      ['auth button',       () => renderAuthButton()],
+      ['export visibility', () => refreshExportVisibility()],
+      ['social UI refresh', () => refreshSocialUI()],
+      ['online button',     () => renderHeaderOnline()],
+      ['chat dock',         () => renderChatDock()],
+      ['presence/chat/notifications', () => {
+        if(social()?.getUser?.()){
+          startPresence();
+          startGlobalChatSubscription();
+          startNotifications();
+          loadWatchlistCache().then(() => renderList());
+        } else {
+          watchedPlayerIds = new Set();
+          if(onlineUnsub){ onlineUnsub(); onlineUnsub = null; }
+          if(chatGlobalUnsub){ chatGlobalUnsub(); chatGlobalUnsub = null; }
+          stopNotifications();
+          onlineList = [];
+          chatUnreadCount = 0;
+          closeChatPanel();
+          closeNotifyPop();
+          renderNotifyBtn();
+        }
+      }],
+    ];
+    for(const [label, fn] of steps){
+      try{ fn(); }
+      catch(e){ console.error(`[social] "${label}" failed on auth change — the rest still ran:`, e); }
+    }
+  });
+
+  if(window.DW_SOCIAL) startSocial();
+  else {
+    window.addEventListener('dw-social-ready', startSocial, { once: true });
+    // social.js may be absent or blocked; don't leave the user staring at data
+    // they never agreed to terms for, and don't hang forever either.
+    setTimeout(() => { if(!window.DW_SOCIAL) evaluateGate().catch(e => console.error('[gate] evaluateGate rejected:', e)); }, 2500);
+  }
+
+  // Must land before loadSlate(), since every player is scored during adaptation.
+  await loadModelOverrides();
+
+  const ok = await loadSlate();
+  if(!ok){
+    // Never leave the splash covering an error the user needs to see.
+    hideLoadSplash();
+    pickList.innerHTML = `<div style="text-align:center;padding:46px 22px;color:var(--mute);font-family:'Oswald',sans-serif;font-size:14px;line-height:1.7;">
+      <div style="font-size:17px;color:var(--white);margin-bottom:10px;">Couldn't load slate.json</div>
+      Expected it next to this page at <code style="color:var(--foul);">./slate.json</code>.<br>
+      Run <code style="color:var(--foul);">node build-slate.js</code> to generate it, or check that your daily workflow committed it.
+      ${slateMeta.loadError ? `<div style="margin-top:12px;font-size:11.5px;">${slateMeta.loadError}</div>` : ''}
+    </div>`;
+    document.getElementById('dayNote').innerHTML = '<span style="color:var(--hot)">No slate data</span>';
+    return;
+  }
+
+  // The whole point of this: every prop tab is instant from the user's very
+  // first click, because the expensive part already happened behind the
+  // splash. A failure here should never trap the user on the loading screen —
+  // worst case, individual tabs fall back to their normal lazy simulation.
+  try{ await primeAllSimulations(); }
+  catch(e){ console.warn('[boot] simulation priming failed, falling back to lazy per-tab simulation:', e); }
+  hideLoadSplash();
+
+  refreshDayLabelsAndStaleness();
+  renderList();
+  updateSlateFooter();
+
+  // Must run after loadSlate (it needs slateMeta.date) and before the first
+  // home-run poll, so previously-alerted homers aren't announced again.
+  loadNotifiedKeys();
+  loadWatchSeenKeys();
+
+  // Live in-game state is the one thing a daily build can't cover.
+  fetchLiveGameStates()
+    .then(()=>{ if(activeTab==='slate') renderList(); return pollHomeRunFeed(); })
+    .then(()=>{ if(activeTab==='feed') renderList(); else renderTabs(); });
+  loadPlayerIdMap().then(()=>renderList());   // headshots
+}
+
+/** Surface build provenance + any partial-failure warnings from the builder. */
+function updateSlateFooter(){
+  const note = document.getElementById('dayNote');
+  if(!note) return;
+  const built = slateMeta.generatedAt ? new Date(slateMeta.generatedAt) : null;
+  const ageMin = built ? Math.round((Date.now()-built)/60000) : null;
+  const ageTxt = ageMin==null ? '' : ageMin < 90 ? `built ${ageMin}m ago` : `built ${Math.round(ageMin/60)}h ago`;
+  const warn = slateMeta.warnings?.length
+    ? ` · <span style="color:var(--warm)">${slateMeta.warnings.length} build warning(s)</span>`
+    : '';
+  const derived = allBatters.some(p => p.statcast?._derived)
+    ? ' · <span style="color:var(--warm)">some Statcast values derived from season stats</span>' : '';
+  note.innerHTML = `${games.length} games · ${ageTxt}${warn}${derived}`;
+  note.title = (slateMeta.warnings || []).join('\n');
+}
+
+boot();
+loadActiveRosters().then(rosterData => { applyActiveStatus(rosterData); renderList(); });
+
+// ============================================================================
+//  EXCEL EXPORT
+// ----------------------------------------------------------------------------
+//  Writes a real .xlsx workbook (via SheetJS) with one sheet per prop plus a
+//  combined sheet, so the numbers can be sorted/filtered/modelled outside the app.
+// ============================================================================
+
+/** Round for display without turning a number into a string — Excel must still
+ *  see these as numeric so sorting and formulas work. */
+const xnum = (v, dp = 2) => (v == null || Number.isNaN(v)) ? null : +Number(v).toFixed(dp);
+
+function exportRows(){
+  return allBatters.filter(isPlayable).map(p => {
+    const g = p.game;
+    const sp = p.oppPitcher || {};
+    return {
+      Player: p.name,
+      Team: p.team,
+      Pos: p.pos || '',
+      Bats: p.hand || '',
+      Game: `${g.awayName} @ ${g.homeName}`,
+      'First Pitch': gameTime(g),
+      Ballpark: g.parkShort || g.park,
+      'Park HR Idx': xnum(g.parkFactor, 0),
+      'Opp SP': sp.name || '',
+      'SP Throws': sp.throws && sp.throws !== '?' ? sp.throws : '',
+      'SP HR/9': xnum(sp.hr9),
+      'SP K/9': xnum(sp.k9),
+      'Temp F': xnum(g.tempF, 0),
+      'Wind mph': xnum(g.windMph, 0),
+      'Wind Dir': g.windDeg != null ? windDirLabel(g.windDeg) : '',
+      'Wind Effect': g.windLabel || (g.roof !== 'open-air' ? 'Indoor' : ''),
+
+      // --- projections ---
+      'HR Index %': xnum(p.hrIndex, 0),
+      'Proj Hits': xnum(p.projHits),
+      '1+ Hit %': xnum(p.hitProb, 0),
+      'Proj TB': xnum(p.projTB),
+      'Proj RBI': xnum(p.projRBI),
+      'Proj Runs': xnum(p.projRuns),
+      'Proj H+R+RBI': xnum(p.projHRR),
+      'Proj SB': xnum(p.projSB),
+
+      // --- inputs behind them ---
+      HR: xnum(p.hr, 0),
+      AB: xnum(p.ab, 0),
+      AVG: xnum(p.avg, 3),
+      SLG: xnum(p.slg, 3),
+      OPS: xnum(p.ops, 3),
+      RBI: xnum(p.rbi, 0),
+      Runs: xnum(p.r, 0),
+      SB: xnum(p.sb, 0),
+      G: xnum(p.g, 0),
+      'Barrel %': xnum(p.statcast.barrel, 1),
+      'Exit Velo': xnum(p.statcast.ev, 1),
+      'Hard-Hit %': xnum(p.statcast.hardHit, 1),
+      xwOBA: xnum(p.statcast.xwoba, 3),
+      xSLG: xnum(p.statcast.xslg, 3),
+      'Launch Angle': xnum(p.statcast.launchAngle, 1),
+      'Speed Score': xnum(p.speed, 0),
+      Trend: p.recentForm?.trend || '',
+      'Statcast Source': p.statcast._derived ? 'Estimated' : 'Measured',
+    };
+  });
+}
+
+/** Widths sized to the header text, so nothing opens as "#####". */
+function fitColumns(rows){
+  if(!rows.length) return [];
+  return Object.keys(rows[0]).map(k => {
+    const longest = rows.reduce((m, r) => Math.max(m, String(r[k] ?? '').length), k.length);
+    return { wch: Math.min(30, Math.max(9, longest + 2)) };
+  });
+}
+
+function exportToExcel(){
+  // Also check here, not just on the button. Hiding a control is not the same
+  // as disabling the action behind it — though note this remains cosmetic,
+  // since the underlying slate.json is public either way.
+  const u = social()?.getUser?.();
+  if(!u || String(u.username).toLowerCase() !== EXPORT_OWNER){
+    console.warn('[export] restricted to the owner account');
+    return;
+  }
+  const btn = document.getElementById('exportBtn');
+  if(typeof XLSX === 'undefined'){
+    alert("Excel library didn't load — check your connection and try again.");
+    return;
+  }
+  const rows = exportRows();
+  if(!rows.length){ alert('No player data loaded yet.'); return; }
+
+  if(btn){ btn.classList.add('busy'); btn.textContent = '⬇ Building…'; }
+
+  try{
+    const wb = XLSX.utils.book_new();
+
+    // One tab per prop, pre-sorted best-first so the sheet is useful on open.
+    const sheets = [
+      { name:'Home Runs',   key:'HR Index %',    dp:0 },
+      { name:'Hits',        key:'Proj Hits' },
+      { name:'Total Bases', key:'Proj TB' },
+      { name:'RBIs',        key:'Proj RBI' },
+      { name:'H+R+RBI',     key:'Proj H+R+RBI' },
+      { name:'Stolen Bases',key:'Proj SB' },
+    ];
+
+    // Columns that stay on every prop sheet, plus that prop's own metric.
+    const idCols = ['Player','Team','Pos','Bats','Game','First Pitch','Ballpark','Park HR Idx',
+                    'Opp SP','SP Throws','SP HR/9','Wind Effect'];
+    const ctxCols = ['HR','AB','AVG','SLG','OPS','Barrel %','Exit Velo','Hard-Hit %','Trend','Statcast Source'];
+
+    for(const sh of sheets){
+      const sorted = [...rows].sort((a,b) => (b[sh.key] ?? -1) - (a[sh.key] ?? -1));
+      const slim = sorted.map((r,i) => {
+        const o = { Rank: i+1 };
+        idCols.forEach(c => o[c] = r[c]);
+        o[sh.key] = r[sh.key];
+        if(sh.name === 'Hits') o['1+ Hit %'] = r['1+ Hit %'];
+        ctxCols.forEach(c => o[c] = r[c]);
+        return o;
+      });
+      const ws = XLSX.utils.json_to_sheet(slim);
+      ws['!cols'] = fitColumns(slim);
+      ws['!autofilter'] = { ref: ws['!ref'] };
+      ws['!freeze'] = { xSplit: 1, ySplit: 1 };
+      XLSX.utils.book_append_sheet(wb, ws, sh.name);
+    }
+
+    // Everything, every column — for pivot tables and custom models.
+    const allSorted = [...rows].sort((a,b) => (b['HR Index %'] ?? -1) - (a['HR Index %'] ?? -1));
+    const wsAll = XLSX.utils.json_to_sheet(allSorted);
+    wsAll['!cols'] = fitColumns(allSorted);
+    wsAll['!autofilter'] = { ref: wsAll['!ref'] };
+    XLSX.utils.book_append_sheet(wb, wsAll, 'All Data');
+
+    // Pitchers get their own sheet — different shape entirely.
+    if(allPitchers.length){
+      const pRows = [...allPitchers].sort((a,b)=>b.projK-a.projK).map((p,i)=>({
+        Rank: i+1, Pitcher: p.name, Throws: p.throws,
+        Game: `${p.game.awayName} @ ${p.game.homeName}`,
+        'First Pitch': gameTime(p.game), Opponent: p.opp,
+        Ballpark: p.game.parkShort || p.game.park,
+        'Proj K': xnum(p.projK, 1), 'Proj IP': xnum(p.expIP, 1),
+        'K/9': xnum(p.k9), 'HR/9': xnum(p.hr9),
+        ERA: xnum(p.era), WHIP: xnum(p.whip),
+      }));
+      const wsP = XLSX.utils.json_to_sheet(pRows);
+      wsP['!cols'] = fitColumns(pRows);
+      wsP['!autofilter'] = { ref: wsP['!ref'] };
+      XLSX.utils.book_append_sheet(wb, wsP, 'Pitcher Ks');
+    }
+
+    // Provenance sheet — so a saved file can always be traced back.
+    const meta = [
+      { Field:'Slate date',        Value: slateMeta.date || '' },
+      { Field:'Slate generated',   Value: slateMeta.generatedAt || '' },
+      { Field:'Exported',          Value: new Date().toISOString() },
+      { Field:'Games',             Value: games.length },
+      { Field:'Hitters',           Value: rows.length },
+      { Field:'Statcast source',   Value: slateMeta.sources?.statcast || 'unknown' },
+      { Field:'HR weights',        Value: JSON.stringify(MODEL.hr.weights) },
+      { Field:'Expected AB',       Value: MODEL.hits.expectedAB },
+      { Field:'Note',              Value: 'Projections are modelled estimates, not sportsbook lines. Not betting advice.' },
+    ];
+    (slateMeta.warnings || []).forEach((w,i) => meta.push({ Field:`Warning ${i+1}`, Value:w }));
+    const wsM = XLSX.utils.json_to_sheet(meta);
+    wsM['!cols'] = [{wch:20},{wch:80}];
+    XLSX.utils.book_append_sheet(wb, wsM, 'About');
+
+    const date = slateMeta.date || new Date().toISOString().slice(0,10);
+    XLSX.writeFile(wb, `dinger-watch-props-${date}.xlsx`);
+  }catch(err){
+    console.error('[export] failed:', err);
+    alert('Export failed: ' + err.message);
+  }finally{
+    if(btn){ btn.classList.remove('busy'); btn.textContent = '⬇ Excel'; }
+  }
+}
+
+/**
+ * The Excel export is shown only to the owner account.
+ *
+ * This is presentation, NOT access control. The button can be revealed from the
+ * console, and every projection in the workbook already lives in slate.json,
+ * which is served publicly. Treat this as decluttering the UI for other users —
+ * if the data ever genuinely needs protecting, that has to happen server-side.
+ */
+const EXPORT_OWNER = 'dingerwatch';   // compared lower-case
+
+function refreshExportVisibility(){
+  const btn = document.getElementById('exportBtn');
+  if(!btn) return;
+  const u = social()?.getUser?.();
+  btn.hidden = !(u && String(u.username).toLowerCase() === EXPORT_OWNER);
+}
+
+document.getElementById('exportBtn')?.addEventListener('click', exportToExcel);
+
+// ---------------- Auto-update: live data refresh + day-change detection ----------------
+let lastUpdatedAt = Date.now();
+function touchLastUpdated(){ lastUpdatedAt = Date.now(); renderLastUpdated(); }
+function renderLastUpdated(){
+  const el = document.getElementById('lastUpdated');
+  if(!el) return;
+  const secs = Math.round((Date.now()-lastUpdatedAt)/1000);
+  el.textContent = secs < 5 ? 'Updated just now' : secs < 60 ? `Updated ${secs}s ago` : `Updated ${Math.round(secs/60)}m ago`;
+}
+setInterval(renderLastUpdated, 5000); // keep the "Updated Xs ago" ticker current
+
+async function fullLiveRefresh(){
+  const btn = document.getElementById('refreshBtn');
+  if(btn) btn.classList.add('spinning');
+  const dot = document.getElementById('dotSlate');
+  if(dot) dot.className = 'dot pending';
+
+  // Re-pull the whole slate (cheap: one request) plus current live game state.
+  const ok = await loadSlate();
+  if(ok){ refreshDayLabelsAndStaleness(); updateSlateFooter(); }
+  await fetchLiveGameStates();
+  renderList();
+  touchLastUpdated();
+  if(btn) btn.classList.remove('spinning');
+}
+
+// Manual refresh button
+document.getElementById('refreshBtn').addEventListener('click', fullLiveRefresh);
+
+// Auto-refresh live data (weather, schedule, active/injured status) every 5 minutes
+setInterval(fullLiveRefresh, 5*60*1000);
+
+// Live scoreboard needs much faster updates than everything else — poll game
+// state (score/inning/count/batter/pitcher) every 20 seconds so the Slate tab
+// tracks along in near real time while games are actually being played.
+setInterval(()=>{
+  fetchLiveGameStates().then(()=>{
+    if(activeTab==='slate') renderList();
+    // Home runs are polled on the same cadence so the Feed and the scoreboard
+    // never disagree about what's happened.
+    return pollHomeRunFeed();
+  }).then(()=>{
+    if(activeTab==='feed') renderList();   // renderFeed primes reactions itself
+    else renderTabs();                     // keeps the unread badge current
+  });
+}, 20*1000);
+
+// Check every 30s whether the real calendar date has rolled over; if so, relabel
+// Today/Tomorrow, re-point the live fetches at the new date, and pull fresh data.
+setInterval(()=>{
+  const changed = refreshDayLabelsAndStaleness();
+  if(changed) fullLiveRefresh();
+}, 30*1000);
+
+// Also catch day-rollover immediately when the tab regains focus (covers laptops
+// that were asleep/backgrounded overnight, where the 30s interval was paused).
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible'){
+    const changed = refreshDayLabelsAndStaleness();
+    fullLiveRefresh();
+  }
+});
+</script>
+</body>
+</html>
