@@ -438,6 +438,31 @@ async function isFollowing(userId){
  * calls within a short window reuse the cached result on the profile rather
  * than hitting the Edge Function (and Whop's API) on every render.
  */
+/**
+ * supabase-js's functions.invoke() has a well-known gotcha: when an Edge
+ * Function returns a non-2xx status, error.message is just the generic
+ * string "Edge Function returned a non-2xx status code" — NOT whatever
+ * error text the function actually sent back. The real message is sitting
+ * unread in error.context, the raw Response object. This was hiding the
+ * actual cause of every Edge Function failure behind that one generic line.
+ */
+async function extractFunctionError(error){
+  if(!error) return null;
+  try{
+    if(error.context?.json){
+      const body = await error.context.json();
+      if(body?.error) return body.error;
+    }
+  }catch{}
+  try{
+    if(error.context?.text){
+      const text = await error.context.text();
+      if(text) return text.slice(0, 300);
+    }
+  }catch{}
+  return error.message || 'Edge Function call failed.';
+}
+
 const WHOP_RECHECK_MS = 5 * 60 * 1000;   // 5 minutes
 
 async function checkWhopAccess(force = false){
@@ -458,7 +483,7 @@ async function checkWhopAccess(force = false){
     const { data, error } = await sb.functions.invoke('check-whop-access', {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if(error) return { error: error.message || 'Could not reach the access check.' };
+    if(error) return { error: (await extractFunctionError(error)) || 'Could not reach the access check.' };
     if(data?.error) return { error: data.error };
 
     currentUser.whop_access = !!data.hasAccess;
@@ -597,7 +622,7 @@ async function handleWhopOAuthCallback(){
       body: { code, redirect_uri: WHOP_REDIRECT_URI, code_verifier: stored.codeVerifier },
       headers: { Authorization: `Bearer ${token}` },
     });
-    if(error) return { error: error.message || 'Could not complete the Whop connection.' };
+    if(error) return { error: (await extractFunctionError(error)) || 'Could not complete the Whop connection.' };
     if(data?.error) return { error: data.error };
 
     currentUser.whop_user_id = data.whopUserId;
