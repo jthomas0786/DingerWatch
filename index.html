@@ -1111,6 +1111,18 @@ body:has(.betslip-bar) .chat-dock{ bottom:calc(84px + env(safe-area-inset-bottom
 .wx-wind-label{ font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; margin-top:4px; }
 .wx-wind-sub{ font-family:'Space Mono',monospace; font-size:11px; color: var(--mute); margin-top:2px; }
 .wx-diamond-note{ font-family:'Space Mono',monospace; font-size:12px; color: var(--mute); padding:10px 0; }
+.search-bar{ position:relative; display:flex; align-items:center;
+  background:var(--panel); border:1px solid var(--line); border-radius:12px;
+  padding:11px 14px; gap:9px; }
+.search-bar:focus-within{ border-color:var(--foul); }
+.search-icon{ color:var(--mute); flex-shrink:0; }
+.search-bar input{ flex:1; background:none; border:none; outline:none; color:var(--white);
+  font-family:'Oswald',sans-serif; font-size:14px; min-width:0; }
+.search-bar input::placeholder{ color:var(--mute); }
+.search-clear{ background:none; border:none; color:var(--mute); font-size:19px; line-height:1;
+  cursor:pointer; padding:0 2px; flex-shrink:0; }
+.search-clear:hover{ color:var(--white); }
+
 .filter-bar{ background:var(--panel); border:1px solid var(--line); border-radius:12px; margin-top:14px; overflow:hidden; }
 .filter-head{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; cursor:pointer; gap:10px; }
 .filter-head:hover{ background:rgba(224,18,46,0.05); }
@@ -2525,6 +2537,7 @@ const FILTER_DEFS = [
 // { barrel:{min:10}, ev:{max:95}, ... } — only keys the user has touched.
 let activeFilters = {};
 let allPlayersSort = 'sim_hr';
+let allPlayersSearch = '';
 
 // Sort options for All Players: the six graded props first, then raw stats.
 const ALL_SORTS = [
@@ -2542,6 +2555,16 @@ const simSortCfg = id => {
 
 function filteredPlayers(){
   let list = allBatters.filter(isPlayable);
+
+  const q = allPlayersSearch.trim().toLowerCase();
+  if(q){
+    list = list.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      (p.team||'').toLowerCase().includes(q) ||
+      (TEAM_FULL_NAME[p.team] || '').toLowerCase().includes(q)
+    );
+  }
+
   for(const [id, range] of Object.entries(activeFilters)){
     const def = FILTER_DEFS.find(d=>d.id===id);
     if(!def) continue;
@@ -2858,6 +2881,17 @@ function scoreTierClass(tabId, score){
   return 'score-lo';
 }
 
+function searchBarHTML(){
+  return `<div class="search-bar">
+    <svg class="search-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input type="text" id="playerSearch" placeholder="Search for players or teams"
+      value="${escapeHTML(allPlayersSearch)}" autocomplete="off">
+    ${allPlayersSearch ? '<button class="search-clear" id="searchClear" title="Clear">&times;</button>' : ''}
+  </div>`;
+}
+
 function filterBarHTML(shown, total){
   const items = FILTER_DEFS.map(d=>{
     const f = activeFilters[d.id] || {};
@@ -2966,13 +3000,18 @@ function renderAllPlayers(){
       </div>`;
   }).join('');
 
-  pickList.innerHTML = filterBarHTML(list.length, total) +
+  const noResultsMsg = allPlayersSearch
+    ? `No players or teams match "${escapeHTML(allPlayersSearch)}".`
+    : `No hitters match all ${activeFilterCount()} filters. Try widening a range or clearing one.`;
+
+  pickList.innerHTML = searchBarHTML() + filterBarHTML(list.length, total) +
     (list.length ? `<div class="pick-list" style="margin-top:14px;">${cards}</div>`
                  : `<div style="text-align:center;padding:40px 20px;color:var(--mute);font-family:'Oswald',sans-serif;font-size:14px;">
-                      No hitters match all ${activeFilterCount()} filters. Try widening a range or clearing one.
+                      ${noResultsMsg}
                     </div>`);
 
   wireFilterBar();
+  wireSearchBar();
   pickList.querySelectorAll('.pick-card').forEach(card=>{
     card.addEventListener('click', (e)=>{
       if(isInteractiveClick(e)) return;
@@ -3027,6 +3066,37 @@ function wireFilterBar(){
       renderAllPlayers();
     });
   });
+}
+
+/**
+ * renderAllPlayers() fully replaces pickList.innerHTML on every call, which
+ * destroys and recreates the search input along with everything else — a
+ * naive input -> re-render on every keystroke would lose focus and cursor
+ * position after the very first character typed. Re-finding the freshly
+ * created input and restoring both is what actually makes typing usable.
+ */
+function wireSearchBar(){
+  const input = document.getElementById('playerSearch');
+  if(input){
+    input.addEventListener('input', e => {
+      allPlayersSearch = e.target.value;
+      const cursorPos = e.target.selectionStart;
+      renderAllPlayers();
+      const fresh = document.getElementById('playerSearch');
+      if(fresh){
+        fresh.focus();
+        fresh.setSelectionRange(cursorPos, cursorPos);
+      }
+    });
+  }
+  const clearBtn = document.getElementById('searchClear');
+  if(clearBtn){
+    clearBtn.addEventListener('click', () => {
+      allPlayersSearch = '';
+      renderAllPlayers();
+      document.getElementById('playerSearch')?.focus();
+    });
+  }
 }
 
 /**
@@ -4802,6 +4872,20 @@ const TEAM_IDS = {
   DET:116, SF:137, MIN:142, MIL:158, CLE:114, CWS:145, CHC:112, KC:118,
   TB:139, SEA:136, NYM:121, PIT:134, ATH:133, BOS:111, LAA:108, MIA:146,
   NYY:147, ATL:144, TOR:141, PHI:143, WSH:120, CIN:113
+};
+// Same 30 keys as TEAM_IDS above, on purpose — lets a search for "Yankees"
+// match team NYY, not just the literal abbreviation.
+const TEAM_FULL_NAME = {
+  HOU:'Houston Astros', SD:'San Diego Padres', LAD:'Los Angeles Dodgers',
+  AZ:'Arizona Diamondbacks', BAL:'Baltimore Orioles', TEX:'Texas Rangers',
+  STL:'St. Louis Cardinals', COL:'Colorado Rockies', DET:'Detroit Tigers',
+  SF:'San Francisco Giants', MIN:'Minnesota Twins', MIL:'Milwaukee Brewers',
+  CLE:'Cleveland Guardians', CWS:'Chicago White Sox', CHC:'Chicago Cubs',
+  KC:'Kansas City Royals', TB:'Tampa Bay Rays', SEA:'Seattle Mariners',
+  NYM:'New York Mets', PIT:'Pittsburgh Pirates', ATH:'Athletics',
+  BOS:'Boston Red Sox', LAA:'Los Angeles Angels', MIA:'Miami Marlins',
+  NYY:'New York Yankees', ATL:'Atlanta Braves', TOR:'Toronto Blue Jays',
+  PHI:'Philadelphia Phillies', WSH:'Washington Nationals', CIN:'Cincinnati Reds'
 };
 function normName(s){
   return s.toLowerCase()
