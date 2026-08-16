@@ -4339,10 +4339,22 @@ async function toggleNotifications(){
     });
     if(bg){
       const sub = await subscribeToPush();
-      // Only prompt once per device — the subscription is stable after that.
-      if(sub && store.get('dw_sub_shown') !== '1'){
-        store.set('dw_sub_shown', '1');
-        showSubscriptionForCopy(sub);
+      if(sub){
+        // Registers this device server-side automatically — replacing the
+        // old "copy this JSON into a file and commit it" step, which only
+        // ever worked for one person testing on their own device. If the
+        // save genuinely fails (signed out, network blip), fall back to the
+        // manual-copy modal as an escape hatch rather than silently dropping
+        // the subscription with no way to recover it.
+        const s = social();
+        const res = s?.getUser?.() ? await s.savePushSubscription(sub) : { error: 'not signed in' };
+        if(res?.error){
+          console.warn('[push] automatic registration failed, falling back to manual copy:', res.error);
+          if(store.get('dw_sub_shown') !== '1'){
+            store.set('dw_sub_shown', '1');
+            showSubscriptionForCopy(sub);
+          }
+        }
       }
     }
   } else if(perm === 'denied'){
@@ -4356,6 +4368,19 @@ function disableNotifications(){
   store.set('dw_notify', '0');
   renderNotifyBtn();
   closeNotifyPop();
+
+  // Actually stop this device from receiving pushes, not just quiet the
+  // in-app bell — without this, disabling alerts in the UI left the
+  // subscription row (and the browser's own live PushManager subscription)
+  // sitting there indefinitely, so background alerts kept arriving anyway.
+  if(swRegistration){
+    swRegistration.pushManager.getSubscription().then(sub => {
+      if(!sub) return;
+      const endpoint = sub.endpoint;
+      social()?.removePushSubscription?.(endpoint);
+      sub.unsubscribe().catch(()=>{});
+    }).catch(()=>{});
+  }
 }
 
 // App icon, shared by notifications and the installed-app shortcut. Relative
