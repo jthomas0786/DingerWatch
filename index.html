@@ -6063,6 +6063,11 @@ function dismissGate(){
  * subscription found on that account (primary action: subscribe, then
  * recheck). `connected` tells them apart — see check-whop-access's response.
  */
+// Set by the OAuth callback handler when a connect attempt just failed —
+// shown once on the very next gate render, then cleared so it doesn't
+// reappear on a later, unrelated visit.
+let pendingWhopError = null;
+
 function showSubscribeGate(checkoutUrl, connected){
   const existing = document.getElementById('gate');
   if(existing) existing.remove();
@@ -6108,6 +6113,14 @@ function showSubscribeGate(checkoutUrl, connected){
   const err = document.getElementById('swErr');
   const recheckBtn = document.getElementById('swRecheck');
   const connectBtn = document.getElementById('swConnect');
+
+  // Show a connect attempt that just failed, right here, right now — this is
+  // the whole reason pendingWhopError exists: so a real Whop rejection is
+  // visible instead of only ever reaching the console.
+  if(pendingWhopError){
+    err.textContent = pendingWhopError;
+    pendingWhopError = null;
+  }
 
   if(connectBtn) connectBtn.onclick = async () => {
     connectBtn.disabled = true;
@@ -7307,8 +7320,15 @@ async function boot(){
     // "not connected" for one extra reload.
     try{
       const cb = await s.handleWhopOAuthCallback?.();
-      if(cb?.error) console.warn('[whop] connect callback failed:', cb.error);
-    }catch(e){ console.warn('[whop] connect callback threw:', e); }
+      if(cb?.error){
+        // This used to only go to console.warn, which nobody without devtools
+        // open would ever see — a real rejection from Whop looked identical
+        // to nothing having happened at all. Now it's shown on the very next
+        // gate render, whichever state that turns out to be.
+        console.warn('[whop] connect callback failed:', cb.error);
+        pendingWhopError = cb.error;
+      }
+    }catch(e){ console.warn('[whop] connect callback threw:', e); pendingWhopError = e?.message || String(e); }
 
     // Each of these is independent — a header widget, a gate check, presence,
     // a chat subscription. They used to run as one unguarded sequence, which
