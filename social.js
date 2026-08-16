@@ -513,7 +513,11 @@ async function sha256(str){
 async function startWhopConnect(){
   if(!whopOAuthConfigured()) return { error: 'Whop connect is not configured yet.' };
 
-  const pkce = { codeVerifier: randomString(32), state: randomString(16) };
+  // nonce is required by Whop whenever the openid scope is requested (standard
+  // OpenID Connect behavior — it binds the eventual ID token to this specific
+  // request). Missing it was the actual cause of "nonce is required for openid
+  // scope", found only after redirect_uri and scope both checked out.
+  const pkce = { codeVerifier: randomString(32), state: randomString(16), nonce: randomString(16) };
   sessionStorage.setItem(WHOP_OAUTH_STORAGE_KEY, JSON.stringify(pkce));
 
   // Fixed, not derived from location — see WHOP_REDIRECT_URI above for why.
@@ -526,6 +530,7 @@ async function startWhopConnect(){
     redirect_uri: redirectUri,
     scope: 'openid profile email',
     state: pkce.state,
+    nonce: pkce.nonce,
     code_challenge: await sha256(pkce.codeVerifier),
     code_challenge_method: 'S256',
   });
