@@ -852,6 +852,40 @@ function subscribeNotifications(onInsert){
   return () => { if(notifChannel){ sb.removeChannel(notifChannel); notifChannel = null; } };
 }
 
+// ---------------------------------------------------------------- push subscriptions
+/**
+ * Registers this device's push subscription against the signed-in user,
+ * replacing the old "copy this JSON and commit it to the repo" flow — that
+ * only ever worked for one developer testing on their own device and had no
+ * path to scale. upsert on endpoint means re-subscribing the same device
+ * (origin change, key rotation) just updates the existing row rather than
+ * creating a duplicate.
+ */
+async function savePushSubscription(sub){
+  if(!currentUser) return { error: 'not signed in' };
+  const json = typeof sub.toJSON === 'function' ? sub.toJSON() : sub;
+  const keys = json.keys || {};
+  if(!json.endpoint || !keys.p256dh || !keys.auth){
+    return { error: 'Malformed push subscription.' };
+  }
+  const { error } = await sb.from('push_subscriptions').upsert({
+    user_id: currentUser.id,
+    endpoint: json.endpoint,
+    p256dh: keys.p256dh,
+    auth_key: keys.auth,
+    user_agent: (typeof navigator !== 'undefined' && navigator.userAgent) || null,
+  }, { onConflict: 'endpoint' });
+  return error ? { error: error.message } : { ok: true };
+}
+
+/** Called when a user disables alerts, so a dead device stops being sent to. */
+async function removePushSubscription(endpoint){
+  if(!currentUser) return { error: 'not signed in' };
+  const { error } = await sb.from('push_subscriptions')
+    .delete().eq('user_id', currentUser.id).eq('endpoint', endpoint);
+  return error ? { error: error.message } : { ok: true };
+}
+
 // ---------------------------------------------------------------- watchlist
 const todayStr = () => new Intl.DateTimeFormat('en-CA', { timeZone:'America/Chicago',
   year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date());
@@ -910,6 +944,7 @@ export {
   checkWhopAccess, startWhopConnect, handleWhopOAuthCallback, whopOAuthConfigured,
   loadNotifications, markAllNotificationsRead, selfNotify, subscribeNotifications,
   getWatchlist, addToWatchlist, removeFromWatchlist,
+  savePushSubscription, removePushSubscription,
   joinPresence, getOnlineUsers,
   getProfile, updateProfile, isFollowing,
   postStatus, deleteStatus, loadStatuses, loadFollowingStatuses,
