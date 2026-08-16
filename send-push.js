@@ -285,11 +285,28 @@ async function main() {
     console.log(`  removed ${deadIds.length} dead subscription(s)`);
   }
 
-  fresh.forEach(h => pushed.add(h.key));
-  await writeJSON(STATE_FILE, {
-    updatedAt: new Date().toISOString(),
-    pushed: [...pushed].slice(-3000),
-  });
+  // Only mark these home runs as delivered if delivery actually happened —
+  // previously this ran unconditionally, so a total failure (wrong VAPID
+  // keys, a push service outage, any transient error) still marked every
+  // fresh home run as "done," permanently, with no retry. The exact bug that
+  // made tonight's testing impossible: the earlier 403s had already marked
+  // those home runs as pushed despite nobody receiving them.
+  //
+  // list.length === 0 (nobody subscribed yet) still marks as done — there's
+  // no one to retry toward, so holding these forever would only build up a
+  // meaningless backlog. A real send attempt that fully failed (ok === 0
+  // with subscribers present) does NOT get marked — that's what makes the
+  // next run retry it automatically instead of silently giving up.
+  const shouldMarkDone = list.length === 0 || ok > 0;
+  if (shouldMarkDone) {
+    fresh.forEach(h => pushed.add(h.key));
+    await writeJSON(STATE_FILE, {
+      updatedAt: new Date().toISOString(),
+      pushed: [...pushed].slice(-3000),
+    });
+  } else {
+    console.warn(`  ! every send failed — NOT marking ${fresh.length} home run(s) as pushed, will retry next run`);
+  }
   console.log('✓ done');
 }
 
