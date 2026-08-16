@@ -4303,6 +4303,47 @@ function notifyBlockReason(){
   return null;
 }
 
+/**
+ * Subscribes this device to push (if it isn't already) and makes sure that
+ * subscription is actually saved server-side. Deliberately idempotent and
+ * safe to call on every boot for anyone who already has alerts on, not just
+ * from the bell's click handler — otherwise a returning user who granted
+ * permission on a PREVIOUS visit would have their in-app "alerts on" flag
+ * silently restored from localStorage while their device was never actually
+ * registered anywhere, since the registration step used to live only inside
+ * the ON-click transition, which doesn't fire again just because permission
+ * was already granted. That gap meant background alerts could look enabled
+ * in the UI while genuinely not working at all, with no error shown anywhere
+ * to explain why.
+ */
+async function ensurePushRegistered(showFallbackOnFailure = false){
+  if(!pushSupported()) return;
+  const sub = await subscribeToPush();
+  if(!sub) return;
+
+  const s = social();
+  if(!s?.getUser?.()){
+    // Not signed in yet (e.g. still loading) — try again shortly rather than
+    // silently giving up, since sign-in state on boot can lag behind this.
+    setTimeout(() => ensurePushRegistered(showFallbackOnFailure), 3000);
+    return;
+  }
+
+  const res = await s.savePushSubscription(sub);
+  if(res?.error){
+    console.warn('[push] automatic registration failed:', res.error);
+    // The manual-copy fallback is only shown when this was triggered by an
+    // explicit user action (the bell click) — a silent boot-time retry
+    // failing shouldn't pop a modal at someone who didn't just ask for
+    // anything, but someone who JUST clicked "enable alerts" deserves to
+    // know it did not fully work and has a way to finish it manually.
+    if(showFallbackOnFailure && store.get('dw_sub_shown') !== '1'){
+      store.set('dw_sub_shown', '1');
+      showSubscriptionForCopy(sub);
+    }
+  }
+}
+
 async function toggleNotifications(){
   // Explain the real cause rather than a generic "not supported".
   const blocked = notifyBlockReason();
@@ -4337,26 +4378,7 @@ async function toggleNotifications(){
         : "You'll get a notification for every home run while this page is open.",
       icon: NOTIFY_ICON, badge: NOTIFY_BADGE, tag: 'dw-test',
     });
-    if(bg){
-      const sub = await subscribeToPush();
-      if(sub){
-        // Registers this device server-side automatically — replacing the
-        // old "copy this JSON into a file and commit it" step, which only
-        // ever worked for one person testing on their own device. If the
-        // save genuinely fails (signed out, network blip), fall back to the
-        // manual-copy modal as an escape hatch rather than silently dropping
-        // the subscription with no way to recover it.
-        const s = social();
-        const res = s?.getUser?.() ? await s.savePushSubscription(sub) : { error: 'not signed in' };
-        if(res?.error){
-          console.warn('[push] automatic registration failed, falling back to manual copy:', res.error);
-          if(store.get('dw_sub_shown') !== '1'){
-            store.set('dw_sub_shown', '1');
-            showSubscriptionForCopy(sub);
-          }
-        }
-      }
-    }
+    if(bg) await ensurePushRegistered(true);   // true: this came from an explicit click, ok to show the fallback modal on failure
   } else if(perm === 'denied'){
     alert('Notifications are blocked for this site.\n\nRe-enable them in your browser settings (the padlock or ⓘ icon next to the address bar), then try again.');
   }
@@ -7449,6 +7471,14 @@ async function boot(){
   // settings between visits, so re-check it rather than trusting the flag alone.
   if(notifySupported() && Notification.permission === 'granted' && store.get('dw_notify') === '1'){
     notifyEnabled = true;
+    // This is the actual fix for background alerts silently not working:
+    // restoring the flag alone doesn't re-establish anything server-side.
+    // A returning user whose permission was granted on an earlier visit
+    // needs their device re-registered here too, not just on the very first
+    // click that turned alerts on originally. Fire-and-forget — social()
+    // may not be ready yet this early in boot, which ensurePushRegistered
+    // itself retries for.
+    ensurePushRegistered().catch(e => console.warn('[push] boot registration failed:', e));
   }
   renderNotifyBtn();
   document.getElementById('notifyBtn')?.addEventListener('click', e => {
