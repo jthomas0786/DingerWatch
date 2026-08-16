@@ -542,7 +542,14 @@ async function startWhopConnect(){
 async function handleWhopOAuthCallback(){
   const params = new URLSearchParams(location.search);
   const code = params.get('code');
-  if(!code) return null;
+  const oauthError = params.get('error');
+  // A rejected OAuth request comes back with &error=... and NO code at all —
+  // that is normal OAuth behavior, not a missing callback. Checking for code
+  // alone here meant a real rejection (bad redirect_uri, bad client_id, etc.)
+  // was silently discarded before it was ever read, which looked exactly
+  // like nothing had happened — the page bounced to Whop and back so fast
+  // there was nothing to see, and the actual reason was thrown away.
+  if(!code && !oauthError) return null;
 
   const cleanUrl = () => {
     const url = new URL(location.href);
@@ -551,7 +558,6 @@ async function handleWhopOAuthCallback(){
   };
 
   const returnedState = params.get('state');
-  const oauthError = params.get('error');
   if(oauthError){ cleanUrl(); return { error: `Whop sign-in was cancelled or failed: ${oauthError}` }; }
 
   let stored;
