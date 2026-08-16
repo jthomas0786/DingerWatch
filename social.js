@@ -558,7 +558,15 @@ async function handleWhopOAuthCallback(){
   };
 
   const returnedState = params.get('state');
-  if(oauthError){ cleanUrl(); return { error: `Whop sign-in was cancelled or failed: ${oauthError}` }; }
+  if(oauthError){
+    // error_description is where the actually useful detail lives — the bare
+    // error code (e.g. "invalid_request") is Whop's generic catch-all and
+    // doesn't say WHAT was invalid. Missing this meant every rejection looked
+    // the same regardless of cause.
+    const desc = params.get('error_description');
+    cleanUrl();
+    return { error: `Whop sign-in was cancelled or failed: ${oauthError}${desc ? ' — ' + desc : ''}` };
+  }
 
   let stored;
   try{ stored = JSON.parse(sessionStorage.getItem(WHOP_OAUTH_STORAGE_KEY) || 'null'); }catch{ stored = null; }
