@@ -272,7 +272,19 @@ async function main() {
         deadIds.push(sub.id);
         console.log(`  · expired subscription pruned (${res.status})`);
       } else if (!res.ok) {
-        console.warn(`  ! push failed ${res.status}: ${(await res.text()).slice(0, 160)}`);
+        const body = await res.text();
+        // A key mismatch is just as permanently dead as a 404/410, even
+        // though it isn't one — the device subscribed under an OLD VAPID
+        // key (before a rotation) and will get a genuinely NEW endpoint the
+        // next time it reopens the app and re-subscribes under the current
+        // one. Retrying THIS row will never succeed no matter how many times
+        // it's attempted; only pruning it stops it from failing forever.
+        if (body.includes('VapidPkHashMismatch')) {
+          deadIds.push(sub.id);
+          console.log(`  · subscription pruned — belongs to an old VAPID key (${res.status})`);
+        } else {
+          console.warn(`  ! push failed ${res.status}: ${body.slice(0, 160)}`);
+        }
       } else { ok++; }
     } catch (e) {
       console.warn(`  ! push error: ${e.message}`);
