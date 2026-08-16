@@ -1706,12 +1706,12 @@ const MODEL = {
   },
 
   // ---- Grading ----
-  //  How letter grades are assigned to prop probabilities.
+  //  Percentile-only: a letter depends on where a player RANKS among
+  //  tonight's hitters for that prop, not a fixed probability threshold.
+  //  (A small, fixed fallback for when a slate is too small to rank
+  //  meaningfully lives directly in gradeFor() in the scoring code, not
+  //  here — it is not meant to be edited or exposed as config.)
   grading: {
-    // 'percentile' = grade on rank within tonight's slate (recommended).
-    // 'absolute'   = grade on fixed probability thresholds in `cuts` below.
-    mode: 'percentile',
-
     // Minimum slate percentile for each letter — applies to EVERY prop.
     // With these values roughly 5% earn A+, 15% A, 20% B+, 20% B, 15% C+,
     // 15% C, and the rest D. Raise aPlus to make the top grade rarer.
@@ -1722,23 +1722,6 @@ const MODEL = {
     // rare for home runs but ordinary for hits:
     //   byProp: { hr: { aPlus: 98 }, hits: { aPlus: 90, a: 70 } }
     byProp: {},
-
-    // Used when mode is 'absolute', or when a slate is too small to rank.
-    // e = elite (A+), g = good (B+), f = fair (C+).
-    cuts: {
-      hr:   { e:27, g:23, f:16 },
-      hits: { e:77, g:74, f:70 },
-      tb:   { e:53, g:50, f:47 },
-      rbi:  { e:53, g:49, f:42 },
-      hrr:  { e:66, g:62, f:56 },
-      sb:   { e:9,  g:8,  f:5  },
-      hits15:  { e:33, g:28, f:22 },
-      tb25:    { e:33, g:28, f:22 },
-      hrr25:   { e:45, g:39, f:32 },
-      singles: { e:62, g:56, f:48 },
-      doubles: { e:20, g:16, f:12 },
-      runs:    { e:47, g:42, f:36 },
-    },
   },
 
   // ---- Home Run Index (the four bars in the player modal) ----
@@ -5746,21 +5729,17 @@ function simulatePlayer(p){
  * threshold below the median grades the whole slate A+.
  */
 /**
- * Grading. Two modes, switchable in model-config.json:
+ * Grading is percentile-only: a player's grade depends on where he RANKS
+ * among tonight's hitters for that prop, not a fixed probability he clears.
+ * The share of the slate earning each letter is fixed by
+ * MODEL.grading.percentiles, so "A+" always means "top N%" no matter how hot
+ * or cold the overall slate is — that is what actually makes a grade useful:
+ * it separates tonight's best plays from the rest, rather than grading the
+ * whole slate A+ on a great night and nobody on a quiet one.
  *
- *   MODEL.grading.mode = 'percentile'  (default)
- *     A player's grade depends on where he RANKS among tonight's hitters for
- *     that prop. The share of the slate earning each letter is fixed by
- *     MODEL.grading.percentiles, so "A+" always means "top N%" no matter how
- *     hot or cold the overall slate is.
- *
- *   MODEL.grading.mode = 'absolute'
- *     Grades come from fixed probability thresholds in MODEL.grading.cuts.
- *     An A+ then means "cleared this number", which can grade the whole slate
- *     A+ on a good night and nobody on a bad one.
- *
- * Percentile mode is the default because it does what you actually want from a
- * grade: separate tonight's best plays from the rest.
+ * When a slate is too small to rank meaningfully (a 2-3 game night),
+ * SMALL_SLATE_FALLBACK_CUTS below is used instead — a fixed safety net that
+ * lives in code on purpose, not a second user-facing grading system.
  */
 
 /** Cache of sorted slate values per prop, rebuilt whenever scores change. */
