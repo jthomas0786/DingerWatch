@@ -21,14 +21,24 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 
 const MLB = 'https://statsapi.mlb.com/api/v1';
-const SUBS_FILE = process.env.SUBS_FILE || 'public/push-subscriptions.json';
-const LATEST_FILE = process.env.LATEST_FILE || 'public/latest-hr.json';
-const STATE_FILE = process.env.PUSH_STATE_FILE || 'public/pushed-hrs.json';
+const LATEST_FILE = process.env.LATEST_FILE || 'latest-hr.json';
+const STATE_FILE = process.env.PUSH_STATE_FILE || 'pushed-hrs.json';
 const DRY = process.argv.includes('--dry-run');
 
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY;
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY;
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:noreply@example.com';
+
+// Subscriptions live in Supabase now, not a file in the repo — a static
+// push-subscriptions.json requiring a manual copy-paste-and-commit per user
+// only ever worked for one developer testing on their own device. This uses
+// the SERVICE ROLE key specifically, which bypasses the per-user RLS every
+// other table in this app enforces — appropriate here because this script
+// IS the trusted server-side batch job, not a browser acting on a user's
+// behalf. Plain fetch against Supabase's REST API, no SDK dependency, same
+// as the rest of this script.
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const b64url = b => Buffer.from(b).toString('base64')
   .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -92,6 +102,37 @@ async function sendBarePush(sub) {
   return res;
 }
 
+// ---------------------------------------------------------------- push subscriptions
+async function fetchAllSubscriptions() {
+  const url = `${SUPABASE_URL}/rest/v1/push_subscriptions?select=id,endpoint,p256dh,auth_key`;
+  const res = await fetch(url, {
+    headers: {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Supabase subscription fetch failed: ${res.status} ${(await res.text()).slice(0, 200)}`);
+  }
+  return res.json();
+}
+
+/** One batched DELETE rather than one request per dead subscription. */
+async function pruneDeadSubscriptions(ids) {
+  if (!ids.length) return;
+  const url = `${SUPABASE_URL}/rest/v1/push_subscriptions?id=in.(${ids.join(',')})`;
+  const res = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+  });
+  if (!res.ok) {
+    console.warn(`  ! failed to prune ${ids.length} dead subscription(s): ${res.status}`);
+  }
+}
+
 // ---------------------------------------------------------------- home runs
 async function collectHomeRuns(date) {
   const sched = await getJSON(`${MLB}/schedule?sportId=1&date=${date}&hydrate=venue,team`);
@@ -147,6 +188,13 @@ async function main() {
     console.error('✗ VAPID_PRIVATE_KEY / VAPID_PUBLIC_KEY not set — run gen-vapid-keys.js');
     process.exit(1);
   }
+  if (!DRY && (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY)) {
+    console.error('✗ SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set — add them as repo secrets');
+    console.error('  (this is the SAME service role key already used elsewhere, but it needs adding');
+    console.error('   here separately — GitHub Actions secrets and Supabase Edge Function secrets');
+    console.error('   are two different secret stores even though the value is identical.)');
+    process.exit(1);
+  }
 
   const state = await readJSON(STATE_FILE, { pushed: [] });
   const pushed = new Set(state.pushed || []);
@@ -171,8 +219,9 @@ async function main() {
   });
   console.log(`  wrote ${LATEST_FILE} with ${Math.min(fresh.length, 5)} HR`);
 
-  const subs = await readJSON(SUBS_FILE, []);
-  const list = Array.isArray(subs) ? subs : (subs.subscriptions || []);
+  const list = DRY && (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY)
+    ? []   // dry-run without Supabase configured yet: still show what WOULD be sent
+    : await fetchAllSubscriptions();
   console.log(`  ${list.length} subscribed device(s)`);
 
   if (DRY) {
@@ -181,14 +230,14 @@ async function main() {
   }
 
   let ok = 0;
-  const dead = [];
+  const deadIds = [];
   for (const sub of list) {
     if (!sub?.endpoint) continue;
     try {
       const res = await sendBarePush(sub);
       if (res.status === 404 || res.status === 410) {
         // Subscription is gone for good — prune it.
-        dead.push(sub.endpoint);
+        deadIds.push(sub.id);
         console.log(`  · expired subscription pruned (${res.status})`);
       } else if (!res.ok) {
         console.warn(`  ! push failed ${res.status}: ${(await res.text()).slice(0, 160)}`);
@@ -199,9 +248,9 @@ async function main() {
   }
   console.log(`  pushed to ${ok}/${list.length}`);
 
-  if (dead.length) {
-    await writeJSON(SUBS_FILE, list.filter(s => !dead.includes(s.endpoint)));
-    console.log(`  removed ${dead.length} dead subscription(s)`);
+  if (deadIds.length) {
+    await pruneDeadSubscriptions(deadIds);
+    console.log(`  removed ${deadIds.length} dead subscription(s)`);
   }
 
   fresh.forEach(h => pushed.add(h.key));
