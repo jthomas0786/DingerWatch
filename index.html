@@ -2448,6 +2448,7 @@ function scorePlayer(base, game){
 // doesn't overflow on mobile; everything else stays a direct button.
 const PROP_TABS = [
   {id:'slate',       label:'Slate'},
+  {id:'foryou',      label:'For You'},
   {id:'feed',        label:'Feed'},
   {id:'firstinning', label:'1st Inning O/U'},
   {id:'__props__',   label:'Player Props', dropdown:true},
@@ -2672,6 +2673,7 @@ const SIM_RUNS = 10000;
 
 const SECTION_META = {
   slate: {title:'Today\'s Slate', sub:'Live scores, inning, count, and current batter/pitcher — updates automatically while games are in progress.'},
+  foryou: {title:'For You', sub:"What everyone's posting right now — new statuses show up here live."},
   chat: {title:'Chat', sub:'Talk through tonight\'s slate. Sign in to post and react.'},
   feed: {title:'Home Run Feed', sub:'Every homer as it happens, with exit velocity, launch angle, and distance.'},
   firstinning: {title:'1st Inning Over/Under', sub:'Modeled probability of a run scoring in the 1st inning — top-of-order contact quality vs. both starters, park, and weather.'},
@@ -3212,6 +3214,10 @@ function renderList(){
   }
   if(activeTab==='feed'){
     renderFeed();
+    return;
+  }
+  if(activeTab==='foryou'){
+    renderForYou();
     return;
   }
 
@@ -4878,6 +4884,81 @@ function iosInstallHintHTML(){
     </div>
     <button class="ios-hint-x" id="iosHintX" aria-label="Dismiss">&times;</button>
   </div>`;
+}
+
+let foryouSub = null;
+
+/**
+ * Global feed of everyone's statuses — reuses statusHTML()/
+ * wireStatusInteractions() from the profile page rather than duplicating
+ * that markup, and the same compose box pattern (.pf-compose) too. The
+ * realtime subscription starts the first time this tab is opened and stays
+ * alive for the rest of the session, prepending a new status live the
+ * moment anyone posts one, matching the "so everyone can see it" ask
+ * directly — not just on the next reload.
+ */
+async function renderForYou(){
+  const s = social();
+  const me = s?.getUser?.();
+  const signedIn = !!me;
+
+  const statuses = s?.socialReady ? await s.loadStatuses({ limit: 40 }) : [];
+  if(s?.socialReady) await s.loadStatusReactions(statuses.map(x => x.id));
+
+  pickList.innerHTML = `
+    <div class="pf-compose" id="fyCompose">
+      <textarea id="fyStatus" placeholder="${signedIn ? 'Post a status or share a parlay…' : 'Sign in to post'}"
+        maxlength="500" ${signedIn ? '' : 'disabled'}></textarea>
+      <div class="pf-compose-row">
+        ${signedIn && betslip.length ? `<label class="pf-attach"><input type="checkbox" id="fyAttach" checked> Attach slip (${betslip.length})</label>` : '<span></span>'}
+        <button class="bs-btn primary" id="fyPost" ${signedIn ? '' : 'disabled'}>Post</button>
+      </div>
+      <div class="dw-err" id="fyErr"></div>
+    </div>
+    <div class="pf-statuses" id="fyStatuses" style="margin-top:16px;">
+      ${statuses.length ? statuses.map(st => statusHTML(st, signedIn && st.user_id === me?.id)).join('')
+        : '<div class="pf-empty">Nobody\'s posted yet — be the first.</div>'}
+    </div>`;
+
+  const list = document.getElementById('fyStatuses');
+  wireStatusInteractions(list, true);   // canDelete is checked per-status via data-del presence, not globally here
+
+  const err = document.getElementById('fyErr');
+  const postBtn = document.getElementById('fyPost');
+  const taEl = document.getElementById('fyStatus');
+  if(!signedIn) taEl.onclick = promptSignIn;
+
+  if(postBtn) postBtn.onclick = async () => {
+    err.textContent = '';
+    const attach = document.getElementById('fyAttach')?.checked;
+    postBtn.disabled = true;
+    const legs = attach ? betslip.map(l => ({ text: legToText(l), price: l.price ?? null })) : null;
+    const res = await s.postStatus(taEl.value, legs, slateMeta.date || null);
+    postBtn.disabled = false;
+    if(res.error){ err.textContent = res.error; return; }
+    taEl.value = '';
+    // The realtime subscription below will ALSO deliver this same post back
+    // — de-duped by checking for an existing element with this id first —
+    // but showing it immediately here means the poster doesn't wait on a
+    // network round-trip to see their own post appear.
+    if(!document.querySelector(`[data-sid="${res.status.id}"]`)){
+      if(list.querySelector('.pf-empty')) list.innerHTML = '';
+      list.insertAdjacentHTML('afterbegin', statusHTML({...res.status, username:me.username, avatar_url:me.avatar_url, avatar_seed:me.avatar_seed}, true));
+      wireStatusInteractions(list, true);
+    }
+  };
+
+  if(!foryouSub && s?.socialReady){
+    foryouSub = s.subscribeStatuses(newStatus => {
+      const target = document.getElementById('fyStatuses');
+      if(!target) return;   // tab isn't open right now — realtime still delivers, we just skip the DOM update
+      if(document.querySelector(`[data-sid="${newStatus.id}"]`)) return;   // already shown (e.g. our own optimistic post)
+      if(target.querySelector('.pf-empty')) target.innerHTML = '';
+      const isOwn = signedIn && newStatus.user_id === me?.id;
+      target.insertAdjacentHTML('afterbegin', statusHTML(newStatus, isOwn));
+      wireStatusInteractions(target, true);
+    });
+  }
 }
 
 function renderFeed(){
