@@ -1521,6 +1521,13 @@ function adaptHitter(h, teamAbbr, game, side) {
       last15: l10.hr != null ? `${l10.hr} HR / ${l10.ab} AB` : '—',
       last30: l10.hr != null ? `${l10.hr} HR / ${l10.ab} AB (L10 G)` : '—',
       trend,
+      // Real numbers, not just the display string above — needed for a
+      // recent-HR-RATE signal that's genuinely different from `trend`
+      // (trend compares recent AVG to season AVG; this compares recent HR
+      // rate to season HR rate specifically — a player can be flat on
+      // trend while running unusually hot or cold on power specifically).
+      l10Hr: l10.hr ?? null,
+      l10Ab: l10.ab ?? null,
     },
     gameLog: h.gameLog || [],
     odds: h.odds || null,          // real prices + one-tap betslip deep links
@@ -2232,14 +2239,35 @@ function factorListHTML(p, prop){
 function scorePlayer(base, game){
   const M = MODEL.hr;
   const W = M.weights;
+  const C = M.contact;       // contact-quality sub-weights, sum to W.statcast
+  const P = M.parkWeights;   // park/weather sub-weights, sum to W.park
 
   const weatherMult = M.weatherMult[game.weatherEffect] ?? M.weatherMult.neu;
 
-  // Contact quality — the single biggest driver.
-  let statcastScore = clamp(Math.round(W.statcast * (
-      (base.statcast.barrel  / M.barrelScale)  * M.barrelWeight +
-      (base.statcast.hardHit / M.hardHitScale) * (1 - M.barrelWeight)
-  )), 0, W.statcast);
+  // ---- Contact quality: four independent signals, not one blend ratio ----
+  // Previously barrel% and hard-hit% were combined via a single 0-1 ratio
+  // (raise one, the other necessarily falls). Each now has its own point
+  // budget, so you can genuinely emphasize one without mechanically trading
+  // off against another.
+  const barrelPts  = clamp(C.barrel  * (base.statcast.barrel  / M.barrelScale),  0, C.barrel);
+  const hardHitPts = clamp(C.hardHit * (base.statcast.hardHit / M.hardHitScale), 0, C.hardHit);
+  const exitVeloPts = base.statcast.exitVelo != null
+    ? clamp(C.exitVelo * ((base.statcast.exitVelo - M.exitVeloFloor) / (M.exitVeloScale - M.exitVeloFloor)), 0, C.exitVelo)
+    : C.exitVelo * 0.5;    // no reading yet — assume league-average rather than zero
+  // Fly-ball rate and ground-ball rate are perfect complements (one is
+  // literally 100 minus the other), so they are NOT exposed as two separate
+  // weights here — that would just be the same knob wired to move twice,
+  // not real additional precision. This one knob controls how much a
+  // fly-ball-leaning profile is rewarded (and a ground-ball-leaning one
+  // penalized) in one place. Clamped strictly to its own share, same as
+  // every other sub-component — no headroom past it, so an elite reading on
+  // ONE signal can never silently swallow another signal's real difference
+  // once everything is summed and clamped to the category total.
+  const battedBallPts = base.airPct != null
+    ? clamp(C.battedBall * (base.airPct / M.leagueAirPct), 0, C.battedBall)
+    : C.battedBall * 0.8;
+  let statcastScore = clamp(Math.round(barrelPts + hardHitPts + exitVeloPts + battedBallPts), 0, W.statcast);
+
   // Platoon: how THIS batter has actually hit tonight's specific pitcher
   // handedness this year, not just his overall season line. SLG is the
   // relevant split here (power), regressed toward season SLG by sample size.
@@ -2247,28 +2275,53 @@ function scorePlayer(base, game){
     statcastScore * platoonAdjustment(base.splits, base.oppPitcher?.throws, base.slg, "slg", M.platoonWeight, MODEL.regression.regressionPA)
   ), 0, W.statcast);
 
-  // Recent form — tier baseline plus a hot/cold nudge.
+  // ---- Form: season power tier, hot/cold batting trend, hot/cold POWER trend ----
+  // trendAdj and powerTrendAdj measure genuinely different things: trendAdj
+  // compares recent AVG to season AVG (overall hitting success); powerTrendAdj
+  // compares recent HR RATE to season HR rate specifically. A player can be
+  // flat on one while running hot or cold on the other.
   const trendAdj = base.recentForm.trend==='up' ?  M.trendBonus
                  : base.recentForm.trend==='down' ? -M.trendBonus : 0;
+  let powerTrendAdj = 0;
+  if(base.recentForm.l10Ab >= 15 && base.pa > 0){
+    const seasonHrRate = base.hr / Math.max(1, base.pa);
+    const recentHrRate = base.recentForm.l10Hr / base.recentForm.l10Ab;
+    powerTrendAdj = clamp((recentHrRate - seasonHrRate) * M.powerTrendScale, -M.powerTrendCap, M.powerTrendCap);
+  }
   const r = TIER_RANGES[base.tier];
-  const formScore = clamp((r ? r.base.form : 12) + trendAdj, 0, W.form);
+  const formScore = clamp((r ? r.base.form : 12) + trendAdj + powerTrendAdj, 0, W.form);
 
-  // Environment — park factor scaled by tonight's wind/weather.
-  const parkScore = clamp(Math.round(W.park * (game.parkFactor/100) * weatherMult), 0, W.park);
+  // ---- Park & weather: independently weighted, not multiplied together ----
+  // Previously the whole park score was MULTIPLIED by a wind/weather factor,
+  // meaning one bad-wind reading could crush an elite park's entire
+  // contribution regardless of how much you'd told the model to trust park
+  // factor. Each now gets its own budget, so a bad wind night only costs
+  // its own share.
+  // Park factor gets a real floor-to-ceiling scale, same pattern as
+  // barrel%/hard-hit%/exit-velo above — NOT the old parkFactor/100 ratio,
+  // which saturated to full marks at ANY league-average-or-better park
+  // (parkFactor >= 100), compressing every hitter-friendly park from mildly
+  // favorable to an extreme Coors-Field-style number into the exact same
+  // score. This preserves real differentiation across the whole range.
+  const parkFactorPts = clamp(
+    P.parkFactor * ((game.parkFactor - M.parkFactorFloor) / (M.parkFactorScale - M.parkFactorFloor)),
+    0, P.parkFactor
+  );
+  // Each sub-component clamps strictly to its own share — no headroom past
+  // it — so the sum can never exceed W.park before the final clamp, meaning
+  // that final clamp never has to hide a real difference between two nights.
+  const weatherPts = clamp(P.weather * weatherMult, 0, P.weather);
+  const parkScore = clamp(Math.round(parkFactorPts + weatherPts), 0, W.park);
 
-  // Matchup — how homer-prone tonight's starter has been, scaled by whether he
-  // keeps the ball on the ground. A 1.30 HR/9 flyball arm is a very different
-  // proposition from a 1.30 HR/9 sinkerballer.
+  // ---- Matchup: pitcher HR-rate, groundball tendency, overall quality ----
+  // A pitcher can be homer-prone specifically (high HR9) while pitching well
+  // overall (low ERA), or the reverse — generally hittable without
+  // necessarily serving up homers. Each is tracked and weighted separately.
   let matchupRatio = Math.min(M.matchupCap, base.oppPitcher.hr9 / M.leagueHR9);
   if(base.oppPitcher.gbFb != null){
     const gbSkew = base.oppPitcher.gbFb / M.leagueGbFb;        // >1 = more grounders
     matchupRatio *= 1 - (gbSkew - 1) * M.pitcherGbWeight;
   }
-  // Overall pitcher quality (ERA) — deliberately separate from HR9/GB-FB
-  // above. A pitcher can be homer-prone specifically (high HR9) while
-  // otherwise pitching well (low ERA), or the reverse — generally hittable
-  // without necessarily serving up homers. ERA is a genuinely different
-  // signal, not a restatement of HR9.
   if(base.oppPitcher.era != null && M.pitcherEraWeight){
     const eraSkew = base.oppPitcher.era / M.leagueEra;          // >1 = worse than average
     matchupRatio *= 1 + (eraSkew - 1) * M.pitcherEraWeight;
@@ -2276,13 +2329,7 @@ function scorePlayer(base, game){
   const matchupScore = clamp(Math.round(W.matchup * Math.max(0, matchupRatio)), 0, W.matchup);
 
   base.breakdown = { statcast: statcastScore, form: formScore, park: parkScore, matchup: matchupScore };
-  let hrRaw = statcastScore + formScore + parkScore + matchupScore;
-
-  // Air-ball gate: elite exit velocity on the ground produces singles, not homers.
-  if(base.airPct != null){
-    const airSkew = base.airPct / M.leagueAirPct;
-    hrRaw *= 1 + (airSkew - 1) * M.airWeight;
-  }
+  const hrRaw = statcastScore + formScore + parkScore + matchupScore;
   base.hrIndex = clamp(Math.round(hrRaw), 0, 100);
 
   // ---- other props: PROJECTED COUNTS, not index scores ----
