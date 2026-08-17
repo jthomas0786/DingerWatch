@@ -15,7 +15,7 @@
     // data and for platoon splits. Raise it to trust small samples less
     // (a hot 15-PA callup gets pulled harder toward average). Lower it to
     // let hot small samples rank higher, faster.
-    "regressionPA": 500,
+    "regressionPA": 220,
 
     // League-average isolated power (SLG - AVG), used as the blend target
     // when a player's own Statcast is too thin to trust. Rarely needs
@@ -83,10 +83,10 @@
     // this top-level split still controls the balance BETWEEN categories;
     // the sub-weights control the balance WITHIN each one.
     "weights": {
-      "statcast": 50, // contact quality overall. Raise to trust what the bat did more than context.
-      "form":     15, // recent hot/cold streak overall. Raise for a faster-reacting grade.
+      "statcast": 40, // contact quality overall. Raise to trust what the bat did more than context.
+      "form":     20, // recent hot/cold streak overall. Raise for a faster-reacting grade.
       "park":     15, // ballpark + weather overall. Raise to weight the SETTING more than the hitter.
-      "matchup":  20  // opposing pitcher overall. Raise to weight the ARM more than the hitter.
+      "matchup":  25  // opposing pitcher overall. Raise to weight the ARM more than the hitter.
     },
 
     // ---- Contact quality sub-weights — must sum to weights.statcast (50) ----
@@ -96,14 +96,14 @@
     // has its own budget, so you can push weight toward exactly the signal
     // you trust most without an automatic knock-on effect elsewhere.
     "contact": {
-      "barrel":     25, // barrel% (ball hit exactly right). Raise to reward elite barrels specifically.
-      "hardHit":    13, // hard-hit% (95mph+ exit velo rate). Raise to reward hard contact generally, barreled or not.
-      "exitVelo":    7, // NEW — raw average exit velocity, a continuous signal distinct from the hard-hit threshold above.
-      "battedBall":  5  // NEW — fly-ball-leaning batted-ball profile. See note below on why this is ONE knob, not two.
+      "barrel":     20, // barrel% (ball hit exactly right). Raise to reward elite barrels specifically.
+      "hardHit":    10, // hard-hit% (95mph+ exit velo rate). Raise to reward hard contact generally, barreled or not.
+      "exitVelo":    6, // NEW — raw average exit velocity, a continuous signal distinct from the hard-hit threshold above.
+      "battedBall":  4  // NEW — fly-ball-leaning batted-ball profile. See note below on why this is ONE knob, not two.
     },
     // The barrel% that earns full marks on its slice. Raise to make elite
     // barrel rates harder to max out; lower to make max marks easier.
-    "barrelScale": 20,
+    "barrelScale": 15,
     // Same idea for hard-hit%: the rate that earns full marks on its slice.
     "hardHitScale": 35,
     // NEW — the raw exit-velocity range (mph) the exitVelo slice is scored
@@ -126,8 +126,8 @@
     // rate gap into points; powerTrendCap bounds how far a small,
     // noisy sample can swing it — raise the cap to let it move the grade
     // more, raise the scale to make even a small gap matter more.
-    "powerTrendScale": 200,
-    "powerTrendCap": 6,
+    "powerTrendScale": 150,
+    "powerTrendCap": 5,
 
     // Multipliers applied within the park score based on tonight's
     // wind/weather read. pos = wind blowing out / helpful conditions,
@@ -153,7 +153,7 @@
     // smaller differences; widen it to require a more extreme park before
     // maxing out.
     "parkFactorFloor": 80,
-    "parkFactorScale": 120,
+    "parkFactorScale": 110,
 
     // League-average HR/9 allowed by a starting pitcher. This is the
     // denominator for "how much more (or less) homer-prone is tonight's
@@ -190,7 +190,7 @@
     // much a pitcher's groundball-to-flyball ratio nudges the matchup score
     // beyond his raw HR9 — raise to weight pitch-type tendency more heavily
     // than his results so far; lower to trust his actual HR9 results more.
-    "pitcherGbWeight": 0.2,
+    "pitcherGbWeight": 0.18,
     // League-average groundball/flyball ratio — the neutral point pitcherGbWeight measures pitchers against.
     "leagueGbFb": 1.35,
 
