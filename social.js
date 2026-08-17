@@ -286,6 +286,38 @@ async function sendMessage(body, room = 'general', propKey = null){
 }
 
 /** Realtime subscription. Returns an unsubscribe function. */
+let statusSub = null;
+
+/**
+ * Global feed of new statuses, across every user — not scoped to one
+ * profile. The realtime payload for a raw INSERT only has the bare
+ * statuses-table columns (no joined profile, no comment/reaction counts),
+ * so this fetches the author's profile and flattens it onto the payload to
+ * match status_feed's shape, the same thing every renderer already expects.
+ * A brand-new status has no comments or reactions yet, so those default to 0
+ * rather than needing a second query.
+ */
+function subscribeStatuses(onNewStatus){
+  if(!socialReady) return () => {};
+  if(statusSub) sb.removeChannel(statusSub);
+  statusSub = sb.channel('statuses:global')
+    .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'statuses' },
+        async payload => {
+          const { data: prof } = await sb.from('profiles')
+            .select('username, display_name, avatar_seed, avatar_url')
+            .eq('id', payload.new.user_id).single();
+          onNewStatus({
+            ...payload.new,
+            username: prof?.username, display_name: prof?.display_name,
+            avatar_seed: prof?.avatar_seed, avatar_url: prof?.avatar_url,
+            comment_count: 0, reaction_count: 0,
+          });
+        })
+    .subscribe();
+  return () => { if(statusSub){ sb.removeChannel(statusSub); statusSub = null; } };
+}
+
 function subscribeChat(room, onMessage){
   if(!socialReady) return () => {};
   if(chatSub) sb.removeChannel(chatSub);
@@ -939,6 +971,7 @@ export {
   signUp, signIn, signOut,
   propKey, toggleReaction, loadReactions, REACTION_EMOJI,
   loadChat, sendMessage, subscribeChat,
+  subscribeStatuses,
   toggleFollow, followCounts, followingFeed,
   publishPick, reactionsFor, primeReactions,
   checkWhopAccess, startWhopConnect, handleWhopOAuthCallback, whopOAuthConfigured,
