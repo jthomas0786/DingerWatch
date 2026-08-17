@@ -38,7 +38,7 @@
     // (pulls every player's simulation slightly toward it); lowering it
     // makes that outcome rarer across the board.
     "leagueRates": {
-      "hr":   0.0295, // ~19 HR per 600 PA
+      "hr":   0.0317, // ~19 HR per 600 PA
       "hits": 0.2250, // ~135 H per 600 PA
       "dbl":  0.0433,
       "trp":  0.0033,
@@ -63,9 +63,9 @@
       "aPlus": 99, // top X% of the slate get A+. Raise = rarer A+, lower = more of them.
       "a":     85, // top X% get A or better.
       "bPlus": 70, // top X% get B+ or better.
-      "b":     50, // top X% get B or better.
-      "cPlus": 35, // top X% get C+ or better.
-      "c":     20  // top X% get C or better. Below this line = D.
+      "b":     55, // top X% get B or better.
+      "cPlus": 40, // top X% get C+ or better.
+      "c":     25  // top X% get C or better. Below this line = D.
     },
 
     // Per-prop overrides layer ON TOP of percentiles above, so you can make
@@ -78,38 +78,82 @@
 
   "hr": {
     // Must total 100 — these are the shares of the 0-100 HR index each
-    // signal is allowed to contribute. Raising one means lowering another
-    // (the app warns in the console if they stop summing to 100).
+    // CATEGORY is allowed to contribute. Each category is now broken into
+    // its own independent sub-weights below (contact, parkWeights, etc.) —
+    // this top-level split still controls the balance BETWEEN categories;
+    // the sub-weights control the balance WITHIN each one.
     "weights": {
-      "statcast": 50, // contact quality (barrel% + hard-hit%). Raise to trust exit-velocity data more than context.
-      "form":     15, // recent hot/cold streak. Raise to make tonight's grade react faster to a hot week.
-      "park":     15, // ballpark HR factor + tonight's wind/weather. Raise to weight the SETTING more than the hitter.
-      "matchup":  20  // opposing pitcher's HR-proneness (HR/9, groundball rate, ERA). Raise to weight the ARM more.
+      "statcast": 50, // contact quality overall. Raise to trust what the bat did more than context.
+      "form":     15, // recent hot/cold streak overall. Raise for a faster-reacting grade.
+      "park":     15, // ballpark + weather overall. Raise to weight the SETTING more than the hitter.
+      "matchup":  20  // opposing pitcher overall. Raise to weight the ARM more than the hitter.
     },
 
-    // Within the "statcast" share above: how much comes from barrel rate
-    // vs. hard-hit rate. 0.6 = 60% barrel, 40% hard-hit. Raise toward 1 to
-    // reward barrels (the ball hit exactly right) over just hitting it hard;
-    // lower toward 0 to reward raw exit velocity even on mediocre contact.
-    "barrelWeight": .60,
-    // The barrel% that earns full marks on that portion of the score.
-    // Raise it to make elite barrel rates harder to max out (stretches the
-    // top of the scale); lower it to make max marks easier to reach.
-    "barrelScale": 30,
-    // Same idea for hard-hit%: the rate that earns full marks on that slice.
-    "hardHitScale": 50,
+    // ---- Contact quality sub-weights — must sum to weights.statcast (50) ----
+    // Four independent signals now, not one blend ratio between two things.
+    // Previously barrel% and hard-hit% were forced to trade off against each
+    // other (raising one automatically lowered the other's share); now each
+    // has its own budget, so you can push weight toward exactly the signal
+    // you trust most without an automatic knock-on effect elsewhere.
+    "contact": {
+      "barrel":     25, // barrel% (ball hit exactly right). Raise to reward elite barrels specifically.
+      "hardHit":    13, // hard-hit% (95mph+ exit velo rate). Raise to reward hard contact generally, barreled or not.
+      "exitVelo":    7, // NEW — raw average exit velocity, a continuous signal distinct from the hard-hit threshold above.
+      "battedBall":  5  // NEW — fly-ball-leaning batted-ball profile. See note below on why this is ONE knob, not two.
+    },
+    // The barrel% that earns full marks on its slice. Raise to make elite
+    // barrel rates harder to max out; lower to make max marks easier.
+    "barrelScale": 20,
+    // Same idea for hard-hit%: the rate that earns full marks on its slice.
+    "hardHitScale": 35,
+    // NEW — the raw exit-velocity range (mph) the exitVelo slice is scored
+    // across. Below the floor scores 0 on this slice; at or above the scale
+    // value scores full marks. These are rough MLB replacement-level /
+    // elite bounds — adjust if the league-wide exit-velo environment shifts.
+    "exitVeloFloor": 85,
+    "exitVeloScale": 95,
 
     // Flat point swing applied to the "form" share when a player is
-    // trending up or down (e.g. hot last 10 games vs. cold). Raise to make
-    // a hot/cold streak move the grade more; lower to make form matter less
-    // relative to the player's underlying tier.
-    "trendBonus": 5,
+    // trending up or down on BATTING AVERAGE (hot/cold overall, last 10
+    // games vs. season). Raise to make an overall hot/cold streak move the
+    // grade more.
+    "trendBonus": 4,
+    // NEW — a SEPARATE hot/cold signal, specifically for HOME RUN RATE
+    // rather than overall batting average. A player can be flat on the
+    // signal above while running unusually hot or cold on power
+    // specifically (e.g. a string of solo shots without his average
+    // actually moving). powerTrendScale converts the recent-vs-season HR
+    // rate gap into points; powerTrendCap bounds how far a small,
+    // noisy sample can swing it — raise the cap to let it move the grade
+    // more, raise the scale to make even a small gap matter more.
+    "powerTrendScale": 200,
+    "powerTrendCap": 6,
 
-    // Multipliers applied to the HR index based on tonight's wind/weather
-    // read. pos = wind blowing out / helpful conditions, neg = wind in /
-    // unhelpful, neu = calm or indoors. Raise pos above 1 to reward good
-    // wind more; lower neg further below 1 to punish bad wind more.
+    // Multipliers applied within the park score based on tonight's
+    // wind/weather read. pos = wind blowing out / helpful conditions,
+    // neg = wind in / unhelpful, neu = calm or indoors. Raise pos above 1
+    // to reward good wind more; lower neg further below 1 to punish bad
+    // wind more.
     "weatherMult": { "pos": 1.08, "neg": 0.9, "neu": 1 },
+    // ---- Park & weather sub-weights — must sum to weights.park (15) ----
+    // Previously the WHOLE park score was multiplied by the weather
+    // multiplier above, meaning one bad-wind reading could crush an elite
+    // park's entire contribution regardless of how much you wanted park
+    // factor itself to matter. Now each gets its own budget — a bad wind
+    // night only costs its own smaller share, not the whole category.
+    "parkWeights": {
+      "parkFactor": 10, // the ballpark's own HR factor. Raise to weight the VENUE more.
+      "weather":     5  // tonight's wind/weather read. Raise to weight TONIGHT'S CONDITIONS more.
+    },
+    // The park-factor range parkWeights.parkFactor is scored across. Below
+    // the floor scores 0 on that slice; at or above the scale value scores
+    // full marks. 80-120 covers roughly the real range from an extreme
+    // pitcher's park to an extreme hitter's park (Coors Field territory) —
+    // narrow this range to make the park-factor slice more sensitive to
+    // smaller differences; widen it to require a more extreme park before
+    // maxing out.
+    "parkFactorFloor": 80,
+    "parkFactorScale": 120,
 
     // League-average HR/9 allowed by a starting pitcher. This is the
     // denominator for "how much more (or less) homer-prone is tonight's
@@ -122,43 +166,41 @@
     // them more conservatively.
     "matchupCap": 1.5,
 
-    // NEW — league-average ERA, the denominator for a pitcher's OVERALL
-    // quality signal, deliberately separate from HR9 above: a pitcher can
-    // be homer-prone specifically (high HR9) while pitching well overall
-    // (low ERA), or the reverse. This lets tonight's matchup score react to
-    // "is this pitcher generally hittable right now," not just his homer
-    // rate specifically.
+    // League-average ERA, the denominator for a pitcher's OVERALL quality
+    // signal, deliberately separate from HR9 above: a pitcher can be
+    // homer-prone specifically (high HR9) while pitching well overall (low
+    // ERA), or the reverse. This lets tonight's matchup score react to "is
+    // this pitcher generally hittable right now," not just his homer rate
+    // specifically.
     "leagueEra": 4.2,
     // How much that overall-quality (ERA) signal moves the matchup score.
     // 0 disables it entirely (matchup score is purely HR9/groundball-rate
-    // based, the old behavior). Raise toward 1 to let a struggling pitcher's
-    // overall bad form matter as much as his specific homer-proneness.
-    "pitcherEraWeight": 0.2,
+    // based). Raise toward 1 to let a struggling pitcher's overall bad form
+    // matter as much as his specific homer-proneness.
+    "pitcherEraWeight": 0.15,
 
-    // NEW — how much tonight's SPECIFIC pitcher handedness matchup matters,
-    // using the batter's own platoon split (his SLG vs LHP or vs RHP this
-    // season, regressed toward his overall SLG by sample size — see
-    // regressionPA above). 0 = platoon splits ignored entirely (only
-    // season-overall stats matter). 1 = fully trust the platoon-adjusted
-    // number once the sample is large enough. This was previously fetched
-    // and shown on player cards but never actually affected any grade.
-    "platoonWeight": 0.65,
+    // How much tonight's SPECIFIC pitcher handedness matchup matters, using
+    // the batter's own platoon split (his SLG vs LHP or vs RHP this season,
+    // regressed toward his overall SLG by sample size — see regressionPA
+    // above). 0 = platoon splits ignored entirely. 1 = fully trust the
+    // platoon-adjusted number once the sample is large enough.
+    "platoonWeight": 0.5,
 
     // Ground-ball pitchers structurally suppress home runs. This is how
     // much a pitcher's groundball-to-flyball ratio nudges the matchup score
     // beyond his raw HR9 — raise to weight pitch-type tendency more heavily
     // than his results so far; lower to trust his actual HR9 results more.
-    "pitcherGbWeight": 0.25,
+    "pitcherGbWeight": 0.2,
     // League-average groundball/flyball ratio — the neutral point pitcherGbWeight measures pitchers against.
     "leagueGbFb": 1.35,
 
-    // Elite exit velocity on the ground makes hard singles, not home runs.
-    // This is how much a hitter's own air-ball rate (fly balls vs.
-    // groundballs) scales his final HR index once everything else is
-    // computed. Raise to punish ground-ball-heavy sluggers more; lower to
-    // let raw contact quality matter more regardless of trajectory.
-    "airWeight": 0.4,
-    // League-average share of batted balls hit in the air — the neutral point airWeight measures a hitter against.
+    // League-average share of batted balls hit in the air — the neutral
+    // point contact.battedBall (above) measures a hitter against. Fly-ball
+    // rate and ground-ball rate are perfect complements of each other (one
+    // is always 100 minus the other), so only ONE knob exists for this
+    // signal — a separate "ground ball weight" would just be the same dial
+    // wired to move in the opposite direction, not real additional
+    // precision.
     "leagueAirPct": 62
   },
 
