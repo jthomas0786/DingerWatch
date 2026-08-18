@@ -3079,7 +3079,10 @@ async function loadModelOverrides(){
   try{
     const res = await fetch('model-config.json', { cache: 'no-cache' });
     if(!res.ok) return false;                 // absent is fine — defaults stand
-    const overrides = await res.json();
+    // The config is JSONC on purpose: every weight carries a comment
+    // explaining what raising or lowering it does. res.json() cannot parse
+    // that, so read it as text and strip comments + trailing commas first.
+    const overrides = JSON.parse(stripJSONComments(await res.text()));
     deepMerge(MODEL, overrides);
     validateModel();
     // Log only the keys that actually differ — dumping the whole config buries
