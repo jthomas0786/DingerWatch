@@ -2138,9 +2138,10 @@ footer{ margin-left:0; }
 #splash{
   position:fixed; inset:0; z-index:9999;
   background: radial-gradient(ellipse at 50% 35%, #0c1020 0%, #080b14 100%);
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  display:none; flex-direction:column; align-items:center; justify-content:center;
   gap:28px; transition: opacity .4s ease;
 }
+#splash.show{ display:flex; }
 #splash.hide{ opacity:0; pointer-events:none; }
 
 /* Bat-only swing animation */
@@ -8088,6 +8089,8 @@ let _simsStarted = false;
 function maybeRunSims(){
   if(!_slateLoaded || !_gateDismissed || _simsStarted) return;
   _simsStarted = true;
+  const splash = document.getElementById('splash');
+  if(splash) splash.classList.add('show');
   preRunSimulations().then(() => {
     hideSplash();
     renderList();
