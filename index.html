@@ -7043,7 +7043,7 @@ function showGate(mode = 'signin'){
       return;
     }
     if(!s.getUser?.()){ err.textContent = 'Signed in, but your profile didn\'t load. Reload and try again.'; return; }
-    dismissGate();
+    checkWhopAndDismiss();
   };
 
   // Enter submits.
@@ -7062,6 +7062,23 @@ function dismissGate(){
   maybeRunSims();
 }
 
+/** After sign-in, check Whop access before fully dismissing.
+ *  If the user has an active subscription → dismiss and start sims.
+ *  If not → show the Whop subscribe gate instead. */
+async function checkWhopAndDismiss(){
+  const s = social();
+  if(!s?.whopOAuthConfigured?.()){ dismissGate(); return; }
+  try{
+    const access = await s.checkWhopAccess(true);
+    if(access.error){ console.warn('[whop] access check failed:', access.error); dismissGate(); return; }
+    if(access.hasAccess){ dismissGate(); return; }
+    showSubscribeGate(access.checkoutUrl, access.connected);
+  }catch(e){
+    console.warn('[whop] access check threw:', e);
+    dismissGate();
+  }
+}
+
 /** Decide whether the gate is needed. Called once social has settled. */
 function evaluateGate(){
   const s = social();
@@ -7069,8 +7086,8 @@ function evaluateGate(){
   const signedIn = !!s?.getUser?.();
   const acked = store.get(GATE_ACK_KEY) === '1';
 
-  // Signed in and already acknowledged: nothing to show.
-  if(signedIn && acked){ dismissGate(); return; }
+  // Signed in and already acknowledged: check Whop before dismissing.
+  if(signedIn && acked){ checkWhopAndDismiss(); return; }
   // Backend unavailable and already acknowledged: don't block a working app.
   if(!canAuth && acked){ dismissGate(); return; }
   showGate(signedIn ? 'signin' : 'signup');
