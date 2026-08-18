@@ -2285,6 +2285,35 @@ footer{ margin-left:0; }
   font-family:'JetBrains Mono',monospace; font-size:10px; padding:7px; border-radius:8px; cursor:pointer; }
 .notify-pop-foot button:hover{ border-color:var(--accent); color:var(--accent); }
 </style>
+<style>
+/* --- Watchlist star --- */
+.watch-star{
+  flex-shrink:0; width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid var(--border); border-radius:8px; background:transparent; color:var(--text-faint);
+  cursor:pointer; transition: var(--transition); padding:0; line-height:0;
+}
+.watch-star:hover{ border-color:var(--accent); color:var(--accent); background:var(--accent-glow); }
+.watch-star svg{ width:16px; height:16px; transition: var(--transition); }
+.watch-star[aria-pressed="true"]{ border-color:var(--accent); color:var(--accent); background:var(--accent-glow); }
+.watch-star[aria-pressed="true"] svg{ fill:var(--accent); }
+.watch-star[aria-pressed="true"]:hover{ border-color:var(--hr-red); color:var(--hr-red); background:transparent; }
+.watch-star[aria-pressed="true"]:hover svg{ fill:var(--hr-red); }
+.watch-star:disabled{ opacity:.5; cursor:default; }
+.watch-star.sm{ width:26px; height:26px; }
+.watch-star.sm svg{ width:14px; height:14px; }
+.pick-name-row .watch-star{ margin-left:2px; align-self:center; }
+.modal-head .watch-star{ position:absolute; top:14px; right:54px; width:34px; height:34px; border-radius:9px; }
+.modal-head .watch-star svg{ width:17px; height:17px; }
+/* --- Notification badge --- */
+.notify-badge{
+  position:absolute; top:-5px; right:-5px; min-width:17px; height:17px; padding:0 4px;
+  border-radius:9px; background:var(--hr-red); color:#fff; font-family:'JetBrains Mono',monospace;
+  font-size:9px; font-weight:700; line-height:17px; text-align:center; pointer-events:none;
+  border:2px solid var(--bg); box-sizing:content-box; display:none;
+}
+.notify-badge.show{ display:block; }
+#notifyBtn{ position:relative; }
+</style>
 </head>
 <body>
 
@@ -2457,8 +2486,9 @@ footer{ margin-left:0; }
         <button class="icon-btn" id="exportBtn" title="Download projections as Excel" aria-label="Export" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         </button>
-        <button class="icon-btn" id="notifyBtn" title="Home run alerts" aria-label="Alerts">
+        <button class="icon-btn" id="notifyBtn" title="Notifications" aria-label="Notifications">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="notify-badge" id="notifyBadge"></span>
         </button>
         <div class="notify-pop" id="notifyPop"></div>
         <button class="avatar-btn" id="authBtn" title="Sign in to react and chat">
@@ -4033,7 +4063,7 @@ function renderAllPlayers(){
         <div class="pick-rank ${i===0?'':(i===1?'r2':(i===2?'r3':'r5'))}">${i+1}</div>
         ${headshotImgTag(p.name, 'pick-headshot', p.team, p.id)}
         <div class="pick-body">
-          <div class="pick-name-row"><span class="pick-name">${p.name}</span><span class="pick-team">${p.team} · ${p.pos||''}</span></div>
+          <div class="pick-name-row"><span class="pick-name">${p.name}</span><span class="pick-team">${p.team} · ${p.pos||''}</span>${watchStarHTML(p)}</div>
           <div class="pick-matchup">${g.awayName} @ ${g.homeName} · ${gameTime(g)}</div>
           <div class="pick-summary">${p.narrative}</div>
           <div class="pick-chips">
@@ -4078,6 +4108,8 @@ function renderAllPlayers(){
       if(p) openBatterModal(p);
     });
   });
+  syncWatchStars(pickList);
+  wireWatchStars(pickList);
   primeVisibleReactions();
 }
 
@@ -4348,7 +4380,7 @@ function renderList(){
         <div class="pick-rank ${rankClasses[i]}">${i+1}</div>
         ${headshotImgTag(p.name, 'pick-headshot', ringTeam, p.id)}
         <div class="pick-body">
-          <div class="pick-name-row"><span class="pick-name">${p.name}</span><span class="pick-team">${isPitcher ? '' : team+' · '+(p.pos||'')}</span><span class="pick-matchup">${matchupTxt}</span></div>
+          <div class="pick-name-row"><span class="pick-name">${p.name}</span><span class="pick-team">${isPitcher ? '' : team+' · '+(p.pos||'')}</span><span class="pick-matchup">${matchupTxt}</span>${isPitcher ? '' : watchStarHTML(p)}</div>
           <div class="pick-metrics">
             <div class="pick-chips">${chipsFor(activeTab, p).join('')}</div>
             <div class="pick-env">
@@ -4380,6 +4412,9 @@ function renderList(){
       if(activeTab==='k') openPitcherModal(p); else openBatterModal(p);
     });
   });
+  // Wire watch-list stars on every rendered card.
+  syncWatchStars(pickList);
+  wireWatchStars(pickList);
   // Kick off async batter-vs-pitcher H2H lookups for the visible cards
   fetchBVPForCards();
 }
@@ -5583,8 +5618,17 @@ function renderNotifyBtn(){
   btn.classList.toggle('blocked', blocked);
   btn.setAttribute('aria-label', notifyEnabled ? 'Alerts on' : (blocked ? 'Alerts blocked' : 'Alerts off'));
   btn.title = notifyEnabled
-    ? 'Home run notifications are on — click to turn off'
-    : blocked ? 'Blocked in browser settings' : 'Get a notification for every home run';
+    ? 'Push alerts on — click to view notifications'
+    : blocked ? 'Blocked in browser settings — click to view notifications'
+              : 'Click to view watch-list notifications';
+
+  // Unread badge — watch-list alerts only (at-bat up / at-bat result).
+  const badge = document.getElementById('notifyBadge');
+  if(badge){
+    const unread = notifyUnreadCount();
+    badge.textContent = unread > 99 ? '99+' : String(unread);
+    badge.classList.toggle('show', unread > 0);
+  }
 }
 
 let feedEvents = [];          // newest first
@@ -7834,6 +7878,7 @@ function openBatterModal(p){
   modalBody.innerHTML = `
     <div class="modal-head">
       <button class="modal-close" id="modalClose">&times;</button>
+      ${watchStarHTML(p)}
       ${headshotImgTag(p.name, 'modal-headshot', p.team, p.id)}
       <div class="modal-head-text">
       <div class="modal-name">${p.name} <span class="dq-badge ${dqClass}">${dqLabel}</span></div>
@@ -7988,6 +8033,9 @@ function openBatterModal(p){
       if(host) host.innerHTML = propFactorBlockHTML(p, btn.dataset.prop);
     });
   });
+  // Wire the watch-list star in the modal header.
+  syncWatchStars(modalBody);
+  wireWatchStars(modalBody);
 }
 function openGameModal(g){
   // g.odds is null whenever no sportsbook feed is configured (the default), so
@@ -8219,7 +8267,7 @@ function avatarPickerHTML(prof){
 function checkWatchlistPlay(g, play){
   if(!watchedPlayerIds.size) return;      // nobody signed in, or nothing watched
   const batterId = play.matchup?.batter?.id;
-  if(!batterId || !watchedPlayerIds.has(batterId)) return;
+  if(!batterId || !isWatched(batterId)) return;
 
   const complete = play.about?.isComplete;
   const atBatKey = `${g.gamePk}:${play.atBatIndex}`;
@@ -8263,6 +8311,33 @@ function checkWatchlistPlay(g, play){
 // === PORTED FROM GITHUB: closeNotifyPop ===
 function closeNotifyPop(){
   document.getElementById('notifyPop')?.classList.remove('open');
+}
+
+/** Bell click: open the watch-list notification inbox (not the push toggle).
+ *  Marks everything read on open so the badge clears. */
+function toggleNotifyPop(){
+  const pop = document.getElementById('notifyPop');
+  if(!pop) return;
+  const opening = !pop.classList.contains('open');
+  if(opening){
+    renderNotifyPop();
+    pop.classList.add('open');
+    // Clear the unread badge the moment the inbox is seen.
+    notifyItems.forEach(n => n.read = true);
+    renderNotifyBtn();
+    social()?.markAllNotificationsRead?.();
+    // Close on any outside click — deferred so the opening click itself
+    // doesn't immediately register as the "outside" click.
+    setTimeout(() => {
+      document.addEventListener('click', function close(e){
+        if(!pop.contains(e.target) && e.target.id !== 'notifyBtn' && !e.target.closest('#notifyBtn')){
+          pop.classList.remove('open');
+        }
+      }, { once: true });
+    }, 0);
+  } else {
+    pop.classList.remove('open');
+  }
 }
 
 // === PORTED FROM GITHUB: disableNotifications ===
@@ -8422,14 +8497,91 @@ function gamecastHeaderHTML(g){
 }
 
 // === PORTED FROM GITHUB: isWatched ===
-function isWatched(playerId){ return watchedPlayerIds.has(playerId); }
+function isWatched(playerId){ return watchedPlayerIds.has(String(playerId ?? '')); }
+
+// --- Watchlist star UI (star button rendered next to each player name) ---
+const STAR_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+
+/** Star button HTML. Renders with the correct pressed state for `p`. */
+function watchStarHTML(p, opts = {}){
+  if(!p || !p.id) return '';
+  const id = String(p.id);
+  const on = isWatched(id);
+  const sm = opts.sm ? ' sm' : '';
+  return `<button type="button" class="watch-star${sm}" data-watch-id="${escapeHTML(id)}" data-watch-name="${escapeHTML(p.name||'')}" data-watch-team="${escapeHTML(p.team||'')}" aria-pressed="${on}" aria-label="${on?'Remove from':'Add to'} watch list" title="${on?'Remove from':'Add to'} watch list">${STAR_SVG}</button>`;
+}
+
+/** Update every visible star's pressed state (after load, toggle, or sign-in). */
+function syncWatchStars(root = document){
+  root.querySelectorAll('.watch-star').forEach(btn => {
+    const id = btn.dataset.watchId;
+    if(!id) return;
+    const on = isWatched(id);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btn.setAttribute('aria-label', on ? 'Remove from watch list' : 'Add to watch list');
+    btn.title = on ? 'Remove from watch list' : 'Add to watch list';
+  });
+}
+
+/** Wire click handlers on every star in `root`. Idempotent — safe to call after
+ *  every render. Delegates so re-renders don't leak listeners. */
+function wireWatchStars(root = document){
+  root.querySelectorAll('.watch-star:not([data-wired])').forEach(btn => {
+    btn.dataset.wired = '1';
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      await toggleWatchFromButton(btn);
+    });
+  });
+}
+
+/** Toggle a player on/off the watch list from a star button. */
+async function toggleWatchFromButton(btn){
+  const s = social();
+  if(!s || !s.socialEnabled() || !s.getUser?.()){
+    // Not signed in — prompt them rather than failing silently.
+    if(s && s.socialEnabled()) openAuthModal('signin');
+    else alert('Sign in to build a watch list and get at-bat alerts.');
+    return;
+  }
+  const id = btn.dataset.watchId;
+  const name = btn.dataset.watchName || 'Player';
+  const team = btn.dataset.watchTeam || '';
+  if(!id) return;
+  const wasOn = isWatched(id);
+  const date = slateMeta?.date || undefined;
+  const player = { id, name, team };
+
+  // Optimistic flip — feels instant, rolls back on failure.
+  if(wasOn) watchedPlayerIds.delete(String(id));
+  else watchedPlayerIds.add(String(id));
+  syncWatchStars();
+  btn.disabled = true;
+
+  let res;
+  try{
+    res = wasOn
+      ? await s.removeFromWatchlist(id, date)
+      : await s.addToWatchlist(player, date);
+  }catch(ex){ res = { error: ex?.message || 'Something went wrong.' }; }
+
+  btn.disabled = false;
+  if(res?.error){
+    // Roll back the optimistic change.
+    if(wasOn) watchedPlayerIds.add(String(id));
+    else watchedPlayerIds.delete(String(id));
+    syncWatchStars();
+    console.warn('[watch] toggle failed:', res.error);
+  }
+}
 
 // === PORTED FROM GITHUB: loadWatchlistCache ===
 async function loadWatchlistCache(){
   const s = social();
   if(!s || !s.socialEnabled() || !s.getUser?.()) { watchedPlayerIds = new Set(); return; }
   const rows = await s.getWatchlist();
-  watchedPlayerIds = new Set(rows.map(r => r.player_id));
+  watchedPlayerIds = new Set(rows.map(r => String(r.player_id ?? '')));
 }
 
 // === PORTED FROM GITHUB: loadWatchSeenKeys ===
@@ -8645,13 +8797,15 @@ function rememberWatchKey(set, suffix, key){
 function renderNotifyPop(){
   const pop = document.getElementById('notifyPop');
   if(!pop) return;
+  const pushLabel = notifyEnabled ? 'Turn off push alerts' : 'Turn on push alerts';
   pop.innerHTML = notifyPopHTML() + `
     <div class="notify-pop-foot">
-      <button id="notifyOffBtn">Turn off alerts</button>
+      <button id="notifyPushBtn">${pushLabel}</button>
     </div>`;
-  document.getElementById('notifyOffBtn')?.addEventListener('click', e => {
+  document.getElementById('notifyPushBtn')?.addEventListener('click', async (e) => {
     e.stopPropagation();
-    disableNotifications();
+    await toggleNotifications();
+    renderNotifyPop();   // re-render footer with the new label
   });
 }
 
@@ -8830,7 +8984,7 @@ async function boot(){
     notifyEnabled = true;
   }
   renderNotifyBtn();
-  document.getElementById('notifyBtn')?.addEventListener('click', toggleNotifications);
+  document.getElementById('notifyBtn')?.addEventListener('click', toggleNotifyPop);
   registerServiceWorker();
 
   // A framed or insecure origin breaks push, install, and layout at once. That
@@ -9192,6 +9346,9 @@ function initOnlinePresence(){
     renderAuthButton();
     refreshExportVisibility();
     refreshSocialUI();
+    // Watch list is per-user: reload it and repaint every star so the
+    // signed-in state is reflected immediately across all open tabs.
+    loadWatchlistCache().then(() => { syncWatchStars(); renderList(); });
   });
 
   if(window.DW_SOCIAL) startSocial();
