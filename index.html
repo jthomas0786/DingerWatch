@@ -5410,10 +5410,15 @@ async function registerServiceWorker(){
   if(!('serviceWorker' in navigator)) return null;
   try{
     swRegistration = await navigator.serviceWorker.register('sw.js');
-    // The worker asks us to open the Feed when a notification is tapped.
     navigator.serviceWorker.addEventListener('message', e => {
+      // The worker asks us to open the Feed when a notification is tapped.
       if(e.data?.type === 'open-feed'){
         activeTab = 'feed'; markFeedRead(); renderTabs(); renderList();
+      }
+      // The browser rotated this device's push subscription. The worker can't
+      // write to Supabase (no session), so it hands off to us.
+      if(e.data?.type === 'push-subscription-changed'){
+        ensurePushRegistered(false);
       }
     });
     return swRegistration;
@@ -5424,9 +5429,8 @@ async function registerServiceWorker(){
 }
 
 /**
- * Subscribe this device for background push. The resulting subscription must
- * reach the sender — with no backend, that means adding it to the repo, so we
- * show it for copying.
+ * Subscribe this device for background push and return the subscription.
+ * Persisting it is ensurePushRegistered's job (Supabase push_subscriptions).
  */
 async function subscribeToPush(){
   if(!pushSupported()) return null;
@@ -5462,30 +5466,31 @@ async function subscribeToPush(){
   }
 }
 
-/** Show the subscription JSON so it can be added to push-subscriptions.json. */
-function showSubscriptionForCopy(sub){
-  const json = JSON.stringify(sub.toJSON());
+/**
+ * Report that this device could not be registered for background push.
+ *
+ * This replaces an older developer-era modal that printed the raw subscription
+ * JSON and asked the user to paste it into push-subscriptions.json and commit
+ * it to the repo. Subscriptions live in the Supabase push_subscriptions table
+ * now and the sender no longer reads that file at all, so those instructions
+ * were both impossible for a normal user to follow and useless if followed.
+ */
+function showPushRegisterFailed(reason){
+  const signedOut = !social()?.getUser?.();
   const box = document.createElement('div');
   box.className = 'sub-modal';
   box.innerHTML = `
     <div class="sub-card">
-      <h3>One more step for background alerts</h3>
-      <p>This device is subscribed. To finish, add the line below to
-         <code>public/push-subscriptions.json</code> in your repo (it's a JSON array —
-         add this as a new item), then commit.</p>
-      <textarea readonly id="subJson">${json}</textarea>
+      <h3>Background alerts aren't active yet</h3>
+      <p>${signedOut
+        ? 'Sign in to finish turning on background alerts — this device has to be tied to your account so we know which players you follow.'
+        : "We couldn't register this device for background alerts. Alerts still work while the app is open."}</p>
+      ${reason && !signedOut ? `<p class="sub-note">${reason}</p>` : ''}
       <div class="sub-actions">
-        <button id="subCopy">Copy</button>
-        <button id="subClose">Done</button>
+        <button id="subClose">Got it</button>
       </div>
-      <p class="sub-note">Until it's committed, alerts still work while the app is open —
-         they just won't arrive when it's closed.</p>
     </div>`;
   document.body.appendChild(box);
-  document.getElementById('subCopy').onclick = async () => {
-    try{ await navigator.clipboard.writeText(json); document.getElementById('subCopy').textContent = 'Copied'; }
-    catch{ document.getElementById('subJson').select(); }
-  };
   document.getElementById('subClose').onclick = () => box.remove();
   box.onclick = e => { if(e.target === box) box.remove(); };
 }
@@ -5565,14 +5570,12 @@ async function toggleNotifications(){
         : "You'll get a notification for every home run while this page is open.",
       icon: NOTIFY_ICON, badge: NOTIFY_BADGE, tag: 'dw-test',
     });
-    if(bg){
-      const sub = await subscribeToPush();
-      // Only prompt once per device — the subscription is stable after that.
-      if(sub && store.get('dw_sub_shown') !== '1'){
-        store.set('dw_sub_shown', '1');
-        showSubscriptionForCopy(sub);
-      }
-    }
+    // Actually register this device with the sender. Previously this only
+    // created the browser-side subscription and then showed a copy-paste
+    // modal, so the subscription never reached the push_subscriptions table
+    // that send-push.js reads — meaning background push never worked for
+    // anyone. ensurePushRegistered persists it via Supabase.
+    if(bg) await ensurePushRegistered(true);
   } else if(perm === 'denied'){
     alert('Notifications are blocked for this site.\n\nRe-enable them in your browser settings (the padlock or ⓘ icon next to the address bar), then try again.');
   }
@@ -8391,16 +8394,31 @@ async function ensurePushRegistered(showFallbackOnFailure = false){
   const res = await s.savePushSubscription(sub);
   if(res?.error){
     console.warn('[push] automatic registration failed:', res.error);
-    // The manual-copy fallback is only shown when this was triggered by an
-    // explicit user action (the bell click) — a silent boot-time retry
-    // failing shouldn't pop a modal at someone who didn't just ask for
-    // anything, but someone who JUST clicked "enable alerts" deserves to
-    // know it did not fully work and has a way to finish it manually.
-    if(showFallbackOnFailure && store.get('dw_sub_shown') !== '1'){
-      store.set('dw_sub_shown', '1');
-      showSubscriptionForCopy(sub);
-    }
+    // Only surface this when the user explicitly asked (the bell click) — a
+    // silent boot-time retry failing shouldn't pop a modal at someone who
+    // didn't just ask for anything.
+    if(showFallbackOnFailure) showPushRegisterFailed(res.error);
+    return;
   }
+  // A rotated subscription the worker stashed has now been persisted.
+  try{ (await caches.open('dw-sw-v1')).delete('pending-subscription'); }catch{}
+  syncWatchlistToSW();
+}
+
+/**
+ * Mirror the watchlist into the Cache API so the service worker can read it
+ * while the page is closed. CacheStorage is shared between page and worker on
+ * the same origin, which avoids needing an active controller or message
+ * plumbing — the worker already persists its "seen" keys the same way.
+ */
+async function syncWatchlistToSW(){
+  try{
+    const cache = await caches.open('dw-sw-v1');
+    await cache.put('watchlist', new Response(JSON.stringify({
+      ids: [...watchedPlayerIds],
+      updatedAt: Date.now(),
+    })));
+  }catch{}
 }
 
 // === PORTED FROM GITHUB: fieldDiamondSVG ===
@@ -8587,6 +8605,8 @@ async function toggleWatchFromButton(btn){
     syncWatchStars();
     console.warn('[watch] toggle failed:', res.error);
   }
+  // Push the new list to the service worker so background alerts match it.
+  syncWatchlistToSW();
 }
 
 // === PORTED FROM GITHUB: loadWatchlistCache ===
@@ -8595,6 +8615,7 @@ async function loadWatchlistCache(){
   if(!s || !s.socialEnabled() || !s.getUser?.()) { watchedPlayerIds = new Set(); return; }
   const rows = await s.getWatchlist();
   watchedPlayerIds = new Set(rows.map(r => String(r.player_id ?? '')));
+  syncWatchlistToSW();
 }
 
 // === PORTED FROM GITHUB: loadWatchSeenKeys ===
@@ -9026,7 +9047,13 @@ async function boot(){
   }
   renderNotifyBtn();
   document.getElementById('notifyBtn')?.addEventListener('click', toggleNotifyPop);
-  registerServiceWorker();
+  // Re-register on every boot when alerts are on. This heals a subscription
+  // the browser silently rotated (savePushSubscription upserts on endpoint, so
+  // re-saving the same one is a no-op) and it back-fills every device that
+  // enabled alerts while the old copy-paste flow was in place.
+  registerServiceWorker().then(() => {
+    if(notifyEnabled) ensurePushRegistered(false);
+  });
 
   // A framed or insecure origin breaks push, install, and layout at once. That
   // is a deployment problem the user can't discover from the UI, so say it

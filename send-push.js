@@ -48,6 +48,16 @@ const todayEastern = () => new Intl.DateTimeFormat('en-CA', {
   timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
 }).format(new Date());
 
+// The browser stores watchlist rows under a slate_date computed in
+// America/Chicago (see todayStr in social.js), but this script works in
+// America/New_York. For the hour between midnight Eastern and midnight Central
+// those two disagree, so looking up only one of them silently misses that
+// user's whole watch list right when late West-coast games are still going.
+// Query both dates.
+const todayCentral = () => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(new Date());
+
 async function getJSON(url, tries = 3) {
   for (let i = 1; i <= tries; i++) {
     try {
@@ -133,7 +143,7 @@ function checkVapidKeysMatch() {
 
 // ---------------------------------------------------------------- push subscriptions
 async function fetchAllSubscriptions() {
-  const url = `${SUPABASE_URL}/rest/v1/push_subscriptions?select=id,endpoint,p256dh,auth_key`;
+  const url = `${SUPABASE_URL}/rest/v1/push_subscriptions?select=id,endpoint,p256dh,auth_key,user_id`;
   const res = await fetch(url, {
     headers: {
       apikey: SUPABASE_SERVICE_ROLE_KEY,
@@ -144,6 +154,36 @@ async function fetchAllSubscriptions() {
     throw new Error(`Supabase subscription fetch failed: ${res.status} ${(await res.text()).slice(0, 200)}`);
   }
   return res.json();
+}
+
+/**
+ * Every user's watched player ids, as user_id -> Set(player_id).
+ *
+ * Used to wake only the devices that actually care about a given home run.
+ * Without this every subscriber was woken for every home run league-wide, which
+ * is both the wrong product behaviour and a good way to get uninstalled.
+ */
+async function fetchWatchlists() {
+  const dates = [...new Set([todayEastern(), todayCentral()])];
+  const inList = dates.map(d => `"${d}"`).join(',');
+  const url = `${SUPABASE_URL}/rest/v1/watchlist?select=user_id,player_id&slate_date=in.(${inList})`;
+  const res = await fetch(url, {
+    headers: {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+  });
+  if (!res.ok) {
+    console.warn(`  ! watchlist fetch failed (${res.status}) — falling back to notifying everyone`);
+    return null;
+  }
+  const map = new Map();
+  for (const row of await res.json()) {
+    if (!row.user_id || row.player_id == null) continue;
+    if (!map.has(row.user_id)) map.set(row.user_id, new Set());
+    map.get(row.user_id).add(String(row.player_id));
+  }
+  return map;
 }
 
 /** One batched DELETE rather than one request per dead subscription. */
@@ -181,6 +221,10 @@ async function collectHomeRuns(date) {
       out.push({
         key: `${g.gamePk}:${play.atBatIndex}`,
         batter: play.matchup?.batter?.fullName ?? 'Unknown',
+        // The service worker filters latest-hr.json against the device's cached
+        // watch list, which is keyed by MLB player id — without this it had only
+        // a display name to work with and could not filter at all.
+        batterId: play.matchup?.batter?.id ?? null,
         pitcher: play.matchup?.pitcher?.fullName ?? null,
         inning: play.about?.inning,
         half: play.about?.isTopInning ? 'Top' : 'Bot',
@@ -261,10 +305,25 @@ async function main() {
     return;
   }
 
-  let ok = 0;
+  // Only wake devices whose owner is actually watching one of these batters.
+  // A null map means the watchlist lookup itself failed, in which case fall back
+  // to the old notify-everyone behaviour rather than going silent.
+  const watchlists = await fetchWatchlists();
+  const batchIds = new Set(fresh.slice(-5).map(h => h.batterId).filter(v => v != null).map(String));
+  const relevantTo = (sub) => {
+    if (!watchlists) return true;
+    if (!batchIds.size) return false;          // no batter ids to match on
+    const watched = watchlists.get(sub.user_id);
+    if (!watched?.size) return false;          // nothing on their list
+    for (const id of watched) if (batchIds.has(id)) return true;
+    return false;
+  };
+
+  let ok = 0, skipped = 0;
   const deadIds = [];
   for (const sub of list) {
     if (!sub?.endpoint) continue;
+    if (!relevantTo(sub)) { skipped++; continue; }
     try {
       const res = await sendBarePush(sub);
       if (res.status === 404 || res.status === 410) {
@@ -290,7 +349,9 @@ async function main() {
       console.warn(`  ! push error: ${e.message}`);
     }
   }
-  console.log(`  pushed to ${ok}/${list.length}`);
+  const targeted = list.length - skipped;
+  console.log(`  pushed to ${ok}/${targeted} targeted device(s)` +
+              (skipped ? ` · ${skipped} skipped (not watching these batters)` : ''));
 
   if (deadIds.length) {
     await pruneDeadSubscriptions(deadIds);
@@ -309,7 +370,10 @@ async function main() {
   // meaningless backlog. A real send attempt that fully failed (ok === 0
   // with subscribers present) does NOT get marked — that's what makes the
   // next run retry it automatically instead of silently giving up.
-  const shouldMarkDone = list.length === 0 || ok > 0;
+  // targeted === 0 means nobody was watching any of these batters, so there is
+  // no one to retry toward and holding the keys forever would only build a
+  // backlog that can never be delivered.
+  const shouldMarkDone = list.length === 0 || targeted === 0 || ok > 0;
   if (shouldMarkDone) {
     fresh.forEach(h => pushed.add(h.key));
     await writeJSON(STATE_FILE, {
@@ -317,7 +381,7 @@ async function main() {
       pushed: [...pushed].slice(-3000),
     });
   } else {
-    console.warn(`  ! every send failed — NOT marking ${fresh.length} home run(s) as pushed, will retry next run`);
+    console.warn(`  ! every send to ${targeted} targeted device(s) failed — NOT marking ${fresh.length} home run(s) as pushed, will retry next run`);
   }
   console.log('✓ done');
 }

@@ -16,6 +16,23 @@ const VERSION = 'dw-sw-v1';
 const LATEST_URL = 'latest-hr.json';
 const ICON = 'icon-192.png';
 
+/**
+ * The page mirrors the signed-in user's watch list into this cache entry (see
+ * syncWatchlistToSW in index.html) because a worker running with every tab
+ * closed has no session and cannot query Supabase. Absent entry means "never
+ * synced" — most likely a signed-out device — and we fall back to showing every
+ * home run rather than going silent.
+ */
+async function watchedIds() {
+  try {
+    const cache = await caches.open(VERSION);
+    const res = await cache.match('watchlist');
+    if (!res) return null;
+    const { ids } = await res.json();
+    return Array.isArray(ids) ? new Set(ids.map(String)) : null;
+  } catch { return null; }
+}
+
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 
@@ -63,7 +80,23 @@ self.addEventListener('push', event => {
     if (!hrs.length) return;   // nothing to say — stay silent rather than show a placeholder
 
     const seen = await seenKeys();
-    const fresh = hrs.filter(h => h.key && !seen.has(h.key)).slice(-5);
+    let fresh = hrs.filter(h => h.key && !seen.has(h.key)).slice(-5);
+
+    // Narrow to the watch list. latest-hr.json is a single global file shared by
+    // every device, so this per-device filter is what turns a league-wide feed
+    // into "only the players I follow".
+    const watched = await watchedIds();
+    if (watched) {
+      const mine = fresh.filter(h => h.batterId != null && watched.has(String(h.batterId)));
+      // We subscribed with userVisibleOnly:true, so a push MUST produce a
+      // visible notification — if we show nothing the browser substitutes its own
+      // "site updated in the background" message and repeated offences can cost
+      // us the subscription. The sender only wakes a device when that user
+      // watches someone in this batch, so an empty result here means the batch
+      // moved on before we fetched. Fall back to the newest home run instead of
+      // going silent.
+      fresh = mine.length ? mine : fresh.slice(-1);
+    }
 
     for (const hr of fresh) {
       const bits = [];
@@ -89,25 +122,53 @@ self.addEventListener('notificationclick', event => {
   event.notification.close();
   event.waitUntil((async () => {
     const all = await clients.matchAll({ type: 'window', includeUncontrolled: true });
-    // Focus an existing tab rather than piling up new ones.
+    // Focus an existing tab rather than piling up new ones. Matching on
+    // 'index.html' used to miss every real visit: the site is served from the
+    // bare origin (https://dingerwatch.app/) so an open tab's URL contains no
+    // such segment, and tapping a notification opened a duplicate window on top
+    // of the app the user already had. Compare against the worker's scope.
+    const scope = self.registration.scope;
     for (const c of all) {
-      if (c.url.includes('index.html') && 'focus' in c) return c.focus();
+      if (c.url.startsWith(scope) && 'focus' in c) return c.focus();
     }
-    if (clients.openWindow) return clients.openWindow(event.notification.data?.url || 'index.html');
+    if (clients.openWindow) return clients.openWindow(event.notification.data?.url || './');
   })());
 });
 
-/** Chrome may drop a subscription; re-subscribe so alerts don't silently stop. */
+/**
+ * Chrome may rotate a subscription; re-subscribe so alerts don't silently stop.
+ *
+ * This previously POSTed the new subscription to `self.__DW_PUSH_API || ''` —
+ * a variable that was never assigned anywhere in the codebase, so it always
+ * POSTed to the empty string. That resolves against the worker's scope, i.e.
+ * the site root on GitHub Pages, which is a static host that accepts no POSTs.
+ * Every rotation therefore silently discarded the new subscription and that
+ * device stopped receiving pushes permanently.
+ *
+ * There is no HTTP endpoint to post to — subscriptions live in Supabase and
+ * writing to them needs the user's session, which a worker doesn't have. So
+ * stash the new subscription in the cache and let the page persist it on next
+ * open; boot() calls ensurePushRegistered, which re-saves and clears it.
+ */
 self.addEventListener('pushsubscriptionchange', event => {
   event.waitUntil((async () => {
     try {
-      const sub = await self.registration.pushManager.subscribe(
-        event.oldSubscription?.options || { userVisibleOnly: true });
-      await fetch(self.__DW_PUSH_API || '', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subscription: sub }),
-      });
+      // Reuse the old options so the VAPID applicationServerKey carries over.
+      // Subscribing with only { userVisibleOnly: true } — the old fallback —
+      // is rejected outright by Chrome, which requires an applicationServerKey.
+      const opts = event.oldSubscription?.options;
+      const sub = event.newSubscription || (opts
+        ? await self.registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: opts.applicationServerKey,
+          })
+        : null);
+      if (!sub) return;
+      const cache = await caches.open(VERSION);
+      await cache.put('pending-subscription', new Response(JSON.stringify(sub.toJSON())));
+      // Tell any open tab to persist it right now.
+      const all = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+      all.forEach(c => c.postMessage({ type: 'push-subscription-changed' }));
     } catch {}
   })());
 });
