@@ -7795,7 +7795,7 @@ async function checkWhopAndDismiss(){
     // loading screen instead of the “Subscribe on Whop” prompt.
     hideSplash();
     document.body.classList.remove('dw-booting');
-    showSubscribeGate(access.checkoutUrl, access.connected);
+    showSubscribeGate(access.checkoutUrl, access.connected, access.whopUsername);
   }catch(e){
     console.warn('[whop] access check threw:', e);
     dismissGate();
@@ -9560,7 +9560,7 @@ function searchBarHTML(){
 }
 
 // === PORTED FROM GITHUB: showSubscribeGate ===
-function showSubscribeGate(checkoutUrl, connected){
+function showSubscribeGate(checkoutUrl, connected, whopUsername){
   const existing = document.getElementById('gate');
   if(existing) existing.remove();
   const s = social();
@@ -9574,7 +9574,26 @@ function showSubscribeGate(checkoutUrl, connected){
 
   const explain = !connected
     ? "Dinger Watch requires an active Whop subscription. Connect your Whop account to check — this takes one click and doesn't share your password with us."
-    : "Your Whop account is connected, but no active Dinger Watch subscription was found on it. Subscribe below, then tap \u201cCheck again\u201d \u2014 activation is usually instant but can take a minute.";
+    : "No active Dinger Watch subscription was found on the Whop account linked to this login. If you subscribed on a different Whop account, relink below — otherwise subscribe, then tap \u201cCheck again.\u201d";
+
+  // Naming the linked account is the whole fix for "but I AM subscribed": if
+  // the gate is checking a different Whop account than the one that bought the
+  // subscription, the user can now SEE that instead of guessing.
+  const linkedNote = (connected && whopUsername)
+    ? `<p style="font-size:12px;color:var(--mute);line-height:1.6;margin:-6px 0 14px;">
+         Checking Whop account <strong style="color:var(--white);">@${escapeHTML(whopUsername)}</strong>.
+         Not you? Relink below.
+       </p>`
+    : '';
+
+  // A connected-but-denied user previously had NO way to relink — the connect
+  // button only rendered when connected was false. That left anyone who linked
+  // the wrong Whop account permanently stuck on this screen.
+  const relinkAction = (connected && canConnect)
+    ? `<button class="gate-go" id="swRelink" style="margin-top:10px;background:var(--night2);color:var(--white);border:1px solid var(--line);">
+         Connect a different Whop account
+       </button>`
+    : '';
 
   document.body.insertAdjacentHTML('beforeend', `
     <div class="gate" id="gate">
@@ -9589,6 +9608,7 @@ function showSubscribeGate(checkoutUrl, connected){
         <div class="gate-disclaimer">
           <h3>Subscription required</h3>
           <p style="font-size:12.5px;color:var(--mute);line-height:1.6;margin-bottom:14px;">${explain}</p>
+          ${linkedNote}
           <div id="swErr" class="dw-err"></div>
         </div>
         <div class="gate-auth">
@@ -9596,6 +9616,7 @@ function showSubscribeGate(checkoutUrl, connected){
           <button class="gate-go" id="swRecheck" style="margin-top:10px;background:var(--night2);color:var(--white);border:1px solid var(--line);">
             ${connected ? 'Check again' : "I've subscribed — check again"}
           </button>
+          ${relinkAction}
           <div class="dw-switch"><a id="swSignOut">Sign out</a></div>
         </div>
       </div>
@@ -9605,6 +9626,7 @@ function showSubscribeGate(checkoutUrl, connected){
   const err = document.getElementById('swErr');
   const recheckBtn = document.getElementById('swRecheck');
   const connectBtn = document.getElementById('swConnect');
+  const relinkBtn = document.getElementById('swRelink');
 
   // Show a connect attempt that just failed, right here, right now — this is
   // the whole reason pendingWhopError exists: so a real Whop rejection is
@@ -9621,6 +9643,20 @@ function showSubscribeGate(checkoutUrl, connected){
     if(res?.error){ err.textContent = res.error; connectBtn.disabled = false; connectBtn.textContent = 'Connect Whop account'; }
   };
 
+  if(relinkBtn) relinkBtn.onclick = async () => {
+    err.textContent = '';
+    relinkBtn.disabled = true;
+    relinkBtn.textContent = 'Redirecting to Whop…';
+    // forceLogin, or Whop hands back the same already-signed-in account and
+    // nothing changes — see startWhopConnect in social.js.
+    const res = await s.startWhopConnect({ forceLogin: true });
+    if(res?.error){
+      err.textContent = res.error;
+      relinkBtn.disabled = false;
+      relinkBtn.textContent = 'Connect a different Whop account';
+    }
+  };
+
   recheckBtn.onclick = async () => {
     err.textContent = '';
     recheckBtn.disabled = true;
@@ -9635,7 +9671,9 @@ function showSubscribeGate(checkoutUrl, connected){
     err.textContent = access.connected
       ? "Still no active subscription found on the connected account."
       : "Not connected yet — tap \u201cConnect Whop account\u201d above.";
-    if(access.connected !== connected) showSubscribeGate(access.checkoutUrl, access.connected);
+    if(access.connected !== connected || (access.whopUsername || null) !== (whopUsername || null)){
+      showSubscribeGate(access.checkoutUrl, access.connected, access.whopUsername);
+    }
   };
 
   document.getElementById('swSignOut').onclick = async () => {

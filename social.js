@@ -503,7 +503,12 @@ async function checkWhopAccess(force = false){
   if(!force && currentUser.whop_checked_at){
     const age = Date.now() - new Date(currentUser.whop_checked_at).getTime();
     if(age < WHOP_RECHECK_MS){
-      return { hasAccess: !!currentUser.whop_access, connected: !!currentUser.whop_user_id, cached: true };
+      return {
+        hasAccess: !!currentUser.whop_access,
+        connected: !!currentUser.whop_user_id,
+        whopUsername: currentUser.whop_username || null,
+        cached: true,
+      };
     }
   }
 
@@ -521,7 +526,14 @@ async function checkWhopAccess(force = false){
     currentUser.whop_access = !!data.hasAccess;
     currentUser.whop_checked_at = new Date().toISOString();
 
-    return { hasAccess: !!data.hasAccess, connected: !!data.connected, checkoutUrl: data.checkoutUrl };
+    if(data?.whopUsername) currentUser.whop_username = data.whopUsername;
+
+    return {
+      hasAccess: !!data.hasAccess,
+      connected: !!data.connected,
+      whopUsername: data.whopUsername || currentUser.whop_username || null,
+      checkoutUrl: data.checkoutUrl,
+    };
   }catch(e){
     return { error: e?.message || 'Could not reach the access check.' };
   }
@@ -567,8 +579,15 @@ async function sha256(str){
 }
 
 /** Redirects the browser to Whop. Nothing after this line runs — the page navigates away. */
-async function startWhopConnect(){
+async function startWhopConnect(opts){
   if(!whopOAuthConfigured()) return { error: 'Whop connect is not configured yet.' };
+
+  // forceLogin sends the standard OIDC prompt=login, which tells Whop to
+  // re-authenticate instead of silently reusing whoever is already signed in
+  // there. Without it, a user who linked the WRONG Whop account can never
+  // relink: tapping "connect" just hands back the same already-signed-in
+  // account and the gate denies them again, forever.
+  const forceLogin = !!(opts && opts.forceLogin);
 
   // nonce is required by Whop whenever the openid scope is requested (standard
   // OpenID Connect behavior — it binds the eventual ID token to this specific
@@ -591,6 +610,7 @@ async function startWhopConnect(){
     code_challenge: await sha256(pkce.codeVerifier),
     code_challenge_method: 'S256',
   });
+  if(forceLogin) params.set('prompt', 'login');
   location.href = `https://api.whop.com/oauth/authorize?${params}`;
   return { ok: true };   // never actually observed — the page has navigated away
 }

@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
   const user = userData.user;
 
   const { data: profile, error: profErr } = await admin
-    .from('profiles').select('whop_user_id').eq('id', user.id).single();
+    .from('profiles').select('whop_user_id, whop_username').eq('id', user.id).single();
   if (profErr) {
     return json({ error: `Could not read profile: ${profErr.message}` }, 500);
   }
@@ -120,5 +120,14 @@ Deno.serve(async (req) => {
     whop_checked_at: new Date().toISOString(),
   }).eq('id', user.id);
 
-  return json({ hasAccess, connected: true, checkoutUrl: WHOP_CHECKOUT_URL });
+  // whopUsername is echoed back so the client can show WHICH Whop account is
+  // linked. Without it, a user who connected the wrong Whop account sees only
+  // "no subscription found" and has no way to tell that the gate is checking
+  // somebody else's account — the exact failure this was added to diagnose.
+  return json({
+    hasAccess,
+    connected: true,
+    whopUsername: profile.whop_username ?? null,
+    checkoutUrl: WHOP_CHECKOUT_URL,
+  });
 });
