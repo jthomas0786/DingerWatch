@@ -1,8 +1,8 @@
 {
   "date": "2026-08-19",
-  "generatedAt": "2026-08-19T04:00:33.648Z",
+  "generatedAt": "2026-08-19T10:23:36.652Z",
   "builtForEasternDate": "2026-08-19",
-  "buildDurationMs": 7577,
+  "buildDurationMs": 4735,
   "gameCount": 15,
   "sources": {
     "schedule": "MLB Stats API",
@@ -14,7 +14,7 @@
     "odds": "NOT INCLUDED \u2014 requires a paid feed (e.g. The-Odds-API)"
   },
   "warnings": [
-    "2 game(s) missing a probable starter \u2014 normal this far out",
+    "1 game(s) missing a probable starter \u2014 normal this far out",
     "No lineups posted yet \u2014 batting order unavailable, RBI/run projections use role estimates",
     "Zero batter-vs-starter matchups found across the whole slate \u2014 suspicious rather than expected. Check the [h2h debug] lines above, or re-run with --debug-h2h to see the raw API response shape for every pair.",
     "no park data for venue 12 (Tropicana Field)"
@@ -37,17 +37,17 @@
         "elevation": 730
       },
       "weather": {
-        "tempF": 77,
+        "tempF": 78,
         "humidity": 63,
-        "dewPoint": 63,
-        "precipChance": 1,
+        "dewPoint": 64,
+        "precipChance": 2,
         "windMph": 8,
-        "windDeg": 240,
+        "windDeg": 256,
         "forecastHourUTC": "2026-08-19T16:00",
         "wind": {
           "label": "Out to center",
           "sector": "out",
-          "relativeDeg": -5
+          "relativeDeg": 11
         }
       },
       "away": {
@@ -19669,17 +19669,17 @@
         "elevation": 20
       },
       "weather": {
-        "tempF": 86,
-        "humidity": 40,
+        "tempF": 87,
+        "humidity": 39,
         "dewPoint": 59,
         "precipChance": 0,
         "windMph": 8,
-        "windDeg": 223,
+        "windDeg": 249,
         "forecastHourUTC": "2026-08-19T17:00",
         "wind": {
-          "label": "Out to center",
+          "label": "Out to right field",
           "sector": "out",
-          "relativeDeg": 17
+          "relativeDeg": 43
         }
       },
       "away": {
@@ -40616,17 +40616,17 @@
         "elevation": 815
       },
       "weather": {
-        "tempF": 77,
-        "humidity": 34,
-        "dewPoint": 46,
+        "tempF": 74,
+        "humidity": 42,
+        "dewPoint": 49,
         "precipChance": 0,
-        "windMph": 4,
-        "windDeg": 198,
+        "windMph": 2,
+        "windDeg": 326,
         "forecastHourUTC": "2026-08-19T17:00",
         "wind": {
-          "label": "Out to left field",
-          "sector": "out",
-          "relativeDeg": -42
+          "label": "Across toward 1B side",
+          "sector": "across",
+          "relativeDeg": 86
         }
       },
       "away": {
@@ -62197,26 +62197,129 @@
         "elevation": 600
       },
       "weather": {
-        "tempF": 74,
-        "humidity": 80,
-        "dewPoint": 68,
+        "tempF": 72,
+        "humidity": 83,
+        "dewPoint": 67,
         "precipChance": 1,
-        "windMph": 7,
-        "windDeg": 50,
+        "windMph": 6,
+        "windDeg": 33,
         "forecastHourUTC": "2026-08-19T18:00",
         "wind": {
           "label": "In from center",
           "sector": "in",
-          "relativeDeg": -164
+          "relativeDeg": 179
         }
       },
       "away": {
         "id": 145,
         "abbr": "CWS",
         "name": "White Sox",
-        "probablePitcherId": null,
-        "probablePitcherName": null,
-        "pitcher": null,
+        "probablePitcherId": 656794,
+        "probablePitcherName": "Sean Newcomb",
+        "pitcher": {
+          "id": 656794,
+          "name": "Sean Newcomb",
+          "throws": "L",
+          "confirmed": true,
+          "stats": {
+            "throws": "L",
+            "gs": 2,
+            "ip": 68,
+            "kPct": 23.2,
+            "bbPct": 9.1,
+            "gbFb": 1.22,
+            "airPct": 45,
+            "avgAgainst": 0.206,
+            "whipRaw": 1.1,
+            "bfPerStart": 138,
+            "era": 2.51,
+            "whip": 1.1,
+            "k": 64,
+            "bb": 25,
+            "hr": 2,
+            "k9": 8.47,
+            "bb9": 3.31,
+            "hr9": 0.26
+          },
+          "arsenal": [
+            {
+              "type": "Four-seam FB",
+              "code": "FF",
+              "count": 397,
+              "usagePct": 37.3,
+              "avgSpeed": 94.59841045591939,
+              "avgSpin": null
+            },
+            {
+              "type": "Slurve",
+              "code": "SV",
+              "count": 359,
+              "usagePct": 33.7,
+              "avgSpeed": 82.66097008635091,
+              "avgSpin": null
+            },
+            {
+              "type": "Sinker",
+              "code": "SI",
+              "count": 238,
+              "usagePct": 22.4,
+              "avgSpeed": 93.31157697478989,
+              "avgSpin": null
+            },
+            {
+              "type": "Changeup",
+              "code": "CH",
+              "count": 30,
+              "usagePct": 2.8,
+              "avgSpeed": 86.61610746666669,
+              "avgSpin": null
+            },
+            {
+              "type": "Curveball",
+              "code": "CU",
+              "count": 25,
+              "usagePct": 2.3,
+              "avgSpeed": 80.73673064000002,
+              "avgSpin": null
+            },
+            {
+              "type": "Cutter",
+              "code": "FC",
+              "count": 15,
+              "usagePct": 1.4,
+              "avgSpeed": 90.65129353333333,
+              "avgSpin": null
+            }
+          ],
+          "splits": {
+            "vsLHP": {
+              "pa": null,
+              "ab": 102,
+              "h": 24,
+              "hr": 0,
+              "rbi": 8,
+              "bb": 12,
+              "so": 26,
+              "avg": 0.235,
+              "obp": 0.333,
+              "slg": 0.304,
+              "ops": 0.637
+            },
+            "vsRHP": {
+              "pa": null,
+              "ab": 141,
+              "h": 26,
+              "hr": 2,
+              "rbi": 11,
+              "bb": 13,
+              "so": 38,
+              "avg": 0.184,
+              "obp": 0.266,
+              "slg": 0.298,
+              "ops": 0.564
+            }
+          }
+        },
         "lineup": [
           {
             "id": 808959,
@@ -62239,23 +62342,23 @@
                 "ops": 0.736
               },
               "vsRHP": {
-                "pa": 263,
-                "ab": 214,
-                "h": 54,
-                "hr": 22,
-                "rbi": 39,
-                "bb": 47,
-                "so": 82,
+                "pa": 268,
+                "ab": 218,
+                "h": 55,
+                "hr": 23,
+                "rbi": 40,
+                "bb": 48,
+                "so": 84,
                 "avg": 0.252,
                 "obp": 0.392,
-                "slg": 0.603,
-                "ops": 0.995
+                "slg": 0.61,
+                "ops": 1.002
               }
             },
             "season": {
               "g": 90,
-              "pa": 392,
-              "ab": 320,
+              "pa": 393,
+              "ab": 321,
               "h": 75,
               "r": 67,
               "hr": 29,
@@ -62268,23 +62371,23 @@
               "triples": 0,
               "avg": 0.234,
               "obp": 0.372,
-              "slg": 0.547,
-              "ops": 0.919,
-              "kPct": 33.4,
+              "slg": 0.545,
+              "ops": 0.917,
+              "kPct": 33.3,
               "bbPct": 17.6,
-              "iso": 0.313,
-              "babip": 0.286,
-              "gbFb": 0.89,
-              "airPct": 53,
+              "iso": 0.311,
+              "babip": 0.284,
+              "gbFb": 0.9,
+              "airPct": 52.6,
               "sbAttempts": 4,
               "sbSuccess": 0.25,
               "sbRate": 0.028
             },
             "last10": {
-              "ab": 32,
+              "ab": 33,
               "h": 7,
               "hr": 4,
-              "avg": 0.219
+              "avg": 0.212
             },
             "gameLog": [
               {
@@ -62371,7 +62474,7 @@
               {
                 "date": "2026-08-18",
                 "opp": null,
-                "ab": 3,
+                "ab": 4,
                 "h": 1,
                 "r": 1,
                 "hr": 1,
@@ -63123,23 +63226,23 @@
                 "ops": 0.977
               },
               "vsRHP": {
-                "pa": 66,
-                "ab": 65,
+                "pa": 67,
+                "ab": 66,
                 "h": 14,
                 "hr": 2,
                 "rbi": 11,
                 "bb": 0,
                 "so": 14,
-                "avg": 0.215,
-                "obp": 0.212,
-                "slg": 0.4,
-                "ops": 0.612
+                "avg": 0.212,
+                "obp": 0.209,
+                "slg": 0.394,
+                "ops": 0.603
               }
             },
             "season": {
-              "g": 86,
-              "pa": 197,
-              "ab": 188,
+              "g": 87,
+              "pa": 198,
+              "ab": 189,
               "h": 52,
               "r": 30,
               "hr": 10,
@@ -63150,36 +63253,27 @@
               "so": 46,
               "doubles": 19,
               "triples": 1,
-              "avg": 0.277,
-              "obp": 0.305,
-              "slg": 0.548,
-              "ops": 0.853,
-              "kPct": 23.4,
-              "bbPct": 3.6,
-              "iso": 0.271,
-              "babip": 0.316,
-              "gbFb": 0.78,
-              "airPct": 56,
+              "avg": 0.275,
+              "obp": 0.303,
+              "slg": 0.545,
+              "ops": 0.848,
+              "kPct": 23.2,
+              "bbPct": 3.5,
+              "iso": 0.27,
+              "babip": 0.313,
+              "gbFb": 0.8,
+              "airPct": 55.4,
               "sbAttempts": 0,
               "sbSuccess": null,
               "sbRate": 0
             },
             "last10": {
-              "ab": 25,
-              "h": 10,
+              "ab": 24,
+              "h": 9,
               "hr": 1,
-              "avg": 0.4
+              "avg": 0.375
             },
             "gameLog": [
-              {
-                "date": "2026-08-06",
-                "opp": null,
-                "ab": 2,
-                "h": 1,
-                "r": 1,
-                "hr": 0,
-                "rbi": 0
-              },
               {
                 "date": "2026-08-07",
                 "opp": null,
@@ -63260,6 +63354,15 @@
                 "r": 1,
                 "hr": 1,
                 "rbi": 3
+              },
+              {
+                "date": "2026-08-18",
+                "opp": null,
+                "ab": 1,
+                "h": 0,
+                "r": 0,
+                "hr": 0,
+                "rbi": 0
               }
             ],
             "vsPitcher": null,
@@ -63980,17 +64083,17 @@
                 "ops": 0.934
               },
               "vsRHP": {
-                "pa": 370,
-                "ab": 316,
-                "h": 72,
+                "pa": 374,
+                "ab": 320,
+                "h": 73,
                 "hr": 17,
                 "rbi": 53,
                 "bb": 43,
                 "so": 69,
                 "avg": 0.228,
-                "obp": 0.33,
-                "slg": 0.459,
-                "ops": 0.789
+                "obp": 0.329,
+                "slg": 0.456,
+                "ops": 0.785
               }
             },
             "season": {
@@ -64835,881 +64938,6 @@
             }
           },
           {
-            "id": 671976,
-            "name": "Tristan Peters",
-            "pos": "CF",
-            "bats": "L",
-            "battingOrder": null,
-            "splits": {
-              "vsLHP": {
-                "pa": 43,
-                "ab": 36,
-                "h": 5,
-                "hr": 0,
-                "rbi": 3,
-                "bb": 4,
-                "so": 8,
-                "avg": 0.139,
-                "obp": 0.244,
-                "slg": 0.139,
-                "ops": 0.383
-              },
-              "vsRHP": {
-                "pa": 323,
-                "ab": 292,
-                "h": 84,
-                "hr": 7,
-                "rbi": 39,
-                "bb": 23,
-                "so": 59,
-                "avg": 0.288,
-                "obp": 0.346,
-                "slg": 0.462,
-                "ops": 0.808
-              }
-            },
-            "season": {
-              "g": 120,
-              "pa": 369,
-              "ab": 331,
-              "h": 91,
-              "r": 46,
-              "hr": 7,
-              "rbi": 43,
-              "sb": 6,
-              "cs": 2,
-              "bb": 27,
-              "so": 67,
-              "doubles": 25,
-              "triples": 3,
-              "avg": 0.275,
-              "obp": 0.337,
-              "slg": 0.432,
-              "ops": 0.769,
-              "kPct": 18.2,
-              "bbPct": 7.3,
-              "iso": 0.157,
-              "babip": 0.324,
-              "gbFb": 0.86,
-              "airPct": 53.6,
-              "sbAttempts": 8,
-              "sbSuccess": 0.75,
-              "sbRate": 0.068
-            },
-            "last10": {
-              "ab": 23,
-              "h": 10,
-              "hr": 1,
-              "avg": 0.435
-            },
-            "gameLog": [
-              {
-                "date": "2026-08-08",
-                "opp": null,
-                "ab": 2,
-                "h": 1,
-                "r": 1,
-                "hr": 0,
-                "rbi": 2
-              },
-              {
-                "date": "2026-08-09",
-                "opp": null,
-                "ab": 0,
-                "h": 0,
-                "r": 0,
-                "hr": 0,
-                "rbi": 0
-              },
-              {
-                "date": "2026-08-11",
-                "opp": null,
-                "ab": 1,
-                "h": 0,
-                "r": 0,
-                "hr": 0,
-                "rbi": 0
-              },
-              {
-                "date": "2026-08-12",
-                "opp": null,
-                "ab": 3,
-                "h": 1,
-                "r": 1,
-                "hr": 0,
-                "rbi": 0
-              },
-              {
-                "date": "2026-08-13",
-                "opp": null,
-                "ab": 2,
-                "h": 0,
-                "r": 0,
-                "hr": 0,
-                "rbi": 0
-              },
-              {
-                "date": "2026-08-14",
-                "opp": null,
-                "ab": 5,
-                "h": 3,
-                "r": 1,
-                "hr": 1,
-                "rbi": 2
-              },
-              {
-                "date": "2026-08-15",
-                "opp": null,
-                "ab": 4,
-                "h": 2,
-                "r": 0,
-                "hr": 0,
-                "rbi": 0
-              },
-              {
-                "date": "2026-08-16",
-                "opp": null,
-                "ab": 1,
-                "h": 1,
-                "r": 2,
-                "hr": 0,
-                "rbi": 0
-              },
-              {
-                "date": "2026-08-17",
-                "opp": null,
-                "ab": 2,
-                "h": 0,
-                "r": 0,
-                "hr": 0,
-                "rbi": 0
-              },
-              {
-                "date": "2026-08-18",
-                "opp": null,
-                "ab": 3,
-                "h": 2,
-                "r": 0,
-                "hr": 0,
-                "rbi": 1
-              }
-            ],
-            "vsPitcher": null,
-            "statcast": {
-              "pa": 366.0,
-              "avg": 0.271,
-              "xba": 0.248,
-              "slg": 0.427,
-              "xslg": 0.369,
-              "woba": 0.334,
-              "xwoba": 0.303,
-              "barrelPct": 4.9,
-              "exitVelo": 87.3,
-              "hardHitPct": 30.8,
-              "maxExitVelo": 108.5,
-              "bbe": 267.0,
-              "barrelPctile": 24.0,
-              "exitVeloPctile": null,
-              "xwobaPctile": 26.0
-            },
-            "detail": {
-              "windowDays": 45,
-              "zones": {
-                "1": {
-                  "pitches": 14,
-                  "swings": 10,
-                  "hits": 3,
-                  "abs": 10,
-                  "avg": 0.3,
-                  "ev": 87.6,
-                  "hr": 0
-                },
-                "2": {
-                  "pitches": 21,
-                  "swings": 16,
-                  "hits": 1,
-                  "abs": 6,
-                  "avg": 0.167,
-                  "ev": 82.8,
-                  "hr": 0
-                },
-                "3": {
-                  "pitches": 17,
-                  "swings": 15,
-                  "hits": 0,
-                  "abs": 5,
-                  "avg": 0.0,
-                  "ev": 67.6,
-                  "hr": 0
-                },
-                "4": {
-                  "pitches": 30,
-                  "swings": 22,
-                  "hits": 5,
-                  "abs": 15,
-                  "avg": 0.333,
-                  "ev": 88.2,
-                  "hr": 0
-                },
-                "5": {
-                  "pitches": 29,
-                  "swings": 19,
-                  "hits": 4,
-                  "abs": 7,
-                  "avg": 0.571,
-                  "ev": 85.8,
-                  "hr": 2
-                },
-                "6": {
-                  "pitches": 17,
-                  "swings": 13,
-                  "hits": 2,
-                  "abs": 7,
-                  "avg": 0.286,
-                  "ev": 83.1,
-                  "hr": 0
-                },
-                "7": {
-                  "pitches": 19,
-                  "swings": 12,
-                  "hits": 3,
-                  "abs": 9,
-                  "avg": 0.333,
-                  "ev": 86.7,
-                  "hr": 0
-                },
-                "8": {
-                  "pitches": 31,
-                  "swings": 20,
-                  "hits": 1,
-                  "abs": 9,
-                  "avg": 0.111,
-                  "ev": 83.6,
-                  "hr": 1
-                },
-                "9": {
-                  "pitches": 19,
-                  "swings": 15,
-                  "hits": 0,
-                  "abs": 6,
-                  "avg": 0.0,
-                  "ev": 89.8,
-                  "hr": 0
-                },
-                "11": {
-                  "pitches": 72,
-                  "swings": 18,
-                  "hits": 2,
-                  "abs": 15,
-                  "avg": 0.133,
-                  "ev": 85.9,
-                  "hr": 0
-                },
-                "12": {
-                  "pitches": 25,
-                  "swings": 5,
-                  "hits": 0,
-                  "abs": 3,
-                  "avg": 0.0,
-                  "ev": null,
-                  "hr": 0
-                },
-                "13": {
-                  "pitches": 53,
-                  "swings": 21,
-                  "hits": 1,
-                  "abs": 14,
-                  "avg": 0.071,
-                  "ev": 65.1,
-                  "hr": 0
-                },
-                "14": {
-                  "pitches": 55,
-                  "swings": 17,
-                  "hits": 0,
-                  "abs": 4,
-                  "avg": 0.0,
-                  "ev": null,
-                  "hr": 0
-                }
-              },
-              "pitchTypes": {
-                "CH": {
-                  "seen": 49,
-                  "abs": 14,
-                  "avg": 0.143,
-                  "ev": 80.3,
-                  "la": 2.8,
-                  "hr": 0,
-                  "whiffPct": 29.0
-                },
-                "CU": {
-                  "seen": 44,
-                  "abs": 10,
-                  "avg": 0.2,
-                  "ev": 83.8,
-                  "la": -4.9,
-                  "hr": 0,
-                  "whiffPct": 41.2
-                },
-                "FC": {
-                  "seen": 46,
-                  "abs": 7,
-                  "avg": 0.429,
-                  "ev": 85.6,
-                  "la": 35.5,
-                  "hr": 1,
-                  "whiffPct": 11.8
-                },
-                "FF": {
-                  "seen": 116,
-                  "abs": 35,
-                  "avg": 0.229,
-                  "ev": 84.7,
-                  "la": 33.4,
-                  "hr": 2,
-                  "whiffPct": 13.8
-                },
-                "FS": {
-                  "seen": 21,
-                  "abs": 5,
-                  "avg": 0.0,
-                  "ev": 78.2,
-                  "la": -5.2,
-                  "hr": 0,
-                  "whiffPct": 57.1
-                },
-                "KC": {
-                  "seen": 6,
-                  "abs": 2,
-                  "avg": null,
-                  "ev": 79.4,
-                  "la": 33.0,
-                  "hr": 0,
-                  "whiffPct": null
-                },
-                "SI": {
-                  "seen": 64,
-                  "abs": 21,
-                  "avg": 0.238,
-                  "ev": 78.1,
-                  "la": 14.4,
-                  "hr": 0,
-                  "whiffPct": 14.3
-                },
-                "SL": {
-                  "seen": 41,
-                  "abs": 14,
-                  "avg": 0.071,
-                  "ev": 82.2,
-                  "la": 17.4,
-                  "hr": 0,
-                  "whiffPct": 29.2
-                },
-                "ST": {
-                  "seen": 12,
-                  "abs": 2,
-                  "avg": null,
-                  "ev": null,
-                  "la": null,
-                  "hr": 0,
-                  "whiffPct": null
-                },
-                "SV": {
-                  "seen": 3,
-                  "abs": 0,
-                  "avg": null,
-                  "ev": null,
-                  "la": null,
-                  "hr": 0,
-                  "whiffPct": null
-                }
-              },
-              "battedBalls": [
-                {
-                  "ev": 69.1,
-                  "la": 66.0,
-                  "dist": 138,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-25"
-                },
-                {
-                  "ev": 96.5,
-                  "la": 47.0,
-                  "dist": 296,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-24"
-                },
-                {
-                  "ev": 87.0,
-                  "la": 80.0,
-                  "dist": 79,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-24"
-                },
-                {
-                  "ev": 93.1,
-                  "la": 15.0,
-                  "dist": 235,
-                  "hand": "R",
-                  "result": "single",
-                  "date": "2026-07-24"
-                },
-                {
-                  "ev": 71.6,
-                  "la": 46.0,
-                  "dist": 235,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-24"
-                },
-                {
-                  "ev": 80.6,
-                  "la": 68.0,
-                  "dist": 152,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-22"
-                },
-                {
-                  "ev": 96.7,
-                  "la": 24.0,
-                  "dist": 341,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-22"
-                },
-                {
-                  "ev": 82.5,
-                  "la": -27.0,
-                  "dist": 4,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-22"
-                },
-                {
-                  "ev": 71.1,
-                  "la": -40.0,
-                  "dist": 3,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-22"
-                },
-                {
-                  "ev": 75.5,
-                  "la": 10.0,
-                  "dist": 111,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-22"
-                },
-                {
-                  "ev": 9.2,
-                  "la": 61.0,
-                  "dist": 6,
-                  "hand": "L",
-                  "result": "field_out",
-                  "date": "2026-07-22"
-                },
-                {
-                  "ev": 48.6,
-                  "la": -25.0,
-                  "dist": 2,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-22"
-                },
-                {
-                  "ev": 83.9,
-                  "la": -30.0,
-                  "dist": 4,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-21"
-                },
-                {
-                  "ev": 77.9,
-                  "la": 59.0,
-                  "dist": 216,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-21"
-                },
-                {
-                  "ev": 87.4,
-                  "la": 34.0,
-                  "dist": 327,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-21"
-                },
-                {
-                  "ev": 102.9,
-                  "la": 26.0,
-                  "dist": 383,
-                  "hand": "R",
-                  "result": "double",
-                  "date": "2026-07-20"
-                },
-                {
-                  "ev": 100.0,
-                  "la": 43.0,
-                  "dist": 337,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-20"
-                },
-                {
-                  "ev": 77.1,
-                  "la": 29.0,
-                  "dist": 242,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-20"
-                },
-                {
-                  "ev": 97.6,
-                  "la": 48.0,
-                  "dist": 303,
-                  "hand": "L",
-                  "result": "field_out",
-                  "date": "2026-07-20"
-                },
-                {
-                  "ev": 76.8,
-                  "la": -30.0,
-                  "dist": 5,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-20"
-                },
-                {
-                  "ev": 76.6,
-                  "la": 52.0,
-                  "dist": 234,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-20"
-                },
-                {
-                  "ev": 82.0,
-                  "la": 85.0,
-                  "dist": 45,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-20"
-                },
-                {
-                  "ev": 77.5,
-                  "la": 45.0,
-                  "dist": 228,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-19"
-                },
-                {
-                  "ev": 79.2,
-                  "la": 4.0,
-                  "dist": 62,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-19"
-                },
-                {
-                  "ev": 91.6,
-                  "la": -9.0,
-                  "dist": 12,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-18"
-                },
-                {
-                  "ev": 76.6,
-                  "la": 46.0,
-                  "dist": 226,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-18"
-                },
-                {
-                  "ev": 95.9,
-                  "la": 1.0,
-                  "dist": 49,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-18"
-                },
-                {
-                  "ev": 91.9,
-                  "la": 35.0,
-                  "dist": 323,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-17"
-                },
-                {
-                  "ev": 88.0,
-                  "la": -10.0,
-                  "dist": 12,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-17"
-                },
-                {
-                  "ev": 101.0,
-                  "la": 22.0,
-                  "dist": 289,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-17"
-                },
-                {
-                  "ev": 74.6,
-                  "la": -1.0,
-                  "dist": 27,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-17"
-                },
-                {
-                  "ev": 83.6,
-                  "la": 17.0,
-                  "dist": 197,
-                  "hand": "L",
-                  "result": "single",
-                  "date": "2026-07-17"
-                },
-                {
-                  "ev": 101.7,
-                  "la": 42.0,
-                  "dist": 335,
-                  "hand": "R",
-                  "result": "sac_fly",
-                  "date": "2026-07-17"
-                },
-                {
-                  "ev": 64.4,
-                  "la": -43.0,
-                  "dist": 2,
-                  "hand": "L",
-                  "result": null,
-                  "date": "2026-07-17"
-                },
-                {
-                  "ev": 100.0,
-                  "la": 49.0,
-                  "dist": 272,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-12"
-                },
-                {
-                  "ev": 91.8,
-                  "la": 27.0,
-                  "dist": 320,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-12"
-                },
-                {
-                  "ev": 91.9,
-                  "la": 17.0,
-                  "dist": 229,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-12"
-                },
-                {
-                  "ev": 80.4,
-                  "la": -5.0,
-                  "dist": 18,
-                  "hand": "L",
-                  "result": "force_out",
-                  "date": "2026-07-12"
-                },
-                {
-                  "ev": 98.7,
-                  "la": 12.0,
-                  "dist": 204,
-                  "hand": "R",
-                  "result": "single",
-                  "date": "2026-07-12"
-                },
-                {
-                  "ev": 84.5,
-                  "la": 39.0,
-                  "dist": 292,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-11"
-                },
-                {
-                  "ev": 100.6,
-                  "la": 4.0,
-                  "dist": 93,
-                  "hand": "R",
-                  "result": "single",
-                  "date": "2026-07-10"
-                },
-                {
-                  "ev": 75.0,
-                  "la": 65.0,
-                  "dist": 163,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-10"
-                },
-                {
-                  "ev": 87.5,
-                  "la": -21.0,
-                  "dist": 3,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-10"
-                },
-                {
-                  "ev": 96.8,
-                  "la": -4.0,
-                  "dist": 26,
-                  "hand": "R",
-                  "result": "triple",
-                  "date": "2026-07-10"
-                },
-                {
-                  "ev": 93.2,
-                  "la": 22.0,
-                  "dist": 324,
-                  "hand": "R",
-                  "result": "double",
-                  "date": "2026-07-10"
-                },
-                {
-                  "ev": 77.9,
-                  "la": -15.0,
-                  "dist": 5,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-10"
-                },
-                {
-                  "ev": 104.5,
-                  "la": 30.0,
-                  "dist": 410,
-                  "hand": "R",
-                  "result": "home_run",
-                  "date": "2026-07-10"
-                },
-                {
-                  "ev": 93.6,
-                  "la": 0.0,
-                  "dist": 54,
-                  "hand": "R",
-                  "result": "single",
-                  "date": "2026-07-09"
-                },
-                {
-                  "ev": 93.3,
-                  "la": 66.0,
-                  "dist": 152,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-09"
-                },
-                {
-                  "ev": 91.6,
-                  "la": -3.0,
-                  "dist": 31,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-08"
-                },
-                {
-                  "ev": 97.4,
-                  "la": 41.0,
-                  "dist": 349,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-08"
-                },
-                {
-                  "ev": 67.5,
-                  "la": 80.0,
-                  "dist": 32,
-                  "hand": "L",
-                  "result": "field_out",
-                  "date": "2026-07-07"
-                },
-                {
-                  "ev": 104.0,
-                  "la": 40.0,
-                  "dist": 369,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-07"
-                },
-                {
-                  "ev": 84.0,
-                  "la": 79.0,
-                  "dist": 147,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-07"
-                },
-                {
-                  "ev": 82.9,
-                  "la": -23.0,
-                  "dist": 6,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-05"
-                },
-                {
-                  "ev": 103.3,
-                  "la": 35.0,
-                  "dist": 376,
-                  "hand": "R",
-                  "result": "home_run",
-                  "date": "2026-07-05"
-                },
-                {
-                  "ev": 56.0,
-                  "la": -52.0,
-                  "dist": 2,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-05"
-                },
-                {
-                  "ev": 97.0,
-                  "la": -1.0,
-                  "dist": 44,
-                  "hand": "R",
-                  "result": "single",
-                  "date": "2026-07-05"
-                },
-                {
-                  "ev": 73.9,
-                  "la": 31.0,
-                  "dist": 251,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-05"
-                },
-                {
-                  "ev": 92.9,
-                  "la": -18.0,
-                  "dist": 7,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-05"
-                }
-              ]
-            }
-          },
-          {
             "id": 803011,
             "name": "Sam Antonacci",
             "pos": "LF",
@@ -65730,22 +64958,22 @@
                 "ops": 0.596
               },
               "vsRHP": {
-                "pa": 323,
-                "ab": 280,
-                "h": 80,
+                "pa": 328,
+                "ab": 283,
+                "h": 81,
                 "hr": 8,
                 "rbi": 31,
-                "bb": 25,
-                "so": 46,
+                "bb": 27,
+                "so": 47,
                 "avg": 0.286,
-                "obp": 0.374,
-                "slg": 0.439,
-                "ops": 0.813
+                "obp": 0.377,
+                "slg": 0.438,
+                "ops": 0.815
               }
             },
             "season": {
               "g": 105,
-              "pa": 419,
+              "pa": 420,
               "ab": 362,
               "h": 99,
               "r": 64,
@@ -65753,23 +64981,23 @@
               "rbi": 36,
               "sb": 16,
               "cs": 7,
-              "bb": 30,
+              "bb": 31,
               "so": 66,
               "doubles": 18,
               "triples": 2,
               "avg": 0.273,
-              "obp": 0.365,
+              "obp": 0.367,
               "slg": 0.401,
-              "ops": 0.766,
-              "kPct": 15.8,
-              "bbPct": 7.2,
+              "ops": 0.768,
+              "kPct": 15.7,
+              "bbPct": 7.4,
               "iso": 0.128,
               "babip": 0.315,
               "gbFb": 1.61,
               "airPct": 38.3,
               "sbAttempts": 23,
               "sbSuccess": 0.696,
-              "sbRate": 0.178
+              "sbRate": 0.177
             },
             "last10": {
               "ab": 34,
@@ -66585,6 +65813,881 @@
             }
           },
           {
+            "id": 671976,
+            "name": "Tristan Peters",
+            "pos": "CF",
+            "bats": "L",
+            "battingOrder": null,
+            "splits": {
+              "vsLHP": {
+                "pa": 43,
+                "ab": 36,
+                "h": 5,
+                "hr": 0,
+                "rbi": 3,
+                "bb": 4,
+                "so": 8,
+                "avg": 0.139,
+                "obp": 0.244,
+                "slg": 0.139,
+                "ops": 0.383
+              },
+              "vsRHP": {
+                "pa": 327,
+                "ab": 296,
+                "h": 86,
+                "hr": 7,
+                "rbi": 40,
+                "bb": 23,
+                "so": 59,
+                "avg": 0.291,
+                "obp": 0.348,
+                "slg": 0.466,
+                "ops": 0.814
+              }
+            },
+            "season": {
+              "g": 120,
+              "pa": 370,
+              "ab": 332,
+              "h": 91,
+              "r": 46,
+              "hr": 7,
+              "rbi": 43,
+              "sb": 6,
+              "cs": 2,
+              "bb": 27,
+              "so": 67,
+              "doubles": 25,
+              "triples": 3,
+              "avg": 0.274,
+              "obp": 0.336,
+              "slg": 0.431,
+              "ops": 0.767,
+              "kPct": 18.1,
+              "bbPct": 7.3,
+              "iso": 0.157,
+              "babip": 0.323,
+              "gbFb": 0.86,
+              "airPct": 53.9,
+              "sbAttempts": 8,
+              "sbSuccess": 0.75,
+              "sbRate": 0.068
+            },
+            "last10": {
+              "ab": 24,
+              "h": 10,
+              "hr": 1,
+              "avg": 0.417
+            },
+            "gameLog": [
+              {
+                "date": "2026-08-08",
+                "opp": null,
+                "ab": 2,
+                "h": 1,
+                "r": 1,
+                "hr": 0,
+                "rbi": 2
+              },
+              {
+                "date": "2026-08-09",
+                "opp": null,
+                "ab": 0,
+                "h": 0,
+                "r": 0,
+                "hr": 0,
+                "rbi": 0
+              },
+              {
+                "date": "2026-08-11",
+                "opp": null,
+                "ab": 1,
+                "h": 0,
+                "r": 0,
+                "hr": 0,
+                "rbi": 0
+              },
+              {
+                "date": "2026-08-12",
+                "opp": null,
+                "ab": 3,
+                "h": 1,
+                "r": 1,
+                "hr": 0,
+                "rbi": 0
+              },
+              {
+                "date": "2026-08-13",
+                "opp": null,
+                "ab": 2,
+                "h": 0,
+                "r": 0,
+                "hr": 0,
+                "rbi": 0
+              },
+              {
+                "date": "2026-08-14",
+                "opp": null,
+                "ab": 5,
+                "h": 3,
+                "r": 1,
+                "hr": 1,
+                "rbi": 2
+              },
+              {
+                "date": "2026-08-15",
+                "opp": null,
+                "ab": 4,
+                "h": 2,
+                "r": 0,
+                "hr": 0,
+                "rbi": 0
+              },
+              {
+                "date": "2026-08-16",
+                "opp": null,
+                "ab": 1,
+                "h": 1,
+                "r": 2,
+                "hr": 0,
+                "rbi": 0
+              },
+              {
+                "date": "2026-08-17",
+                "opp": null,
+                "ab": 2,
+                "h": 0,
+                "r": 0,
+                "hr": 0,
+                "rbi": 0
+              },
+              {
+                "date": "2026-08-18",
+                "opp": null,
+                "ab": 4,
+                "h": 2,
+                "r": 0,
+                "hr": 0,
+                "rbi": 1
+              }
+            ],
+            "vsPitcher": null,
+            "statcast": {
+              "pa": 366.0,
+              "avg": 0.271,
+              "xba": 0.248,
+              "slg": 0.427,
+              "xslg": 0.369,
+              "woba": 0.334,
+              "xwoba": 0.303,
+              "barrelPct": 4.9,
+              "exitVelo": 87.3,
+              "hardHitPct": 30.8,
+              "maxExitVelo": 108.5,
+              "bbe": 267.0,
+              "barrelPctile": 24.0,
+              "exitVeloPctile": null,
+              "xwobaPctile": 26.0
+            },
+            "detail": {
+              "windowDays": 45,
+              "zones": {
+                "1": {
+                  "pitches": 14,
+                  "swings": 10,
+                  "hits": 3,
+                  "abs": 10,
+                  "avg": 0.3,
+                  "ev": 87.6,
+                  "hr": 0
+                },
+                "2": {
+                  "pitches": 21,
+                  "swings": 16,
+                  "hits": 1,
+                  "abs": 6,
+                  "avg": 0.167,
+                  "ev": 82.8,
+                  "hr": 0
+                },
+                "3": {
+                  "pitches": 17,
+                  "swings": 15,
+                  "hits": 0,
+                  "abs": 5,
+                  "avg": 0.0,
+                  "ev": 67.6,
+                  "hr": 0
+                },
+                "4": {
+                  "pitches": 30,
+                  "swings": 22,
+                  "hits": 5,
+                  "abs": 15,
+                  "avg": 0.333,
+                  "ev": 88.2,
+                  "hr": 0
+                },
+                "5": {
+                  "pitches": 29,
+                  "swings": 19,
+                  "hits": 4,
+                  "abs": 7,
+                  "avg": 0.571,
+                  "ev": 85.8,
+                  "hr": 2
+                },
+                "6": {
+                  "pitches": 17,
+                  "swings": 13,
+                  "hits": 2,
+                  "abs": 7,
+                  "avg": 0.286,
+                  "ev": 83.1,
+                  "hr": 0
+                },
+                "7": {
+                  "pitches": 19,
+                  "swings": 12,
+                  "hits": 3,
+                  "abs": 9,
+                  "avg": 0.333,
+                  "ev": 86.7,
+                  "hr": 0
+                },
+                "8": {
+                  "pitches": 31,
+                  "swings": 20,
+                  "hits": 1,
+                  "abs": 9,
+                  "avg": 0.111,
+                  "ev": 83.6,
+                  "hr": 1
+                },
+                "9": {
+                  "pitches": 19,
+                  "swings": 15,
+                  "hits": 0,
+                  "abs": 6,
+                  "avg": 0.0,
+                  "ev": 89.8,
+                  "hr": 0
+                },
+                "11": {
+                  "pitches": 72,
+                  "swings": 18,
+                  "hits": 2,
+                  "abs": 15,
+                  "avg": 0.133,
+                  "ev": 85.9,
+                  "hr": 0
+                },
+                "12": {
+                  "pitches": 25,
+                  "swings": 5,
+                  "hits": 0,
+                  "abs": 3,
+                  "avg": 0.0,
+                  "ev": null,
+                  "hr": 0
+                },
+                "13": {
+                  "pitches": 53,
+                  "swings": 21,
+                  "hits": 1,
+                  "abs": 14,
+                  "avg": 0.071,
+                  "ev": 65.1,
+                  "hr": 0
+                },
+                "14": {
+                  "pitches": 55,
+                  "swings": 17,
+                  "hits": 0,
+                  "abs": 4,
+                  "avg": 0.0,
+                  "ev": null,
+                  "hr": 0
+                }
+              },
+              "pitchTypes": {
+                "CH": {
+                  "seen": 49,
+                  "abs": 14,
+                  "avg": 0.143,
+                  "ev": 80.3,
+                  "la": 2.8,
+                  "hr": 0,
+                  "whiffPct": 29.0
+                },
+                "CU": {
+                  "seen": 44,
+                  "abs": 10,
+                  "avg": 0.2,
+                  "ev": 83.8,
+                  "la": -4.9,
+                  "hr": 0,
+                  "whiffPct": 41.2
+                },
+                "FC": {
+                  "seen": 46,
+                  "abs": 7,
+                  "avg": 0.429,
+                  "ev": 85.6,
+                  "la": 35.5,
+                  "hr": 1,
+                  "whiffPct": 11.8
+                },
+                "FF": {
+                  "seen": 116,
+                  "abs": 35,
+                  "avg": 0.229,
+                  "ev": 84.7,
+                  "la": 33.4,
+                  "hr": 2,
+                  "whiffPct": 13.8
+                },
+                "FS": {
+                  "seen": 21,
+                  "abs": 5,
+                  "avg": 0.0,
+                  "ev": 78.2,
+                  "la": -5.2,
+                  "hr": 0,
+                  "whiffPct": 57.1
+                },
+                "KC": {
+                  "seen": 6,
+                  "abs": 2,
+                  "avg": null,
+                  "ev": 79.4,
+                  "la": 33.0,
+                  "hr": 0,
+                  "whiffPct": null
+                },
+                "SI": {
+                  "seen": 64,
+                  "abs": 21,
+                  "avg": 0.238,
+                  "ev": 78.1,
+                  "la": 14.4,
+                  "hr": 0,
+                  "whiffPct": 14.3
+                },
+                "SL": {
+                  "seen": 41,
+                  "abs": 14,
+                  "avg": 0.071,
+                  "ev": 82.2,
+                  "la": 17.4,
+                  "hr": 0,
+                  "whiffPct": 29.2
+                },
+                "ST": {
+                  "seen": 12,
+                  "abs": 2,
+                  "avg": null,
+                  "ev": null,
+                  "la": null,
+                  "hr": 0,
+                  "whiffPct": null
+                },
+                "SV": {
+                  "seen": 3,
+                  "abs": 0,
+                  "avg": null,
+                  "ev": null,
+                  "la": null,
+                  "hr": 0,
+                  "whiffPct": null
+                }
+              },
+              "battedBalls": [
+                {
+                  "ev": 69.1,
+                  "la": 66.0,
+                  "dist": 138,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-25"
+                },
+                {
+                  "ev": 96.5,
+                  "la": 47.0,
+                  "dist": 296,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-24"
+                },
+                {
+                  "ev": 87.0,
+                  "la": 80.0,
+                  "dist": 79,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-24"
+                },
+                {
+                  "ev": 93.1,
+                  "la": 15.0,
+                  "dist": 235,
+                  "hand": "R",
+                  "result": "single",
+                  "date": "2026-07-24"
+                },
+                {
+                  "ev": 71.6,
+                  "la": 46.0,
+                  "dist": 235,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-24"
+                },
+                {
+                  "ev": 80.6,
+                  "la": 68.0,
+                  "dist": 152,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-22"
+                },
+                {
+                  "ev": 96.7,
+                  "la": 24.0,
+                  "dist": 341,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-22"
+                },
+                {
+                  "ev": 82.5,
+                  "la": -27.0,
+                  "dist": 4,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-22"
+                },
+                {
+                  "ev": 71.1,
+                  "la": -40.0,
+                  "dist": 3,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-22"
+                },
+                {
+                  "ev": 75.5,
+                  "la": 10.0,
+                  "dist": 111,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-22"
+                },
+                {
+                  "ev": 9.2,
+                  "la": 61.0,
+                  "dist": 6,
+                  "hand": "L",
+                  "result": "field_out",
+                  "date": "2026-07-22"
+                },
+                {
+                  "ev": 48.6,
+                  "la": -25.0,
+                  "dist": 2,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-22"
+                },
+                {
+                  "ev": 83.9,
+                  "la": -30.0,
+                  "dist": 4,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-21"
+                },
+                {
+                  "ev": 77.9,
+                  "la": 59.0,
+                  "dist": 216,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-21"
+                },
+                {
+                  "ev": 87.4,
+                  "la": 34.0,
+                  "dist": 327,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-21"
+                },
+                {
+                  "ev": 102.9,
+                  "la": 26.0,
+                  "dist": 383,
+                  "hand": "R",
+                  "result": "double",
+                  "date": "2026-07-20"
+                },
+                {
+                  "ev": 100.0,
+                  "la": 43.0,
+                  "dist": 337,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-20"
+                },
+                {
+                  "ev": 77.1,
+                  "la": 29.0,
+                  "dist": 242,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-20"
+                },
+                {
+                  "ev": 97.6,
+                  "la": 48.0,
+                  "dist": 303,
+                  "hand": "L",
+                  "result": "field_out",
+                  "date": "2026-07-20"
+                },
+                {
+                  "ev": 76.8,
+                  "la": -30.0,
+                  "dist": 5,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-20"
+                },
+                {
+                  "ev": 76.6,
+                  "la": 52.0,
+                  "dist": 234,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-20"
+                },
+                {
+                  "ev": 82.0,
+                  "la": 85.0,
+                  "dist": 45,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-20"
+                },
+                {
+                  "ev": 77.5,
+                  "la": 45.0,
+                  "dist": 228,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-19"
+                },
+                {
+                  "ev": 79.2,
+                  "la": 4.0,
+                  "dist": 62,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-19"
+                },
+                {
+                  "ev": 91.6,
+                  "la": -9.0,
+                  "dist": 12,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-18"
+                },
+                {
+                  "ev": 76.6,
+                  "la": 46.0,
+                  "dist": 226,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-18"
+                },
+                {
+                  "ev": 95.9,
+                  "la": 1.0,
+                  "dist": 49,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-18"
+                },
+                {
+                  "ev": 91.9,
+                  "la": 35.0,
+                  "dist": 323,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-17"
+                },
+                {
+                  "ev": 88.0,
+                  "la": -10.0,
+                  "dist": 12,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-17"
+                },
+                {
+                  "ev": 101.0,
+                  "la": 22.0,
+                  "dist": 289,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-17"
+                },
+                {
+                  "ev": 74.6,
+                  "la": -1.0,
+                  "dist": 27,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-17"
+                },
+                {
+                  "ev": 83.6,
+                  "la": 17.0,
+                  "dist": 197,
+                  "hand": "L",
+                  "result": "single",
+                  "date": "2026-07-17"
+                },
+                {
+                  "ev": 101.7,
+                  "la": 42.0,
+                  "dist": 335,
+                  "hand": "R",
+                  "result": "sac_fly",
+                  "date": "2026-07-17"
+                },
+                {
+                  "ev": 64.4,
+                  "la": -43.0,
+                  "dist": 2,
+                  "hand": "L",
+                  "result": null,
+                  "date": "2026-07-17"
+                },
+                {
+                  "ev": 100.0,
+                  "la": 49.0,
+                  "dist": 272,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-12"
+                },
+                {
+                  "ev": 91.8,
+                  "la": 27.0,
+                  "dist": 320,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-12"
+                },
+                {
+                  "ev": 91.9,
+                  "la": 17.0,
+                  "dist": 229,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-12"
+                },
+                {
+                  "ev": 80.4,
+                  "la": -5.0,
+                  "dist": 18,
+                  "hand": "L",
+                  "result": "force_out",
+                  "date": "2026-07-12"
+                },
+                {
+                  "ev": 98.7,
+                  "la": 12.0,
+                  "dist": 204,
+                  "hand": "R",
+                  "result": "single",
+                  "date": "2026-07-12"
+                },
+                {
+                  "ev": 84.5,
+                  "la": 39.0,
+                  "dist": 292,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-11"
+                },
+                {
+                  "ev": 100.6,
+                  "la": 4.0,
+                  "dist": 93,
+                  "hand": "R",
+                  "result": "single",
+                  "date": "2026-07-10"
+                },
+                {
+                  "ev": 75.0,
+                  "la": 65.0,
+                  "dist": 163,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-10"
+                },
+                {
+                  "ev": 87.5,
+                  "la": -21.0,
+                  "dist": 3,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-10"
+                },
+                {
+                  "ev": 96.8,
+                  "la": -4.0,
+                  "dist": 26,
+                  "hand": "R",
+                  "result": "triple",
+                  "date": "2026-07-10"
+                },
+                {
+                  "ev": 93.2,
+                  "la": 22.0,
+                  "dist": 324,
+                  "hand": "R",
+                  "result": "double",
+                  "date": "2026-07-10"
+                },
+                {
+                  "ev": 77.9,
+                  "la": -15.0,
+                  "dist": 5,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-10"
+                },
+                {
+                  "ev": 104.5,
+                  "la": 30.0,
+                  "dist": 410,
+                  "hand": "R",
+                  "result": "home_run",
+                  "date": "2026-07-10"
+                },
+                {
+                  "ev": 93.6,
+                  "la": 0.0,
+                  "dist": 54,
+                  "hand": "R",
+                  "result": "single",
+                  "date": "2026-07-09"
+                },
+                {
+                  "ev": 93.3,
+                  "la": 66.0,
+                  "dist": 152,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-09"
+                },
+                {
+                  "ev": 91.6,
+                  "la": -3.0,
+                  "dist": 31,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-08"
+                },
+                {
+                  "ev": 97.4,
+                  "la": 41.0,
+                  "dist": 349,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-08"
+                },
+                {
+                  "ev": 67.5,
+                  "la": 80.0,
+                  "dist": 32,
+                  "hand": "L",
+                  "result": "field_out",
+                  "date": "2026-07-07"
+                },
+                {
+                  "ev": 104.0,
+                  "la": 40.0,
+                  "dist": 369,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-07"
+                },
+                {
+                  "ev": 84.0,
+                  "la": 79.0,
+                  "dist": 147,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-07"
+                },
+                {
+                  "ev": 82.9,
+                  "la": -23.0,
+                  "dist": 6,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-05"
+                },
+                {
+                  "ev": 103.3,
+                  "la": 35.0,
+                  "dist": 376,
+                  "hand": "R",
+                  "result": "home_run",
+                  "date": "2026-07-05"
+                },
+                {
+                  "ev": 56.0,
+                  "la": -52.0,
+                  "dist": 2,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-05"
+                },
+                {
+                  "ev": 97.0,
+                  "la": -1.0,
+                  "dist": 44,
+                  "hand": "R",
+                  "result": "single",
+                  "date": "2026-07-05"
+                },
+                {
+                  "ev": 73.9,
+                  "la": 31.0,
+                  "dist": 251,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-05"
+                },
+                {
+                  "ev": 92.9,
+                  "la": -18.0,
+                  "dist": 7,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-05"
+                }
+              ]
+            }
+          },
+          {
             "id": 805367,
             "name": "Chase Meidroth",
             "pos": "2B",
@@ -66592,27 +66695,27 @@
             "battingOrder": null,
             "splits": {
               "vsLHP": {
-                "pa": 147,
-                "ab": 126,
+                "pa": 148,
+                "ab": 127,
                 "h": 41,
                 "hr": 4,
                 "rbi": 14,
                 "bb": 18,
                 "so": 30,
-                "avg": 0.325,
-                "obp": 0.407,
-                "slg": 0.524,
-                "ops": 0.931
+                "avg": 0.323,
+                "obp": 0.404,
+                "slg": 0.52,
+                "ops": 0.924
               },
               "vsRHP": {
-                "pa": 355,
-                "ab": 314,
-                "h": 80,
+                "pa": 358,
+                "ab": 317,
+                "h": 81,
                 "hr": 8,
                 "rbi": 35,
                 "bb": 31,
                 "so": 85,
-                "avg": 0.255,
+                "avg": 0.256,
                 "obp": 0.328,
                 "slg": 0.366,
                 "ops": 0.694
@@ -67480,17 +67583,17 @@
                 "ops": 0.547
               },
               "vsRHP": {
-                "pa": 326,
-                "ab": 292,
+                "pa": 330,
+                "ab": 296,
                 "h": 73,
                 "hr": 13,
                 "rbi": 58,
                 "bb": 29,
-                "so": 73,
-                "avg": 0.25,
-                "obp": 0.316,
-                "slg": 0.455,
-                "ops": 0.771
+                "so": 75,
+                "avg": 0.247,
+                "obp": 0.312,
+                "slg": 0.449,
+                "ops": 0.761
               }
             },
             "season": {
@@ -68351,30 +68454,30 @@
             "battingOrder": null,
             "splits": {
               "vsLHP": {
-                "pa": 157,
-                "ab": 141,
-                "h": 36,
+                "pa": 158,
+                "ab": 142,
+                "h": 37,
                 "hr": 8,
                 "rbi": 28,
                 "bb": 11,
                 "so": 45,
-                "avg": 0.255,
-                "obp": 0.331,
-                "slg": 0.489,
-                "ops": 0.82
+                "avg": 0.261,
+                "obp": 0.335,
+                "slg": 0.493,
+                "ops": 0.828
               },
               "vsRHP": {
-                "pa": 338,
-                "ab": 302,
-                "h": 58,
+                "pa": 341,
+                "ab": 305,
+                "h": 60,
                 "hr": 18,
                 "rbi": 43,
                 "bb": 29,
                 "so": 119,
-                "avg": 0.192,
-                "obp": 0.272,
-                "slg": 0.404,
-                "ops": 0.676
+                "avg": 0.197,
+                "obp": 0.276,
+                "slg": 0.41,
+                "ops": 0.686
               }
             },
             "season": {
@@ -69226,30 +69329,30 @@
             "battingOrder": null,
             "splits": {
               "vsLHP": {
-                "pa": 70,
-                "ab": 60,
+                "pa": 71,
+                "ab": 61,
                 "h": 9,
                 "hr": 1,
                 "rbi": 4,
                 "bb": 8,
                 "so": 21,
-                "avg": 0.15,
-                "obp": 0.257,
-                "slg": 0.267,
-                "ops": 0.524
+                "avg": 0.148,
+                "obp": 0.254,
+                "slg": 0.262,
+                "ops": 0.516
               },
               "vsRHP": {
-                "pa": 166,
-                "ab": 146,
+                "pa": 169,
+                "ab": 149,
                 "h": 40,
                 "hr": 3,
                 "rbi": 24,
                 "bb": 18,
-                "so": 32,
-                "avg": 0.274,
-                "obp": 0.361,
-                "slg": 0.418,
-                "ops": 0.779
+                "so": 33,
+                "avg": 0.268,
+                "obp": 0.355,
+                "slg": 0.409,
+                "ops": 0.764
               }
             },
             "season": {
@@ -70128,7 +70231,7 @@
               }
             },
             "season": {
-              "g": 44,
+              "g": 45,
               "pa": 133,
               "ab": 110,
               "h": 19,
@@ -70156,21 +70259,12 @@
               "sbRate": 0.027
             },
             "last10": {
-              "ab": 23,
+              "ab": 20,
               "h": 4,
               "hr": 0,
-              "avg": 0.174
+              "avg": 0.2
             },
             "gameLog": [
-              {
-                "date": "2026-07-21",
-                "opp": null,
-                "ab": 3,
-                "h": 0,
-                "r": 0,
-                "hr": 0,
-                "rbi": 0
-              },
               {
                 "date": "2026-07-25",
                 "opp": null,
@@ -70247,6 +70341,15 @@
                 "date": "2026-08-17",
                 "opp": null,
                 "ab": 2,
+                "h": 0,
+                "r": 0,
+                "hr": 0,
+                "rbi": 0
+              },
+              {
+                "date": "2026-08-18",
+                "opp": null,
+                "ab": 0,
                 "h": 0,
                 "r": 0,
                 "hr": 0,
@@ -72486,17 +72589,17 @@
                 "ops": 0.615
               },
               "vsRHP": {
-                "pa": 138,
-                "ab": 127,
-                "h": 17,
+                "pa": 141,
+                "ab": 130,
+                "h": 18,
                 "hr": 6,
-                "rbi": 14,
+                "rbi": 15,
                 "bb": 8,
-                "so": 35,
-                "avg": 0.134,
-                "obp": 0.196,
-                "slg": 0.299,
-                "ops": 0.495
+                "so": 36,
+                "avg": 0.138,
+                "obp": 0.199,
+                "slg": 0.3,
+                "ops": 0.499
               }
             },
             "season": {
@@ -73452,35 +73555,35 @@
             "battingOrder": null,
             "splits": {
               "vsLHP": {
-                "pa": 182,
-                "ab": 153,
-                "h": 46,
-                "hr": 8,
-                "rbi": 29,
+                "pa": 183,
+                "ab": 154,
+                "h": 47,
+                "hr": 9,
+                "rbi": 30,
                 "bb": 23,
                 "so": 51,
-                "avg": 0.301,
-                "obp": 0.412,
-                "slg": 0.523,
-                "ops": 0.935
+                "avg": 0.305,
+                "obp": 0.415,
+                "slg": 0.545,
+                "ops": 0.96
               },
               "vsRHP": {
-                "pa": 379,
-                "ab": 327,
+                "pa": 383,
+                "ab": 329,
                 "h": 89,
                 "hr": 22,
                 "rbi": 49,
-                "bb": 43,
-                "so": 101,
-                "avg": 0.272,
-                "obp": 0.362,
-                "slg": 0.563,
-                "ops": 0.925
+                "bb": 45,
+                "so": 102,
+                "avg": 0.271,
+                "obp": 0.364,
+                "slg": 0.559,
+                "ops": 0.923
               }
             },
             "season": {
               "g": 127,
-              "pa": 565,
+              "pa": 566,
               "ab": 483,
               "h": 136,
               "r": 90,
@@ -73488,23 +73591,23 @@
               "rbi": 79,
               "sb": 31,
               "cs": 7,
-              "bb": 67,
+              "bb": 68,
               "so": 153,
               "doubles": 25,
               "triples": 7,
               "avg": 0.282,
-              "obp": 0.379,
+              "obp": 0.381,
               "slg": 0.555,
-              "ops": 0.934,
-              "kPct": 27.1,
-              "bbPct": 11.9,
+              "ops": 0.936,
+              "kPct": 27,
+              "bbPct": 12,
               "iso": 0.273,
               "babip": 0.348,
               "gbFb": 0.55,
               "airPct": 64.6,
               "sbAttempts": 38,
               "sbSuccess": 0.816,
-              "sbRate": 0.187
+              "sbRate": 0.186
             },
             "last10": {
               "ab": 44,
@@ -74354,36 +74457,36 @@
             "battingOrder": null,
             "splits": {
               "vsLHP": {
-                "pa": 126,
-                "ab": 105,
+                "pa": 127,
+                "ab": 106,
                 "h": 32,
                 "hr": 7,
                 "rbi": 20,
                 "bb": 18,
-                "so": 25,
-                "avg": 0.305,
-                "obp": 0.405,
-                "slg": 0.562,
-                "ops": 0.967
+                "so": 26,
+                "avg": 0.302,
+                "obp": 0.402,
+                "slg": 0.557,
+                "ops": 0.959
               },
               "vsRHP": {
-                "pa": 348,
-                "ab": 306,
+                "pa": 352,
+                "ab": 310,
                 "h": 80,
                 "hr": 15,
                 "rbi": 54,
                 "bb": 38,
-                "so": 95,
-                "avg": 0.261,
-                "obp": 0.348,
-                "slg": 0.467,
-                "ops": 0.815
+                "so": 97,
+                "avg": 0.258,
+                "obp": 0.344,
+                "slg": 0.461,
+                "ops": 0.805
               }
             },
             "season": {
               "g": 109,
-              "pa": 478,
-              "ab": 415,
+              "pa": 479,
+              "ab": 416,
               "h": 112,
               "r": 71,
               "hr": 22,
@@ -74394,25 +74497,25 @@
               "so": 123,
               "doubles": 24,
               "triples": 0,
-              "avg": 0.27,
-              "obp": 0.36,
-              "slg": 0.487,
-              "ops": 0.847,
+              "avg": 0.269,
+              "obp": 0.359,
+              "slg": 0.486,
+              "ops": 0.845,
               "kPct": 25.7,
               "bbPct": 11.7,
               "iso": 0.217,
-              "babip": 0.33,
-              "gbFb": 0.73,
-              "airPct": 57.9,
+              "babip": 0.328,
+              "gbFb": 0.72,
+              "airPct": 58.2,
               "sbAttempts": 2,
               "sbSuccess": 1,
               "sbRate": 0.012
             },
             "last10": {
-              "ab": 41,
+              "ab": 42,
               "h": 11,
               "hr": 3,
-              "avg": 0.268
+              "avg": 0.262
             },
             "gameLog": [
               {
@@ -74499,7 +74602,7 @@
               {
                 "date": "2026-08-18",
                 "opp": null,
-                "ab": 4,
+                "ab": 5,
                 "h": 0,
                 "r": 0,
                 "hr": 0,
@@ -75269,23 +75372,23 @@
                 "ops": 0.902
               },
               "vsRHP": {
-                "pa": 120,
-                "ab": 107,
-                "h": 30,
+                "pa": 124,
+                "ab": 111,
+                "h": 31,
                 "hr": 1,
                 "rbi": 10,
                 "bb": 11,
-                "so": 26,
-                "avg": 0.28,
-                "obp": 0.345,
-                "slg": 0.402,
-                "ops": 0.747
+                "so": 27,
+                "avg": 0.279,
+                "obp": 0.341,
+                "slg": 0.396,
+                "ops": 0.737
               }
             },
             "season": {
               "g": 51,
-              "pa": 148,
-              "ab": 134,
+              "pa": 149,
+              "ab": 135,
               "h": 39,
               "r": 20,
               "hr": 2,
@@ -75296,25 +75399,25 @@
               "so": 29,
               "doubles": 10,
               "triples": 1,
-              "avg": 0.291,
-              "obp": 0.347,
-              "slg": 0.425,
-              "ops": 0.772,
-              "kPct": 19.6,
+              "avg": 0.289,
+              "obp": 0.345,
+              "slg": 0.422,
+              "ops": 0.767,
+              "kPct": 19.5,
               "bbPct": 8.1,
-              "iso": 0.134,
-              "babip": 0.356,
-              "gbFb": 1.19,
-              "airPct": 45.6,
+              "iso": 0.133,
+              "babip": 0.352,
+              "gbFb": 1.16,
+              "airPct": 46.4,
               "sbAttempts": 7,
               "sbSuccess": 1,
               "sbRate": 0.137
             },
             "last10": {
-              "ab": 29,
+              "ab": 30,
               "h": 8,
               "hr": 1,
-              "avg": 0.276
+              "avg": 0.267
             },
             "gameLog": [
               {
@@ -75401,7 +75504,7 @@
               {
                 "date": "2026-08-18",
                 "opp": null,
-                "ab": 3,
+                "ab": 4,
                 "h": 1,
                 "r": 0,
                 "hr": 0,
@@ -76119,890 +76222,6 @@
                   "hand": "R",
                   "result": "field_out",
                   "date": "2026-07-05"
-                }
-              ]
-            }
-          },
-          {
-            "id": 624424,
-            "name": "Michael Conforto",
-            "pos": "DH",
-            "bats": "L",
-            "battingOrder": null,
-            "splits": {
-              "vsLHP": {
-                "pa": 8,
-                "ab": 7,
-                "h": 3,
-                "hr": 2,
-                "rbi": 3,
-                "bb": 1,
-                "so": 1,
-                "avg": 0.429,
-                "obp": 0.5,
-                "slg": 1.286,
-                "ops": 1.786
-              },
-              "vsRHP": {
-                "pa": 212,
-                "ab": 183,
-                "h": 40,
-                "hr": 8,
-                "rbi": 27,
-                "bb": 25,
-                "so": 64,
-                "avg": 0.219,
-                "obp": 0.311,
-                "slg": 0.415,
-                "ops": 0.726
-              }
-            },
-            "season": {
-              "g": 84,
-              "pa": 223,
-              "ab": 192,
-              "h": 43,
-              "r": 25,
-              "hr": 10,
-              "rbi": 30,
-              "sb": 1,
-              "cs": 0,
-              "bb": 27,
-              "so": 65,
-              "doubles": 12,
-              "triples": 0,
-              "avg": 0.224,
-              "obp": 0.318,
-              "slg": 0.443,
-              "ops": 0.761,
-              "kPct": 29.1,
-              "bbPct": 12.1,
-              "iso": 0.219,
-              "babip": 0.275,
-              "gbFb": 0.74,
-              "airPct": 57.5,
-              "sbAttempts": 1,
-              "sbSuccess": 1,
-              "sbRate": 0.014
-            },
-            "last10": {
-              "ab": 24,
-              "h": 4,
-              "hr": 1,
-              "avg": 0.167
-            },
-            "gameLog": [
-              {
-                "date": "2026-08-02",
-                "opp": null,
-                "ab": 1,
-                "h": 0,
-                "r": 0,
-                "hr": 0,
-                "rbi": 0
-              },
-              {
-                "date": "2026-08-06",
-                "opp": null,
-                "ab": 3,
-                "h": 0,
-                "r": 0,
-                "hr": 0,
-                "rbi": 0
-              },
-              {
-                "date": "2026-08-08",
-                "opp": null,
-                "ab": 1,
-                "h": 1,
-                "r": 0,
-                "hr": 0,
-                "rbi": 0
-              },
-              {
-                "date": "2026-08-09",
-                "opp": null,
-                "ab": 4,
-                "h": 2,
-                "r": 0,
-                "hr": 0,
-                "rbi": 2
-              },
-              {
-                "date": "2026-08-11",
-                "opp": null,
-                "ab": 3,
-                "h": 0,
-                "r": 0,
-                "hr": 0,
-                "rbi": 1
-              },
-              {
-                "date": "2026-08-13",
-                "opp": null,
-                "ab": 3,
-                "h": 0,
-                "r": 0,
-                "hr": 0,
-                "rbi": 0
-              },
-              {
-                "date": "2026-08-15",
-                "opp": null,
-                "ab": 2,
-                "h": 1,
-                "r": 1,
-                "hr": 1,
-                "rbi": 3
-              },
-              {
-                "date": "2026-08-16",
-                "opp": null,
-                "ab": 3,
-                "h": 0,
-                "r": 0,
-                "hr": 0,
-                "rbi": 0
-              },
-              {
-                "date": "2026-08-17",
-                "opp": null,
-                "ab": 2,
-                "h": 0,
-                "r": 0,
-                "hr": 0,
-                "rbi": 0
-              },
-              {
-                "date": "2026-08-18",
-                "opp": null,
-                "ab": 2,
-                "h": 0,
-                "r": 0,
-                "hr": 0,
-                "rbi": 0
-              }
-            ],
-            "vsPitcher": null,
-            "statcast": {
-              "pa": 220.0,
-              "avg": 0.226,
-              "xba": 0.222,
-              "slg": 0.447,
-              "xslg": 0.411,
-              "woba": 0.329,
-              "xwoba": 0.315,
-              "barrelPct": 11.7,
-              "exitVelo": 91.1,
-              "hardHitPct": 43.0,
-              "maxExitVelo": 110.7,
-              "bbe": 128.0,
-              "barrelPctile": null,
-              "exitVeloPctile": null,
-              "xwobaPctile": null
-            },
-            "detail": {
-              "windowDays": 45,
-              "zones": {
-                "1": {
-                  "pitches": 16,
-                  "swings": 5,
-                  "hits": 0,
-                  "abs": 3,
-                  "avg": 0.0,
-                  "ev": null,
-                  "hr": 0
-                },
-                "2": {
-                  "pitches": 21,
-                  "swings": 14,
-                  "hits": 0,
-                  "abs": 4,
-                  "avg": 0.0,
-                  "ev": 82.0,
-                  "hr": 0
-                },
-                "3": {
-                  "pitches": 13,
-                  "swings": 8,
-                  "hits": 2,
-                  "abs": 5,
-                  "avg": 0.4,
-                  "ev": 82.5,
-                  "hr": 1
-                },
-                "4": {
-                  "pitches": 16,
-                  "swings": 7,
-                  "hits": 2,
-                  "abs": 9,
-                  "avg": 0.222,
-                  "ev": 92.0,
-                  "hr": 0
-                },
-                "5": {
-                  "pitches": 13,
-                  "swings": 9,
-                  "hits": 1,
-                  "abs": 4,
-                  "avg": 0.25,
-                  "ev": 82.6,
-                  "hr": 1
-                },
-                "6": {
-                  "pitches": 26,
-                  "swings": 19,
-                  "hits": 1,
-                  "abs": 8,
-                  "avg": 0.125,
-                  "ev": 75.5,
-                  "hr": 0
-                },
-                "7": {
-                  "pitches": 10,
-                  "swings": 5,
-                  "hits": 0,
-                  "abs": 5,
-                  "avg": 0.0,
-                  "ev": 67.9,
-                  "hr": 0
-                },
-                "8": {
-                  "pitches": 21,
-                  "swings": 15,
-                  "hits": 2,
-                  "abs": 8,
-                  "avg": 0.25,
-                  "ev": 87.2,
-                  "hr": 0
-                },
-                "9": {
-                  "pitches": 9,
-                  "swings": 4,
-                  "hits": 2,
-                  "abs": 4,
-                  "avg": 0.5,
-                  "ev": 100.1,
-                  "hr": 0
-                },
-                "11": {
-                  "pitches": 41,
-                  "swings": 8,
-                  "hits": 0,
-                  "abs": 5,
-                  "avg": 0.0,
-                  "ev": 84.3,
-                  "hr": 0
-                },
-                "12": {
-                  "pitches": 28,
-                  "swings": 12,
-                  "hits": 1,
-                  "abs": 3,
-                  "avg": 0.333,
-                  "ev": 78.5,
-                  "hr": 1
-                },
-                "13": {
-                  "pitches": 32,
-                  "swings": 8,
-                  "hits": 0,
-                  "abs": 6,
-                  "avg": 0.0,
-                  "ev": 67.7,
-                  "hr": 0
-                },
-                "14": {
-                  "pitches": 43,
-                  "swings": 14,
-                  "hits": 0,
-                  "abs": 8,
-                  "avg": 0.0,
-                  "ev": 95.8,
-                  "hr": 0
-                }
-              },
-              "pitchTypes": {
-                "CH": {
-                  "seen": 39,
-                  "abs": 12,
-                  "avg": 0.167,
-                  "ev": 83.6,
-                  "la": 2.3,
-                  "hr": 1,
-                  "whiffPct": 33.3
-                },
-                "CU": {
-                  "seen": 38,
-                  "abs": 5,
-                  "avg": 0.0,
-                  "ev": 80.9,
-                  "la": 5.5,
-                  "hr": 0,
-                  "whiffPct": 40.0
-                },
-                "EP": {
-                  "seen": 7,
-                  "abs": 2,
-                  "avg": null,
-                  "ev": null,
-                  "la": null,
-                  "hr": 0,
-                  "whiffPct": null
-                },
-                "FA": {
-                  "seen": 3,
-                  "abs": 1,
-                  "avg": null,
-                  "ev": null,
-                  "la": null,
-                  "hr": 0,
-                  "whiffPct": null
-                },
-                "FC": {
-                  "seen": 10,
-                  "abs": 4,
-                  "avg": null,
-                  "ev": 86.2,
-                  "la": 15.3,
-                  "hr": 0,
-                  "whiffPct": 0.0
-                },
-                "FF": {
-                  "seen": 91,
-                  "abs": 22,
-                  "avg": 0.182,
-                  "ev": 83.8,
-                  "la": 32.1,
-                  "hr": 2,
-                  "whiffPct": 17.8
-                },
-                "FS": {
-                  "seen": 15,
-                  "abs": 4,
-                  "avg": null,
-                  "ev": null,
-                  "la": null,
-                  "hr": 0,
-                  "whiffPct": 60.0
-                },
-                "KC": {
-                  "seen": 20,
-                  "abs": 5,
-                  "avg": 0.2,
-                  "ev": 87.2,
-                  "la": 8.4,
-                  "hr": 0,
-                  "whiffPct": 28.6
-                },
-                "SI": {
-                  "seen": 17,
-                  "abs": 5,
-                  "avg": 0.4,
-                  "ev": 82.2,
-                  "la": 25.6,
-                  "hr": 0,
-                  "whiffPct": 9.1
-                },
-                "SL": {
-                  "seen": 26,
-                  "abs": 8,
-                  "avg": 0.125,
-                  "ev": 78.0,
-                  "la": 41.9,
-                  "hr": 0,
-                  "whiffPct": 16.7
-                },
-                "ST": {
-                  "seen": 23,
-                  "abs": 4,
-                  "avg": null,
-                  "ev": 71.6,
-                  "la": 24.8,
-                  "hr": 0,
-                  "whiffPct": 33.3
-                }
-              },
-              "battedBalls": [
-                {
-                  "ev": 72.5,
-                  "la": -32.0,
-                  "dist": 5,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-08-09"
-                },
-                {
-                  "ev": 71.4,
-                  "la": 63.0,
-                  "dist": 181,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-08-09"
-                },
-                {
-                  "ev": 91.0,
-                  "la": 20.0,
-                  "dist": 248,
-                  "hand": "R",
-                  "result": "single",
-                  "date": "2026-08-09"
-                },
-                {
-                  "ev": 110.7,
-                  "la": 19.0,
-                  "dist": 307,
-                  "hand": "R",
-                  "result": "double",
-                  "date": "2026-08-08"
-                },
-                {
-                  "ev": 97.6,
-                  "la": 5.0,
-                  "dist": 100,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-08-08"
-                },
-                {
-                  "ev": 81.4,
-                  "la": 18.0,
-                  "dist": 205,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-08-08"
-                },
-                {
-                  "ev": 76.4,
-                  "la": 23.0,
-                  "dist": 129,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-08-06"
-                },
-                {
-                  "ev": 78.2,
-                  "la": 2.0,
-                  "dist": 45,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-08-06"
-                },
-                {
-                  "ev": 102.4,
-                  "la": 7.0,
-                  "dist": 127,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-08-06"
-                },
-                {
-                  "ev": 54.7,
-                  "la": 39.0,
-                  "dist": 153,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-08-06"
-                },
-                {
-                  "ev": 68.8,
-                  "la": -26.0,
-                  "dist": 4,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-31"
-                },
-                {
-                  "ev": 82.8,
-                  "la": -13.0,
-                  "dist": 13,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-30"
-                },
-                {
-                  "ev": 92.4,
-                  "la": -30.0,
-                  "dist": 5,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-30"
-                },
-                {
-                  "ev": 91.1,
-                  "la": -39.0,
-                  "dist": 3,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-30"
-                },
-                {
-                  "ev": 91.6,
-                  "la": 32.0,
-                  "dist": 350,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-30"
-                },
-                {
-                  "ev": 77.6,
-                  "la": -13.0,
-                  "dist": 11,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-29"
-                },
-                {
-                  "ev": 91.4,
-                  "la": 0.0,
-                  "dist": 50,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-29"
-                },
-                {
-                  "ev": 81.5,
-                  "la": 15.0,
-                  "dist": 201,
-                  "hand": "R",
-                  "result": "single",
-                  "date": "2026-07-28"
-                },
-                {
-                  "ev": 101.4,
-                  "la": -11.0,
-                  "dist": 10,
-                  "hand": "R",
-                  "result": "single",
-                  "date": "2026-07-28"
-                },
-                {
-                  "ev": 97.2,
-                  "la": 24.0,
-                  "dist": 362,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-28"
-                },
-                {
-                  "ev": 90.4,
-                  "la": 69.0,
-                  "dist": 122,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-26"
-                },
-                {
-                  "ev": 91.1,
-                  "la": 18.0,
-                  "dist": 264,
-                  "hand": "R",
-                  "result": "double",
-                  "date": "2026-07-26"
-                },
-                {
-                  "ev": 73.9,
-                  "la": 41.0,
-                  "dist": 220,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-26"
-                },
-                {
-                  "ev": 81.9,
-                  "la": 58.0,
-                  "dist": 205,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-26"
-                },
-                {
-                  "ev": 74.7,
-                  "la": 52.0,
-                  "dist": 216,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-25"
-                },
-                {
-                  "ev": 63.8,
-                  "la": 35.0,
-                  "dist": 179,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-25"
-                },
-                {
-                  "ev": 77.7,
-                  "la": 48.0,
-                  "dist": 247,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-25"
-                },
-                {
-                  "ev": 52.3,
-                  "la": 24.0,
-                  "dist": 127,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-24"
-                },
-                {
-                  "ev": 97.0,
-                  "la": 3.0,
-                  "dist": 73,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-22"
-                },
-                {
-                  "ev": 75.5,
-                  "la": 21.0,
-                  "dist": 196,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-22"
-                },
-                {
-                  "ev": 102.0,
-                  "la": 38.0,
-                  "dist": 381,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-21"
-                },
-                {
-                  "ev": 95.1,
-                  "la": 45.0,
-                  "dist": 329,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-21"
-                },
-                {
-                  "ev": 103.4,
-                  "la": 25.0,
-                  "dist": 383,
-                  "hand": "R",
-                  "result": "home_run",
-                  "date": "2026-07-21"
-                },
-                {
-                  "ev": 96.5,
-                  "la": 40.0,
-                  "dist": 380,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-20"
-                },
-                {
-                  "ev": 78.5,
-                  "la": 36.0,
-                  "dist": 268,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-20"
-                },
-                {
-                  "ev": 75.3,
-                  "la": 43.0,
-                  "dist": 255,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-20"
-                },
-                {
-                  "ev": 44.4,
-                  "la": 37.0,
-                  "dist": 107,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-19"
-                },
-                {
-                  "ev": 75.7,
-                  "la": 65.0,
-                  "dist": 144,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-17"
-                },
-                {
-                  "ev": 62.9,
-                  "la": 60.0,
-                  "dist": 166,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-17"
-                },
-                {
-                  "ev": 33.0,
-                  "la": -18.0,
-                  "dist": 7,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-17"
-                },
-                {
-                  "ev": 104.2,
-                  "la": 5.0,
-                  "dist": 104,
-                  "hand": "R",
-                  "result": "single",
-                  "date": "2026-07-17"
-                },
-                {
-                  "ev": 74.9,
-                  "la": -22.0,
-                  "dist": 6,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-17"
-                },
-                {
-                  "ev": 98.6,
-                  "la": 34.0,
-                  "dist": 380,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-17"
-                },
-                {
-                  "ev": 104.5,
-                  "la": 0.0,
-                  "dist": 44,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-17"
-                },
-                {
-                  "ev": 74.2,
-                  "la": 46.0,
-                  "dist": 210,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-10"
-                },
-                {
-                  "ev": 79.9,
-                  "la": 51.0,
-                  "dist": 267,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-10"
-                },
-                {
-                  "ev": 81.7,
-                  "la": 22.0,
-                  "dist": 156,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-10"
-                },
-                {
-                  "ev": 82.7,
-                  "la": 21.0,
-                  "dist": 140,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-10"
-                },
-                {
-                  "ev": 102.1,
-                  "la": 16.0,
-                  "dist": 307,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-09"
-                },
-                {
-                  "ev": 65.7,
-                  "la": 56.0,
-                  "dist": 178,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-09"
-                },
-                {
-                  "ev": 94.5,
-                  "la": 32.0,
-                  "dist": 368,
-                  "hand": "R",
-                  "result": "home_run",
-                  "date": "2026-07-08"
-                },
-                {
-                  "ev": 37.7,
-                  "la": -39.0,
-                  "dist": 2,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-08"
-                },
-                {
-                  "ev": 85.6,
-                  "la": -12.0,
-                  "dist": 8,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-08"
-                },
-                {
-                  "ev": 98.7,
-                  "la": 37.0,
-                  "dist": 365,
-                  "hand": "R",
-                  "result": "field_error",
-                  "date": "2026-07-08"
-                },
-                {
-                  "ev": 100.7,
-                  "la": 17.0,
-                  "dist": 258,
-                  "hand": "R",
-                  "result": "single",
-                  "date": "2026-07-07"
-                },
-                {
-                  "ev": 66.3,
-                  "la": 59.0,
-                  "dist": 163,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-07"
-                },
-                {
-                  "ev": 80.3,
-                  "la": 34.0,
-                  "dist": 262,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-07"
-                },
-                {
-                  "ev": 84.8,
-                  "la": -16.0,
-                  "dist": 7,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-07"
-                },
-                {
-                  "ev": 74.7,
-                  "la": 50.0,
-                  "dist": 242,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-07"
-                },
-                {
-                  "ev": 81.6,
-                  "la": -22.0,
-                  "dist": 6,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-07"
                 }
               ]
             }
@@ -77892,6 +77111,890 @@
             }
           },
           {
+            "id": 624424,
+            "name": "Michael Conforto",
+            "pos": "DH",
+            "bats": "L",
+            "battingOrder": null,
+            "splits": {
+              "vsLHP": {
+                "pa": 8,
+                "ab": 7,
+                "h": 3,
+                "hr": 2,
+                "rbi": 3,
+                "bb": 1,
+                "so": 1,
+                "avg": 0.429,
+                "obp": 0.5,
+                "slg": 1.286,
+                "ops": 1.786
+              },
+              "vsRHP": {
+                "pa": 216,
+                "ab": 186,
+                "h": 40,
+                "hr": 8,
+                "rbi": 27,
+                "bb": 26,
+                "so": 65,
+                "avg": 0.215,
+                "obp": 0.31,
+                "slg": 0.409,
+                "ops": 0.719
+              }
+            },
+            "season": {
+              "g": 84,
+              "pa": 224,
+              "ab": 193,
+              "h": 43,
+              "r": 25,
+              "hr": 10,
+              "rbi": 30,
+              "sb": 1,
+              "cs": 0,
+              "bb": 27,
+              "so": 66,
+              "doubles": 12,
+              "triples": 0,
+              "avg": 0.223,
+              "obp": 0.317,
+              "slg": 0.44,
+              "ops": 0.757,
+              "kPct": 29.5,
+              "bbPct": 12.1,
+              "iso": 0.217,
+              "babip": 0.275,
+              "gbFb": 0.74,
+              "airPct": 57.5,
+              "sbAttempts": 1,
+              "sbSuccess": 1,
+              "sbRate": 0.014
+            },
+            "last10": {
+              "ab": 25,
+              "h": 4,
+              "hr": 1,
+              "avg": 0.16
+            },
+            "gameLog": [
+              {
+                "date": "2026-08-02",
+                "opp": null,
+                "ab": 1,
+                "h": 0,
+                "r": 0,
+                "hr": 0,
+                "rbi": 0
+              },
+              {
+                "date": "2026-08-06",
+                "opp": null,
+                "ab": 3,
+                "h": 0,
+                "r": 0,
+                "hr": 0,
+                "rbi": 0
+              },
+              {
+                "date": "2026-08-08",
+                "opp": null,
+                "ab": 1,
+                "h": 1,
+                "r": 0,
+                "hr": 0,
+                "rbi": 0
+              },
+              {
+                "date": "2026-08-09",
+                "opp": null,
+                "ab": 4,
+                "h": 2,
+                "r": 0,
+                "hr": 0,
+                "rbi": 2
+              },
+              {
+                "date": "2026-08-11",
+                "opp": null,
+                "ab": 3,
+                "h": 0,
+                "r": 0,
+                "hr": 0,
+                "rbi": 1
+              },
+              {
+                "date": "2026-08-13",
+                "opp": null,
+                "ab": 3,
+                "h": 0,
+                "r": 0,
+                "hr": 0,
+                "rbi": 0
+              },
+              {
+                "date": "2026-08-15",
+                "opp": null,
+                "ab": 2,
+                "h": 1,
+                "r": 1,
+                "hr": 1,
+                "rbi": 3
+              },
+              {
+                "date": "2026-08-16",
+                "opp": null,
+                "ab": 3,
+                "h": 0,
+                "r": 0,
+                "hr": 0,
+                "rbi": 0
+              },
+              {
+                "date": "2026-08-17",
+                "opp": null,
+                "ab": 2,
+                "h": 0,
+                "r": 0,
+                "hr": 0,
+                "rbi": 0
+              },
+              {
+                "date": "2026-08-18",
+                "opp": null,
+                "ab": 3,
+                "h": 0,
+                "r": 0,
+                "hr": 0,
+                "rbi": 0
+              }
+            ],
+            "vsPitcher": null,
+            "statcast": {
+              "pa": 220.0,
+              "avg": 0.226,
+              "xba": 0.222,
+              "slg": 0.447,
+              "xslg": 0.411,
+              "woba": 0.329,
+              "xwoba": 0.315,
+              "barrelPct": 11.7,
+              "exitVelo": 91.1,
+              "hardHitPct": 43.0,
+              "maxExitVelo": 110.7,
+              "bbe": 128.0,
+              "barrelPctile": null,
+              "exitVeloPctile": null,
+              "xwobaPctile": null
+            },
+            "detail": {
+              "windowDays": 45,
+              "zones": {
+                "1": {
+                  "pitches": 16,
+                  "swings": 5,
+                  "hits": 0,
+                  "abs": 3,
+                  "avg": 0.0,
+                  "ev": null,
+                  "hr": 0
+                },
+                "2": {
+                  "pitches": 21,
+                  "swings": 14,
+                  "hits": 0,
+                  "abs": 4,
+                  "avg": 0.0,
+                  "ev": 82.0,
+                  "hr": 0
+                },
+                "3": {
+                  "pitches": 13,
+                  "swings": 8,
+                  "hits": 2,
+                  "abs": 5,
+                  "avg": 0.4,
+                  "ev": 82.5,
+                  "hr": 1
+                },
+                "4": {
+                  "pitches": 16,
+                  "swings": 7,
+                  "hits": 2,
+                  "abs": 9,
+                  "avg": 0.222,
+                  "ev": 92.0,
+                  "hr": 0
+                },
+                "5": {
+                  "pitches": 13,
+                  "swings": 9,
+                  "hits": 1,
+                  "abs": 4,
+                  "avg": 0.25,
+                  "ev": 82.6,
+                  "hr": 1
+                },
+                "6": {
+                  "pitches": 26,
+                  "swings": 19,
+                  "hits": 1,
+                  "abs": 8,
+                  "avg": 0.125,
+                  "ev": 75.5,
+                  "hr": 0
+                },
+                "7": {
+                  "pitches": 10,
+                  "swings": 5,
+                  "hits": 0,
+                  "abs": 5,
+                  "avg": 0.0,
+                  "ev": 67.9,
+                  "hr": 0
+                },
+                "8": {
+                  "pitches": 21,
+                  "swings": 15,
+                  "hits": 2,
+                  "abs": 8,
+                  "avg": 0.25,
+                  "ev": 87.2,
+                  "hr": 0
+                },
+                "9": {
+                  "pitches": 9,
+                  "swings": 4,
+                  "hits": 2,
+                  "abs": 4,
+                  "avg": 0.5,
+                  "ev": 100.1,
+                  "hr": 0
+                },
+                "11": {
+                  "pitches": 41,
+                  "swings": 8,
+                  "hits": 0,
+                  "abs": 5,
+                  "avg": 0.0,
+                  "ev": 84.3,
+                  "hr": 0
+                },
+                "12": {
+                  "pitches": 28,
+                  "swings": 12,
+                  "hits": 1,
+                  "abs": 3,
+                  "avg": 0.333,
+                  "ev": 78.5,
+                  "hr": 1
+                },
+                "13": {
+                  "pitches": 32,
+                  "swings": 8,
+                  "hits": 0,
+                  "abs": 6,
+                  "avg": 0.0,
+                  "ev": 67.7,
+                  "hr": 0
+                },
+                "14": {
+                  "pitches": 43,
+                  "swings": 14,
+                  "hits": 0,
+                  "abs": 8,
+                  "avg": 0.0,
+                  "ev": 95.8,
+                  "hr": 0
+                }
+              },
+              "pitchTypes": {
+                "CH": {
+                  "seen": 39,
+                  "abs": 12,
+                  "avg": 0.167,
+                  "ev": 83.6,
+                  "la": 2.3,
+                  "hr": 1,
+                  "whiffPct": 33.3
+                },
+                "CU": {
+                  "seen": 38,
+                  "abs": 5,
+                  "avg": 0.0,
+                  "ev": 80.9,
+                  "la": 5.5,
+                  "hr": 0,
+                  "whiffPct": 40.0
+                },
+                "EP": {
+                  "seen": 7,
+                  "abs": 2,
+                  "avg": null,
+                  "ev": null,
+                  "la": null,
+                  "hr": 0,
+                  "whiffPct": null
+                },
+                "FA": {
+                  "seen": 3,
+                  "abs": 1,
+                  "avg": null,
+                  "ev": null,
+                  "la": null,
+                  "hr": 0,
+                  "whiffPct": null
+                },
+                "FC": {
+                  "seen": 10,
+                  "abs": 4,
+                  "avg": null,
+                  "ev": 86.2,
+                  "la": 15.3,
+                  "hr": 0,
+                  "whiffPct": 0.0
+                },
+                "FF": {
+                  "seen": 91,
+                  "abs": 22,
+                  "avg": 0.182,
+                  "ev": 83.8,
+                  "la": 32.1,
+                  "hr": 2,
+                  "whiffPct": 17.8
+                },
+                "FS": {
+                  "seen": 15,
+                  "abs": 4,
+                  "avg": null,
+                  "ev": null,
+                  "la": null,
+                  "hr": 0,
+                  "whiffPct": 60.0
+                },
+                "KC": {
+                  "seen": 20,
+                  "abs": 5,
+                  "avg": 0.2,
+                  "ev": 87.2,
+                  "la": 8.4,
+                  "hr": 0,
+                  "whiffPct": 28.6
+                },
+                "SI": {
+                  "seen": 17,
+                  "abs": 5,
+                  "avg": 0.4,
+                  "ev": 82.2,
+                  "la": 25.6,
+                  "hr": 0,
+                  "whiffPct": 9.1
+                },
+                "SL": {
+                  "seen": 26,
+                  "abs": 8,
+                  "avg": 0.125,
+                  "ev": 78.0,
+                  "la": 41.9,
+                  "hr": 0,
+                  "whiffPct": 16.7
+                },
+                "ST": {
+                  "seen": 23,
+                  "abs": 4,
+                  "avg": null,
+                  "ev": 71.6,
+                  "la": 24.8,
+                  "hr": 0,
+                  "whiffPct": 33.3
+                }
+              },
+              "battedBalls": [
+                {
+                  "ev": 72.5,
+                  "la": -32.0,
+                  "dist": 5,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-08-09"
+                },
+                {
+                  "ev": 71.4,
+                  "la": 63.0,
+                  "dist": 181,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-08-09"
+                },
+                {
+                  "ev": 91.0,
+                  "la": 20.0,
+                  "dist": 248,
+                  "hand": "R",
+                  "result": "single",
+                  "date": "2026-08-09"
+                },
+                {
+                  "ev": 110.7,
+                  "la": 19.0,
+                  "dist": 307,
+                  "hand": "R",
+                  "result": "double",
+                  "date": "2026-08-08"
+                },
+                {
+                  "ev": 97.6,
+                  "la": 5.0,
+                  "dist": 100,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-08-08"
+                },
+                {
+                  "ev": 81.4,
+                  "la": 18.0,
+                  "dist": 205,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-08-08"
+                },
+                {
+                  "ev": 76.4,
+                  "la": 23.0,
+                  "dist": 129,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-08-06"
+                },
+                {
+                  "ev": 78.2,
+                  "la": 2.0,
+                  "dist": 45,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-08-06"
+                },
+                {
+                  "ev": 102.4,
+                  "la": 7.0,
+                  "dist": 127,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-08-06"
+                },
+                {
+                  "ev": 54.7,
+                  "la": 39.0,
+                  "dist": 153,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-08-06"
+                },
+                {
+                  "ev": 68.8,
+                  "la": -26.0,
+                  "dist": 4,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-31"
+                },
+                {
+                  "ev": 82.8,
+                  "la": -13.0,
+                  "dist": 13,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-30"
+                },
+                {
+                  "ev": 92.4,
+                  "la": -30.0,
+                  "dist": 5,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-30"
+                },
+                {
+                  "ev": 91.1,
+                  "la": -39.0,
+                  "dist": 3,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-30"
+                },
+                {
+                  "ev": 91.6,
+                  "la": 32.0,
+                  "dist": 350,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-30"
+                },
+                {
+                  "ev": 77.6,
+                  "la": -13.0,
+                  "dist": 11,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-29"
+                },
+                {
+                  "ev": 91.4,
+                  "la": 0.0,
+                  "dist": 50,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-29"
+                },
+                {
+                  "ev": 81.5,
+                  "la": 15.0,
+                  "dist": 201,
+                  "hand": "R",
+                  "result": "single",
+                  "date": "2026-07-28"
+                },
+                {
+                  "ev": 101.4,
+                  "la": -11.0,
+                  "dist": 10,
+                  "hand": "R",
+                  "result": "single",
+                  "date": "2026-07-28"
+                },
+                {
+                  "ev": 97.2,
+                  "la": 24.0,
+                  "dist": 362,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-28"
+                },
+                {
+                  "ev": 90.4,
+                  "la": 69.0,
+                  "dist": 122,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-26"
+                },
+                {
+                  "ev": 91.1,
+                  "la": 18.0,
+                  "dist": 264,
+                  "hand": "R",
+                  "result": "double",
+                  "date": "2026-07-26"
+                },
+                {
+                  "ev": 73.9,
+                  "la": 41.0,
+                  "dist": 220,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-26"
+                },
+                {
+                  "ev": 81.9,
+                  "la": 58.0,
+                  "dist": 205,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-26"
+                },
+                {
+                  "ev": 74.7,
+                  "la": 52.0,
+                  "dist": 216,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-25"
+                },
+                {
+                  "ev": 63.8,
+                  "la": 35.0,
+                  "dist": 179,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-25"
+                },
+                {
+                  "ev": 77.7,
+                  "la": 48.0,
+                  "dist": 247,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-25"
+                },
+                {
+                  "ev": 52.3,
+                  "la": 24.0,
+                  "dist": 127,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-24"
+                },
+                {
+                  "ev": 97.0,
+                  "la": 3.0,
+                  "dist": 73,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-22"
+                },
+                {
+                  "ev": 75.5,
+                  "la": 21.0,
+                  "dist": 196,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-22"
+                },
+                {
+                  "ev": 102.0,
+                  "la": 38.0,
+                  "dist": 381,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-21"
+                },
+                {
+                  "ev": 95.1,
+                  "la": 45.0,
+                  "dist": 329,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-21"
+                },
+                {
+                  "ev": 103.4,
+                  "la": 25.0,
+                  "dist": 383,
+                  "hand": "R",
+                  "result": "home_run",
+                  "date": "2026-07-21"
+                },
+                {
+                  "ev": 96.5,
+                  "la": 40.0,
+                  "dist": 380,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-20"
+                },
+                {
+                  "ev": 78.5,
+                  "la": 36.0,
+                  "dist": 268,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-20"
+                },
+                {
+                  "ev": 75.3,
+                  "la": 43.0,
+                  "dist": 255,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-20"
+                },
+                {
+                  "ev": 44.4,
+                  "la": 37.0,
+                  "dist": 107,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-19"
+                },
+                {
+                  "ev": 75.7,
+                  "la": 65.0,
+                  "dist": 144,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-17"
+                },
+                {
+                  "ev": 62.9,
+                  "la": 60.0,
+                  "dist": 166,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-17"
+                },
+                {
+                  "ev": 33.0,
+                  "la": -18.0,
+                  "dist": 7,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-17"
+                },
+                {
+                  "ev": 104.2,
+                  "la": 5.0,
+                  "dist": 104,
+                  "hand": "R",
+                  "result": "single",
+                  "date": "2026-07-17"
+                },
+                {
+                  "ev": 74.9,
+                  "la": -22.0,
+                  "dist": 6,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-17"
+                },
+                {
+                  "ev": 98.6,
+                  "la": 34.0,
+                  "dist": 380,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-17"
+                },
+                {
+                  "ev": 104.5,
+                  "la": 0.0,
+                  "dist": 44,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-17"
+                },
+                {
+                  "ev": 74.2,
+                  "la": 46.0,
+                  "dist": 210,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-10"
+                },
+                {
+                  "ev": 79.9,
+                  "la": 51.0,
+                  "dist": 267,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-10"
+                },
+                {
+                  "ev": 81.7,
+                  "la": 22.0,
+                  "dist": 156,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-10"
+                },
+                {
+                  "ev": 82.7,
+                  "la": 21.0,
+                  "dist": 140,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-10"
+                },
+                {
+                  "ev": 102.1,
+                  "la": 16.0,
+                  "dist": 307,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-09"
+                },
+                {
+                  "ev": 65.7,
+                  "la": 56.0,
+                  "dist": 178,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-09"
+                },
+                {
+                  "ev": 94.5,
+                  "la": 32.0,
+                  "dist": 368,
+                  "hand": "R",
+                  "result": "home_run",
+                  "date": "2026-07-08"
+                },
+                {
+                  "ev": 37.7,
+                  "la": -39.0,
+                  "dist": 2,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-08"
+                },
+                {
+                  "ev": 85.6,
+                  "la": -12.0,
+                  "dist": 8,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-08"
+                },
+                {
+                  "ev": 98.7,
+                  "la": 37.0,
+                  "dist": 365,
+                  "hand": "R",
+                  "result": "field_error",
+                  "date": "2026-07-08"
+                },
+                {
+                  "ev": 100.7,
+                  "la": 17.0,
+                  "dist": 258,
+                  "hand": "R",
+                  "result": "single",
+                  "date": "2026-07-07"
+                },
+                {
+                  "ev": 66.3,
+                  "la": 59.0,
+                  "dist": 163,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-07"
+                },
+                {
+                  "ev": 80.3,
+                  "la": 34.0,
+                  "dist": 262,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-07"
+                },
+                {
+                  "ev": 84.8,
+                  "la": -16.0,
+                  "dist": 7,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-07"
+                },
+                {
+                  "ev": 74.7,
+                  "la": 50.0,
+                  "dist": 242,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-07"
+                },
+                {
+                  "ev": 81.6,
+                  "la": -22.0,
+                  "dist": 6,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-07"
+                }
+              ]
+            }
+          },
+          {
             "id": 608324,
             "name": "Alex Bregman",
             "pos": "3B",
@@ -77899,54 +78002,54 @@
             "battingOrder": null,
             "splits": {
               "vsLHP": {
-                "pa": 141,
-                "ab": 114,
+                "pa": 142,
+                "ab": 115,
                 "h": 31,
                 "hr": 3,
                 "rbi": 16,
                 "bb": 22,
                 "so": 20,
-                "avg": 0.272,
-                "obp": 0.397,
-                "slg": 0.395,
-                "ops": 0.792
+                "avg": 0.27,
+                "obp": 0.394,
+                "slg": 0.391,
+                "ops": 0.785
               },
               "vsRHP": {
-                "pa": 421,
-                "ab": 372,
-                "h": 93,
+                "pa": 425,
+                "ab": 376,
+                "h": 95,
                 "hr": 13,
-                "rbi": 45,
+                "rbi": 47,
                 "bb": 41,
                 "so": 68,
-                "avg": 0.25,
-                "obp": 0.33,
-                "slg": 0.411,
-                "ops": 0.741
+                "avg": 0.253,
+                "obp": 0.332,
+                "slg": 0.412,
+                "ops": 0.744
               }
             },
             "season": {
               "g": 124,
-              "pa": 566,
-              "ab": 490,
-              "h": 125,
+              "pa": 567,
+              "ab": 491,
+              "h": 126,
               "r": 69,
               "hr": 16,
-              "rbi": 62,
+              "rbi": 63,
               "sb": 3,
               "cs": 1,
               "bb": 63,
               "so": 88,
               "doubles": 24,
               "triples": 1,
-              "avg": 0.255,
-              "obp": 0.346,
-              "slg": 0.406,
-              "ops": 0.752,
+              "avg": 0.257,
+              "obp": 0.347,
+              "slg": 0.407,
+              "ops": 0.754,
               "kPct": 15.5,
               "bbPct": 11.1,
-              "iso": 0.151,
-              "babip": 0.279,
+              "iso": 0.15,
+              "babip": 0.281,
               "gbFb": 0.69,
               "airPct": 59.2,
               "sbAttempts": 4,
@@ -77954,10 +78057,10 @@
               "sbRate": 0.021
             },
             "last10": {
-              "ab": 38,
-              "h": 13,
+              "ab": 39,
+              "h": 14,
               "hr": 4,
-              "avg": 0.342
+              "avg": 0.359
             },
             "gameLog": [
               {
@@ -78044,11 +78147,11 @@
               {
                 "date": "2026-08-18",
                 "opp": null,
-                "ab": 4,
-                "h": 1,
+                "ab": 5,
+                "h": 2,
                 "r": 0,
                 "hr": 0,
-                "rbi": 1
+                "rbi": 2
               }
             ],
             "vsPitcher": null,
@@ -78792,30 +78895,30 @@
             "battingOrder": null,
             "splits": {
               "vsLHP": {
-                "pa": 163,
-                "ab": 138,
-                "h": 33,
-                "hr": 4,
-                "rbi": 20,
+                "pa": 164,
+                "ab": 139,
+                "h": 34,
+                "hr": 5,
+                "rbi": 21,
                 "bb": 19,
                 "so": 34,
-                "avg": 0.239,
-                "obp": 0.344,
-                "slg": 0.384,
-                "ops": 0.728
+                "avg": 0.245,
+                "obp": 0.348,
+                "slg": 0.41,
+                "ops": 0.758
               },
               "vsRHP": {
-                "pa": 394,
-                "ab": 335,
+                "pa": 397,
+                "ab": 337,
                 "h": 82,
                 "hr": 10,
                 "rbi": 43,
-                "bb": 50,
-                "so": 89,
-                "avg": 0.245,
+                "bb": 51,
+                "so": 90,
+                "avg": 0.243,
                 "obp": 0.353,
-                "slg": 0.382,
-                "ops": 0.735
+                "slg": 0.38,
+                "ops": 0.733
               }
             },
             "season": {
@@ -79689,23 +79792,23 @@
                 "ops": 0.521
               },
               "vsRHP": {
-                "pa": 384,
-                "ab": 322,
-                "h": 76,
+                "pa": 388,
+                "ab": 326,
+                "h": 77,
                 "hr": 16,
                 "rbi": 41,
                 "bb": 57,
                 "so": 112,
                 "avg": 0.236,
-                "obp": 0.357,
-                "slg": 0.453,
-                "ops": 0.81
+                "obp": 0.356,
+                "slg": 0.451,
+                "ops": 0.807
               }
             },
             "season": {
               "g": 123,
-              "pa": 519,
-              "ab": 445,
+              "pa": 520,
+              "ab": 446,
               "h": 96,
               "r": 72,
               "hr": 20,
@@ -79716,25 +79819,25 @@
               "so": 158,
               "doubles": 22,
               "triples": 2,
-              "avg": 0.216,
+              "avg": 0.215,
               "obp": 0.324,
-              "slg": 0.409,
-              "ops": 0.733,
+              "slg": 0.408,
+              "ops": 0.732,
               "kPct": 30.4,
               "bbPct": 12.7,
               "iso": 0.193,
-              "babip": 0.284,
-              "gbFb": 0.84,
-              "airPct": 54.4,
+              "babip": 0.283,
+              "gbFb": 0.83,
+              "airPct": 54.6,
               "sbAttempts": 5,
               "sbSuccess": 0.8,
               "sbRate": 0.031
             },
             "last10": {
-              "ab": 33,
+              "ab": 34,
               "h": 10,
               "hr": 2,
-              "avg": 0.303
+              "avg": 0.294
             },
             "gameLog": [
               {
@@ -79821,7 +79924,7 @@
               {
                 "date": "2026-08-18",
                 "opp": null,
-                "ab": 3,
+                "ab": 4,
                 "h": 1,
                 "r": 0,
                 "hr": 0,
@@ -80562,6 +80665,890 @@
             }
           },
           {
+            "id": 608348,
+            "name": "Carson Kelly",
+            "pos": "C",
+            "bats": "R",
+            "battingOrder": null,
+            "splits": {
+              "vsLHP": {
+                "pa": 114,
+                "ab": 99,
+                "h": 33,
+                "hr": 5,
+                "rbi": 21,
+                "bb": 15,
+                "so": 21,
+                "avg": 0.333,
+                "obp": 0.421,
+                "slg": 0.545,
+                "ops": 0.966
+              },
+              "vsRHP": {
+                "pa": 216,
+                "ab": 194,
+                "h": 44,
+                "hr": 2,
+                "rbi": 22,
+                "bb": 19,
+                "so": 35,
+                "avg": 0.227,
+                "obp": 0.306,
+                "slg": 0.289,
+                "ops": 0.595
+              }
+            },
+            "season": {
+              "g": 94,
+              "pa": 330,
+              "ab": 293,
+              "h": 77,
+              "r": 43,
+              "hr": 7,
+              "rbi": 43,
+              "sb": 0,
+              "cs": 1,
+              "bb": 34,
+              "so": 56,
+              "doubles": 12,
+              "triples": 0,
+              "avg": 0.263,
+              "obp": 0.345,
+              "slg": 0.375,
+              "ops": 0.72,
+              "kPct": 17,
+              "bbPct": 10.3,
+              "iso": 0.112,
+              "babip": 0.304,
+              "gbFb": 0.95,
+              "airPct": 51.2,
+              "sbAttempts": 1,
+              "sbSuccess": 0,
+              "sbRate": 0.009
+            },
+            "last10": {
+              "ab": 35,
+              "h": 10,
+              "hr": 1,
+              "avg": 0.286
+            },
+            "gameLog": [
+              {
+                "date": "2026-08-03",
+                "opp": null,
+                "ab": 4,
+                "h": 1,
+                "r": 1,
+                "hr": 1,
+                "rbi": 3
+              },
+              {
+                "date": "2026-08-05",
+                "opp": null,
+                "ab": 5,
+                "h": 3,
+                "r": 0,
+                "hr": 0,
+                "rbi": 0
+              },
+              {
+                "date": "2026-08-06",
+                "opp": null,
+                "ab": 1,
+                "h": 0,
+                "r": 0,
+                "hr": 0,
+                "rbi": 0
+              },
+              {
+                "date": "2026-08-07",
+                "opp": null,
+                "ab": 4,
+                "h": 1,
+                "r": 1,
+                "hr": 0,
+                "rbi": 0
+              },
+              {
+                "date": "2026-08-08",
+                "opp": null,
+                "ab": 3,
+                "h": 1,
+                "r": 0,
+                "hr": 0,
+                "rbi": 2
+              },
+              {
+                "date": "2026-08-11",
+                "opp": null,
+                "ab": 5,
+                "h": 1,
+                "r": 1,
+                "hr": 0,
+                "rbi": 1
+              },
+              {
+                "date": "2026-08-12",
+                "opp": null,
+                "ab": 4,
+                "h": 0,
+                "r": 0,
+                "hr": 0,
+                "rbi": 0
+              },
+              {
+                "date": "2026-08-14",
+                "opp": null,
+                "ab": 3,
+                "h": 1,
+                "r": 0,
+                "hr": 0,
+                "rbi": 0
+              },
+              {
+                "date": "2026-08-17",
+                "opp": null,
+                "ab": 5,
+                "h": 1,
+                "r": 1,
+                "hr": 0,
+                "rbi": 0
+              },
+              {
+                "date": "2026-08-18",
+                "opp": null,
+                "ab": 1,
+                "h": 1,
+                "r": 1,
+                "hr": 0,
+                "rbi": 0
+              }
+            ],
+            "vsPitcher": null,
+            "statcast": {
+              "pa": 329.0,
+              "avg": 0.26,
+              "xba": 0.24,
+              "slg": 0.37,
+              "xslg": 0.375,
+              "woba": 0.321,
+              "xwoba": 0.312,
+              "barrelPct": 5.5,
+              "exitVelo": 87.0,
+              "hardHitPct": 36.0,
+              "maxExitVelo": 108.4,
+              "bbe": 236.0,
+              "barrelPctile": 27.0,
+              "exitVeloPctile": null,
+              "xwobaPctile": 39.0
+            },
+            "detail": {
+              "windowDays": 45,
+              "zones": {
+                "1": {
+                  "pitches": 13,
+                  "swings": 10,
+                  "hits": 1,
+                  "abs": 7,
+                  "avg": 0.143,
+                  "ev": 60.2,
+                  "hr": 0
+                },
+                "2": {
+                  "pitches": 22,
+                  "swings": 18,
+                  "hits": 2,
+                  "abs": 7,
+                  "avg": 0.286,
+                  "ev": 83.2,
+                  "hr": 1
+                },
+                "3": {
+                  "pitches": 32,
+                  "swings": 15,
+                  "hits": 3,
+                  "abs": 12,
+                  "avg": 0.25,
+                  "ev": 84.4,
+                  "hr": 0
+                },
+                "4": {
+                  "pitches": 16,
+                  "swings": 9,
+                  "hits": 3,
+                  "abs": 7,
+                  "avg": 0.429,
+                  "ev": 90.6,
+                  "hr": 2
+                },
+                "5": {
+                  "pitches": 24,
+                  "swings": 17,
+                  "hits": 2,
+                  "abs": 7,
+                  "avg": 0.286,
+                  "ev": 84.1,
+                  "hr": 0
+                },
+                "6": {
+                  "pitches": 25,
+                  "swings": 11,
+                  "hits": 2,
+                  "abs": 9,
+                  "avg": 0.222,
+                  "ev": 85.7,
+                  "hr": 0
+                },
+                "7": {
+                  "pitches": 14,
+                  "swings": 7,
+                  "hits": 2,
+                  "abs": 4,
+                  "avg": 0.5,
+                  "ev": 91.4,
+                  "hr": 0
+                },
+                "8": {
+                  "pitches": 25,
+                  "swings": 16,
+                  "hits": 2,
+                  "abs": 12,
+                  "avg": 0.167,
+                  "ev": 87.7,
+                  "hr": 0
+                },
+                "9": {
+                  "pitches": 23,
+                  "swings": 10,
+                  "hits": 1,
+                  "abs": 9,
+                  "avg": 0.111,
+                  "ev": 70.6,
+                  "hr": 0
+                },
+                "11": {
+                  "pitches": 43,
+                  "swings": 12,
+                  "hits": 1,
+                  "abs": 8,
+                  "avg": 0.125,
+                  "ev": 70.4,
+                  "hr": 0
+                },
+                "12": {
+                  "pitches": 52,
+                  "swings": 10,
+                  "hits": 0,
+                  "abs": 4,
+                  "avg": 0.0,
+                  "ev": 80.7,
+                  "hr": 0
+                },
+                "13": {
+                  "pitches": 38,
+                  "swings": 13,
+                  "hits": 1,
+                  "abs": 8,
+                  "avg": 0.125,
+                  "ev": 80.9,
+                  "hr": 0
+                },
+                "14": {
+                  "pitches": 81,
+                  "swings": 11,
+                  "hits": 0,
+                  "abs": 8,
+                  "avg": 0.0,
+                  "ev": 61.9,
+                  "hr": 0
+                }
+              },
+              "pitchTypes": {
+                "CH": {
+                  "seen": 37,
+                  "abs": 5,
+                  "avg": 0.2,
+                  "ev": 75.3,
+                  "la": 24.1,
+                  "hr": 0,
+                  "whiffPct": 25.0
+                },
+                "CU": {
+                  "seen": 29,
+                  "abs": 6,
+                  "avg": 0.167,
+                  "ev": 72.6,
+                  "la": -9.3,
+                  "hr": 0,
+                  "whiffPct": 18.2
+                },
+                "EP": {
+                  "seen": 3,
+                  "abs": 1,
+                  "avg": null,
+                  "ev": null,
+                  "la": null,
+                  "hr": 0,
+                  "whiffPct": null
+                },
+                "FA": {
+                  "seen": 2,
+                  "abs": 0,
+                  "avg": null,
+                  "ev": null,
+                  "la": null,
+                  "hr": 0,
+                  "whiffPct": null
+                },
+                "FC": {
+                  "seen": 31,
+                  "abs": 7,
+                  "avg": 0.429,
+                  "ev": 86.5,
+                  "la": 22.8,
+                  "hr": 1,
+                  "whiffPct": 30.0
+                },
+                "FF": {
+                  "seen": 123,
+                  "abs": 32,
+                  "avg": 0.25,
+                  "ev": 80.6,
+                  "la": 23.0,
+                  "hr": 0,
+                  "whiffPct": 3.3
+                },
+                "FS": {
+                  "seen": 4,
+                  "abs": 1,
+                  "avg": null,
+                  "ev": null,
+                  "la": null,
+                  "hr": 0,
+                  "whiffPct": null
+                },
+                "KC": {
+                  "seen": 2,
+                  "abs": 1,
+                  "avg": null,
+                  "ev": null,
+                  "la": null,
+                  "hr": 0,
+                  "whiffPct": null
+                },
+                "SI": {
+                  "seen": 69,
+                  "abs": 20,
+                  "avg": 0.25,
+                  "ev": 79.9,
+                  "la": 6.3,
+                  "hr": 1,
+                  "whiffPct": 4.8
+                },
+                "SL": {
+                  "seen": 73,
+                  "abs": 18,
+                  "avg": 0.111,
+                  "ev": 82.4,
+                  "la": 29.8,
+                  "hr": 1,
+                  "whiffPct": 32.0
+                },
+                "ST": {
+                  "seen": 35,
+                  "abs": 11,
+                  "avg": 0.0,
+                  "ev": 86.7,
+                  "la": 15.3,
+                  "hr": 0,
+                  "whiffPct": 21.4
+                }
+              },
+              "battedBalls": [
+                {
+                  "ev": 91.9,
+                  "la": 1.0,
+                  "dist": 62,
+                  "hand": "L",
+                  "result": "single",
+                  "date": "2026-07-27"
+                },
+                {
+                  "ev": 88.6,
+                  "la": 39.0,
+                  "dist": 323,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-27"
+                },
+                {
+                  "ev": 101.2,
+                  "la": 6.0,
+                  "dist": 123,
+                  "hand": "R",
+                  "result": "single",
+                  "date": "2026-07-27"
+                },
+                {
+                  "ev": 104.4,
+                  "la": 19.0,
+                  "dist": 294,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-27"
+                },
+                {
+                  "ev": 105.5,
+                  "la": 19.0,
+                  "dist": 284,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-27"
+                },
+                {
+                  "ev": 70.0,
+                  "la": 74.0,
+                  "dist": 111,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-26"
+                },
+                {
+                  "ev": 36.6,
+                  "la": -41.0,
+                  "dist": 2,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-26"
+                },
+                {
+                  "ev": 73.0,
+                  "la": -44.0,
+                  "dist": 2,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-26"
+                },
+                {
+                  "ev": 54.6,
+                  "la": -39.0,
+                  "dist": 2,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-26"
+                },
+                {
+                  "ev": 81.4,
+                  "la": 17.0,
+                  "dist": 106,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-26"
+                },
+                {
+                  "ev": 82.6,
+                  "la": 18.0,
+                  "dist": 110,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-26"
+                },
+                {
+                  "ev": 95.0,
+                  "la": 9.0,
+                  "dist": 144,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-26"
+                },
+                {
+                  "ev": 79.2,
+                  "la": 78.0,
+                  "dist": 111,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-26"
+                },
+                {
+                  "ev": 91.7,
+                  "la": 45.0,
+                  "dist": 287,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-24"
+                },
+                {
+                  "ev": 89.9,
+                  "la": 76.0,
+                  "dist": 48,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-24"
+                },
+                {
+                  "ev": 102.6,
+                  "la": -6.0,
+                  "dist": 15,
+                  "hand": "R",
+                  "result": "force_out",
+                  "date": "2026-07-24"
+                },
+                {
+                  "ev": 86.2,
+                  "la": 69.0,
+                  "dist": 97,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-22"
+                },
+                {
+                  "ev": 58.8,
+                  "la": -53.0,
+                  "dist": 1,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-22"
+                },
+                {
+                  "ev": 95.5,
+                  "la": 21.0,
+                  "dist": 286,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-22"
+                },
+                {
+                  "ev": 74.9,
+                  "la": 37.0,
+                  "dist": 254,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-21"
+                },
+                {
+                  "ev": 54.5,
+                  "la": 48.0,
+                  "dist": 142,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-21"
+                },
+                {
+                  "ev": 85.5,
+                  "la": 54.0,
+                  "dist": 202,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-21"
+                },
+                {
+                  "ev": 61.5,
+                  "la": -5.0,
+                  "dist": 23,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-21"
+                },
+                {
+                  "ev": 98.8,
+                  "la": -6.0,
+                  "dist": 20,
+                  "hand": "L",
+                  "result": "single",
+                  "date": "2026-07-21"
+                },
+                {
+                  "ev": 75.5,
+                  "la": 27.0,
+                  "dist": 225,
+                  "hand": "L",
+                  "result": null,
+                  "date": "2026-07-21"
+                },
+                {
+                  "ev": 72.4,
+                  "la": 5.0,
+                  "dist": 61,
+                  "hand": "L",
+                  "result": "field_out",
+                  "date": "2026-07-20"
+                },
+                {
+                  "ev": 65.1,
+                  "la": 68.0,
+                  "dist": 95,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-19"
+                },
+                {
+                  "ev": 91.8,
+                  "la": 6.0,
+                  "dist": 92,
+                  "hand": "R",
+                  "result": "single",
+                  "date": "2026-07-19"
+                },
+                {
+                  "ev": 100.4,
+                  "la": 22.0,
+                  "dist": 360,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-19"
+                },
+                {
+                  "ev": 96.0,
+                  "la": 1.0,
+                  "dist": 52,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-17"
+                },
+                {
+                  "ev": 89.4,
+                  "la": -10.0,
+                  "dist": 15,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-17"
+                },
+                {
+                  "ev": 79.9,
+                  "la": 48.0,
+                  "dist": 277,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-17"
+                },
+                {
+                  "ev": 97.0,
+                  "la": 28.0,
+                  "dist": 379,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-17"
+                },
+                {
+                  "ev": 41.8,
+                  "la": -6.0,
+                  "dist": 17,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-17"
+                },
+                {
+                  "ev": 74.0,
+                  "la": 38.0,
+                  "dist": 20,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-17"
+                },
+                {
+                  "ev": 99.8,
+                  "la": 17.0,
+                  "dist": 290,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-12"
+                },
+                {
+                  "ev": 68.1,
+                  "la": 34.0,
+                  "dist": 173,
+                  "hand": "L",
+                  "result": null,
+                  "date": "2026-07-12"
+                },
+                {
+                  "ev": 64.9,
+                  "la": 60.0,
+                  "dist": 159,
+                  "hand": "L",
+                  "result": null,
+                  "date": "2026-07-12"
+                },
+                {
+                  "ev": 84.3,
+                  "la": -5.0,
+                  "dist": 25,
+                  "hand": "R",
+                  "result": "grounded_into_double_play",
+                  "date": "2026-07-12"
+                },
+                {
+                  "ev": 76.9,
+                  "la": -7.0,
+                  "dist": 15,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-12"
+                },
+                {
+                  "ev": 103.0,
+                  "la": 31.0,
+                  "dist": 410,
+                  "hand": "L",
+                  "result": "home_run",
+                  "date": "2026-07-11"
+                },
+                {
+                  "ev": 93.4,
+                  "la": 7.0,
+                  "dist": 124,
+                  "hand": "L",
+                  "result": "single",
+                  "date": "2026-07-11"
+                },
+                {
+                  "ev": 78.2,
+                  "la": 12.0,
+                  "dist": 143,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-11"
+                },
+                {
+                  "ev": 87.2,
+                  "la": 7.0,
+                  "dist": 117,
+                  "hand": "L",
+                  "result": "field_out",
+                  "date": "2026-07-11"
+                },
+                {
+                  "ev": 89.2,
+                  "la": -23.0,
+                  "dist": 6,
+                  "hand": "R",
+                  "result": "force_out",
+                  "date": "2026-07-10"
+                },
+                {
+                  "ev": 86.1,
+                  "la": 22.0,
+                  "dist": 282,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-10"
+                },
+                {
+                  "ev": 94.2,
+                  "la": 2.0,
+                  "dist": 77,
+                  "hand": "L",
+                  "result": "field_out",
+                  "date": "2026-07-10"
+                },
+                {
+                  "ev": 67.3,
+                  "la": -55.0,
+                  "dist": 2,
+                  "hand": "L",
+                  "result": "field_out",
+                  "date": "2026-07-09"
+                },
+                {
+                  "ev": 74.9,
+                  "la": 26.0,
+                  "dist": 219,
+                  "hand": "L",
+                  "result": null,
+                  "date": "2026-07-09"
+                },
+                {
+                  "ev": 60.9,
+                  "la": 1.0,
+                  "dist": 31,
+                  "hand": "L",
+                  "result": "field_out",
+                  "date": "2026-07-09"
+                },
+                {
+                  "ev": 55.9,
+                  "la": 58.0,
+                  "dist": 130,
+                  "hand": "L",
+                  "result": null,
+                  "date": "2026-07-09"
+                },
+                {
+                  "ev": 76.0,
+                  "la": 26.0,
+                  "dist": 219,
+                  "hand": "L",
+                  "result": null,
+                  "date": "2026-07-09"
+                },
+                {
+                  "ev": 72.6,
+                  "la": 80.0,
+                  "dist": 104,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-09"
+                },
+                {
+                  "ev": 72.4,
+                  "la": 24.0,
+                  "dist": 138,
+                  "hand": "L",
+                  "result": null,
+                  "date": "2026-07-09"
+                },
+                {
+                  "ev": 64.6,
+                  "la": 48.0,
+                  "dist": 185,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-09"
+                },
+                {
+                  "ev": 69.1,
+                  "la": 53.0,
+                  "dist": 193,
+                  "hand": "L",
+                  "result": null,
+                  "date": "2026-07-09"
+                },
+                {
+                  "ev": 106.6,
+                  "la": 31.0,
+                  "dist": 404,
+                  "hand": "R",
+                  "result": "home_run",
+                  "date": "2026-07-08"
+                },
+                {
+                  "ev": 99.2,
+                  "la": 50.0,
+                  "dist": 328,
+                  "hand": "R",
+                  "result": null,
+                  "date": "2026-07-08"
+                },
+                {
+                  "ev": 76.5,
+                  "la": -45.0,
+                  "dist": 3,
+                  "hand": "R",
+                  "result": "field_out",
+                  "date": "2026-07-08"
+                },
+                {
+                  "ev": 95.1,
+                  "la": 3.0,
+                  "dist": 74,
+                  "hand": "R",
+                  "result": "single",
+                  "date": "2026-07-05"
+                }
+              ]
+            }
+          },
+          {
             "id": 665804,
             "name": "Miguel Amaya",
             "pos": "C",
@@ -80582,17 +81569,17 @@
                 "ops": 0.752
               },
               "vsRHP": {
-                "pa": 142,
-                "ab": 123,
+                "pa": 145,
+                "ab": 125,
                 "h": 28,
                 "hr": 4,
                 "rbi": 19,
-                "bb": 11,
-                "so": 40,
-                "avg": 0.228,
+                "bb": 12,
+                "so": 42,
+                "avg": 0.224,
                 "obp": 0.326,
-                "slg": 0.382,
-                "ops": 0.708
+                "slg": 0.376,
+                "ops": 0.702
               }
             },
             "season": {
@@ -81437,890 +82424,6 @@
             }
           },
           {
-            "id": 608348,
-            "name": "Carson Kelly",
-            "pos": "C",
-            "bats": "R",
-            "battingOrder": null,
-            "splits": {
-              "vsLHP": {
-                "pa": 114,
-                "ab": 99,
-                "h": 33,
-                "hr": 5,
-                "rbi": 21,
-                "bb": 15,
-                "so": 21,
-                "avg": 0.333,
-                "obp": 0.421,
-                "slg": 0.545,
-                "ops": 0.966
-              },
-              "vsRHP": {
-                "pa": 215,
-                "ab": 193,
-                "h": 43,
-                "hr": 2,
-                "rbi": 22,
-                "bb": 19,
-                "so": 35,
-                "avg": 0.223,
-                "obp": 0.302,
-                "slg": 0.28,
-                "ops": 0.582
-              }
-            },
-            "season": {
-              "g": 94,
-              "pa": 329,
-              "ab": 292,
-              "h": 76,
-              "r": 42,
-              "hr": 7,
-              "rbi": 43,
-              "sb": 0,
-              "cs": 1,
-              "bb": 34,
-              "so": 56,
-              "doubles": 11,
-              "triples": 0,
-              "avg": 0.26,
-              "obp": 0.343,
-              "slg": 0.37,
-              "ops": 0.713,
-              "kPct": 17,
-              "bbPct": 10.3,
-              "iso": 0.11,
-              "babip": 0.301,
-              "gbFb": 0.95,
-              "airPct": 51.2,
-              "sbAttempts": 1,
-              "sbSuccess": 0,
-              "sbRate": 0.009
-            },
-            "last10": {
-              "ab": 34,
-              "h": 9,
-              "hr": 1,
-              "avg": 0.265
-            },
-            "gameLog": [
-              {
-                "date": "2026-08-03",
-                "opp": null,
-                "ab": 4,
-                "h": 1,
-                "r": 1,
-                "hr": 1,
-                "rbi": 3
-              },
-              {
-                "date": "2026-08-05",
-                "opp": null,
-                "ab": 5,
-                "h": 3,
-                "r": 0,
-                "hr": 0,
-                "rbi": 0
-              },
-              {
-                "date": "2026-08-06",
-                "opp": null,
-                "ab": 1,
-                "h": 0,
-                "r": 0,
-                "hr": 0,
-                "rbi": 0
-              },
-              {
-                "date": "2026-08-07",
-                "opp": null,
-                "ab": 4,
-                "h": 1,
-                "r": 1,
-                "hr": 0,
-                "rbi": 0
-              },
-              {
-                "date": "2026-08-08",
-                "opp": null,
-                "ab": 3,
-                "h": 1,
-                "r": 0,
-                "hr": 0,
-                "rbi": 2
-              },
-              {
-                "date": "2026-08-11",
-                "opp": null,
-                "ab": 5,
-                "h": 1,
-                "r": 1,
-                "hr": 0,
-                "rbi": 1
-              },
-              {
-                "date": "2026-08-12",
-                "opp": null,
-                "ab": 4,
-                "h": 0,
-                "r": 0,
-                "hr": 0,
-                "rbi": 0
-              },
-              {
-                "date": "2026-08-14",
-                "opp": null,
-                "ab": 3,
-                "h": 1,
-                "r": 0,
-                "hr": 0,
-                "rbi": 0
-              },
-              {
-                "date": "2026-08-17",
-                "opp": null,
-                "ab": 5,
-                "h": 1,
-                "r": 1,
-                "hr": 0,
-                "rbi": 0
-              },
-              {
-                "date": "2026-08-18",
-                "opp": null,
-                "ab": 0,
-                "h": 0,
-                "r": 0,
-                "hr": 0,
-                "rbi": 0
-              }
-            ],
-            "vsPitcher": null,
-            "statcast": {
-              "pa": 329.0,
-              "avg": 0.26,
-              "xba": 0.24,
-              "slg": 0.37,
-              "xslg": 0.375,
-              "woba": 0.321,
-              "xwoba": 0.312,
-              "barrelPct": 5.5,
-              "exitVelo": 87.0,
-              "hardHitPct": 36.0,
-              "maxExitVelo": 108.4,
-              "bbe": 236.0,
-              "barrelPctile": 27.0,
-              "exitVeloPctile": null,
-              "xwobaPctile": 39.0
-            },
-            "detail": {
-              "windowDays": 45,
-              "zones": {
-                "1": {
-                  "pitches": 13,
-                  "swings": 10,
-                  "hits": 1,
-                  "abs": 7,
-                  "avg": 0.143,
-                  "ev": 60.2,
-                  "hr": 0
-                },
-                "2": {
-                  "pitches": 22,
-                  "swings": 18,
-                  "hits": 2,
-                  "abs": 7,
-                  "avg": 0.286,
-                  "ev": 83.2,
-                  "hr": 1
-                },
-                "3": {
-                  "pitches": 32,
-                  "swings": 15,
-                  "hits": 3,
-                  "abs": 12,
-                  "avg": 0.25,
-                  "ev": 84.4,
-                  "hr": 0
-                },
-                "4": {
-                  "pitches": 16,
-                  "swings": 9,
-                  "hits": 3,
-                  "abs": 7,
-                  "avg": 0.429,
-                  "ev": 90.6,
-                  "hr": 2
-                },
-                "5": {
-                  "pitches": 24,
-                  "swings": 17,
-                  "hits": 2,
-                  "abs": 7,
-                  "avg": 0.286,
-                  "ev": 84.1,
-                  "hr": 0
-                },
-                "6": {
-                  "pitches": 25,
-                  "swings": 11,
-                  "hits": 2,
-                  "abs": 9,
-                  "avg": 0.222,
-                  "ev": 85.7,
-                  "hr": 0
-                },
-                "7": {
-                  "pitches": 14,
-                  "swings": 7,
-                  "hits": 2,
-                  "abs": 4,
-                  "avg": 0.5,
-                  "ev": 91.4,
-                  "hr": 0
-                },
-                "8": {
-                  "pitches": 25,
-                  "swings": 16,
-                  "hits": 2,
-                  "abs": 12,
-                  "avg": 0.167,
-                  "ev": 87.7,
-                  "hr": 0
-                },
-                "9": {
-                  "pitches": 23,
-                  "swings": 10,
-                  "hits": 1,
-                  "abs": 9,
-                  "avg": 0.111,
-                  "ev": 70.6,
-                  "hr": 0
-                },
-                "11": {
-                  "pitches": 43,
-                  "swings": 12,
-                  "hits": 1,
-                  "abs": 8,
-                  "avg": 0.125,
-                  "ev": 70.4,
-                  "hr": 0
-                },
-                "12": {
-                  "pitches": 52,
-                  "swings": 10,
-                  "hits": 0,
-                  "abs": 4,
-                  "avg": 0.0,
-                  "ev": 80.7,
-                  "hr": 0
-                },
-                "13": {
-                  "pitches": 38,
-                  "swings": 13,
-                  "hits": 1,
-                  "abs": 8,
-                  "avg": 0.125,
-                  "ev": 80.9,
-                  "hr": 0
-                },
-                "14": {
-                  "pitches": 81,
-                  "swings": 11,
-                  "hits": 0,
-                  "abs": 8,
-                  "avg": 0.0,
-                  "ev": 61.9,
-                  "hr": 0
-                }
-              },
-              "pitchTypes": {
-                "CH": {
-                  "seen": 37,
-                  "abs": 5,
-                  "avg": 0.2,
-                  "ev": 75.3,
-                  "la": 24.1,
-                  "hr": 0,
-                  "whiffPct": 25.0
-                },
-                "CU": {
-                  "seen": 29,
-                  "abs": 6,
-                  "avg": 0.167,
-                  "ev": 72.6,
-                  "la": -9.3,
-                  "hr": 0,
-                  "whiffPct": 18.2
-                },
-                "EP": {
-                  "seen": 3,
-                  "abs": 1,
-                  "avg": null,
-                  "ev": null,
-                  "la": null,
-                  "hr": 0,
-                  "whiffPct": null
-                },
-                "FA": {
-                  "seen": 2,
-                  "abs": 0,
-                  "avg": null,
-                  "ev": null,
-                  "la": null,
-                  "hr": 0,
-                  "whiffPct": null
-                },
-                "FC": {
-                  "seen": 31,
-                  "abs": 7,
-                  "avg": 0.429,
-                  "ev": 86.5,
-                  "la": 22.8,
-                  "hr": 1,
-                  "whiffPct": 30.0
-                },
-                "FF": {
-                  "seen": 123,
-                  "abs": 32,
-                  "avg": 0.25,
-                  "ev": 80.6,
-                  "la": 23.0,
-                  "hr": 0,
-                  "whiffPct": 3.3
-                },
-                "FS": {
-                  "seen": 4,
-                  "abs": 1,
-                  "avg": null,
-                  "ev": null,
-                  "la": null,
-                  "hr": 0,
-                  "whiffPct": null
-                },
-                "KC": {
-                  "seen": 2,
-                  "abs": 1,
-                  "avg": null,
-                  "ev": null,
-                  "la": null,
-                  "hr": 0,
-                  "whiffPct": null
-                },
-                "SI": {
-                  "seen": 69,
-                  "abs": 20,
-                  "avg": 0.25,
-                  "ev": 79.9,
-                  "la": 6.3,
-                  "hr": 1,
-                  "whiffPct": 4.8
-                },
-                "SL": {
-                  "seen": 73,
-                  "abs": 18,
-                  "avg": 0.111,
-                  "ev": 82.4,
-                  "la": 29.8,
-                  "hr": 1,
-                  "whiffPct": 32.0
-                },
-                "ST": {
-                  "seen": 35,
-                  "abs": 11,
-                  "avg": 0.0,
-                  "ev": 86.7,
-                  "la": 15.3,
-                  "hr": 0,
-                  "whiffPct": 21.4
-                }
-              },
-              "battedBalls": [
-                {
-                  "ev": 91.9,
-                  "la": 1.0,
-                  "dist": 62,
-                  "hand": "L",
-                  "result": "single",
-                  "date": "2026-07-27"
-                },
-                {
-                  "ev": 88.6,
-                  "la": 39.0,
-                  "dist": 323,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-27"
-                },
-                {
-                  "ev": 101.2,
-                  "la": 6.0,
-                  "dist": 123,
-                  "hand": "R",
-                  "result": "single",
-                  "date": "2026-07-27"
-                },
-                {
-                  "ev": 104.4,
-                  "la": 19.0,
-                  "dist": 294,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-27"
-                },
-                {
-                  "ev": 105.5,
-                  "la": 19.0,
-                  "dist": 284,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-27"
-                },
-                {
-                  "ev": 70.0,
-                  "la": 74.0,
-                  "dist": 111,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-26"
-                },
-                {
-                  "ev": 36.6,
-                  "la": -41.0,
-                  "dist": 2,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-26"
-                },
-                {
-                  "ev": 73.0,
-                  "la": -44.0,
-                  "dist": 2,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-26"
-                },
-                {
-                  "ev": 54.6,
-                  "la": -39.0,
-                  "dist": 2,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-26"
-                },
-                {
-                  "ev": 81.4,
-                  "la": 17.0,
-                  "dist": 106,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-26"
-                },
-                {
-                  "ev": 82.6,
-                  "la": 18.0,
-                  "dist": 110,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-26"
-                },
-                {
-                  "ev": 95.0,
-                  "la": 9.0,
-                  "dist": 144,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-26"
-                },
-                {
-                  "ev": 79.2,
-                  "la": 78.0,
-                  "dist": 111,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-26"
-                },
-                {
-                  "ev": 91.7,
-                  "la": 45.0,
-                  "dist": 287,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-24"
-                },
-                {
-                  "ev": 89.9,
-                  "la": 76.0,
-                  "dist": 48,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-24"
-                },
-                {
-                  "ev": 102.6,
-                  "la": -6.0,
-                  "dist": 15,
-                  "hand": "R",
-                  "result": "force_out",
-                  "date": "2026-07-24"
-                },
-                {
-                  "ev": 86.2,
-                  "la": 69.0,
-                  "dist": 97,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-22"
-                },
-                {
-                  "ev": 58.8,
-                  "la": -53.0,
-                  "dist": 1,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-22"
-                },
-                {
-                  "ev": 95.5,
-                  "la": 21.0,
-                  "dist": 286,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-22"
-                },
-                {
-                  "ev": 74.9,
-                  "la": 37.0,
-                  "dist": 254,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-21"
-                },
-                {
-                  "ev": 54.5,
-                  "la": 48.0,
-                  "dist": 142,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-21"
-                },
-                {
-                  "ev": 85.5,
-                  "la": 54.0,
-                  "dist": 202,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-21"
-                },
-                {
-                  "ev": 61.5,
-                  "la": -5.0,
-                  "dist": 23,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-21"
-                },
-                {
-                  "ev": 98.8,
-                  "la": -6.0,
-                  "dist": 20,
-                  "hand": "L",
-                  "result": "single",
-                  "date": "2026-07-21"
-                },
-                {
-                  "ev": 75.5,
-                  "la": 27.0,
-                  "dist": 225,
-                  "hand": "L",
-                  "result": null,
-                  "date": "2026-07-21"
-                },
-                {
-                  "ev": 72.4,
-                  "la": 5.0,
-                  "dist": 61,
-                  "hand": "L",
-                  "result": "field_out",
-                  "date": "2026-07-20"
-                },
-                {
-                  "ev": 65.1,
-                  "la": 68.0,
-                  "dist": 95,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-19"
-                },
-                {
-                  "ev": 91.8,
-                  "la": 6.0,
-                  "dist": 92,
-                  "hand": "R",
-                  "result": "single",
-                  "date": "2026-07-19"
-                },
-                {
-                  "ev": 100.4,
-                  "la": 22.0,
-                  "dist": 360,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-19"
-                },
-                {
-                  "ev": 96.0,
-                  "la": 1.0,
-                  "dist": 52,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-17"
-                },
-                {
-                  "ev": 89.4,
-                  "la": -10.0,
-                  "dist": 15,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-17"
-                },
-                {
-                  "ev": 79.9,
-                  "la": 48.0,
-                  "dist": 277,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-17"
-                },
-                {
-                  "ev": 97.0,
-                  "la": 28.0,
-                  "dist": 379,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-17"
-                },
-                {
-                  "ev": 41.8,
-                  "la": -6.0,
-                  "dist": 17,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-17"
-                },
-                {
-                  "ev": 74.0,
-                  "la": 38.0,
-                  "dist": 20,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-17"
-                },
-                {
-                  "ev": 99.8,
-                  "la": 17.0,
-                  "dist": 290,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-12"
-                },
-                {
-                  "ev": 68.1,
-                  "la": 34.0,
-                  "dist": 173,
-                  "hand": "L",
-                  "result": null,
-                  "date": "2026-07-12"
-                },
-                {
-                  "ev": 64.9,
-                  "la": 60.0,
-                  "dist": 159,
-                  "hand": "L",
-                  "result": null,
-                  "date": "2026-07-12"
-                },
-                {
-                  "ev": 84.3,
-                  "la": -5.0,
-                  "dist": 25,
-                  "hand": "R",
-                  "result": "grounded_into_double_play",
-                  "date": "2026-07-12"
-                },
-                {
-                  "ev": 76.9,
-                  "la": -7.0,
-                  "dist": 15,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-12"
-                },
-                {
-                  "ev": 103.0,
-                  "la": 31.0,
-                  "dist": 410,
-                  "hand": "L",
-                  "result": "home_run",
-                  "date": "2026-07-11"
-                },
-                {
-                  "ev": 93.4,
-                  "la": 7.0,
-                  "dist": 124,
-                  "hand": "L",
-                  "result": "single",
-                  "date": "2026-07-11"
-                },
-                {
-                  "ev": 78.2,
-                  "la": 12.0,
-                  "dist": 143,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-11"
-                },
-                {
-                  "ev": 87.2,
-                  "la": 7.0,
-                  "dist": 117,
-                  "hand": "L",
-                  "result": "field_out",
-                  "date": "2026-07-11"
-                },
-                {
-                  "ev": 89.2,
-                  "la": -23.0,
-                  "dist": 6,
-                  "hand": "R",
-                  "result": "force_out",
-                  "date": "2026-07-10"
-                },
-                {
-                  "ev": 86.1,
-                  "la": 22.0,
-                  "dist": 282,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-10"
-                },
-                {
-                  "ev": 94.2,
-                  "la": 2.0,
-                  "dist": 77,
-                  "hand": "L",
-                  "result": "field_out",
-                  "date": "2026-07-10"
-                },
-                {
-                  "ev": 67.3,
-                  "la": -55.0,
-                  "dist": 2,
-                  "hand": "L",
-                  "result": "field_out",
-                  "date": "2026-07-09"
-                },
-                {
-                  "ev": 74.9,
-                  "la": 26.0,
-                  "dist": 219,
-                  "hand": "L",
-                  "result": null,
-                  "date": "2026-07-09"
-                },
-                {
-                  "ev": 60.9,
-                  "la": 1.0,
-                  "dist": 31,
-                  "hand": "L",
-                  "result": "field_out",
-                  "date": "2026-07-09"
-                },
-                {
-                  "ev": 55.9,
-                  "la": 58.0,
-                  "dist": 130,
-                  "hand": "L",
-                  "result": null,
-                  "date": "2026-07-09"
-                },
-                {
-                  "ev": 76.0,
-                  "la": 26.0,
-                  "dist": 219,
-                  "hand": "L",
-                  "result": null,
-                  "date": "2026-07-09"
-                },
-                {
-                  "ev": 72.6,
-                  "la": 80.0,
-                  "dist": 104,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-09"
-                },
-                {
-                  "ev": 72.4,
-                  "la": 24.0,
-                  "dist": 138,
-                  "hand": "L",
-                  "result": null,
-                  "date": "2026-07-09"
-                },
-                {
-                  "ev": 64.6,
-                  "la": 48.0,
-                  "dist": 185,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-09"
-                },
-                {
-                  "ev": 69.1,
-                  "la": 53.0,
-                  "dist": 193,
-                  "hand": "L",
-                  "result": null,
-                  "date": "2026-07-09"
-                },
-                {
-                  "ev": 106.6,
-                  "la": 31.0,
-                  "dist": 404,
-                  "hand": "R",
-                  "result": "home_run",
-                  "date": "2026-07-08"
-                },
-                {
-                  "ev": 99.2,
-                  "la": 50.0,
-                  "dist": 328,
-                  "hand": "R",
-                  "result": null,
-                  "date": "2026-07-08"
-                },
-                {
-                  "ev": 76.5,
-                  "la": -45.0,
-                  "dist": 3,
-                  "hand": "R",
-                  "result": "field_out",
-                  "date": "2026-07-08"
-                },
-                {
-                  "ev": 95.1,
-                  "la": 3.0,
-                  "dist": 74,
-                  "hand": "R",
-                  "result": "single",
-                  "date": "2026-07-05"
-                }
-              ]
-            }
-          },
-          {
             "id": 663538,
             "name": "Nico Hoerner",
             "pos": "2B",
@@ -82328,27 +82431,27 @@
             "battingOrder": null,
             "splits": {
               "vsLHP": {
-                "pa": 138,
-                "ab": 128,
+                "pa": 139,
+                "ab": 129,
                 "h": 38,
                 "hr": 2,
                 "rbi": 16,
                 "bb": 8,
                 "so": 14,
-                "avg": 0.297,
-                "obp": 0.341,
-                "slg": 0.414,
-                "ops": 0.755
+                "avg": 0.295,
+                "obp": 0.338,
+                "slg": 0.411,
+                "ops": 0.749
               },
               "vsRHP": {
-                "pa": 404,
-                "ab": 362,
-                "h": 92,
+                "pa": 407,
+                "ab": 365,
+                "h": 93,
                 "hr": 5,
                 "rbi": 42,
                 "bb": 32,
                 "so": 32,
-                "avg": 0.254,
+                "avg": 0.255,
                 "obp": 0.319,
                 "slg": 0.348,
                 "ops": 0.667
@@ -82356,8 +82459,8 @@
             },
             "season": {
               "g": 124,
-              "pa": 545,
-              "ab": 493,
+              "pa": 546,
+              "ab": 494,
               "h": 131,
               "r": 52,
               "hr": 7,
@@ -82368,25 +82471,25 @@
               "so": 46,
               "doubles": 26,
               "triples": 1,
-              "avg": 0.266,
-              "obp": 0.325,
-              "slg": 0.365,
-              "ops": 0.69,
+              "avg": 0.265,
+              "obp": 0.324,
+              "slg": 0.364,
+              "ops": 0.688,
               "kPct": 8.4,
               "bbPct": 7.3,
               "iso": 0.099,
-              "babip": 0.278,
+              "babip": 0.277,
               "gbFb": 0.85,
-              "airPct": 54,
+              "airPct": 54.2,
               "sbAttempts": 23,
               "sbSuccess": 0.87,
               "sbRate": 0.135
             },
             "last10": {
-              "ab": 39,
+              "ab": 40,
               "h": 13,
               "hr": 0,
-              "avg": 0.333
+              "avg": 0.325
             },
             "gameLog": [
               {
@@ -82473,7 +82576,7 @@
               {
                 "date": "2026-08-18",
                 "opp": null,
-                "ab": 3,
+                "ab": 4,
                 "h": 1,
                 "r": 0,
                 "hr": 0,
@@ -83676,16 +83779,16 @@
       },
       "weather": {
         "tempF": 88,
-        "humidity": 33,
+        "humidity": 32,
         "dewPoint": 55,
-        "precipChance": 1,
+        "precipChance": 0,
         "windMph": 11,
-        "windDeg": 255,
+        "windDeg": 246,
         "forecastHourUTC": "2026-08-19T20:00",
         "wind": {
           "label": "Out to right field",
           "sector": "out",
-          "relativeDeg": 37
+          "relativeDeg": 28
         }
       },
       "away": {
@@ -104710,17 +104813,17 @@
         "elevation": 20
       },
       "weather": {
-        "tempF": 87,
-        "humidity": 38,
-        "dewPoint": 58,
-        "precipChance": 2,
-        "windMph": 8,
-        "windDeg": 276,
+        "tempF": 86,
+        "humidity": 40,
+        "dewPoint": 59,
+        "precipChance": 1,
+        "windMph": 7,
+        "windDeg": 270,
         "forecastHourUTC": "2026-08-19T22:00",
         "wind": {
           "label": "Across toward 1B side",
           "sector": "across",
-          "relativeDeg": 84
+          "relativeDeg": 78
         }
       },
       "away": {
@@ -126505,17 +126608,17 @@
         "elevation": 20
       },
       "weather": {
-        "tempF": 89,
-        "humidity": 35,
+        "tempF": 88,
+        "humidity": 37,
         "dewPoint": 58,
         "precipChance": 2,
         "windMph": 6,
-        "windDeg": 272,
+        "windDeg": 270,
         "forecastHourUTC": "2026-08-19T22:00",
         "wind": {
           "label": "Out to right field",
           "sector": "out",
-          "relativeDeg": 60
+          "relativeDeg": 58
         }
       },
       "away": {
@@ -148613,16 +148716,16 @@
       },
       "weather": {
         "tempF": 79,
-        "humidity": 58,
+        "humidity": 59,
         "dewPoint": 63,
-        "precipChance": 4,
-        "windMph": 5,
-        "windDeg": 320,
+        "precipChance": 2,
+        "windMph": 4,
+        "windDeg": 300,
         "forecastHourUTC": "2026-08-19T22:00",
         "wind": {
           "label": "In from right field",
           "sector": "in",
-          "relativeDeg": 140
+          "relativeDeg": 120
         }
       },
       "away": {
@@ -168718,17 +168821,17 @@
         "elevation": 550
       },
       "weather": {
-        "tempF": 84,
-        "humidity": 56,
-        "dewPoint": 67,
-        "precipChance": 29,
-        "windMph": 7,
-        "windDeg": 193,
+        "tempF": 85,
+        "humidity": 52,
+        "dewPoint": 65,
+        "precipChance": 16,
+        "windMph": 2,
+        "windDeg": 106,
         "forecastHourUTC": "2026-08-19T22:00",
         "wind": {
-          "label": "Out to left field",
-          "sector": "out",
-          "relativeDeg": -47
+          "label": "In from left field",
+          "sector": "in",
+          "relativeDeg": -134
         }
       },
       "away": {
@@ -189272,12 +189375,12 @@
         "name": "Tropicana Field"
       },
       "weather": {
-        "tempF": 87,
-        "humidity": 71,
-        "dewPoint": 77,
-        "precipChance": 9,
-        "windMph": 5,
-        "windDeg": 294,
+        "tempF": 90,
+        "humidity": 56,
+        "dewPoint": 72,
+        "precipChance": 10,
+        "windMph": 11,
+        "windDeg": 310,
         "forecastHourUTC": "2026-08-19T22:00",
         "wind": null
       },
@@ -210409,17 +210512,17 @@
         "elevation": 750
       },
       "weather": {
-        "tempF": 87,
-        "humidity": 62,
-        "dewPoint": 72,
-        "precipChance": 7,
-        "windMph": 5,
-        "windDeg": 311,
+        "tempF": 86,
+        "humidity": 60,
+        "dewPoint": 70,
+        "precipChance": 5,
+        "windMph": 6,
+        "windDeg": 352,
         "forecastHourUTC": "2026-08-19T23:00",
         "wind": {
-          "label": "Out to right field",
-          "sector": "out",
-          "relativeDeg": 56
+          "label": "Across toward 1B side",
+          "sector": "across",
+          "relativeDeg": 97
         }
       },
       "away": {
@@ -231500,11 +231603,11 @@
         "elevation": 635
       },
       "weather": {
-        "tempF": 74,
-        "humidity": 60,
-        "dewPoint": 59,
-        "precipChance": 1,
-        "windMph": 7,
+        "tempF": 72,
+        "humidity": 53,
+        "dewPoint": 54,
+        "precipChance": 0,
+        "windMph": 6,
         "windDeg": 58,
         "forecastHourUTC": "2026-08-19T23:00",
         "wind": {
@@ -252373,16 +252476,16 @@
       },
       "weather": {
         "tempF": 102,
-        "humidity": 26,
-        "dewPoint": 60,
+        "humidity": 24,
+        "dewPoint": 58,
         "precipChance": 0,
         "windMph": 11,
-        "windDeg": 176,
+        "windDeg": 178,
         "forecastHourUTC": "2026-08-20T00:00",
         "wind": {
           "label": "Out to left field",
           "sector": "out",
-          "relativeDeg": -54
+          "relativeDeg": -52
         }
       },
       "away": {
@@ -272864,17 +272967,17 @@
         "elevation": 45
       },
       "weather": {
-        "tempF": 89,
+        "tempF": 88,
         "humidity": 54,
         "dewPoint": 70,
         "precipChance": 1,
-        "windMph": 11,
-        "windDeg": 181,
+        "windMph": 12,
+        "windDeg": 179,
         "forecastHourUTC": "2026-08-20T00:00",
         "wind": {
           "label": "Out to center",
           "sector": "out",
-          "relativeDeg": -19
+          "relativeDeg": -21
         }
       },
       "away": {
@@ -294831,17 +294934,17 @@
         "elevation": 5200
       },
       "weather": {
-        "tempF": 90,
+        "tempF": 91,
         "humidity": 18,
         "dewPoint": 41,
         "precipChance": 5,
-        "windMph": 8,
-        "windDeg": 24,
+        "windMph": 7,
+        "windDeg": 74,
         "forecastHourUTC": "2026-08-20T00:00",
         "wind": {
-          "label": "In from center",
-          "sector": "in",
-          "relativeDeg": -159
+          "label": "Across toward 3B side",
+          "sector": "across",
+          "relativeDeg": -109
         }
       },
       "away": {
@@ -314354,5 +314457,5 @@
       }
     }
   ],
-  "statcastEnrichedAt": "2026-08-19T04:10:54.951884Z"
+  "statcastEnrichedAt": "2026-08-19T10:31:52.828225Z"
 }
