@@ -7788,6 +7788,13 @@ async function checkWhopAndDismiss(){
     const access = await s.checkWhopAccess(true);
     if(access.error){ console.warn('[whop] access check failed:', access.error); dismissGate(); return; }
     if(access.hasAccess){ dismissGate(); return; }
+    // Denied. The splash was shown while the Whop check was in flight (either by
+    // evaluateGate for already-signed-in users or by dismissGate after sign-in).
+    // #splash sits at z-index 9999 and .gate at 3000, so if we don't hide the
+    // splash first the subscribe gate ends up trapped behind it — a stuck
+    // loading screen instead of the “Subscribe on Whop” prompt.
+    hideSplash();
+    document.body.classList.remove('dw-booting');
     showSubscribeGate(access.checkoutUrl, access.connected);
   }catch(e){
     console.warn('[whop] access check threw:', e);
