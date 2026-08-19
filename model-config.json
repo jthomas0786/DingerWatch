@@ -1,143 +1,541 @@
+// ===========================================================================
+//  DINGER WATCH — MODEL CONFIG
+// ===========================================================================
+//
+//  This file is the whole model. Everything the ranking believes about
+//  baseball lives here, and nothing here requires touching index.html.
+//
+//  HOW TO USE IT
+//  -------------
+//  1. Edit a number. Save. Reload the page.
+//  2. Open the console. Every load prints:
+//       [model] model-config.json applied · sections: ...
+//     plus an ERROR line for any key that this file contains but the app does
+//     not read. If you see an error, you have a typo — fix it, because a
+//     misspelled knob is silently ignored, not applied.
+//  3. Add `?debug=model` to the URL to print the fully resolved model and a
+//     table of how often each prop's multiplier hits its clamp.
+//  4. Add `?tune=1` to open the live tuning panel. Drag weights, watch the
+//     board re-rank instantly, then copy the generated JSON back into here.
+//  5. Run `node verify-model.js` for the same validation without a browser.
+//
+//  Comments and trailing commas are allowed — the app strips them before
+//  parsing. This is JSONC, not strict JSON.
+//
+//  DELETING A SECTION IS SAFE. Anything absent falls back to the default
+//  baked into index.html. Only include what you want to change.
+//
+//  ------------------------------------------------------------------------
+//  HOW A GRADE IS PRODUCED — read this once, the rest will make sense
+//  ------------------------------------------------------------------------
+//
+//    factor value  ->  multiplier  ->  prop context  ->  simulation  ->
+//    probability   ->  percentile  ->  LETTER GRADE
+//
+//  * A FACTOR is one measurable thing (barrel rate, park HR factor, starter
+//    HR/9). `factorDefs` says how to turn its raw value into a multiplier.
+//  * A PROP (hr, hits, tb, rbi, hrr, sb) picks which factors it cares about
+//    and how much, in `props.<prop>.weights`.
+//  * Those multiplied together are the prop's CONTEXT — one number like 1.14
+//    meaning "14% better than a neutral night for this hitter".
+//  * The context nudges the matching per-plate-appearance rate, the Monte
+//    Carlo sim runs 10,000 games, and the output is a probability.
+//  * The letter grade is that probability's RANK on tonight's board.
+//
+//  Because the grade is a rank, "A+" always means "top few percent of
+//  tonight's hitters". Inflating every weight does not hand out more A's; it
+//  changes WHO gets them. That is the point.
+//
+//  ------------------------------------------------------------------------
+//  WEIGHT SIGN AND SCALE — the one rule to remember
+//  ------------------------------------------------------------------------
+//
+//    POSITIVE weight = more of this thing HELPS the hitter.
+//    NEGATIVE weight = more of this thing HURTS the hitter.
+//    ZERO             = factor is measured and displayed but does not score.
+//
+//  A weight of 0.20 means this factor can move the prop by about ±20% on its
+//  own, at the extremes of its range. 0.10 is a nudge. 0.30 is a strong
+//  opinion. Above ~0.40 a single factor starts to dominate everything else.
+//
+//  A missing input is never punished. If a hitter has no Statcast data, the
+//  barrel factor sits out entirely (multiplier 1.0) rather than scoring him
+//  as a zero. Fewer factors, same scale.
+//
+// ===========================================================================
 {
-  "regression": {
-    "regressionPA": 120,
-    "leagueIso": 0.135,
-    "lowSamplePA": 50,
-    "leagueRates": {
+
+  // =========================================================================
+  //  1. CONFIDENCE — how much to trust a small sample
+  // =========================================================================
+  //  Rate stats from 40 plate appearances lie. These thresholds control how
+  //  hard a thin sample is pulled back toward league average.
+  //
+  //  RAISE a number  -> more skeptical, small-sample hitters look average
+  //  LOWER a number  -> more reactive, hot starts rank immediately
+  //  CARRIED OVER from hand edits made directly on the old config: regressionPA
+  //  120 (was 220) and lowSamplePA 50 (was 150). Both mean "trust small samples
+  //  more than the old model did".
+  "confidence": {
+    "regressionPA": 120,   // PA at which a hitter's own rates are trusted outright.
+                           //   At 110 PA his stats count half, league average counts half.
+                           //   Try 300 to be conservative, 150 to chase early-season form.
+    "lowSamplePA": 50,     // Below this, the card shows a low-sample warning.
+                           //   Display only — does not change any math.
+    "platoonPA": 90,       // PA needed in a vs-LHP / vs-RHP split before that split
+                           //   is taken at face value. Splits are noisy; this is the
+                           //   single best guard against a 22-PA platoon mirage.
+                           //   Try 140 if platoon edges feel overstated.
+    "statcastPA": 120,     // PA before batted-ball metrics (barrel, xSLG) are trusted.
+  },
+
+  // =========================================================================
+  //  2. LEAGUE BASELINES — what "average" means
+  // =========================================================================
+  //  Every `ratio` factor compares a player or matchup against the number
+  //  here. Getting these right matters more than any single weight: if the
+  //  league HR/9 baseline is wrong, EVERY pitcher looks good or bad at once.
+  //
+  //  Update these once a season. Mid-season is fine too.
+  //  CARRIED OVER from the same hand edits: iso 0.135 (was 0.164) and the
+  //  per-PA hr rate 0.0275 (was 0.0317) — a slightly less homer-heavy baseline.
+  "league": {
+    "barrel": 8.0,         // league barrel %
+    "hardHit": 38.0,       // league hard-hit %
+    "exitVelo": 89.0,      // league average exit velocity (mph)
+    "airPct": 62.0,        // league air-ball % (fly balls + line drives)
+    "xslg": 0.410,         // league expected slugging
+    "xwoba": 0.320,        // league expected wOBA
+    "babip": 0.300,        // league BABIP — the anchor for the luck factor
+    "kPct": 22.5,          // league strikeout % (batters)
+    "iso": 0.135,          // league isolated power
+    "hr9": 1.10,           // league HR allowed per 9 innings
+    "era": 4.20,           // league ERA
+    "k9": 8.80,            // league K per 9 innings
+    "gbFb": 1.15,          // league ground-ball / fly-ball ratio
+    "parkFactor": 100,     // neutral park index — leave at 100
+    "tempF": 72,           // reference game temperature
+    "runsPerGame": 4.40,   // league runs per team per game
+    "csPct": 20.0,         // league catcher caught-stealing %
+    "sprintSpeed": 27.0,   // league average sprint speed (ft/sec)
+
+    // Per-plate-appearance league rates the simulation starts from before any
+    // player or context adjustment. Only touch these if the whole board's
+    // probabilities look systematically too high or too low.
+    "rates": {
       "hr": 0.0275,
-      "hits": 0.225,
+      "hits": 0.2250,
       "dbl": 0.0433,
       "trp": 0.0033,
       "bb": 0.0867,
-      "k": 0.225
-    }
+      "k": 0.2250,
+    },
   },
+
+  // =========================================================================
+  //  3. GRADING — how probabilities become letters
+  // =========================================================================
+  //  A grade is a percentile cut on tonight's board. `aPlus: 96` means
+  //  "A+ goes to anyone in the top 4% for this prop".
+  //
+  //  These are shares of the slate, so they are self-balancing: a slate full
+  //  of great parks does not hand out extra A's, it just reshuffles them.
+  //  With ~380 hitters, the defaults below produce roughly:
+  //     A+ ~15   A ~38   B+ ~61   B ~68   C+ ~68   C ~68   D ~61
   "grading": {
     "percentiles": {
-      "aPlus": 99,
-      "a": 85,
-      "bPlus": 70,
-      "b": 55,
-      "cPlus": 40,
-      "c": 25
+      "aPlus": 96,         // top 4%
+      "a": 86,             // next 10%
+      "bPlus": 70,         // next 16%
+      "b": 52,             // next 18%
+      "cPlus": 34,         // next 18%
+      "c": 16,             // next 18%
+                           // everything below 16 is D
     },
-    "byProp": {}
+
+    // Per-prop overrides. Steals are a thin market — you may want A+ to be
+    // rarer there. Any prop id (hr, hits, tb, rbi, hrr, sb) works, and any
+    // subset of the six cuts. Example, uncommented:
+    //   "sb": { "aPlus": 98, "a": 90 }
+    "byProp": {},
+
+    "minSlateSize": 8,     // Below this many graded hitters, ranking is
+                           //   meaningless. Controls the fallback below.
+    "smallSlateFallback": "relative",
+                           // "relative" — grade anyway, best available gets an A
+                           // "unranked" — show a dash instead of a letter
+    "tieHandling": "midrank",
+                           // "midrank" — tied players share the average rank (fair)
+                           // "optimistic" — ties all get the best rank in the block
   },
-  "hr": {
-    "weights": {
-      "statcast": 40,
-      "form": 20,
-      "park": 15,
-      "matchup": 25
-    },
+
+  // =========================================================================
+  //  4. FACTOR DEFINITIONS — how a raw number becomes a multiplier
+  // =========================================================================
+  //  This section is the SHAPE of each factor. Section 5 is the STRENGTH.
+  //  Shape here is shared across every prop; strength is per prop.
+  //
+  //  FOUR TYPES:
+  //
+  //  "curve"   floor + scale. Below `floor` is as bad as it gets, at or above
+  //            `scale` is as good as it gets, linear in between.
+  //              t    = (value - floor) / (scale - floor), clamped 0..1
+  //              mult = 1 + weight * (t - 0.5) * 2
+  //            So a player exactly halfway gets mult 1.0. NARROWING the gap
+  //            between floor and scale makes the factor more decisive.
+  //
+  //  "ratio"   compares to a `league` baseline from section 2, capped.
+  //              r    = clamp(value / league, 1-cap, 1+cap)
+  //              mult = 1 + weight * (r - 1)
+  //            `cap` is the guard against outliers — cap 0.55 on hr9 means the
+  //            most homer-prone starter alive counts as 55% worse than average
+  //            and no more.
+  //
+  //  "table"   direct lookup. Arrays are indexed by batting order (1-based, so
+  //            values[0] is the leadoff hitter). Objects are keyed by string.
+  //              mult = 1 + weight * (tableValue - 1)
+  //            A table value of 1.22 with weight 1.0 applies the full 22%.
+  //            Halve the weight to halve the effect.
+  //
+  //  "platoon" the hitter's own vs-LHP/vs-RHP split, regressed toward his
+  //            overall line by `confidence.platoonPA`, then compared to that
+  //            overall line.
+  //              mult = 1 + weight * (regressedSplit / overall - 1)
+  //            No split data, or the starter unannounced, and it sits out.
+  "factorDefs": {
+
+    // ---- CONTACT QUALITY — what the hitter does to the ball ---------------
     "contact": {
-      "barrel": 15,
-      "hardHit": 7,
-      "exitVelo": 14,
-      "battedBall": 4
+      // Barrel rate: the single best public HR predictor. Floor 3% is a
+      // no-power hitter, 18% is elite. Widen to (2, 22) to soften it.
+      "barrel":    { "type": "curve", "floor": 3,    "scale": 18   },
+      // Hard-hit %. Correlated with barrel — see the note in props.hr.
+      "hardHit":   { "type": "curve", "floor": 25,   "scale": 50   },
+      // Average exit velocity. Also correlated with barrel.
+      "exitVelo":  { "type": "curve", "floor": 85,   "scale": 93   },
+      // Air-ball rate vs league. Ground balls cannot leave the yard.
+      "airRate":   { "type": "ratio", "league": "airPct", "cap": 0.35 },
+      // Expected slugging — power output stripped of park and luck.
+      "xSLG":      { "type": "curve", "floor": 0.32, "scale": 0.56 },
+      // Expected wOBA — overall production, the right input for hits.
+      "xwOBA":     { "type": "curve", "floor": 0.28, "scale": 0.40 },
+      // BABIP vs league. Used with a NEGATIVE weight on hits: a hitter
+      // running .360 has been lucky and is due to cool off. Set the weight
+      // positive in section 5 if you would rather ride the hot streak.
+      "babipLuck": { "type": "ratio", "league": "babip", "cap": 0.30 },
     },
-    "barrelScale": 20,
-    "hardHitScale": 15,
-    "exitVeloFloor": 85,
-    "exitVeloScale": 95,
-    "trendBonus": 6,
-    "powerTrendScale": 180,
-    "powerTrendCap": 6,
-    "weatherMult": {
-      "pos": 1.08,
-      "neg": 0.9,
-      "neu": 1
+
+    // ---- OPPOSING STARTER ------------------------------------------------
+    "pitcher": {
+      "hr9":        { "type": "ratio", "league": "hr9",  "cap": 0.55 },
+      "era":        { "type": "ratio", "league": "era",  "cap": 0.45 },
+      "k9":         { "type": "ratio", "league": "k9",   "cap": 0.40 },
+      // Ground-ball tendency. Weighted NEGATIVE for power props — a sinker
+      // pitcher suppresses homers even when his ERA is bad.
+      "gbFb":       { "type": "ratio", "league": "gbFb", "cap": 0.40 },
+      // The batter's own strikeout rate vs league. NEGATIVE on hits: a hitter
+      // who whiffs a lot puts fewer balls in play.
+      "kMismatch":  { "type": "ratio", "league": "kPct", "cap": 0.35 },
+      // Platoon edge measured on SLUGGING — the power version.
+      "hand":        { "type": "platoon", "stat": "slg" },
+      // Platoon edge measured on AVERAGE — the contact version, for hits/runs.
+      "handContact": { "type": "platoon", "stat": "avg" },
     },
-    "parkWeights": {
-      "parkFactor": 10,
-      "weather": 5
+
+    // ---- PARK AND WEATHER ------------------------------------------------
+    //  All three park factors read the same park index but cap differently,
+    //  because a park that inflates homers by 20% does not inflate singles by
+    //  20%. Tighter cap = less park influence on that prop.
+    "park": {
+      "hrFactor":    { "type": "ratio", "league": "parkFactor", "cap": 0.25 },
+      "runsFactor":  { "type": "ratio", "league": "parkFactor", "cap": 0.20 },
+      "xbFactor":    { "type": "ratio", "league": "parkFactor", "cap": 0.20 },
+      // Wind read from the game feed. Add your own sector keys freely — this
+      // table is free-form and the validator will not complain.
+      "weather":     { "type": "table", "values": { "pos": 1.10, "neg": 0.90, "neu": 1.00 } },
+      // Temperature. 45°F is a dead ball, 95°F carries. Domes read as neutral.
+      "temperature": { "type": "curve", "floor": 45, "scale": 95 },
     },
-    "parkFactorFloor": 80,
-    "parkFactorScale": 110,
-    "leagueHR9": 1.1,
-    "matchupCap": 1.5,
-    "leagueEra": 4.2,
-    "pitcherEraWeight": 0.15,
-    "platoonWeight": 0.90,
-    "pitcherGbWeight": 0.15,
-    "leagueGbFb": 1.35,
-    "leagueAirPct": 62
+
+    // ---- RECENT FORM -----------------------------------------------------
+    //  Both compare the last 10 games to the season line. The ranges are
+    //  deliberately tight because 10 games is a tiny sample — a wider range
+    //  would let one hot week outrank a season of evidence.
+    "form": {
+      "avgTrend":   { "type": "curve", "floor": -0.06, "scale": 0.06 },  // ±60 pts of AVG
+      "powerTrend": { "type": "curve", "floor": -0.02, "scale": 0.02 },  // ±20 pts of HR/AB
+    },
+
+    // ---- LINEUP ROLE AND TEAM CONTEXT ------------------------------------
+    "role": {
+      // Indexed by batting order, 1 through 9. Leadoff hitters score runs;
+      // the 3-4-5 spots drive in runs. These tables encode that.
+      "lineupRuns": { "type": "table",
+        "values": [1.22, 1.18, 1.10, 1.02, 0.96, 0.92, 0.88, 0.85, 0.88] },
+      "lineupRBI":  { "type": "table",
+        "values": [0.78, 0.92, 1.18, 1.24, 1.16, 1.02, 0.92, 0.85, 0.80] },
+      // The hitter's own team's runs per game vs league. A good hitter on a
+      // bad offense gets fewer chances to drive anyone in.
+      //   NOTE: needs `teamStats` in slate.json, added by build-slate.js.
+      //   It sits out until the next daily build runs.
+      "teamOffense": { "type": "ratio", "league": "runsPerGame", "cap": 0.30 },
+    },
+
+    // ---- SPEED AND STEALING ----------------------------------------------
+    "speed": {
+      // Career stolen-base success rate. Below 50% is a liability, 90% elite.
+      "successRate":   { "type": "curve", "floor": 0.50, "scale": 0.90 },
+      // Statcast sprint speed, ft/sec.
+      //   NOTE: needs the optional Savant enrichment step. Weighted 0 by
+      //   default because that step can fail without breaking the build.
+      "sprintSpeed":   { "type": "curve", "floor": 25, "scale": 29.5 },
+      // Opposing catcher's caught-stealing %. NEGATIVE weight — a strong arm
+      // suppresses attempts.
+      //   NOTE: needs `oppCatcher` in slate.json. Sits out until the next build.
+      "catcherArm":    { "type": "ratio", "league": "csPct", "cap": 0.50 },
+      // Position as a rough athleticism proxy, for hitters with no SB history.
+      // Free-form table — add or edit keys as you like.
+      "positionProxy": { "type": "table",
+        "values": { "CF":1.10, "SS":1.06, "2B":1.04, "LF":1.02, "RF":1.00,
+                    "3B":0.97, "1B":0.93, "DH":0.92, "C":0.90 } },
+    },
   },
-  "hits": {
-    "expectedAB": 4,
-    "kSensitivity": 0.55,
-    "leagueKPct": 22.5,
-    "babipWeight": 0.25,
-    "leagueBabip": 0.3,
-    "platoonWeight": 0.4
+
+  // =========================================================================
+  //  5. PROPS — which factors matter, and how much
+  // =========================================================================
+  //  THIS IS THE SECTION YOU WILL ACTUALLY TUNE.
+  //
+  //  Each prop lists the factors it uses and a weight for each. Set a weight
+  //  to 0 to keep a factor visible on the card but out of the math. Delete
+  //  the line to remove it entirely.
+  //
+  //  Weights do NOT need to sum to anything. Each one is an independent
+  //  multiplier, so adding a factor does not steal influence from the others.
+  //
+  //  `clamp` is the safety rail on the combined multiplier. min 0.45 / max
+  //  2.10 means the worst possible night is 45% of neutral and the best is
+  //  210%. If `?debug=model` shows a prop saturating on more than a few
+  //  percent of hitters, either widen the clamp or turn the weights down —
+  //  a saturated multiplier means hitters at the top are no longer being
+  //  distinguished from each other.
+  "props": {
+
+    // ---- HOME RUNS -------------------------------------------------------
+    //  Power skill first, then the pitcher, then the environment.
+    //
+    //  ON CORRELATION: barrel, hardHit, exitVelo and xSLG all measure roughly
+    //  the same ability. Weighting all four is double-counting one skill.
+    //  hardHit and exitVelo ship at 0 for exactly that reason — barrel and
+    //  xSLG already carry it. If you turn them up, turn barrel down.
+    "hr": {
+      "enabled": true,
+      "clamp": { "min": 0.45, "max": 2.10 },
+      "weights": {
+        "contact": {
+          "barrel":      0.30,   // strongest single HR signal
+          "xSLG":        0.18,   // power output, park-neutral
+          "airRate":     0.12,   // must get it airborne
+          "hardHit":     0.00,   // off by default — correlated with barrel
+          "exitVelo":    0.00,   // off by default — correlated with barrel
+        },
+        "pitcher": {
+          "hr9":         0.22,   // homer-prone starters are the classic edge
+          "gbFb":       -0.12,   // NEGATIVE: sinkerballers suppress HR
+          "hand":        0.15,   // platoon edge, slugging version
+        },
+        "park": {
+          "hrFactor":    0.20,
+          "weather":     0.10,
+          "temperature": 0.08,
+        },
+        "form": {
+          "powerTrend":  0.10,   // small on purpose — 10 games is noise
+        },
+      },
+    },
+
+    // ---- HITS (over 0.5) -------------------------------------------------
+    //  Contact and strikeout avoidance, not power. Note two NEGATIVE weights:
+    //  strikeouts and BABIP luck both work against a hit.
+    "hits": {
+      "enabled": true,
+      "clamp": { "min": 0.60, "max": 1.55 },   // tighter than HR — hits are
+                                               // far less volatile
+      "weights": {
+        "contact": {
+          "xwOBA":       0.14,
+          "babipLuck":  -0.15,   // NEGATIVE: a .370 BABIP is regression waiting
+        },
+        "pitcher": {
+          "kMismatch":  -0.20,   // NEGATIVE: high-K batters put fewer in play
+          "k9":         -0.16,   // NEGATIVE: high-K starters suppress hits
+          "era":         0.10,   // hittable starter helps
+          "handContact": 0.14,   // platoon edge, average version
+        },
+        "park": {
+          "runsFactor":  0.06,   // park matters much less for singles
+        },
+        "form": {
+          "avgTrend":    0.12,
+        },
+      },
+    },
+
+    // ---- TOTAL BASES (over 1.5) ------------------------------------------
+    //  Sits between HR and hits — needs extra-base ability plus opportunity,
+    //  so its weights are a deliberate blend of the two above.
+    "tb": {
+      "enabled": true,
+      "clamp": { "min": 0.55, "max": 1.80 },
+      "weights": {
+        "contact": {
+          "barrel":      0.16,
+          "xSLG":        0.20,   // the best single TB input
+        },
+        "pitcher": {
+          "hr9":         0.12,
+          "era":         0.10,
+          "gbFb":       -0.08,   // NEGATIVE
+          "hand":        0.14,
+        },
+        "park": {
+          "xbFactor":    0.14,
+          "weather":     0.06,
+          "temperature": 0.05,
+        },
+        "form": {
+          "powerTrend":  0.06,
+          "avgTrend":    0.06,
+        },
+      },
+    },
+
+    // ---- RBI -------------------------------------------------------------
+    //  Mostly OPPORTUNITY. Lineup slot is the dominant term, which is why it
+    //  carries weight 1.0 — the table in factorDefs.role.lineupRBI already
+    //  expresses the size of the effect, so 1.0 means "apply it in full".
+    "rbi": {
+      "enabled": true,
+      "clamp": { "min": 0.50, "max": 1.90 },
+      "weights": {
+        "contact": {
+          "barrel":      0.10,
+          "xSLG":        0.12,
+        },
+        "pitcher": {
+          "era":         0.14,
+          "hand":        0.10,
+        },
+        "park": {
+          "runsFactor":  0.12,
+          "weather":     0.05,
+        },
+        "role": {
+          "lineupRBI":   1.00,   // full table effect — 3-4-5 hitters
+          "teamOffense": 0.30,   // needs the next daily build
+        },
+        "form": {
+          "avgTrend":    0.08,
+        },
+      },
+    },
+
+    // ---- HITS + RUNS + RBI (over 1.5) ------------------------------------
+    //  The hits leg is already scored by the `hits` context and the RBI leg by
+    //  `rbi`, so this context governs only the RUNS leg. That is why there is
+    //  no contact group here — adding one would triple-count the hitter's bat.
+    "hrr": {
+      "enabled": true,
+      "clamp": { "min": 0.50, "max": 1.90 },
+      "weights": {
+        "pitcher": {
+          "era":         0.12,
+          "k9":         -0.10,   // NEGATIVE
+          "handContact": 0.08,
+        },
+        "park": {
+          "runsFactor":  0.12,
+        },
+        "role": {
+          "lineupRuns":  1.00,   // full table effect — leadoff hitters
+          "teamOffense": 0.35,   // slightly higher than RBI: you need the
+                                 // hitters BEHIND you to drive you in
+        },
+        "form": {
+          "avgTrend":    0.08,
+        },
+      },
+    },
+
+    // ---- STOLEN BASES ----------------------------------------------------
+    //  The widest clamp on the board, because steal rates genuinely span an
+    //  order of magnitude between a catcher and a burner.
+    "sb": {
+      "enabled": true,
+      "clamp": { "min": 0.40, "max": 2.20 },
+      "weights": {
+        "speed": {
+          "successRate":   0.30,
+          "positionProxy": 1.00,  // full table effect
+          "catcherArm":   -0.15,  // NEGATIVE — needs the next daily build
+          "sprintSpeed":   0.00,  // off by default — optional Savant step
+        },
+        "park": {
+          "weather":       0.04,  // barely matters, kept for completeness
+        },
+      },
+    },
   },
+
+  // =========================================================================
+  //  6. MECHANICAL SETTINGS — measurements, not beliefs
+  // =========================================================================
+  //  These are not factors and carry no weight. They convert stats into the
+  //  inputs the simulation needs. Change them only if a projection looks
+  //  structurally wrong (e.g. everyone's PA count is too high).
+
   "order": {
-    "paMult": [
-      1.09,
-      1.07,
-      1.05,
-      1.03,
-      1,
-      0.97,
-      0.95,
-      0.92,
-      0.9
-    ],
-    "runMult": [
-      1.22,
-      1.18,
-      1.1,
-      1.02,
-      0.96,
-      0.92,
-      0.88,
-      0.85,
-      0.88
-    ],
-    "rbiMult": [
-      0.78,
-      0.92,
-      1.18,
-      1.24,
-      1.16,
-      1.02,
-      0.92,
-      0.85,
-      0.8
-    ]
+    // Plate appearances by batting order slot, 1 through 9. Playing time is a
+    // fact, not an opinion, so this is applied directly and has no weight and
+    // no entry in `props`. Leadoff hitters really do get ~9% more PA.
+    "paMult": [1.09, 1.07, 1.05, 1.03, 1.00, 0.97, 0.95, 0.92, 0.90],
   },
-  "steal": {
-    "attemptWeight": 0.6,
-    "successFloor": 0.65
+
+  "hits": {
+    "expectedAB": 4,             // baseline at-bats per game before paMult
   },
+
   "tb": {
-    "xslgWeight": 0.45,
-    "parkSensitivity": 0.5,
-    "weatherExponent": 0.5,
-    "platoonWeight": 0.4
+    "xslgWeight": 0.45,          // how much xSLG blends with actual SLG when
+                                 // projecting total bases. 0 = trust actual
+                                 // results only, 1 = trust expected only.
   },
-  "rbi": {
-    "parkSensitivity": 0.6,
-    "formSensitivity": 0.12
-  },
+
   "hrr": {
-    "runsFromOnBaseRate": 0.33,
-    "parkSensitivity": 0.6
+    "runsFromOnBaseRate": 0.33,  // share of times reaching base that becomes a
+                                 // run. Roughly league-accurate; raise it if
+                                 // run projections read low across the board.
   },
+
+  "steal": {
+    "attemptWeight": 0.6,        // how much a hitter's own attempt rate drives
+                                 // his projected steals, vs. the position
+                                 // proxy. This is the ONLY home for attempt
+                                 // rate — there is deliberately no separate
+                                 // speed.attemptRate factor, because two knobs
+                                 // on one quantity is how a model gets
+                                 // silently double-counted.
+  },
+
   "sb": {
-    "coldWeatherMult": 0.95,
-    "rateMultiplier": 120,
-    "baseline": 28,
-    "posBonus": {
-      "CF": 12,
-      "SS": 8,
-      "2B": 6,
-      "LF": 4,
-      "RF": 0,
-      "3B": -4,
-      "1B": -10,
-      "DH": -12,
-      "C": -14
-    }
-  }
+    "rateMultiplier": 120,       // scales raw SB rate into a per-game figure
+    "baseline": 28,              // floor for a hitter with no SB history
+    "posBonus": {                // additive position nudge on that floor,
+                                 // separate from the positionProxy multiplier
+      "CF": 12, "SS": 8, "2B": 6, "LF": 4, "RF": 0,
+      "3B": -4, "1B": -10, "DH": -12, "C": -14,
+    },
+  },
+
 }

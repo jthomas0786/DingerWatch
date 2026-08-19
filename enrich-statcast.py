@@ -67,6 +67,17 @@ def fetch_leaderboard(season):
     log(f"fetching {season} expected-stats leaderboard…")
     xstats = statcast_batter_expected_stats(season, minPA=50)
 
+    # Sprint speed is its own Savant leaderboard, not a percentile or contact
+    # metric. It can still be useful for a low-contact runner, so retain rows
+    # that appear only here instead of requiring an expected-stats match.
+    log(f"fetching {season} sprint-speed leaderboard…")
+    try:
+        from pybaseball import statcast_sprint_speed
+        sprint = statcast_sprint_speed(season, min_opp=10)
+    except Exception as e:
+        log(f"WARNING: sprint-speed leaderboard unavailable ({e}) — continuing without sprint speed")
+        sprint = None
+
     # IMPORTANT: barrel rate / exit velo / hard-hit% come from the exitvelo_barrels
     # leaderboard, which holds ACTUAL RATES. Do NOT source them from
     # statcast_batter_percentile_ranks — every column in that table is a
@@ -102,6 +113,16 @@ def fetch_leaderboard(season):
             "woba": _f(row.get("woba")),
             "xwoba": _f(row.get("est_woba")),
         }
+
+    # `sprint_speed` is feet per second. Do not add a null placeholder when
+    # Savant omits a player: absent means no qualifying running data, not zero.
+    if sprint is not None:
+        for _, row in sprint.iterrows():
+            pid = int(row.get("player_id", 0) or 0)
+            speed = _f(row.get("sprint_speed"))
+            if not pid or speed is None:
+                continue
+            out.setdefault(str(pid), {})["sprintSpeed"] = round(speed, 1)
 
     # --- actual contact-quality rates ---
     if ev is not None:

@@ -161,6 +161,56 @@ async function fetchBattingOrder(gamePk) {
   return Object.keys(out).length ? out : null;
 }
 
+// A doubleheader repeats the same club in the schedule, so cache this at the
+// fetch boundary instead of trusting every caller to remember to deduplicate.
+const teamHittingStatsCache = new Map();
+async function fetchTeamHittingStats(teamId) {
+  if (!teamHittingStatsCache.has(teamId)) {
+    teamHittingStatsCache.set(teamId, (async () => {
+      const url = `${MLB}/teams/${teamId}/stats?stats=season&group=hitting&season=${SEASON}&gameType=R`;
+      const data = await getJSON(url).catch(() => null);
+      const s = data?.stats?.[0]?.splits?.[0]?.stat;
+      if (!s) return null;
+      const runs = num(s.runs), games = num(s.gamesPlayed);
+      return {
+        runs, games,
+        // Per-game scoring travels across uneven schedules better than raw runs.
+        runsPerGame: (runs != null && games) ? round(runs / games, 2) : null,
+        ops: num(s.ops), avg: num(s.avg),
+      };
+    })());
+  }
+  return teamHittingStatsCache.get(teamId);
+}
+
+// Catchers can appear against more than one opponent on a doubleheader slate;
+// one season fielding pull is enough even when their lineup slot is reused.
+const catcherArmStatsCache = new Map();
+async function fetchCatcherArmStats(playerId) {
+  if (!catcherArmStatsCache.has(playerId)) {
+    catcherArmStatsCache.set(playerId, (async () => {
+      const url = `${MLB}/people/${playerId}/stats?stats=season&group=fielding&season=${SEASON}&gameType=R`;
+      const data = await getJSON(url).catch(() => null);
+      // A player can have multiple fielding splits (for example C plus DH), so
+      // only the catcher split describes the arm opposing runners face.
+      const split = (data?.stats?.[0]?.splits ?? [])
+        .find(s => s.position?.abbreviation === 'C');
+      const s = split?.stat;
+      if (!s) return null;
+      const caughtStealing = num(s.caughtStealing);
+      const stolenBases = num(s.stolenBases);
+      const attempts = (caughtStealing ?? 0) + (stolenBases ?? 0);
+      return {
+        caughtStealing,
+        stolenBases,
+        csPct: attempts ? round((caughtStealing / attempts) * 100, 1) : null,
+        innings: parseIP(s.innings),
+      };
+    })());
+  }
+  return catcherArmStatsCache.get(playerId);
+}
+
 // ---------------------------------------------------------------- rosters
 /**
  * Active roster = who can actually play today. Comparing against the 40-man
@@ -474,6 +524,12 @@ async function build() {
   const rosters = Object.fromEntries(teamIds.map((id, i) => [id, rosterList[i]]));
   console.log(`  ${teamIds.length} team rosters`);
 
+  // Team-level offense gives a stable scoring baseline before lineup cards are
+  // posted, while the cache keeps doubleheaders from duplicating API traffic.
+  const teamStatsList = await mapLimit(teamIds, CONCURRENCY, fetchTeamHittingStats);
+  const teamStatsMap = Object.fromEntries(teamIds.map((id, i) => [id, teamStatsList[i]]));
+  console.log(`  season offense for ${teamIds.length} teams`);
+
   // 3. Hitter stats — only position players on active rosters
   const hitters = [];
   for (const teamId of teamIds) {
@@ -661,10 +717,44 @@ async function build() {
       gameNumber: g.gameNumber,
       venue: { id: g.venueId, name: g.venueName, ...(park || {}) },
       weather,
-      away: { ...g.away, pitcher: mkPitcher('away'), lineup: mkLineup(g.away.id, 'away', g.home.probablePitcherId) },
-      home: { ...g.home, pitcher: mkPitcher('home'), lineup: mkLineup(g.home.id, 'home', g.away.probablePitcherId) },
+      away: {
+        ...g.away,
+        teamStats: teamStatsMap[g.away.id] && !teamStatsMap[g.away.id].__error
+          ? teamStatsMap[g.away.id] : null,
+        pitcher: mkPitcher('away'),
+        lineup: mkLineup(g.away.id, 'away', g.home.probablePitcherId),
+      },
+      home: {
+        ...g.home,
+        teamStats: teamStatsMap[g.home.id] && !teamStatsMap[g.home.id].__error
+          ? teamStatsMap[g.home.id] : null,
+        pitcher: mkPitcher('home'),
+        lineup: mkLineup(g.home.id, 'home', g.away.probablePitcherId),
+      },
     };
   });
+
+  // Lineup cards often are not posted yet, so only use a catcher when the
+  // assembled opposing lineup actually identifies one; guessing from a roster
+  // would make late defensive substitutions look falsely certain.
+  const catcherIds = [...new Set(games.flatMap(game => [
+    game.away.lineup.find(h => h.pos === 'C')?.id,
+    game.home.lineup.find(h => h.pos === 'C')?.id,
+  ]).filter(Boolean))];
+  console.log(`  ${catcherIds.length} opposing catchers identified from lineups`);
+  const catcherStatsList = await mapLimit(catcherIds, CONCURRENCY, fetchCatcherArmStats);
+  const catcherStatsMap = Object.fromEntries(catcherIds.map((id, i) => [id, catcherStatsList[i]]));
+  const mkOppCatcher = catcher => {
+    if (!catcher) return null;
+    const s = catcherStatsMap[catcher.id];
+    if (!s || s.__error) return null;
+    return { id: catcher.id, name: catcher.name, ...s };
+  };
+  for (const game of games) {
+    // Home batters run against the away catcher, and vice versa.
+    game.home.oppCatcher = mkOppCatcher(game.away.lineup.find(h => h.pos === 'C'));
+    game.away.oppCatcher = mkOppCatcher(game.home.lineup.find(h => h.pos === 'C'));
+  }
 
   const payload = {
     date: DATE,

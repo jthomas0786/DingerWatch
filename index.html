@@ -970,6 +970,12 @@ body.gated{ overflow:hidden; }
   .modal-name .dq-badge{ font-size:8px; padding:2px 6px; letter-spacing:.04em; }
   .modal-grade{ width:46px; height:46px; font-size:20px; border-width:2px; }
   .modal-index-num{ font-size:27px; }
+  /* On a narrow screen the grade badge and the big percentage leave the bar
+     column about 90px wide, which wrapped the caption to one word per line.
+     Let the bar drop to its own full-width row instead. */
+  .modal-index{ flex-wrap:wrap; }
+  .modal-index-bar{ flex:1 0 100%; }
+  .mi-sub{ font-size:9.5px; line-height:1.45; }
   .tabs{ padding:0 14px; }
   .tab{ padding:10px 11px; font-size:9.5px; }
   .tab-content{ padding:16px 18px 22px; }
@@ -2628,10 +2634,10 @@ function toStatcastShape(season, statcast) {
    * `regressionPA` is the sample size at which a player's own rate and the
    * league mean are weighted equally.
    */
-  const R = MODEL.regression;
+  const R = MODEL.confidence;
   const pa = season.pa ?? 0;
-  const w = pa / (pa + R.regressionPA);          // 0 = all league, 1 = all player
-  const iso = rawIso * w + R.leagueIso * (1 - w);
+  const w = pa / (pa + R.statcastPA);            // 0 = all league, 1 = all player
+  const iso = rawIso * w + MODEL.league.iso * (1 - w);
 
   // Range-check every upstream metric before trusting it.
   const barrel  = plausible(statcast?.barrelPct,   0,  35, 'barrelPct');
@@ -2656,6 +2662,11 @@ function toStatcastShape(season, statcast) {
     sweetSpot:   +(28 + iso * 22).toFixed(1),
     pull:        +(35 + iso * 20).toFixed(1),
     launchAngle: +(11 + iso * 16).toFixed(1),
+    // Feet per second from the Savant running leaderboard. Deliberately NOT
+    // given a derived fallback: there is no rate stat that stands in for speed,
+    // and inventing one would let the SB factor score a guess as if it were
+    // measured. Absent means the factor sits out.
+    sprintSpeed: plausible(statcast?.sprintSpeed, 20, 32, 'sprintSpeed'),
     _derived:    !usedReal,   // flagged so the UI can label it honestly
   };
 }
@@ -2745,6 +2756,9 @@ function adaptHitter(h, teamAbbr, game, side) {
       last30: l10.hr != null ? `${l10.hr} HR / ${l10.ab} AB (L10 G)` : '—',
       trend,
     },
+    // Numeric last-10 line. The display strings above are not parseable, and the
+    // form factors need the actual numbers to compare against his season marks.
+    l10: { ab: l10.ab ?? null, avg: l10.avg ?? null, hr: l10.hr ?? null, h: l10.h ?? null },
     gameLog: h.gameLog || [],
     odds: h.odds || null,          // real prices + one-tap betslip deep links
     splits: h.splits || null,      // season vs LHP / vs RHP
@@ -2762,7 +2776,6 @@ function adaptHitter(h, teamAbbr, game, side) {
 
   p.narrative = buildNarrative(p, game);
   scorePlayer(p, game);
-  p.index = p.hrIndex;
   return p;
 }
 
@@ -2842,6 +2855,17 @@ function adaptGame(sg) {
     homeName: teamNickname(sg.home.abbr, sg.home.name),
     park: v.name ? `${v.name}` : 'Unknown venue',
     parkShort: (v.name || '').split(',')[0],
+    // Team offense and the opposing catcher's arm, both added by the daily
+    // build. Older slates predate them, so every read is null-guarded and the
+    // matching factor simply sits out rather than scoring a missing value as bad.
+    homeRunsPerGame: sg.home?.teamStats?.runsPerGame ?? null,
+    awayRunsPerGame: sg.away?.teamStats?.runsPerGame ?? null,
+    // Note the crossing is already done upstream: sg.home.oppCatcher is the
+    // AWAY team's catcher, i.e. the one home batters actually run against.
+    homeOppCatcherCs: sg.home?.oppCatcher?.csPct ?? null,
+    awayOppCatcherCs: sg.away?.oppCatcher?.csPct ?? null,
+    homeOppCatcher: sg.home?.oppCatcher ?? null,
+    awayOppCatcher: sg.away?.oppCatcher ?? null,
     parkFactor: v.parkFactor ?? 100,
     parkNote: v.parkFactor > 103 ? 'Hitter-friendly park'
             : v.parkFactor < 94 ? 'Pitcher-friendly park'
@@ -2917,14 +2941,6 @@ async function loadSlate() {
   }
 }
 
-// Tier baselines retained for scoring (form + RBI weights by power tier).
-const TIER_RANGES = {
-  1: { base:{form:15, rbi:78} },
-  2: { base:{form:11, rbi:60} },
-  3: { base:{form:7,  rbi:42} },
-  4: { base:{form:3,  rbi:24} },
-};
-
 // ============================================================================
 //  ⚙️  MODEL — every tunable number lives here.
 // ----------------------------------------------------------------------------
@@ -2933,170 +2949,793 @@ const TIER_RANGES = {
 //  over everything below at load time, so your tuning survives any future
 //  rebuild or redeploy of the app itself. See loadModelOverrides().
 //
-//  The four HR weights should sum to 100 (console check below).
-//  Each `*Scale` is "the input value that earns full marks" — lower it to make
-//  a category easier to max out, raise it to make it stricter.
+//  Structure, top to bottom:
+//    confidence  — how much to trust a small sample
+//    league      — the average this season, the yardstick every factor measures against
+//    grading     — where the letter-grade cutoffs sit
+//    factorDefs  — the SHAPE of each factor (what counts as elite vs replacement)
+//    props       — the WEIGHTS: how much each factor matters, per prop. Tune here first.
+//    order       — plate appearances by lineup slot (playing time, not a belief)
+//    then per-prop base-rate machinery (hits, tb, hrr, steal, sb)
+//
+//  Weights do NOT need to sum to anything. Each one is the maximum swing that
+//  factor can apply on its own: 0.20 means ±20% at the extremes, 0 switches it
+//  off entirely, and a NEGATIVE weight means more of that thing HURTS.
+//  validateModel() checks every key at load time and logs anything unknown.
 // ============================================================================
 const MODEL = {
 
-  // ---- Small-sample regression ----
-  //  Applied to DERIVED Statcast only. Real measured Statcast is left alone —
-  //  it already reflects actual contact, not an inference from rate stats.
-  regression: {
-    regressionPA: 220,    // PA at which player and league are weighted 50/50
-    leagueIso:    0.164,  // league-average ISO to regress toward
-    lowSamplePA:  150,    // below this, the card is flagged as small-sample
+  // ---- Confidence / sample size ----
+  //  How much to trust a small sample. These are the most powerful knobs in the
+  //  file: they decide whether a 60-PA callup on a heater can outrank a
+  //  600-PA slugger. Each value is the sample size at which a player's own
+  //  number and the league mean are weighted equally, so LOWERING a value
+  //  trusts players sooner and makes the board more volatile.
+  confidence: {
+    regressionPA: 220,   // main per-PA rates. The single most influential knob here.
+    lowSamplePA:  150,   // below this the player card is flagged as small-sample
+    platoonPA:     90,   // vs-LHP / vs-RHP splits. Deliberately lower than
+                         // regressionPA — a split can never reach 220 PA midseason,
+                         // so reusing that target would crush every platoon signal.
+    statcastPA:   120,   // sample needed before derived Statcast is trusted
+  },
 
-    // League-average per-plate-appearance rates, the target the simulation
-    // regresses toward. Roughly 2024 MLB. Adjust if the run environment shifts.
-    leagueRates: {
-      hr:   0.0317,   // ~19 HR per 600 PA
-      hits: 0.2250,   // ~135 H per 600 PA
-      dbl:  0.0433,
-      trp:  0.0033,
-      bb:   0.0867,
-      k:    0.2250,
-    },
+  // ---- League baselines ----
+  //  Every constant the model measures a player against, in ONE place. `ratio`
+  //  factors name one of these instead of carrying their own copy, which is how
+  //  the old config ended up with league GB/FB written as both 1.15 and 1.35.
+  //  Update these when the run environment shifts; nothing else needs to change.
+  league: {
+    barrel:      8.0,    // %
+    hardHit:    38.0,    // %
+    exitVelo:   89.0,    // mph
+    airPct:     62.0,    // % of batted balls in the air
+    xslg:       0.410,
+    xwoba:      0.320,
+    babip:      0.300,
+    kPct:       22.5,    // %  — both batters and pitchers
+    iso:        0.164,
+
+    hr9:        1.10,    // starter home runs per 9
+    era:        4.20,
+    k9:         8.80,
+    gbFb:       1.15,    // starter ground-ball / fly-ball ratio
+
+    parkFactor: 100,     // neutral park
+    tempF:      72,
+    runsPerGame: 4.40,   // team runs per game
+    csPct:      20.0,    // % of steal attempts a catcher throws out
+    sprintSpeed: 27.0,   // feet per second
+
+    // Per-PA rates the simulator regresses toward. Roughly 2024 MLB.
+    rates: { hr: 0.0317, hits: 0.2250, dbl: 0.0433, trp: 0.0033, bb: 0.0867, k: 0.2250 },
   },
 
   // ---- Grading ----
-  //  How letter grades are assigned to prop probabilities.
+  //  Letters are assigned by RANK within tonight's slate, so "A+" always means
+  //  "top N% of tonight's board" rather than "cleared a fixed number" — a fixed
+  //  threshold grades an entire good slate A+ and nobody on a bad one.
   grading: {
-    // 'percentile' = grade on rank within tonight's slate (recommended).
-    // 'absolute'   = grade on fixed probability thresholds in `cuts` below.
-    mode: 'percentile',
+    // Minimum slate percentile for each letter. Everything below `c` is a D.
+    // As set: ~4% A+, 10% A, 16% B+, 18% B, 18% C+, 18% C, 16% D.
+    // RAISE aPlus to make the top grade rarer.
+    percentiles: { aPlus: 96, a: 86, bPlus: 70, b: 52, cPlus: 34, c: 16 },
 
-    // Minimum slate percentile for each letter — applies to EVERY prop.
-    // With these values roughly 5% earn A+, 15% A, 20% B+, 20% B, 15% C+,
-    // 15% C, and the rest D. Raise aPlus to make the top grade rarer.
-    percentiles: { aPlus: 95, a: 80, bPlus: 60, b: 40, cPlus: 25, c: 10 },
-
-    // Optional per-prop overrides. Only the letters you list are changed;
-    // everything else inherits from `percentiles` above. Example — make A+
-    // rare for home runs but ordinary for hits:
-    //   byProp: { hr: { aPlus: 98 }, hits: { aPlus: 90, a: 70 } }
+    // Per-prop overrides. Only the letters you list change; the rest inherit.
+    //   byProp: { hr: { aPlus: 98 }, sb: { aPlus: 90, a: 75 } }
     byProp: {},
 
-    // Used when mode is 'absolute', or when a slate is too small to rank.
-    // e = elite (A+), g = good (B+), f = fair (C+).
-    cuts: {
-      hr:   { e:27, g:23, f:16 },
-      hits: { e:77, g:74, f:70 },
-      tb:   { e:53, g:50, f:47 },
-      rbi:  { e:53, g:49, f:42 },
-      hrr:  { e:66, g:62, f:56 },
-      sb:   { e:9,  g:8,  f:5  },
-      hits15:  { e:33, g:28, f:22 },
-      tb25:    { e:33, g:28, f:22 },
-      hrr25:   { e:45, g:39, f:32 },
-      singles: { e:62, g:56, f:48 },
-      doubles: { e:20, g:16, f:12 },
-      runs:    { e:47, g:42, f:36 },
+    // Ranking needs a field to rank against. Below this many graded players the
+    // percentiles are meaningless, so fall back rather than handing out an A+
+    // to the best of four players.
+    minSlateSize: 8,
+    // 'relative' = grade off the slate mean instead of percentiles.
+    // 'none'     = withhold grades entirely on a tiny slate.
+    smallSlateFallback: 'relative',
+
+    // Equal probabilities must get equal letters. 'midrank' averages the tied
+    // positions; the old code silently gave every tie the LOWEST rank in the
+    // group, which pushed clusters of identical players down a full letter.
+    tieHandling: 'midrank',
+  },
+
+  // ---- Factor definitions ----
+  //  The SHAPE of every factor: what scale it lives on and how a raw stat turns
+  //  into a multiplier. Defined once here and reused by every prop, so a stat
+  //  can never mean two different things in two different places.
+  //
+  //  Four types:
+  //    curve  — a stat with a replacement-level end (`floor`) and an elite end
+  //             (`scale`). Neutral at the midpoint.
+  //    ratio  — a stat measured against a `league` baseline, bounded by `cap`
+  //             (cap 0.40 = ignore anything beyond +/-40% from average).
+  //    table  — discrete lookup: wind sector, lineup slot, position.
+  //    platoon— the batter's own vs-LHP / vs-RHP split, regressed by
+  //             confidence.platoonPA. Baseline is the player himself.
+  //
+  //  You will rarely need to touch this section. Weights live under `props`.
+  factorDefs: {
+    contact: {
+      barrel:    { type:'curve', floor:  3.0, scale: 18.0 },  // barrel %
+      hardHit:   { type:'curve', floor: 25.0, scale: 50.0 },  // hard-hit %
+      exitVelo:  { type:'curve', floor: 85.0, scale: 93.0 },  // mph
+      airRate:   { type:'ratio', league:'airPct', cap: 0.35 },
+      xSLG:      { type:'curve', floor: 0.320, scale: 0.560 },
+      xwOBA:     { type:'curve', floor: 0.280, scale: 0.400 },
+      babipLuck: { type:'ratio', league:'babip', cap: 0.30 }, // use a NEGATIVE
+                 // weight: a .380 BABIP is luck that is coming back to earth.
+    },
+    pitcher: {
+      hr9:       { type:'ratio', league:'hr9',  cap: 0.55 },
+      era:       { type:'ratio', league:'era',  cap: 0.45 },
+      k9:        { type:'ratio', league:'k9',   cap: 0.40 },
+      gbFb:      { type:'ratio', league:'gbFb', cap: 0.40 },
+      kMismatch: { type:'ratio', league:'kPct', cap: 0.35 },
+      // Two platoon factors because the right statistic depends on the prop:
+      // slugging for power props, average for contact props. Same machinery.
+      hand:        { type:'platoon', stat:'slg' },
+      handContact: { type:'platoon', stat:'avg' },
+    },
+    park: {
+      hrFactor:    { type:'ratio', league:'parkFactor', cap: 0.25 },
+      runsFactor:  { type:'ratio', league:'parkFactor', cap: 0.20 },
+      xbFactor:    { type:'ratio', league:'parkFactor', cap: 0.20 },
+      // Wind sector, already resolved against the park's center-field bearing.
+      weather:     { type:'table', values: { pos: 1.10, neg: 0.90, neu: 1.00 } },
+      temperature: { type:'curve', floor: 45, scale: 95 },     // deg F
+    },
+    form: {
+      // Last-10 minus season. A DIFFERENCE, not a ratio, so a .200 hitter and a
+      // .300 hitter who are both up 40 points get identical credit.
+      avgTrend:   { type:'curve', floor: -0.060, scale: 0.060 },
+      powerTrend: { type:'curve', floor: -0.020, scale: 0.020 },  // HR per AB
+    },
+    role: {
+      // Lineup slot, 1-9. Runs and RBI are separate tables because the top of
+      // the order scores and the middle drives in.
+      lineupRuns: { type:'table', values: [1.22, 1.18, 1.10, 1.02, 0.96, 0.92, 0.88, 0.85, 0.88] },
+      lineupRBI:  { type:'table', values: [0.78, 0.92, 1.18, 1.24, 1.16, 1.02, 0.92, 0.85, 0.80] },
+      // Quality of the bats around him. Needs `teamStats` from the daily build.
+      teamOffense:{ type:'ratio', league:'runsPerGame', cap: 0.30 },
+    },
+    speed: {
+      // Attempt rate is deliberately NOT here. How often he tries to steal is
+      // arithmetic about opportunity and already sets the base SB rate in
+      // scorePlayer via steal.attemptWeight; weighting it again would count the
+      // same evidence twice.
+      successRate: { type:'curve', floor: 0.50, scale: 0.90 },
+      sprintSpeed: { type:'curve', floor: 25.0, scale: 29.5 },  // ft/sec
+      catcherArm:  { type:'ratio', league:'csPct', cap: 0.50 }, // NEGATIVE weight
+      positionProxy: { type:'table', values: {
+        CF: 1.10, SS: 1.06, '2B': 1.04, LF: 1.02, RF: 1.00,
+        '3B': 0.97, '1B': 0.93, DH: 0.92, C: 0.90,
+      } },
     },
   },
 
-  // ---- Home Run Index (the four bars in the player modal) ----
-  hr: {
-    weights:      { statcast: 50, form: 20, park: 15, matchup: 15 },  // must total 100
+  // ==========================================================================
+  //  PROP WEIGHTS — this is the section to edit
+  // ==========================================================================
+  //  One weight per factor per prop. THE SIGN IS THE DIRECTION: a negative
+  //  weight means more of that quantity HURTS this prop, which is why
+  //  `pitcher.k9: -0.18` under `hits` reads directly as "a high-strikeout
+  //  starter costs up to 18% of the hit projection".
+  //
+  //  What a weight means depends on the factor's type:
+  //    curve  — the MAXIMUM swing. 0.30 = elite x1.30, replacement-level x0.70.
+  //    ratio  — how much of the deviation from league average to believe.
+  //             0.20 = a starter 50% worse than average gives +10%.
+  //    table  — scales the table's deviation from 1.0. Use 1.0 to apply the
+  //             table as written; 0.5 to halve it; 0 to disable.
+  //    platoon— how much of his split-vs-overall difference to believe.
+  //
+  //  Set any weight to 0 (or delete the line) to switch a factor off completely.
+  //  `clamp` bounds the FINISHED product of every factor. It matters more than
+  //  it looks: a dozen factors multiplying together compound fast, and ten
+  //  factors at x1.15 each is x4.0.
+  props: {
 
-    // Statcast half: how barrel% and hard-hit% split the statcast weight
-    barrelWeight: 0.60,   // remainder (0.40) goes to hard-hit%
-    barrelScale:  20,     // 20% barrel rate = full credit
-    hardHitScale: 55,     // 55% hard-hit rate = full credit
+    // ---- Home runs ----
+    //  Note what is deliberately absent: hardHit and exitVelo are set to 0
+    //  because barrel rate and xSLG already measure the same underlying skill.
+    //  Turning all four on does not make the model smarter, it just counts one
+    //  skill four times and drowns out park and matchup.
+    hr: {
+      enabled: true,
+      clamp: { min: 0.45, max: 2.10 },
+      weights: {
+        contact: { barrel: 0.30, xSLG: 0.18, airRate: 0.12, hardHit: 0, exitVelo: 0 },
+        pitcher: { hr9: 0.22, gbFb: -0.12, hand: 0.15 },
+        park:    { hrFactor: 0.20, weather: 0.10, temperature: 0.08 },
+        form:    { powerTrend: 0.10 },
+      },
+    },
 
-    // Recent form: bonus/penalty applied to the tier's baseline
-    trendBonus:   4,      // "up" adds this; "down" subtracts it
+    // ---- Hits ----
+    //  Scales the SINGLES rate. Home runs, doubles and triples are counted as
+    //  hits by the simulator too, but they are already governed by the hr and
+    //  tb weights, so applying this here would double-count them.
+    hits: {
+      enabled: true,
+      clamp: { min: 0.60, max: 1.55 },
+      weights: {
+        contact: { xwOBA: 0.14, babipLuck: -0.15 },
+        pitcher: { kMismatch: -0.20, k9: -0.16, era: 0.10, handContact: 0.14 },
+        park:    { runsFactor: 0.06 },
+        form:    { avgTrend: 0.12 },
+      },
+    },
 
-    // Environment: park factor / 100, then multiplied by the weather factor
-    weatherMult:  { pos: 1.08, neg: 0.90, neu: 1.00 },
+    // ---- Total bases ----
+    //  Scales doubles and triples. The home-run share of total bases comes from
+    //  the hr weights above.
+    tb: {
+      enabled: true,
+      clamp: { min: 0.55, max: 1.80 },
+      weights: {
+        contact: { barrel: 0.16, xSLG: 0.20 },
+        pitcher: { hr9: 0.12, era: 0.10, gbFb: -0.08, hand: 0.14 },
+        park:    { xbFactor: 0.14, weather: 0.06, temperature: 0.05 },
+        form:    { powerTrend: 0.06, avgTrend: 0.06 },
+      },
+    },
 
-    // Matchup: opposing starter's HR/9 relative to league average
-    leagueHR9:    1.10,   // ~average HR/9; above this = favorable matchup
-    matchupCap:   1.50,   // don't let one bad pitcher run away with it
+    // ---- RBI ----
+    //  Scales the rate at which he drives in runners. Lineup slot carries the
+    //  most weight of anything in the model here, and correctly so: batting
+    //  fourth instead of eighth changes RBI opportunity more than any rate stat.
+    rbi: {
+      enabled: true,
+      clamp: { min: 0.50, max: 1.90 },
+      weights: {
+        contact: { barrel: 0.10, xSLG: 0.12 },
+        pitcher: { era: 0.14, hand: 0.10 },
+        park:    { runsFactor: 0.12, weather: 0.05 },
+        role:    { lineupRBI: 1.0, teamOffense: 0.30 },
+        form:    { avgTrend: 0.08 },
+      },
+    },
 
-    // Batted-ball profile. A hitter who pounds the ball into the ground can't
-    // homer no matter how hard he hits it, and a ground-ball pitcher suppresses
-    // home runs structurally rather than by luck.
-    airWeight:    0.30,   // how much the hitter's air rate scales the HR index
-    leagueAirPct: 62,     // league-average share of outs in the air
-    pitcherGbWeight: 0.20,// how much the pitcher's ground tendency suppresses
-    leagueGbFb:   1.15,   // league-average pitcher GB/FB
+    // ---- H+R+RBI ----
+    //  Scales the RUNS SCORED component only. Hits and RBI are the other two
+    //  legs of this prop and are already handled by their own sections, so this
+    //  block is where "how often does he come around to score" is tuned.
+    hrr: {
+      enabled: true,
+      clamp: { min: 0.50, max: 1.90 },
+      weights: {
+        pitcher: { era: 0.12, k9: -0.10, handContact: 0.08 },
+        park:    { runsFactor: 0.12 },
+        role:    { lineupRuns: 1.0, teamOffense: 0.35 },
+        form:    { avgTrend: 0.08 },
+      },
+    },
+
+    // ---- Stolen bases ----
+    //  sprintSpeed ships at 0 ON PURPOSE. It comes from the Baseball Savant
+    //  running leaderboard, which is an optional step in the daily build and is
+    //  allowed to fail. Raise this to about 0.25 once you have confirmed the
+    //  field is populated — otherwise SB grades would quietly shift on any day
+    //  that scrape breaks.
+    sb: {
+      enabled: true,
+      clamp: { min: 0.40, max: 2.20 },
+      weights: {
+        speed: { successRate: 0.30, positionProxy: 1.0,
+                 catcherArm: -0.15, sprintSpeed: 0 },
+        park:  { weather: 0.04 },
+      },
+    },
   },
 
-  // ---- Hits ----
-  //  Base is AVG x expected AB, then adjusted for the things that actually move
-  //  a single game's hit total: how often he strikes out, how often the pitcher
-  //  strikes people out, and whether his BABIP suggests he's been lucky.
-  hits: {
-    expectedAB:   4,      // league-average AB per game
-    kSensitivity: 0.55,   // weight on the batter-vs-pitcher strikeout mismatch
-    leagueKPct:   22.5,   // league-average strikeout rate, both sides
-    babipWeight:  0.25,   // pull toward .300 — 0 disables regression entirely
-    leagueBabip:  0.300,
-  },
-
-  // ---- Batting order ----
-  //  Lineup slot changes plate appearances and run/RBI context more than any
-  //  rate stat. Multipliers are relative to an average slot.
+  // ---- Playing time ----
+  //  Plate appearances by lineup slot. This is NOT a weight — it is how many
+  //  times he physically comes to bat, so it scales the simulation's PA count
+  //  rather than any rate. Leadoff sees ~4.7 PA, the nine-hole ~3.9.
   order: {
-    // PA share by slot: leadoff sees ~4.7 PA/game, the nine-hole ~3.9.
-    paMult:  [1.09, 1.07, 1.05, 1.03, 1.00, 0.97, 0.95, 0.92, 0.90],
-    // Runs: top-of-order hitters are driven in by the big bats behind them.
-    runMult: [1.22, 1.18, 1.10, 1.02, 0.96, 0.92, 0.88, 0.85, 0.88],
-    // RBI: the 3-4-5 spots bat with runners on far more often.
-    rbiMult: [0.78, 0.92, 1.18, 1.24, 1.16, 1.02, 0.92, 0.85, 0.80],
+    paMult: [1.09, 1.07, 1.05, 1.03, 1.00, 0.97, 0.95, 0.92, 0.90],
   },
 
-  // ---- Stolen bases ----
-  //  Raw SB totals hide opportunity. Attempt rate per time on base plus success
-  //  rate is far more predictive of a steal *tonight*.
-  steal: {
-    attemptWeight: 0.6,   // weight on attempts-per-time-on-base vs raw SB/game
-    successFloor:  0.65,  // below this success rate managers stop sending him
+
+  // ==========================================================================
+  //  BASE RATES — the "how much does he do this normally" half of the model.
+  //  These are not beliefs to tune, they are the arithmetic the projections
+  //  are built from, so they are kept separate from `props` above.
+  // ==========================================================================
+
+  hits: {
+    expectedAB: 4,        // league-average at-bats per game
   },
 
-  // ---- Total Bases ----
-  //  Projected TB = expectedAB × blended SLG × park × weather.
-  //  (SLG is total bases per at-bat by definition, so this identity is exact.)
   tb: {
-    xslgWeight:   0.45,   // how much xSLG counts vs actual SLG; remainder to SLG
-    parkSensitivity: 0.5, // 0 = ignore park, 1 = apply park factor at full strength
-    weatherExponent: 0.5, // how strongly wind affects extra-base hits
-    xslgScale:    0.750,  // (legacy 0-100 index only)
-    avgScale:     0.350,  // (legacy 0-100 index only)
+    xslgWeight: 0.45,     // how much xSLG counts vs actual SLG; remainder to SLG
   },
 
-  // ---- RBI ----
-  //  Projected RBI = season RBI/game × park run environment × recent form.
-  rbi: {
-    parkSensitivity: 0.6, // how much park factor scales run production
-    formSensitivity: 0.12,// max ±12% swing from a hot/cold streak
-    trendMultiplier: 2,   // (legacy 0-100 index only)
-    parkDivisor:     3,   // (legacy 0-100 index only)
-  },
-
-  // ---- HRR (Hits + Runs + RBIs) ----
-  //  The three components are projected independently, then summed. They do
-  //  overlap in reality — a solo homer is 1 H, 1 R and 1 RBI — but the standard
-  //  sportsbook H+R+RBI market counts each separately, so summing is correct
-  //  for this market rather than double-counting.
   hrr: {
-    // Used only if the slate predates runs being captured: roughly a third of
+    // Only used when a slate predates runs being captured: roughly a third of
     // times-on-base come around to score.
     runsFromOnBaseRate: 0.33,
-    parkSensitivity:    0.6,   // run scoring scales with park run environment
   },
 
-  // ---- Stolen bases ----
-  sb: {
-    coldWeatherMult: 0.95,  // heavy air lightly damps the running game
+  steal: {
+    // How much of the base SB rate comes from attempts-per-time-on-base rather
+    // than raw SB/game. This is the ONLY home for attempt rate — see the note in
+    // factorDefs.speed. 0 = use raw season SB/game only.
+    attemptWeight: 0.6,
+  },
 
-    // Speed score proxy: SB per time-on-base, scaled and shifted by position.
-    rateMultiplier: 120,    // how hard SB rate drives the score
-    baseline:       28,     // score for a zero-steal player at a neutral position
+  sb: {
+    // Speed score proxy, used for the roster blurb and as an SB fallback when
+    // attempt-rate data is missing.
+    rateMultiplier: 120,
+    baseline:       28,
     posBonus: { CF: 12, SS: 8, '2B': 6, LF: 4, RF: 0, '3B': -4, '1B': -10, DH: -12, C: -14 },
   },
 };
+
+// ============================================================================
+//  FACTOR ENGINE (model v2)
+// ============================================================================
+//  Replaces the old 0-100 "HR Index" with a multiplicative context chain that
+//  works identically for every prop.
+//
+//  For a prop P and batter B:
+//     baseRate(P)  = B's season per-PA rate, regressed toward league by sample
+//     context(P)   = product of every enabled factor's multiplier, clamped
+//     simulate 10,000 games on baseRate x context -> probability -> LETTER
+//
+//  Two things make this tunable in a way the index was not:
+//
+//  1. A weight is stated in real units. On a `curve` factor, weight 0.30 means
+//     "this factor may move the projection at most +/-30%". On a `ratio` factor
+//     it means "believe 30% of the observed deviation from league average".
+//     There is no points budget, so changing one weight never silently
+//     rescales another, and weight 0 always fully disables a factor.
+//
+//  2. Direction lives in the SIGN of the weight, not in the factor definition.
+//     Every factor measures a quantity; a negative weight means more of that
+//     quantity HURTS this prop. `pitcher.k9: -0.30` on hits reads directly as
+//     "a high-strikeout starter costs up to 30% of the hit projection".
+//
+//  Adding a factor = one entry in MODEL.factorDefs, one getter in FACTOR_VALUES
+//  below, and a weight per prop. Nothing else needs rebalancing.
+
+/**
+ * How to read each factor's raw value off a player. Returning null means "no
+ * data" and the factor is skipped entirely (contributes exactly 1.0) rather
+ * than being scored as zero — a missing stat must never look like a bad stat.
+ */
+const FACTOR_VALUES = {
+  contact: {
+    barrel:    p => p.statcast?.barrel ?? null,
+    hardHit:   p => p.statcast?.hardHit ?? null,
+    exitVelo:  p => p.statcast?.ev ?? null,
+    airRate:   p => p.airPct ?? null,
+    xSLG:      p => p.statcast?.xslg ?? null,
+    xwOBA:     p => p.statcast?.xwoba ?? null,
+    babipLuck: p => p.babip ?? null,
+  },
+  pitcher: {
+    hr9:  p => p.oppPitcher?.hr9 ?? null,
+    era:  p => p.oppPitcher?.era ?? null,
+    k9:   p => p.oppPitcher?.k9 ?? null,
+    gbFb: p => p.oppPitcher?.gbFb ?? null,
+    // Both sides of the strikeout equation. A contact hitter facing a soft-tosser
+    // puts far more balls in play than either number implies alone.
+    kMismatch: p => {
+      if(p.kPct == null) return null;
+      const oppK = p.oppPitcher?.kPct ?? MODEL.league.kPct;
+      return (p.kPct + oppK) / 2;
+    },
+    // Handled by evalPlatoon — the value is the batter's own split, so it has
+    // no single league baseline and there is nothing to read here. Both entries
+    // exist so the validator can confirm the factor is wired to real code.
+    hand: () => null,
+    handContact: () => null,
+  },
+  park: {
+    hrFactor:   p => p.game?.parkFactor ?? null,
+    runsFactor: p => p.game?.parkFactor ?? null,
+    xbFactor:   p => p.game?.parkFactor ?? null,
+    weather:    p => p.game?.weatherEffect ?? 'neu',
+    temperature:p => p.game?.tempF ?? null,
+  },
+  form: {
+    // Last-10 batting average against his own season mark. Deliberately a
+    // difference rather than a ratio so a .200 hitter and a .300 hitter who are
+    // both up 40 points get the same credit.
+    avgTrend: p => {
+      const l = p.l10; if(!l || !l.ab || l.ab < 15 || l.avg == null) return null;
+      return l.avg - (p.avg ?? 0.250);
+    },
+    // A SEPARATE signal from the one above: a player can be flat on average
+    // while running hot on power specifically, which is what matters for HR.
+    powerTrend: p => {
+      const l = p.l10; if(!l || !l.ab || l.ab < 15 || l.hr == null) return null;
+      if(!p.ab) return null;
+      return (l.hr / l.ab) - ((p.hr ?? 0) / p.ab);
+    },
+  },
+  role: {
+    lineupRuns: p => p.battingOrder ?? null,
+    // No lineupPA factor: plate appearances by slot are playing time, applied
+    // mechanically in scorePlayer. See the note there.
+    lineupRBI:  p => p.battingOrder ?? null,
+    teamOffense: p => (p.side === 'home' ? p.game?.homeRunsPerGame : p.game?.awayRunsPerGame) ?? null,
+  },
+  speed: {
+    successRate: p => p.sbSuccess ?? null,
+    sprintSpeed: p => p.statcast?.sprintSpeed ?? null,
+    // The catcher the batter's own team runs against, so home batters take the
+    // away team's catcher.
+    catcherArm:  p => (p.side === 'home' ? p.game?.homeOppCatcherCs : p.game?.awayOppCatcherCs) ?? null,
+    positionProxy: p => p.pos ?? null,
+  },
+};
+
+/** Short human labels for the "what helps / what hurts" list. */
+const FACTOR_LABELS = {
+  contact: { barrel:'Barrel rate', hardHit:'Hard-hit rate', exitVelo:'Exit velocity',
+             airRate:'Air-ball rate', xSLG:'Expected SLG', xwOBA:'Expected wOBA',
+             babipLuck:'BABIP luck' },
+  pitcher: { hr9:'Starter HR/9', era:'Starter ERA', k9:'Starter K/9',
+             gbFb:'Starter ground-ball rate', kMismatch:'Strikeout matchup',
+             hand:'Platoon power split', handContact:'Platoon contact split' },
+  park:    { hrFactor:'Park HR factor', runsFactor:'Park run environment',
+             xbFactor:'Park extra-base factor', weather:'Wind', temperature:'Temperature' },
+  form:    { avgTrend:'Recent average', powerTrend:'Recent power' },
+  role:    { lineupRuns:'Lineup slot (runs)', lineupRBI:'Lineup slot (RBI)',
+             teamOffense:'Lineup around him' },
+  speed:   { successRate:'Steal success rate', sprintSpeed:'Sprint speed',
+             catcherArm:'Catcher arm', positionProxy:'Position athleticism' },
+};
+
+/**
+ * curve — a stat with a replacement-level end and an elite end.
+ *   t = 0 at floor, 1 at scale; 0.5 is neutral.
+ *   weight is the MAXIMUM swing: 0.30 -> elite x1.30, replacement x0.70.
+ */
+function evalCurve(value, def, weight){
+  const span = def.scale - def.floor;
+  if(!span) return null;                                  // guarded by the validator
+  const t = clamp((value - def.floor) / span, 0, 1);
+  return 1 + weight * (t - 0.5) * 2;
+}
+
+/**
+ * ratio — a stat measured against a league baseline.
+ *   weight is how much of the observed deviation to believe.
+ *   cap bounds how extreme one stat may get before it stops mattering, which
+ *   is what stops a single small-sample disaster start running away with a grade.
+ */
+function evalRatio(value, def, weight){
+  const league = MODEL.league[def.league];
+  if(league == null || !league) return null;
+  const r = clamp(value / league, 1 - def.cap, 1 + def.cap);
+  return 1 + weight * (r - 1);
+}
+
+/**
+ * table — discrete lookup (wind sector, lineup slot, defensive position).
+ * Values are stated as multipliers around 1.0, and weight scales their
+ * deviation, so weight 0 flattens the table to neutral like every other factor.
+ */
+function evalTable(value, def, weight){
+  let raw;
+  if(Array.isArray(def.values)){
+    const i = Math.round(value) - 1;                       // battingOrder is 1-based
+    if(!(i >= 0 && i < def.values.length)) return null;
+    raw = def.values[i];
+  } else {
+    raw = def.values?.[value];
+  }
+  if(raw == null) return null;
+  return 1 + weight * (raw - 1);
+}
+
+/**
+ * platoon — the batter's own split against tonight's pitcher handedness.
+ *
+ * The baseline here is the player himself, not the league, so this cannot be a
+ * plain ratio factor. Splits are always thin, so the split is regressed toward
+ * his overall mark using confidence.platoonPA (a smaller, separate target from
+ * the main regressionPA — otherwise splits are either over-trusted at 40 PA or
+ * crushed to nothing by a 220-PA target they can never reach).
+ */
+function evalPlatoon(p, def, weight){
+  const throws = p.oppPitcher?.throws;
+  if(throws !== 'L' && throws !== 'R') return null;
+  const split = p.splits?.[throws === 'L' ? 'vsLHP' : 'vsRHP'];
+  if(!split) return null;
+
+  const stat = def.stat || 'slg';
+  const own = split[stat];
+  const overall = p[stat];
+  if(own == null || overall == null || !overall) return null;
+
+  const spa = split.pa ?? 0;
+  const w = spa / (spa + MODEL.confidence.platoonPA);
+  const regressed = own * w + overall * (1 - w);
+  return {
+    mult: 1 + weight * (regressed / overall - 1),
+    value: own,
+    meta: { throws, stat, split, overall, regressed, pa: spa },
+  };
+}
+
+/**
+ * Resolve one factor to a multiplier, or null when it does not apply.
+ * A zero weight short-circuits before any data is read, so a disabled factor
+ * costs nothing and can never warn about missing data.
+ */
+function factorMult(group, name, p, prop){
+  const def = MODEL.factorDefs?.[group]?.[name];
+  if(!def) return null;
+
+  const weight = MODEL.props?.[prop]?.weights?.[group]?.[name];
+  if(weight == null || weight === 0) return null;
+
+  if(def.type === 'platoon') return evalPlatoon(p, def, weight);
+
+  const value = FACTOR_VALUES[group]?.[name]?.(p);
+  if(value == null) return null;
+
+  let mult = null;
+  if(def.type === 'curve') mult = evalCurve(value, def, weight);
+  else if(def.type === 'ratio') mult = evalRatio(value, def, weight);
+  else if(def.type === 'table') mult = evalTable(value, def, weight);
+  if(mult == null) return null;
+  // The raw value travels with the multiplier so the player card can report the
+  // factor in its own units. The old card recomputed a parallel "impact" number
+  // by hand for every row, which meant the explanation could disagree with the
+  // model that produced the grade. Now there is one calculation.
+  return { mult, value, weight };
+}
+
+/**
+ * The whole context multiplier for one prop, plus a per-factor breakdown for
+ * the "what helps / what hurts" list.
+ *
+ * Returns { mult, parts, saturated }. `saturated` records that the product hit
+ * a clamp — surfaced by the validator, because with a dozen factors multiplying
+ * together extremes compound much faster than intuition suggests (ten factors
+ * at x1.15 each is x4.0), and a slate where many players saturate means the
+ * individual weights are too hot rather than the clamp being too tight.
+ */
+function contextFor(prop, p){
+  p._ctx = p._ctx || {};
+  if(p._ctx[prop]) return p._ctx[prop];
+
+  const cfg = MODEL.props?.[prop];
+  if(!cfg || cfg.enabled === false){
+    return (p._ctx[prop] = { mult: 1, parts: [], saturated: false });
+  }
+
+  let mult = 1;
+  const parts = [];
+
+  for(const group of Object.keys(cfg.weights || {})){
+    for(const name of Object.keys(cfg.weights[group] || {})){
+      const res = factorMult(group, name, p, prop);
+      if(!res || !isFinite(res.mult) || res.mult <= 0) continue;
+      mult *= res.mult;
+      parts.push({
+        group, name,
+        label: FACTOR_LABELS[group]?.[name] || name,
+        mult: res.mult,
+        pct: (res.mult - 1) * 100,
+        value: res.value,
+        meta: res.meta || null,
+      });
+    }
+  }
+
+  const lo = cfg.clamp?.min ?? 0.5, hi = cfg.clamp?.max ?? 2.0;
+  const clamped = clamp(mult, lo, hi);
+  const saturated = clamped !== mult;
+
+  // Sorted by absolute impact so the modal can render helps and hurts in
+  // order without re-sorting at render time.
+  parts.sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct));
+
+  return (p._ctx[prop] = { mult: clamped, parts, saturated, raw: mult });
+}
+
+/** Invalidate cached context — called whenever the model or a lineup changes. */
+function invalidateContext(){
+  if(typeof allBatters === 'undefined' || !allBatters) return;
+  allBatters.forEach(p => { p._ctx = null; p._sim = null; });
+  if(typeof invalidateGradeCache === 'function') invalidateGradeCache();
+}
+
+
+// ============================================================================
+//  MODEL VALIDATION
+// ============================================================================
+//  The old validator checked four things, which is why eleven keys could sit in
+//  model-config.json for months being read by nothing at all. deepMerge happily
+//  creates any key it is handed, so a typo — or a knob that was renamed in the
+//  code and never renamed in the config — produces no error anywhere. It just
+//  silently does nothing.
+//
+//  So the real job here is not range-checking. It is answering "is every knob I
+//  wrote actually wired to something?" That requires knowing the legitimate
+//  shape, which is exactly what the defaults above are, so unknown-key
+//  detection is a diff of the override against the defaults.
+
+/** Subtrees where the user legitimately invents key names. */
+const MODEL_FREEFORM = [
+  'grading.byProp',                 // arbitrary prop ids
+  'factorDefs.park.weather.values', // arbitrary wind sectors
+  'factorDefs.speed.positionProxy.values',
+];
+
+/** Deep clone of the defaults, taken before any override is merged. */
+let MODEL_DEFAULTS = null;
+function snapshotModelDefaults(){
+  if(!MODEL_DEFAULTS) MODEL_DEFAULTS = JSON.parse(JSON.stringify(MODEL));
+  return MODEL_DEFAULTS;
+}
+
+/** Every key path in `obj` that has no counterpart in `ref`. */
+function unknownPaths(obj, ref, prefix = ''){
+  const out = [];
+  for(const [k, v] of Object.entries(obj || {})){
+    if(k.startsWith('//')) continue;
+    const path = prefix ? `${prefix}.${k}` : k;
+    if(MODEL_FREEFORM.some(f => path === f || path.startsWith(f + '.'))) continue;
+    if(!ref || !(k in ref)){ out.push(path); continue; }
+    if(v && typeof v === 'object' && !Array.isArray(v)){
+      out.push(...unknownPaths(v, ref[k], path));
+    }
+  }
+  return out;
+}
+
+/**
+ * Check the merged model for anything that cannot work.
+ *
+ * Split into errors (this factor will not function) and warnings (it will
+ * function but probably not the way you meant). Never throws — a bad config
+ * must degrade, not blank the page.
+ */
+function validateModel(overrides){
+  const errors = [], warnings = [];
+  const defaults = snapshotModelDefaults();
+
+  // ---- 1. Knobs wired to nothing ----
+  if(overrides){
+    for(const path of unknownPaths(overrides, defaults)){
+      errors.push(`"${path}" is not a key this model reads — it will be ignored. Check the spelling against the defaults in index.html.`);
+    }
+  }
+
+  // ---- 2. Factor definitions ----
+  for(const [group, defs] of Object.entries(MODEL.factorDefs || {})){
+    for(const [name, def] of Object.entries(defs || {})){
+      const at = `factorDefs.${group}.${name}`;
+      if(def.type === 'curve'){
+        if(def.floor == null || def.scale == null) errors.push(`${at} is a curve but is missing floor or scale.`);
+        else if(def.floor === def.scale) errors.push(`${at} has floor === scale (${def.floor}), so it can never produce a value. Set them apart.`);
+      } else if(def.type === 'ratio'){
+        if(MODEL.league?.[def.league] == null) errors.push(`${at} measures against league.${def.league}, which does not exist.`);
+        if(def.cap == null || def.cap <= 0 || def.cap > 1) warnings.push(`${at} cap is ${def.cap}; expected between 0 and 1.`);
+      } else if(def.type === 'table'){
+        if(!def.values) errors.push(`${at} is a table but has no values.`);
+      } else if(def.type === 'platoon'){
+        if(!['avg','slg','obp','ops'].includes(def.stat || 'slg')) warnings.push(`${at} uses stat "${def.stat}", which splits may not carry.`);
+      } else {
+        errors.push(`${at} has unknown type "${def.type}". Expected curve, ratio, table or platoon.`);
+      }
+      // A factor definition nothing points at is harmless but usually a leftover.
+      const used = Object.values(MODEL.props || {}).some(pr => pr?.weights?.[group]?.[name]);
+      if(!used && FACTOR_VALUES[group]?.[name]) warnings.push(`${at} is defined but every prop weights it 0 — it is currently doing nothing.`);
+    }
+  }
+
+  // ---- 3. Prop weights ----
+  for(const [prop, cfg] of Object.entries(MODEL.props || {})){
+    for(const [group, ws] of Object.entries(cfg?.weights || {})){
+      if(!MODEL.factorDefs?.[group]){ errors.push(`props.${prop}.weights.${group} is not a factor group.`); continue; }
+      for(const [name, w] of Object.entries(ws || {})){
+        const at = `props.${prop}.weights.${group}.${name}`;
+        if(!MODEL.factorDefs[group][name]){ errors.push(`${at} has no definition in factorDefs.${group}.`); continue; }
+        if(!FACTOR_VALUES[group]?.[name]){ errors.push(`${at} is defined but no code reads a value for it.`); continue; }
+        if(typeof w !== 'number' || !isFinite(w)) errors.push(`${at} is "${w}", which is not a number.`);
+        else if(Math.abs(w) > 2) warnings.push(`${at} is ${w}. Weights above 2 will dominate every other factor.`);
+      }
+    }
+    const c = cfg?.clamp;
+    if(c && !(c.min < c.max)) errors.push(`props.${prop}.clamp has min >= max (${c.min}, ${c.max}).`);
+    if(c && c.min <= 0) errors.push(`props.${prop}.clamp.min must be greater than 0.`);
+  }
+
+  // ---- 4. Grading ----
+  const G = MODEL.grading || {};
+  const order = ['aPlus','a','bPlus','b','cPlus','c'];
+  const pcts = order.map(k => G.percentiles?.[k]);
+  if(pcts.some(v => typeof v !== 'number')) errors.push('grading.percentiles must define aPlus, a, bPlus, b, cPlus and c.');
+  else {
+    for(let i = 1; i < pcts.length; i++){
+      if(pcts[i] >= pcts[i-1]) errors.push(`grading.percentiles must descend: ${order[i]} (${pcts[i]}) is not below ${order[i-1]} (${pcts[i-1]}).`);
+    }
+    if(pcts[0] >= 100 || pcts[5] <= 0) errors.push('grading.percentiles must sit strictly between 0 and 100.');
+  }
+  for(const [prop, ov] of Object.entries(G.byProp || {})){
+    if(!MODEL.props?.[prop]) warnings.push(`grading.byProp.${prop} overrides a prop that does not exist.`);
+    for(const k of Object.keys(ov || {})) if(!order.includes(k)) errors.push(`grading.byProp.${prop}.${k} is not a letter key.`);
+  }
+
+  // ---- 5. Confidence ----
+  for(const [k, v] of Object.entries(MODEL.confidence || {})){
+    if(typeof v !== 'number' || v < 0) errors.push(`confidence.${k} must be a non-negative number, got "${v}".`);
+    else if(v === 0) warnings.push(`confidence.${k} is 0, which disables regression entirely — small samples will run the board.`);
+  }
+
+  const label = '[model]';
+  errors.forEach(e => console.error(`${label} ERROR  ${e}`));
+  warnings.forEach(w => console.warn(`${label} warn   ${w}`));
+  if(!errors.length && !warnings.length) console.info(`${label} config validated — no problems found.`);
+  else console.info(`${label} ${errors.length} error(s), ${warnings.length} warning(s). Fix errors first: those knobs are doing nothing.`);
+
+  return { errors, warnings };
+}
+
+/**
+ * Post-scoring audit. Two things can only be known once real players are
+ * loaded: whether a weighted factor actually has data behind it, and whether
+ * the weights are collectively so hot that everyone pins to the clamp.
+ *
+ * Saturation is the one worth watching. With a dozen factors multiplying,
+ * extremes compound much faster than they feel like they should, and a slate
+ * where a third of players are clamped means the model has stopped
+ * distinguishing between them — the fix is smaller weights, not a wider clamp.
+ */
+function auditFactorCoverage(players){
+  if(!players || !players.length) return null;
+  const report = { coverage: [], saturation: [] };
+
+  for(const [prop, cfg] of Object.entries(MODEL.props || {})){
+    if(cfg?.enabled === false) continue;
+    for(const [group, ws] of Object.entries(cfg.weights || {})){
+      for(const [name, w] of Object.entries(ws || {})){
+        if(!w) continue;
+        const getter = FACTOR_VALUES[group]?.[name];
+        const def = MODEL.factorDefs?.[group]?.[name];
+        if(!getter || !def) continue;
+        let have = 0;
+        if(def.type === 'platoon'){
+          for(const p of players){
+            const t = p.oppPitcher?.throws;
+            if((t === 'L' || t === 'R') && p.splits?.[t === 'L' ? 'vsLHP' : 'vsRHP']) have++;
+          }
+        } else {
+          for(const p of players) if(getter(p) != null) have++;
+        }
+        const pct = Math.round(100 * have / players.length);
+        if(pct < 50){
+          report.coverage.push({ prop, factor: `${group}.${name}`, weight: w, pct });
+          console.warn(`[model] warn   props.${prop}.weights.${group}.${name} is ${w} but only ${pct}% of tonight's batters have that stat. The other ${100 - pct}% are scored as if the factor did not exist.`);
+        }
+      }
+    }
+
+    let sat = 0;
+    for(const p of players) if(contextFor(prop, p).saturated) sat++;
+    const satPct = Math.round(100 * sat / players.length);
+    report.saturation.push({ prop, pct: satPct });
+    if(satPct >= 15){
+      console.warn(`[model] warn   ${satPct}% of batters hit the ${prop} clamp (${cfg.clamp?.min}–${cfg.clamp?.max}). Those players are no longer being told apart. Lower the ${prop} weights rather than widening the clamp.`);
+    }
+  }
+
+  if(new URLSearchParams(location.search).get('debug') === 'model'){
+    console.info('[model] resolved model:', JSON.parse(JSON.stringify(MODEL)));
+    console.table(report.saturation);
+  }
+  return report;
+}
+
 
 /**
  * Deep-merge an optional `model-config.json` over MODEL.
@@ -3106,15 +3745,19 @@ const MODEL = {
  * Missing file is a normal, silent no-op — defaults above simply apply.
  */
 async function loadModelOverrides(){
+  // Snapshot the defaults BEFORE merging. Unknown-key detection is a diff
+  // against this, and it is the only way to catch a knob that reads from
+  // nothing — deepMerge will happily create any key it is handed.
+  snapshotModelDefaults();
   try{
     const res = await fetch('model-config.json', { cache: 'no-cache' });
-    if(!res.ok) return false;                 // absent is fine — defaults stand
+    if(!res.ok){ validateModel(); return false; }   // absent is fine — defaults stand
     // The config is JSONC on purpose: every weight carries a comment
     // explaining what raising or lowering it does. res.json() cannot parse
     // that, so read it as text and strip comments + trailing commas first.
     const overrides = JSON.parse(stripJSONComments(await res.text()));
     deepMerge(MODEL, overrides);
-    validateModel();
+    validateModel(overrides);
     // Log only the keys that actually differ — dumping the whole config buries
     // the signal every page load.
     const changed = Object.keys(overrides).filter(k => !k.startsWith('//'));
@@ -3124,6 +3767,7 @@ async function loadModelOverrides(){
     // A malformed override should not take the whole page down.
     if(!(e instanceof SyntaxError)) return false;
     console.warn('[model] model-config.json is not valid JSON — using defaults. Check for a trailing comma.', e.message);
+    validateModel();
     return false;
   }
 }
@@ -3141,17 +3785,6 @@ function deepMerge(target, src){
   return target;
 }
 
-// Guard against a typo silently rescaling every HR index.
-function validateModel(){
-  const w = MODEL.hr.weights;
-  const total = w.statcast + w.form + w.park + w.matchup;
-  if (total !== 100) console.warn(`⚠ MODEL.hr.weights sum to ${total}, expected 100 — indexes will be mis-scaled.`);
-  if (MODEL.hr.barrelWeight < 0 || MODEL.hr.barrelWeight > 1) console.warn(`⚠ MODEL.hr.barrelWeight should be 0-1, got ${MODEL.hr.barrelWeight}`);
-  if (MODEL.tb.xslgWeight  < 0 || MODEL.tb.xslgWeight  > 1) console.warn(`⚠ MODEL.tb.xslgWeight should be 0-1, got ${MODEL.tb.xslgWeight}`);
-  if (MODEL.hits.expectedAB <= 0) console.warn(`⚠ MODEL.hits.expectedAB must be > 0, got ${MODEL.hits.expectedAB}`);
-  return total === 100;
-}
-validateModel();
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -3168,335 +3801,244 @@ function isInteractiveClick(e){
   return !!e.target?.closest?.('.rx, .add-leg, .chat-user, .status-comments, .status-del, .feed-share, button');
 }
 
-// The four HR components, rendered straight from MODEL.hr.weights. Percentages,
-// bar widths, and category order all derive from that single source — editing a
-// weight (here or in model-config.json) updates the modal automatically, with
-// nothing to keep in sync by hand.
 /**
- * "What helps and hurts" — the factor list that replaced the old points
- * breakdown. Each row reports the factor in its OWN units (HR/9, park index,
- * barrel percentile) rather than as an abstract score, so it explains the grade
- * instead of competing with it.
+ * How each factor is reported in its OWN units.
  *
- * Magnitude is derived from the same MODEL weights that drive the scoring, so
- * tuning a weight still changes what this shows.
+ * Keyed the same as MODEL.factorDefs, so a row can never label itself with a
+ * different stat than the one it scored. `v` is the exact value the engine fed
+ * to the evaluator — not a re-read — so the text and the multiplier always agree.
+ */
+const FACTOR_DETAIL = {
+  contact: {
+    barrel:   (v) => `${v}% barrel rate`,
+    hardHit:  (v) => `${v}% hard-hit rate`,
+    exitVelo: (v) => `${v} mph average exit velocity`,
+    airRate:  (v) => `${v}% of batted balls in the air`,
+    xSLG:     (v) => `${v.toFixed(3).replace(/^0/, '')} expected SLG`,
+    xwOBA:    (v) => `${v.toFixed(3).replace(/^0/, '')} expected wOBA`,
+    // BABIP above league average means he has been running hot on batted-ball
+    // luck and is due to cool off, which is why this factor carries a NEGATIVE
+    // weight. A low BABIP is a hidden positive.
+    babipLuck:(v) => {
+      const d = v - MODEL.league.babip;
+      const tag = Math.abs(d) < 0.020 ? 'about normal'
+                : d > 0 ? 'running hot, due to cool off'
+                        : 'running cold, due to bounce back';
+      return `${v.toFixed(3).replace(/^0/, '')} BABIP · ${tag}`;
+    },
+  },
+  pitcher: {
+    hr9:  (v, p) => `${p.oppPitcher?.name || 'Starter'} · ${v} HR/9 allowed`,
+    era:  (v, p) => `${p.oppPitcher?.name || 'Starter'} · ${v} ERA`,
+    k9:   (v, p) => `${p.oppPitcher?.name || 'Starter'} · ${v} K/9`,
+    gbFb: (v, p) => `${p.oppPitcher?.name || 'Starter'} · ${v} GB/FB ratio`,
+    kMismatch: (v) => `${v.toFixed(1)}% combined strikeout rate`,
+    hand: (v, p, meta) => platoonDetail(meta),
+    handContact: (v, p, meta) => platoonDetail(meta),
+  },
+  park: {
+    hrFactor:   (v, p) => parkDetail(v, p),
+    runsFactor: (v, p) => parkDetail(v, p),
+    xbFactor:   (v, p) => parkDetail(v, p),
+    weather:    (v, p) => p.game?.roof && p.game.roof !== 'open-air'
+                            ? 'Indoors — no wind'
+                            : `${p.game?.windMph ?? '?'} mph · ${p.game?.windLabel || v}`,
+    temperature:(v) => `${Math.round(v)}°F at first pitch`,
+  },
+  form: {
+    // Both trends are last-10 minus season, in the stat's own units.
+    avgTrend:   (v, p) => `${signed(Math.round(v * 1000))} pts of average over his last ${p.l10?.ab ?? 10} at-bats`,
+    powerTrend: (v) => `${signed((v * 100).toFixed(1))} HR per 100 AB versus his season rate`,
+  },
+  role: {
+    lineupRuns: (v) => `Batting ${ordinal(v)}`,
+    lineupRBI:  (v) => `Batting ${ordinal(v)}`,
+    teamOffense:(v) => `${v.toFixed(2)} runs per game as a team`,
+  },
+  speed: {
+    successRate: (v, p) => `${Math.round(v * 100)}% success · ${p.sb ?? 0} SB, ${p.cs ?? 0} CS`,
+    sprintSpeed: (v) => `${v} ft/sec sprint speed`,
+    catcherArm:  (v, p) => {
+      const c = p.side === 'home' ? p.game?.homeOppCatcher : p.game?.awayOppCatcher;
+      return `${c?.name || 'Catcher'} · ${v}% caught stealing`;
+    },
+    positionProxy: (v) => `Plays ${v}`,
+  },
+};
+
+function signed(n){ return (Number(n) >= 0 ? '+' : '') + n; }
+function ordinal(n){ return `${n}${['st','nd','rd'][n - 1] || 'th'}`; }
+
+function parkDetail(v, p){
+  const delta = Math.round(v - 100);
+  const name = p.game?.parkShort || p.game?.park || 'Ballpark';
+  return `${name} · ${signed(delta)}% versus a neutral park`;
+}
+
+function platoonDetail(meta){
+  if(!meta) return 'Platoon split';
+  const label = meta.stat === 'avg' ? 'AVG' : 'SLG';
+  const hand = meta.throws === 'L' ? 'lefties' : 'righties';
+  const own = meta.split?.[meta.stat];
+  const fmt = x => x == null ? '—' : x.toFixed(3).replace(/^0/, '');
+  const conf = meta.pa < MODEL.confidence.platoonPA
+    ? ` · only ${meta.pa} PA, so mostly regressed to his overall ${fmt(meta.overall)}`
+    : '';
+  return `${fmt(own)} ${label} against ${hand}${conf}`;
+}
+
+/**
+ * "What helps and what hurts" — the ranked factor list that replaced the old
+ * four-bar HR Index panel.
+ *
+ * This is rendered straight off contextFor(), so every row is a factor the model
+ * actually applied, its percentage is the actual multiplier it contributed, and
+ * the ordering is by real magnitude. The previous version maintained a second,
+ * hand-written set of impact formulas purely for display — which meant the card
+ * could confidently explain a grade using numbers the model never used. Editing
+ * a weight in model-config.json now changes this list, its order, and the grade
+ * together, because there is only one calculation.
  */
 function factorListHTML(p, prop){
-  const g = p.game, sp = p.oppPitcher || {};
-  const M = MODEL.hr;
-  const rows = [];
+  const ctx = contextFor(prop, p);
+  const parts = ctx.parts || [];
 
-  // --- shared context every prop cares about ---
-  // Environment matters enormously for home runs, moderately for extra bases,
-  // barely for singles, and not at all for steals. Weighting it per prop stops
-  // "the park helps" appearing on a stolen-base card where it's meaningless.
-  const envWeight = { hr:1, tb:0.6, hrr:0.35, hits:0.25, rbi:0.4, sb:0 }[prop] ?? 0.5;
-
-  if(envWeight > 0){
-    const parkDelta = g.parkFactor - 100;
-    rows.push({
-      label: 'Ballpark',
-      detail: `${g.parkShort || g.park} · ${parkDelta >= 0 ? '+' : ''}${parkDelta}%`,
-      impact: clamp(parkDelta / 12, -1, 1) * envWeight,
-    });
-
-    if(g.roof !== 'open-air'){
-      rows.push({ label:'Conditions', detail:'Indoor — no wind factor', impact:0 });
-    } else if(g.windLabel){
-      const sector = g.windLabel.toLowerCase();
-      rows.push({
-        label: 'Wind',
-        detail: `${g.windMph ?? '?'} mph · ${g.windLabel}`,
-        impact: (sector.includes('out') ? 0.55 : sector.includes('in') ? -0.55 : 0) * envWeight,
-      });
-    }
+  if(!parts.length){
+    return `<div class="factor-list"><div class="fac-foot">No factors are weighted for this prop, so tonight's matchup is treated as neutral. Add weights in model-config.json to change that.</div></div>`;
   }
 
-  const trend = p.recentForm?.trend;
-  if(trend){
-    rows.push({
-      label: 'Recent form',
-      detail: p.recentForm.last15 !== '—' ? `${p.recentForm.last15} · trending ${trend}` : `Trending ${trend}`,
-      impact: trend === 'up' ? 0.45 : trend === 'down' ? -0.45 : 0,
-    });
-  }
+  // parts arrives sorted by magnitude, strongest first.
+  const helps = parts.filter(r => r.pct > 0.5);
+  const hurts = parts.filter(r => r.pct < -0.5);
+  const flat  = parts.filter(r => Math.abs(r.pct) <= 0.5);
 
-  const platoon = platoonEdge(p, sp);
-  if(platoon){
-    rows.push({
-      label: 'Platoon',
-      detail: platoon.label.replace(/ — .*/, ''),
-      impact: (platoon.edge === 'good' ? 0.5 : -0.4) * (prop === 'sb' ? 0.3 : 1),
-    });
-  }
-
-  if(p.battingOrder){
-    const mult = (prop === 'rbi' ? MODEL.order.rbiMult : prop === 'runs' ? MODEL.order.runMult : MODEL.order.paMult)[p.battingOrder - 1] ?? 1;
-    rows.push({
-      label: 'Lineup spot',
-      detail: `Batting ${p.battingOrder}${['st','nd','rd'][p.battingOrder-1] || 'th'}`,
-      impact: clamp((mult - 1) * 4, -1, 1),
-    });
-  }
-
-  // --- prop-specific drivers ---
-  if(prop === 'hr'){
-    if(sp.hr9 != null){
-      rows.push({
-        label: 'The pitcher',
-        detail: `${sp.name || 'Starter'} · ${sp.hr9} HR/9 allowed`,
-        impact: clamp((sp.hr9 - M.leagueHR9) / 0.5, -1, 1),
-      });
-    }
-    const brlPctl = slatePercentile(p.statcast.barrel, x => x.statcast.barrel);
-    rows.push({
-      label: 'Contact quality',
-      detail: `${p.statcast.barrel}% barrel${brlPctl != null ? ` · ${brlPctl}th pct` : ''}`,
-      impact: clamp((p.statcast.barrel - 8) / 8, -1, 1),
-    });
-    if(p.airPct != null){
-      rows.push({
-        label: 'Ball in the air',
-        detail: `${p.airPct}% of outs airborne`,
-        impact: clamp((p.airPct - M.leagueAirPct) / 15, -1, 1),
-      });
-    }
-  }
-
-  if(prop === 'hits'){
-    rows.push({
-      label: 'Contact rate',
-      detail: `.${Math.round(p.avg*1000)} AVG${p.effAvg ? ` · .${Math.round(p.effAvg*1000)} adjusted` : ''}`,
-      impact: clamp((p.avg - 0.250) / 0.045, -1, 1),
-    });
-    if(p.kPct != null){
-      rows.push({
-        label: 'Strikeouts',
-        detail: `${p.kPct}% K rate`,
-        impact: clamp((MODEL.hits.leagueKPct - p.kPct) / 8, -1, 1),
-      });
-    }
-    if(sp.k9 != null){
-      rows.push({
-        label: 'Pitcher swing-and-miss',
-        detail: `${sp.name || 'Starter'} · ${sp.k9} K/9`,
-        impact: clamp((8.8 - sp.k9) / 2.5, -1, 1),
-      });
-    }
-    if(p.babip != null){
-      const luck = p.babip - MODEL.hits.leagueBabip;
-      rows.push({
-        label: 'Batted-ball luck',
-        detail: `.${Math.round(p.babip*1000)} BABIP · ${Math.abs(luck) < 0.02 ? 'neutral' : luck > 0 ? 'running hot' : 'running cold'}`,
-        impact: clamp(-luck / 0.05, -1, 1),   // regression cuts against recent luck
-      });
-    }
-  }
-
-  if(prop === 'tb'){
-    rows.push({
-      label: 'Power output',
-      detail: `.${Math.round((p.slg ?? 0)*1000)} SLG${p.iso ? ` · .${Math.round(p.iso*1000)} ISO` : ''}`,
-      impact: clamp(((p.slg ?? 0.400) - 0.410) / 0.09, -1, 1),
-    });
-    rows.push({
-      label: 'Expected power',
-      detail: `${p.statcast.xslg} xSLG`,
-      impact: clamp((p.statcast.xslg - 0.410) / 0.09, -1, 1),
-    });
-    if(sp.hr9 != null){
-      rows.push({
-        label: 'Pitcher contact allowed',
-        detail: `${sp.hr9} HR/9`,
-        impact: clamp((sp.hr9 - M.leagueHR9) / 0.5, -1, 1),
-      });
-    }
-  }
-
-  if(prop === 'rbi' || prop === 'hrr'){
-    rows.push({
-      label: 'Run production',
-      detail: `${p.rbi ?? 0} RBI in ${p.g ?? '—'} games`,
-      impact: clamp(((p.rbi ?? 0) / Math.max(1, p.g ?? 1) - 0.5) / 0.25, -1, 1),
-    });
-    rows.push({
-      label: 'Reaching base',
-      detail: `.${Math.round((p.obp ?? 0.320)*1000)} OBP`,
-      impact: clamp(((p.obp ?? 0.320) - 0.320) / 0.05, -1, 1),
-    });
-  }
-
-  if(prop === 'sb'){
-    rows.push({
-      label: 'Attempt rate',
-      detail: `${p.sb ?? 0} SB, ${p.cs ?? 0} CS in ${p.g ?? '—'} games`,
-      impact: clamp(((p.sb ?? 0) / Math.max(1, p.g ?? 1) - 0.08) / 0.12, -1, 1),
-    });
-    if(p.sbSuccess != null){
-      rows.push({
-        label: 'Success rate',
-        detail: `${Math.round(p.sbSuccess * 100)}% of attempts`,
-        impact: clamp((p.sbSuccess - 0.72) / 0.15, -1, 1),
-      });
-    }
-    rows.push({
-      label: 'Speed',
-      detail: `${p.speed}/100 speed score`,
-      impact: clamp((p.speed - 50) / 30, -1, 1),
-    });
-  }
-
-  // Strongest signals first — that's what a reader wants at the top.
-  rows.sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact));
-
-  const bar = imp => {
-    const pct = Math.min(100, Math.abs(imp) * 100);
-    const cls = imp > 0.12 ? 'fac-pos' : imp < -0.12 ? 'fac-neg' : 'fac-neu';
-    const side = imp >= 0 ? 'right' : 'left';
-    return `<div class="fac-track"><div class="fac-fill ${cls}" style="width:${pct/2}%;margin-${side === 'right' ? 'left' : 'right'}:50%;"></div></div>`;
+  const detailFor = r => {
+    try {
+      const fn = FACTOR_DETAIL[r.group]?.[r.name];
+      return fn ? fn(r.value, p, r.meta) : String(r.value);
+    } catch(e){ return String(r.value); }
   };
-  const verdict = imp => imp > 0.35 ? 'helps' : imp > 0.12 ? 'slight help'
-                       : imp < -0.35 ? 'hurts' : imp < -0.12 ? 'slight drag' : 'neutral';
+
+  const row = r => {
+    const cls = r.pct > 0.5 ? 'fac-pos' : r.pct < -0.5 ? 'fac-neg' : 'fac-neu';
+    // Widths are relative to the strongest factor on this card, so the bars show
+    // rank within the matchup rather than an absolute scale nobody can read.
+    const peak = Math.max(4, Math.abs(parts[0].pct));
+    const width = Math.min(100, (Math.abs(r.pct) / peak) * 100);
+    return `<div class="fac-row">
+      <div class="fac-label">${r.label}<div class="fac-detail">${detailFor(r)}</div></div>
+      <div class="fac-track"><div class="fac-fill ${cls}" style="width:${width}%"></div></div>
+      <div class="fac-verdict ${cls}">${signed(r.pct.toFixed(1))}%</div>
+    </div>`;
+  };
+
+  const section = (title, list) => list.length ? `
+    <div class="fac-head"><span>${title}</span><span></span><span>Effect</span></div>
+    ${list.map(row).join('')}` : '';
+
+  const total = (ctx.mult - 1) * 100;
+  const clampNote = ctx.saturated
+    ? ` The combined effect hit the ${prop.toUpperCase()} clamp, so the ceiling in model-config.json is holding it back.`
+    : '';
 
   return `<div class="factor-list">
-    <div class="fac-head"><span>Factor</span><span></span><span>Effect</span></div>
-    ${rows.map(r => `
-      <div class="fac-row">
-        <div class="fac-label">${r.label}<div class="fac-detail">${r.detail}</div></div>
-        ${bar(r.impact)}
-        <div class="fac-verdict ${r.impact > 0.12 ? 'fac-pos' : r.impact < -0.12 ? 'fac-neg' : 'fac-neu'}">${verdict(r.impact)}</div>
-      </div>`).join('')}
-    <div class="fac-foot">Bars show direction and strength relative to a league-average matchup.</div>
+    ${section('What helps', helps)}
+    ${section('What hurts', hurts)}
+    ${section('Neutral tonight', flat)}
+    <div class="fac-foot">Everything above multiplies together to <b>${signed(total.toFixed(1))}%</b> versus a league-average matchup for this prop.${clampNote} Percentages are the model's real contributions — change a weight in model-config.json and this list changes with the grade.</div>
   </div>`;
 }
 
+/**
+ * Turn one batter into tonight's projected counts.
+ *
+ * There is no 0-100 index here any more. The old HR Index summed four weighted
+ * sub-scores to 100, then paRates() divided it by 50 and clamped it to
+ * 0.45-2.10 to use as a multiplier — which threw away about a third of the
+ * range (an index of 25 and an index of 20 both floored at 0.45) and meant no
+ * HR weight could do anything except through that one narrow channel.
+ *
+ * Now every prop gets its own context multiplier assembled from named,
+ * independently-weighted factors, and each projection below is a real count.
+ * Letter grades come from ranking simulated probabilities, not from a score.
+ */
 function scorePlayer(base, game){
-  const M = MODEL.hr;
-  const W = M.weights;
+  base._ctx = null;                  // weights may have changed since the last pass
+  const ctx = prop => contextFor(prop, base).mult;
 
-  const weatherMult = M.weatherMult[game.weatherEffect] ?? M.weatherMult.neu;
-
-  // Contact quality — the single biggest driver.
-  const statcastScore = clamp(Math.round(W.statcast * (
-      (base.statcast.barrel  / M.barrelScale)  * M.barrelWeight +
-      (base.statcast.hardHit / M.hardHitScale) * (1 - M.barrelWeight)
-  )), 0, W.statcast);
-
-  // Recent form — tier baseline plus a hot/cold nudge.
-  const trendAdj = base.recentForm.trend==='up' ?  M.trendBonus
-                 : base.recentForm.trend==='down' ? -M.trendBonus : 0;
-  const r = TIER_RANGES[base.tier];
-  const formScore = clamp((r ? r.base.form : 12) + trendAdj, 0, W.form);
-
-  // Environment — park factor scaled by tonight's wind/weather.
-  const parkScore = clamp(Math.round(W.park * (game.parkFactor/100) * weatherMult), 0, W.park);
-
-  // Matchup — how homer-prone tonight's starter has been, scaled by whether he
-  // keeps the ball on the ground. A 1.30 HR/9 flyball arm is a very different
-  // proposition from a 1.30 HR/9 sinkerballer.
-  let matchupRatio = Math.min(M.matchupCap, base.oppPitcher.hr9 / M.leagueHR9);
-  if(base.oppPitcher.gbFb != null){
-    const gbSkew = base.oppPitcher.gbFb / M.leagueGbFb;        // >1 = more grounders
-    matchupRatio *= 1 - (gbSkew - 1) * M.pitcherGbWeight;
-  }
-  const matchupScore = clamp(Math.round(W.matchup * Math.max(0, matchupRatio)), 0, W.matchup);
-
-  base.breakdown = { statcast: statcastScore, form: formScore, park: parkScore, matchup: matchupScore };
-  let hrRaw = statcastScore + formScore + parkScore + matchupScore;
-
-  // Air-ball gate: elite exit velocity on the ground produces singles, not homers.
-  if(base.airPct != null){
-    const airSkew = base.airPct / M.leagueAirPct;
-    hrRaw *= 1 + (airSkew - 1) * M.airWeight;
-  }
-  base.hrIndex = clamp(Math.round(hrRaw), 0, 100);
-
-  // ---- other props: PROJECTED COUNTS, not index scores ----
-  // Each of these is a real rate stat multiplied by expected playing time, so
-  // the number means something concrete ("1.2 hits") rather than an arbitrary
-  // 0-100 index. Rate definitions do the heavy lifting:
-  //   AVG = H/AB   → hits per AB
-  //   SLG = TB/AB  → total bases per AB   (this identity is exact)
-  //   RBI/G, SB/G  → per-game rates from season totals
-  const H = MODEL.hits;
-
-  const ab = H.expectedAB;
-
-  // Start from AVG, then regress toward league BABIP — a hitter running a .380
-  // BABIP has been getting lucky and is likely to come back toward the pack.
-  let effAvg = base.avg;
-  if(base.babip != null && H.babipWeight > 0){
-    const babipDrag = (H.leagueBabip - base.babip) * H.babipWeight;
-    effAvg = clamp(effAvg + babipDrag, 0.12, 0.42);
-  }
-
-  // Strikeout mismatch: a contact hitter vs a low-K pitcher puts far more balls
-  // in play than a high-K hitter vs a power arm, which AVG alone doesn't capture.
-  if(base.kPct != null){
-    const oppK = base.oppPitcher.kPct ?? H.leagueKPct;
-    const combined = (base.kPct + oppK) / 2;
-    const kEdge = (H.leagueKPct - combined) / H.leagueKPct;   // >0 = more contact
-    effAvg *= 1 + kEdge * H.kSensitivity;
-  }
-  base.effAvg = +effAvg.toFixed(3);
-
-  // Lineup slot changes how many times he actually bats.
+  // ---- Playing time ----
+  //  Lineup slot decides how many times he physically comes to bat. That is
+  //  playing time, not a belief about him, so it scales plate appearances
+  //  directly instead of being a weighted factor like everything else. This is
+  //  also why there is no `role.lineupPA` factor: it would apply the same
+  //  effect a second time.
   const slot = base.battingOrder;
   const paMult = slot ? (MODEL.order.paMult[slot - 1] ?? 1) : 1;
-  const effAB = ab * paMult;
+  const effAB = MODEL.hits.expectedAB * paMult;
   base.effAB = +effAB.toFixed(2);
-  // Plate appearances ≈ at-bats plus walks/HBP/sacs. The simulator needs PA,
+  // Plate appearances are at-bats plus walks/HBP/sacs. The simulator needs PA,
   // since a walk is a plate appearance that can still score a run.
   const pa = Math.max(1, base.pa || 1);
   const nonAbShare = clamp(1 - (base.ab ?? pa) / pa, 0.05, 0.20);
   base.expPA = +(effAB / (1 - nonAbShare)).toFixed(2);
 
+  // ---- Hits ----
+  //  BABIP regression and the strikeout mismatch used to be hard-coded right
+  //  here with fixed sensitivities. Both are now `hits` factors
+  //  (contact.babipLuck, pitcher.kMismatch), so they are tunable and they show
+  //  up in the player card's helps/hurts list instead of moving the number
+  //  invisibly.
+  const effAvg = clamp(base.avg * ctx('hits'), 0.08, 0.50);
+  base.effAvg = +effAvg.toFixed(3);
   base.projHits = +(effAB * effAvg).toFixed(2);
   base.hitProb = Math.round(100 * (1 - Math.pow(1 - effAvg, Math.round(effAB))));
 
-  // Projected total bases = expected AB × SLG, nudged by tonight's park.
-  // Prefer xSLG when real Statcast is present (it's more predictive than SLG),
-  // blended per MODEL.tb.xslgWeight.
+  // ---- Total bases ----
+  //  SLG is total bases per at-bat by definition, so this identity is exact.
+  //  Prefer the exact TB/AB rate over SLG, which is the same thing rounded.
   const T = MODEL.tb;
-  // Prefer the exact TB/AB rate; SLG is the same thing but rounded.
   const slgActual = (base.tb != null && base.ab) ? base.tb / base.ab : (base.slg ?? base.avg * 1.6);
   const slgExpect = base.statcast?.xslg ?? slgActual;
   const slgBlend = slgExpect * T.xslgWeight + slgActual * (1 - T.xslgWeight);
-  const parkTB = 1 + ((game.parkFactor - 100) / 100) * T.parkSensitivity;
-  base.projTB = +(effAB * slgBlend * parkTB * weatherMult ** T.weatherExponent).toFixed(2);
+  base.projTB = +(effAB * slgBlend * ctx('tb')).toFixed(2);
 
-  // Projected RBI = season RBI/game, adjusted for park run environment and form.
-  const R = MODEL.rbi;
   const gp = base.g && base.g > 0 ? base.g : Math.max(1, Math.round((base.pa || 0) / 4.2));
-  const rbiPerGame = (base.rbi ?? 0) / gp;
-  const parkRuns = 1 + ((game.parkFactor - 100) / 100) * R.parkSensitivity;
-  const formAdj = 1 + (trendAdj / M.trendBonus) * R.formSensitivity;
-  const rbiSlot = slot ? (MODEL.order.rbiMult[slot - 1] ?? 1) : 1;
-  base.projRBI = +(rbiPerGame * parkRuns * formAdj * rbiSlot).toFixed(2);
 
-  // Projected runs scored = season R/game, adjusted for park run environment.
-  // Older slates lack `r`; fall back to an on-base-derived estimate and flag it
-  // so the UI never presents a guess as if it were a real season total.
-  const HRR = MODEL.hrr;
+  // ---- RBI ----
+  //  Park, form and lineup slot all used to be applied here as separate
+  //  hard-coded multipliers. They are now `rbi` factors, and role.lineupRBI
+  //  replaces the direct MODEL.order.rbiMult lookup so the table is applied
+  //  exactly once.
+  base.projRBI = +(((base.rbi ?? 0) / gp) * ctx('rbi')).toFixed(2);
+
+  // ---- Runs scored ----
+  //  Older slates lack `r`; fall back to an on-base-derived estimate and flag
+  //  it so the UI never presents a guess as a real season total.
   let runsPerGame, runsDerived = false;
   if (base.r != null) {
     runsPerGame = base.r / gp;
   } else {
-    const onBasePerGame = ((base.h ?? 0) + (base.bb ?? 0)) / gp;
-    runsPerGame = onBasePerGame * HRR.runsFromOnBaseRate;
+    runsPerGame = (((base.h ?? 0) + (base.bb ?? 0)) / gp) * MODEL.hrr.runsFromOnBaseRate;
     runsDerived = true;
   }
-  const runSlot = slot ? (MODEL.order.runMult[slot - 1] ?? 1) : 1;
-  base.projRuns = +(runsPerGame * (1 + ((game.parkFactor - 100) / 100) * HRR.parkSensitivity) * runSlot).toFixed(2);
+  base.projRuns = +(runsPerGame * ctx('hrr')).toFixed(2);
   base.runsDerived = runsDerived;
 
-  // HRR = Hits + Runs + RBIs, the standard combo prop.
+  // H+R+RBI. The three legs do overlap in reality — a solo homer is 1 H, 1 R
+  // and 1 RBI — but the sportsbook market counts each separately, so summing is
+  // correct for this market rather than double-counting.
   base.projHRR = +(base.projHits + base.projRuns + base.projRBI).toFixed(2);
 
-  // Projected SB = season SB/game, lightly damped in heavy air.
-  const S = MODEL.sb;
-  // Blend raw SB/game with attempts-per-time-on-base: a fast player who reaches
-  // base often has more chances than his season total alone suggests.
+  // ---- Stolen bases ----
+  //  Raw SB totals hide opportunity, so the BASE rate blends season SB/game
+  //  with attempts-per-time-on-base. That blend is arithmetic about how often
+  //  he gets a chance, which is why attempt rate lives here rather than in the
+  //  `sb` weights — putting it in both would count it twice.
+  //
+  //  Everything that is a judgement call — success rate, position, catcher's
+  //  arm, sprint speed, cold air — is in the `sb` factors instead. Note that
+  //  the old hard `successFloor` cut is gone: speed.successRate does that job
+  //  now, and does it as a curve you can tune rather than a cliff at 0.65.
   const ST = MODEL.steal;
   const sbPerGame = (base.sb ?? 0) / gp;
   let sbProj = sbPerGame;
@@ -3505,25 +4047,8 @@ function scorePlayer(base, game){
     const opportunity = base.sbRate * Math.min(2.2, timesOnPerGame || 1);
     sbProj = sbPerGame * (1 - ST.attemptWeight) + opportunity * ST.attemptWeight;
   }
-  // A poor success rate means the manager stops giving him the green light.
-  if(base.sbSuccess != null && base.sbSuccess < ST.successFloor){
-    sbProj *= base.sbSuccess / ST.successFloor;
-  }
-  base.projSB = +(sbProj * (game.weatherEffect === 'neg' ? S.coldWeatherMult : 1)).toFixed(2);
+  base.projSB = +(sbProj * ctx('sb')).toFixed(2);
 
-  // Legacy 0-100 indexes retained so the All Players view and any older code
-  // paths keep working; the prop tabs now display the projections above.
-  base.tbScore = clamp(Math.round(100 * (
-      (base.statcast.xslg / T.xslgScale) * T.xslgWeight +
-      (base.avg          / T.avgScale)  * (1 - T.xslgWeight)
-  )), 0, 100);
-  base.rbiScore = clamp(Math.round((r ? r.base.rbi : 40)
-      + trendAdj * R.trendMultiplier
-      + (game.parkFactor - 100) / R.parkDivisor), 0, 100);
-  base.sbScore = clamp(Math.round(base.speed *
-      (game.weatherEffect==='neg' ? S.coldWeatherMult : 1.0)), 0, 100);
-
-  base.index = base.hrIndex;
   delete base._sim;   // invalidate cached simulation — inputs just changed
 }
 
@@ -3581,7 +4106,9 @@ function getAllByTeam(){
   const byTeam = {};
   allBatters.filter(isPlayable).forEach(p=>{ (byTeam[p.team] = byTeam[p.team] || []).push(p); });
   const teams = Object.keys(byTeam).sort();
-  teams.forEach(t => byTeam[t].sort((a,b)=>b.hrIndex-a.hrIndex));
+  // Rank by the simulated HR probability, which is the number the grade is
+  // derived from, so the ordering here can never disagree with the letters.
+  teams.forEach(t => byTeam[t].sort((a,b)=>simulatePlayer(b).hr.exact - simulatePlayer(a).hr.exact));
   return teams.map(t => ({team:t, players:byTeam[t]}));
 }
 function chipsFor(tabId, p){
@@ -3617,11 +4144,32 @@ const TAB_SIM = {
   sb:   { key:'sb',     grade:'sb',   line:'over 0.5' },
 };
 
+/**
+ * The number a card shows. Rounded, because "27%" is what a reader wants.
+ * Use scoreExactFor() for anything that ranks or grades — see below.
+ */
 function scoreFor(tabId, p){
   if(tabId==='k') return p.projK;
   const cfg = TAB_SIM[tabId];
   if(!cfg) return 0;
   return simulatePlayer(p)[cfg.key].pct;
+}
+
+/**
+ * The same number unrounded, for grading and sorting.
+ *
+ * This distinction matters more than it looks. With 379 hitters and integer
+ * percentages, the top of the board is a solid block of ties — a dozen players
+ * all showing "30%". Ranking that block by its rounded value puts every one of
+ * them at the bottom of the tie, so the A+ band (top 4%) came out with three
+ * players in it instead of fifteen. Grading on the exact figure separates them.
+ */
+function scoreExactFor(tabId, p){
+  if(tabId==='k') return p.projK;
+  const cfg = TAB_SIM[tabId];
+  if(!cfg) return 0;
+  const s = simulatePlayer(p)[cfg.key];
+  return s.exact ?? s.pct;
 }
 // ============================================================================
 //  All Players — multi-filter over Statcast and season stats
@@ -3637,13 +4185,22 @@ const FILTER_DEFS = [
   { id:'launchAngle',label:'Launch Angle',get:p=>p.statcast.launchAngle, min:0,  max:25,  step:0.5, unit:'°'  },
   { id:'avg',      label:'AVG',           get:p=>p.avg,                  min:0.1,max:0.4, step:0.005,unit:''   },
   { id:'hr',       label:'Season HR',     get:p=>p.hr,                   min:0,  max:50,  step:1,   unit:''   },
-  { id:'hrIndex',  label:'HR Index',      get:p=>p.hrIndex,              min:0,  max:100, step:1,   unit:'%'  },
+  // Was 'HR Index' — the old 0-100 composite score. It is now the simulated
+  // probability he goes over 0.5 home runs, which is a real quantity you can
+  // compare against a sportsbook price instead of an internal number.
+  { id:'hrProb',   label:'HR Probability',get:p=>simulatePlayer(p).hr.pct,min:0,  max:60,  step:1,   unit:'%'  },
   { id:'speed',    label:'Speed',         get:p=>p.speed,                min:0,  max:100, step:1,   unit:''   },
 ];
 
 // { barrel:{min:10}, ev:{max:95}, ... } — only keys the user has touched.
 let activeFilters = {};
 let allPlayersSort = 'sim_hr';
+// Minimum letter grade to show. Applies to whichever graded prop is being
+// sorted on, so "A- or better" means A- or better AT THAT PROP. Empty = no
+// grade filter. Note this behaves differently from the old HR Index slider:
+// grades are percentile-based, so "A+" always returns roughly the top 4% of the
+// slate by construction rather than a fixed quality bar.
+let minGradeFilter = '';
 
 // Sort options for All Players: the six graded props first, then raw stats.
 const ALL_SORTS = [
@@ -3674,10 +4231,22 @@ function filteredPlayers(){
   }
   const simCfg = simSortCfg(allPlayersSort);
   if(simCfg){
-    return list.sort((a,b)=> simulatePlayer(b)[simCfg.key].pct - simulatePlayer(a)[simCfg.key].pct);
+    if(minGradeFilter){
+      const order = GRADE_LETTERS.map(g => g.letter).concat('D');
+      const cap = order.indexOf(minGradeFilter);
+      if(cap >= 0){
+        list = list.filter(p => {
+          const g = gradeFor(simCfg.grade, simulatePlayer(p)[simCfg.key].exact);
+          const rank = order.indexOf(g.letter);
+          return rank >= 0 && rank <= cap;
+        });
+      }
+    }
+    return list.sort((a,b)=> simulatePlayer(b)[simCfg.key].exact - simulatePlayer(a)[simCfg.key].exact);
   }
   const sortDef = FILTER_DEFS.find(d=>d.id===allPlayersSort);
-  return list.sort((a,b)=> (sortDef ? sortDef.get(b) - sortDef.get(a) : b.hrIndex - a.hrIndex));
+  return list.sort((a,b)=> (sortDef ? sortDef.get(b) - sortDef.get(a)
+                                    : simulatePlayer(b).hr.exact - simulatePlayer(a).hr.exact));
 }
 
 function activeFilterCount(){ return Object.keys(activeFilters).length; }
@@ -3694,7 +4263,13 @@ function scoreLabel(tabId){
 // Simulations per player. Higher is steadier but slower; the whole slate is
 // simulated once on first use and cached, so this cost is paid on load rather
 // than on every interaction. 10,000 keeps run-to-run variance around 1 point.
-const SIM_RUNS = 10000;
+//
+// `let`, not `const`, for exactly one reason: the ?tune=1 panel drops this to a
+// fast preview count while you drag a weight, because 379 players x 10,000 games
+// is about ten seconds and nobody tunes a model on a ten-second feedback loop.
+// It is restored the moment the panel closes. Nothing else writes to it.
+const SIM_RUNS_FULL = 10000;
+let SIM_RUNS = SIM_RUNS_FULL;
 
 const SECTION_META = {
   slate: {title:'Today\'s Slate', sub:'Live scores, inning, count, and current batter/pitcher — updates automatically while games are in progress.'},
@@ -4019,6 +4594,13 @@ function filterBarHTML(shown, total){
     <div class="filter-body ${filterPanelOpen?'open':''}" id="filterBody">
       <div class="filter-grid">${items}</div>
       <div class="filter-sort">
+        <span>Min grade</span>
+        <select id="filterMinGrade">
+          <option value="" ${minGradeFilter===''?'selected':''}>Any grade</option>
+          ${GRADE_LETTERS.map(x=>`<option value="${x.letter}" ${minGradeFilter===x.letter?'selected':''}>${x.letter} or better</option>`).join('')}
+        </select>
+      </div>
+      <div class="filter-sort">
         <span>Sort by</span>
         <select id="filterSort">
           <optgroup label="Graded props">
@@ -4043,7 +4625,7 @@ function renderAllPlayers(){
   const sortDef = FILTER_DEFS.find(d=>d.id===allPlayersSort);
   const sortLabel = simCfg
     ? ALL_SORTS.find(o=>o.id===allPlayersSort).label
-    : (sortDef ? sortDef.label : 'HR Index');
+    : (sortDef ? sortDef.label : 'HR Probability');
 
   // Same card format as the Home Runs tab, so scanning feels identical.
   const cards = list.map((p,i)=>{
@@ -4051,8 +4633,8 @@ function renderAllPlayers(){
     // When sorting by a prop, the headline is that prop's graded probability;
     // otherwise it's the raw stat being sorted on.
     const simData = simCfg ? simulatePlayer(p)[simCfg.key] : null;
-    const gr = simCfg ? gradeFor(simCfg.grade, simData.pct) : null;
-    const sortVal = simCfg ? simData.pct : (sortDef ? sortDef.get(p) : p.hrIndex);
+    const gr = simCfg ? gradeFor(simCfg.grade, simData.exact) : null;
+    const sortVal = simCfg ? simData.pct : (sortDef ? sortDef.get(p) : simulatePlayer(p).hr.pct);
     const display = simCfg ? `${simData.pct}%`
                   : (Number.isInteger(sortVal) ? sortVal : (+sortVal).toFixed(sortDef.step < 0.01 ? 3 : 1));
     const windTemp = g.roof==='open-air'
@@ -4128,12 +4710,19 @@ function wireFilterBar(){
   if(clear) clear.addEventListener('click', e=>{
     e.stopPropagation();
     activeFilters = {};
+    minGradeFilter = '';
     renderAllPlayers();
   });
 
   const sort = document.getElementById('filterSort');
   if(sort) sort.addEventListener('change', e=>{
     allPlayersSort = e.target.value;
+    renderAllPlayers();
+  });
+
+  const minGrade = document.getElementById('filterMinGrade');
+  if(minGrade) minGrade.addEventListener('change', e=>{
+    minGradeFilter = e.target.value;
     renderAllPlayers();
   });
 
@@ -4370,6 +4959,7 @@ function renderList(){
     const ringTeam = isPitcher ? (p.opp === g.home ? g.away : g.home) : p.team;
     const matchupTxt = isPitcher ? `vs ${p.opp} · ${g.awayName} @ ${g.homeName} · ${gameTime(g)}` : `${g.awayName} @ ${g.homeName} · ${gameTime(g)}`;
     const score = scoreFor(activeTab, p);
+    const scoreExact = scoreExactFor(activeTab, p);
     // Every prop is now a probability; only the pitcher K tab is a raw count.
     const scoreDisplay = activeTab==='k' ? score.toFixed(1) : `${score}%`;
     const windTemp = g.roof==='open-air'
@@ -4391,8 +4981,8 @@ function renderList(){
           ${platoonRowHTML(activeTab, p)}
         </div>
         <div class="pick-score">
-          ${TAB_SIM[activeTab] ? `<div class="pick-grade ${gradeFor(TAB_SIM[activeTab].grade, score).cls}">${gradeFor(TAB_SIM[activeTab].grade, score).g}</div>` : ''}
-          <div class="pick-score-val ${scoreTierClass(activeTab, score)}">${scoreDisplay}</div>
+          ${TAB_SIM[activeTab] ? `<div class="pick-grade ${gradeFor(TAB_SIM[activeTab].grade, scoreExact).cls}">${gradeFor(TAB_SIM[activeTab].grade, scoreExact).g}</div>` : ''}
+          <div class="pick-score-val ${scoreTierClass(activeTab, scoreExact)}">${scoreDisplay}</div>
           <div class="pick-score-label">${scoreLabel(activeTab)}</div>
           ${TAB_SIM[activeTab] ? addLegBtn({
               id: legId(p.name, scoreLabel(activeTab).split(' ')[0], TAB_SIM[activeTab].line.replace('over ','')),
@@ -4456,6 +5046,10 @@ function rescoreAllPlayers(){
   games.forEach(g => deriveWeatherEffect(g));
   allBatters.forEach(p => scorePlayer(p, p.game));
   invalidateGradeCache();   // ranks shift whenever probabilities change
+  // Report any weighted factor that most of the slate is missing data for, or
+  // that is pinning players against a clamp. A factor that silently applies to
+  // nobody is exactly how eleven config keys went unread for months.
+  auditFactorCoverage(allBatters);
 }
 
 /**
@@ -5030,13 +5624,17 @@ function gamecastHTML(g){
   const totalOdds = g.totalOdds != null ? g.totalOdds : '—';
 
   // HR props — top 3 batters from this game in our model
-  const gameBatters = allBatters.filter(p => p.game && p.game.id === g.id).sort((a,b) => (b.hrIndex||0) - (a.hrIndex||0)).slice(0,3);
+  const gameBatters = allBatters.filter(p => p.game && p.game.id === g.id)
+    .sort((a,b) => simulatePlayer(b).hr.exact - simulatePlayer(a).hr.exact).slice(0,3);
   const propsHTML = gameBatters.length ? gameBatters.map(p => {
-    const edge = p.hrIndex > 80 ? 'good' : '';
+    // Show the letter grade rather than the old index. "A- or better" is a
+    // ranking on tonight's slate, which is what a chip this small can convey.
+    const gr = gradeFor('hr', simulatePlayer(p).hr.exact);
+    const edge = ['A+','A','B+'].includes(gr.letter) ? 'good' : '';
     const odds = p.odds ? fmtOdds(p.odds) : '—';
     return `<div class="gc-prop-row">
       <span class="gc-prop-name">${p.name}</span>
-      <span class="gc-prop-edge ${edge}">${p.hrIndex?Math.round(p.hrIndex)+'%':''}</span>
+      <span class="gc-prop-edge ${edge}">${gr.g}</span>
       <span class="gc-prop-odds">${odds}</span>
     </div>`;
   }).join('') : '';
@@ -6663,12 +7261,12 @@ function paRates(p){
    * tuned. Regressing here is what fixes that; regressing the derived Statcast
    * alone could not.
    */
-  const R = MODEL.regression;
+  const R = MODEL.confidence;
   const w = pa / (pa + R.regressionPA);        // 0 = all league, 1 = all player
   const reg = (rate, leagueRate) => rate * w + leagueRate * (1 - w);
 
   // League-average per-PA baselines, used as the regression target.
-  const LG = R.leagueRates;
+  const LG = MODEL.league.rates;
 
   const bb   = reg((p.bb ?? 0) / pa,  LG.bb);
   const k    = reg((p.so ?? 0) / pa,  LG.k);
@@ -6678,21 +7276,41 @@ function paRates(p){
   const hits = reg((p.h ?? 0) / pa,   LG.hits);
   const sgl  = Math.max(0, hits - hr - dbl - trp);
 
-  // Tonight's environment. hrIndex already folds in park, weather, barrel
-  // quality and the pitcher's HR tendency, so use it as the HR multiplier
-  // rather than re-deriving those factors and double-counting them.
-  const hrMult = clamp((p.hrIndex ?? 50) / 50, 0.45, 2.10);
-
-  // Extra-base hits move with the park too, but less sharply than homers.
-  const parkXB = 1 + ((g.parkFactor - 100) / 100) * 0.35;
+  /**
+   * Tonight's context, applied per rate component.
+   *
+   * This is the one place the old model connected to anything: it divided
+   * hrIndex by 50 and clamped to 0.45-2.10, so every HR weight in the config
+   * reached the simulation through that single narrow channel and the other
+   * five props had no context at all.
+   *
+   * The simulation runs ONCE and resolves every prop from one set of rates, so
+   * each prop's context is applied to the rate component it actually governs
+   * rather than by re-running the simulation six times:
+   *
+   *   context('hr')   -> home run rate
+   *   context('hits') -> singles rate   (HR/2B/3B are hits too, but they are
+   *                                      already scaled by hr and tb, so
+   *                                      applying hits to them would double up)
+   *   context('tb')   -> doubles and triples, the extra-base share of TB
+   *   context('rbi')  -> RBI opportunity, applied in simulatePlayer
+   *   context('hrr')  -> runs scored, the third leg of H+R+RBI
+   *   context('sb')   -> the steal rate, applied in scorePlayer
+   */
+  const ctxHR   = contextFor('hr', p).mult;
+  const ctxHits = contextFor('hits', p).mult;
+  const ctxTB   = contextFor('tb', p).mult;
 
   // Strikeouts scale with the opposing starter relative to league average.
-  const kMult = clamp((p.oppPitcher?.k9 ?? 8.8) / 8.8, 0.75, 1.35);
+  // This is mechanical, not a weighted belief: a power arm really does strike
+  // more batters out. It trades against non-strikeout outs below, never against
+  // hits, so it does not double-count pitcher.k9 in the hits context.
+  const kMult = clamp((p.oppPitcher?.k9 ?? MODEL.league.k9) / MODEL.league.k9, 0.75, 1.35);
 
-  let rHR  = hr * hrMult;
-  let rDbl = dbl * parkXB;
-  let rTrp = trp * parkXB;
-  let rSgl = sgl;
+  let rHR  = hr * ctxHR;
+  let rDbl = dbl * ctxTB;
+  let rTrp = trp * ctxTB;
+  let rSgl = sgl * ctxHits;
   let rBB  = bb;
   let rK   = k * kMult;
 
@@ -6729,11 +7347,13 @@ function simulatePlayer(p){
   // and productive groundouts all drive runs in.
   const ballsInPlay = Math.max(1, (p.ab ?? p.pa ?? 1) - (p.so ?? 0));
   let rbiRate = p.g ? clamp(nonHrRbi / ballsInPlay, 0.02, 0.40) : 0.12;
-  // Runners-on context varies enormously by lineup slot; the 3-4-5 hitters bat
-  // with men aboard far more than the bottom of the order.
-  const rbiSlot = p.battingOrder ? (MODEL.order.rbiMult[p.battingOrder - 1] ?? 1) : 1;
-  rbiRate = clamp(rbiRate * rbiSlot * 1.35, 0.02, 0.45);
-  const runRate = p.g ? (p.r   ?? 0) / p.g / expPA : 0.13;
+  // Lineup slot, park run environment, the starter's quality and the bats around
+  // him all live in the `rbi` context now — including role.lineupRBI, which
+  // replaces the direct MODEL.order.rbiMult lookup that used to sit here.
+  rbiRate = clamp(rbiRate * contextFor('rbi', p).mult * 1.35, 0.02, 0.45);
+  // The `hrr` context governs runs scored specifically, since hits and RBI are
+  // the other two legs of that prop and carry their own contexts.
+  const runRate = (p.g ? (p.r ?? 0) / p.g / expPA : 0.13) * contextFor('hrr', p).mult;
   const sbPerG  = p.projSB ?? 0;
 
   const tally = { hr:[], hits:[], tb:[], rbi:[], runs:[], sb:[], sgl:[], dbl:[], hrr:[] };
@@ -6778,9 +7398,17 @@ function simulatePlayer(p){
     tally.hrr.push(h + runs + rbi);
   }
 
-  const pct = (arr, line) => Math.round(100 * arr.filter(v => v > line).length / arr.length);
+  const rawPct = (arr, line) => 100 * arr.filter(v => v > line).length / arr.length;
   const quant = (arr, q) => { const s=[...arr].sort((a,b)=>a-b); return s[Math.floor(q*(s.length-1))]; };
-  const stat = (arr, line) => ({ pct: pct(arr, line), p50: quant(arr,0.5), ceiling: quant(arr,0.9) });
+  // `pct` is the rounded number shown to the reader; `exact` is what grading
+  // ranks on. Rounding first would matter: with 379 hitters and integer
+  // percentages, dozens tie on the same value, and a percentile that has to
+  // split those tied blocks cannot fill the top band. Grading on the exact
+  // figure keeps the letters landing where MODEL.grading.percentiles says.
+  const stat = (arr, line) => {
+    const exact = rawPct(arr, line);
+    return { pct: Math.round(exact), exact, p50: quant(arr,0.5), ceiling: quant(arr,0.9) };
+  };
 
   p._sim = {
     hr:      stat(tally.hr, 0.5),
@@ -6801,27 +7429,23 @@ function simulatePlayer(p){
 }
 
 /**
- * Grade cutoffs per prop, calibrated to the real spread across a full slate:
- *   elite ≈ 90th percentile, good ≈ 75th, fair ≈ 50th.
- * Anchoring to the distribution is what makes an A+ mean something — a fixed
- * threshold below the median grades the whole slate A+.
- */
-/**
- * Grading. Two modes, switchable in model-config.json:
+ * Grading — one system, no modes.
  *
- *   MODEL.grading.mode = 'percentile'  (default)
- *     A player's grade depends on where he RANKS among tonight's hitters for
- *     that prop. The share of the slate earning each letter is fixed by
- *     MODEL.grading.percentiles, so "A+" always means "top N%" no matter how
- *     hot or cold the overall slate is.
+ * A player's grade is where he RANKS among tonight's hitters for that prop. The
+ * share of the slate earning each letter is fixed by MODEL.grading.percentiles,
+ * so "A+" always means "top N% of tonight's board" whether the slate is loaded
+ * with hitter-friendly parks or nothing but aces.
  *
- *   MODEL.grading.mode = 'absolute'
- *     Grades come from fixed probability thresholds in MODEL.grading.cuts.
- *     An A+ then means "cleared this number", which can grade the whole slate
- *     A+ on a good night and nobody on a bad one.
+ * This replaced a two-mode system. The old `absolute` mode graded against fixed
+ * probability thresholds, which meant on a good slate the whole board graded A+
+ * and on a bad one nobody did — and the switch that selected between the modes
+ * (`MODEL.grading.mode`) was not present in model-config.json at all, so it only
+ * ever worked through its hard-coded default. One documented system beats two
+ * where one is unreachable.
  *
- * Percentile mode is the default because it does what you actually want from a
- * grade: separate tonight's best plays from the rest.
+ * Read the grades as a ranking, not a quality bar. A+ is by construction about
+ * the top 4% of the slate, so it tells you who the best plays are TONIGHT — it
+ * does not promise tonight's best play is a good bet.
  */
 
 /** Cache of sorted slate values per prop, rebuilt whenever scores change. */
@@ -6830,7 +7454,7 @@ function gradeDistribution(prop){
   if(_gradeDist[prop]) return _gradeDist[prop];
   const key = (TAB_SIM[prop] || {}).key || prop;
   const vals = allBatters.filter(isPlayable)
-    .map(p => { const s = simulatePlayer(p); return s[key] ? s[key].pct : null; })
+    .map(p => { const s = simulatePlayer(p); return s[key] ? (s[key].exact ?? s[key].pct) : null; })
     .filter(v => v != null)
     .sort((a, b) => a - b);
   _gradeDist[prop] = vals;
@@ -6838,50 +7462,63 @@ function gradeDistribution(prop){
 }
 function invalidateGradeCache(){ _gradeDist = {}; }
 
-/** Share of the slate scoring at or below this value. */
+/**
+ * Share of the slate scoring at or below this value, 0-100.
+ *
+ * Ties take the MIDPOINT of the tied block rather than the bottom of it. Steals
+ * make this matter: on a typical slate a hundred-plus hitters all sit at exactly
+ * 0% and would otherwise every one of them be ranked at the very bottom while a
+ * single player one hundredth of a point higher leapt over all of them.
+ */
 function percentileOf(prop, pct){
   const vals = gradeDistribution(prop);
-  if(vals.length < 8) return null;              // too few to rank meaningfully
-  let below = 0;
-  for(const v of vals){ if(v < pct) below++; else break; }
-  return (below / vals.length) * 100;
+  if(vals.length < (MODEL.grading.minSlateSize ?? 8)) return null;
+  let below = 0, equal = 0;
+  for(const v of vals){
+    if(v < pct) below++;
+    else if(v === pct) equal++;
+    else break;
+  }
+  const rank = MODEL.grading.tieHandling === 'midrank' ? below + equal / 2 : below;
+  return (rank / vals.length) * 100;
 }
+
+/** Letters in order, best first. Shared with the All Players min-grade filter. */
+const GRADE_LETTERS = [
+  { letter:'A+', key:'aPlus', cls:'grade-a' },
+  { letter:'A',  key:'a',     cls:'grade-a' },
+  { letter:'B+', key:'bPlus', cls:'grade-b' },
+  { letter:'B',  key:'b',     cls:'grade-b' },
+  { letter:'C+', key:'cPlus', cls:'grade-c' },
+  { letter:'C',  key:'c',     cls:'grade-c' },
+];
 
 const gradeFor = (prop, pct) => {
   const G = MODEL.grading;
+  const pctl = percentileOf(prop, pct);
 
-  if(G.mode === 'percentile'){
-    const pctl = percentileOf(prop, pct);
-    if(pctl != null){
-      // Per-prop overrides layer on top of the global block, so you can make
-      // one prop stricter without touching the others. Any letter left out of
-      // an override falls back to the global value.
-      const P = { ...G.percentiles, ...((G.byProp || {})[prop] || {}) };
-      if(pctl >= P.aPlus) return { g:'A+', cls:'grade-a' };
-      if(pctl >= P.a)     return { g:'A',  cls:'grade-a' };
-      if(pctl >= P.bPlus) return { g:'B+', cls:'grade-b' };
-      if(pctl >= P.b)     return { g:'B',  cls:'grade-b' };
-      if(pctl >= P.cPlus) return { g:'C+', cls:'grade-c' };
-      if(pctl >= P.c)     return { g:'C',  cls:'grade-c' };
-      return { g:'D', cls:'grade-d' };
-    }
-    // Fall through to absolute if the slate is too small to rank.
+  if(pctl == null){
+    // Too few players to rank. Grading 4 hitters on percentiles would hand out
+    // an A+ to the best of four, which is meaningless, so grade them against
+    // each other by simple relative position and say so in the UI.
+    if(G.smallSlateFallback === 'ungraded') return { g:'—', letter:'—', cls:'grade-c', unranked:true };
+    const vals = gradeDistribution(prop);
+    if(!vals.length) return { g:'—', letter:'—', cls:'grade-c', unranked:true };
+    const share = vals.filter(v => v < pct).length / vals.length;
+    const idx = Math.min(GRADE_LETTERS.length - 1, Math.floor((1 - share) * GRADE_LETTERS.length));
+    const gl = GRADE_LETTERS[idx];
+    return { g:gl.letter, letter:gl.letter, cls:gl.cls, unranked:true };
   }
 
-  const c = G.cuts[prop] || { e:60, g:45, f:30 };
-  return propGrade(pct, c.e, c.g, c.f);
+  // Per-prop overrides layer on top of the global block, so one prop can be made
+  // stricter without touching the others. Any letter left out of an override
+  // falls back to the global value.
+  const P = { ...G.percentiles, ...((G.byProp || {})[prop] || {}) };
+  for(const gl of GRADE_LETTERS){
+    if(pctl >= P[gl.key]) return { g:gl.letter, letter:gl.letter, cls:gl.cls, pctl:Math.round(pctl) };
+  }
+  return { g:'D', letter:'D', cls:'grade-d', pctl:Math.round(pctl) };
 };
-
-/** Letter grade from a probability, relative to what's realistic for that prop. */
-function propGrade(pct, elite, good, fair){
-  if(pct >= elite) return { g:'A+', cls:'grade-a' };
-  if(pct >= elite*0.85) return { g:'A', cls:'grade-a' };
-  if(pct >= good) return { g:'B+', cls:'grade-b' };
-  if(pct >= good*0.8) return { g:'B', cls:'grade-b' };
-  if(pct >= fair) return { g:'C+', cls:'grade-c' };
-  if(pct >= fair*0.75) return { g:'C', cls:'grade-c' };
-  return { g:'D', cls:'grade-d' };
-}
 
 /**
  * Graded prop tiles — the headline read. Each shows a letter grade, the
@@ -7781,7 +8418,7 @@ function propsGridHTML(p){
     { label:'RUN',         line:'over 0.5', d:sim.runs,    k:'runs' },
   ];
   return `<div class="prop-tiles">` + tiles.map(t => {
-    const gr = gradeFor(t.k, t.d.pct);
+    const gr = gradeFor(t.k, t.d.exact ?? t.d.pct);
     const od = propOdds(p, t.k);
     const leg = { id: legId(p.name, t.label, t.line.replace('over ','')), kind:'prop',
                   player:p.name, market:t.label, line:t.line.replace('over ',''),
@@ -7816,7 +8453,7 @@ function propProbabilitiesHTML(p){
     ['STOLEN BASE', 'over 0.5', sim.sb,      'sb'],
   ];
   return `<div class="prob-list">` + rows.map(([name, line, d, key]) => {
-    const gr = gradeFor(key, d.pct);
+    const gr = gradeFor(key, d.exact ?? d.pct);
     const leg = { id: legId(p.name, name, line.replace('over ','')), kind:'prop',
                   player:p.name, market:name, line:line.replace('over ',''),
                   pct:d.pct, grade:gr.g, game:`${p.game.awayName} @ ${p.game.homeName}` };
@@ -7836,7 +8473,7 @@ function propProbabilitiesHTML(p){
 function matchupVerdictHTML(p){
   const sim = simulatePlayer(p);
   const sp = p.oppPitcher || {};
-  const gr = gradeFor('hr', sim.hr.pct);
+  const gr = gradeFor('hr', sim.hr.exact ?? sim.hr.pct);
   const last = surname(p.name);
 
   const bits = [];
@@ -7872,7 +8509,7 @@ function propFactorBlockHTML(p, prop){
     hrr:  { d:sim.hrr15,  line:'over 1.5', label:'H+R+RBI'     },
     sb:   { d:sim.sb,     line:'over 0.5', label:'STOLEN BASE' },
   }[prop];
-  const gr = gradeFor(prop, cfg.d.pct);
+  const gr = gradeFor(prop, cfg.d.exact ?? cfg.d.pct);
   return `
     <div class="prop-head ${gr.cls}">
       <div class="ph-grade">${gr.g}</div>
@@ -7902,14 +8539,14 @@ function openBatterModal(p){
         // is the same number shown on the tiles below. The old raw index was an
         // internal 0-100 score, not a probability, so the two disagreed.
         const sim = simulatePlayer(p);
-        const gr = gradeFor('hr', sim.hr.pct);
+        const gr = gradeFor('hr', sim.hr.exact ?? sim.hr.pct);
         return `<div class="modal-index">
           <div class="modal-grade ${gr.cls}">${gr.g}</div>
           <div class="modal-index-num ${gr.cls}">${sim.hr.pct}%</div>
           <div class="modal-index-bar">
             <div class="mi-label">HOME RUN · OVER 0.5</div>
             <div class="modal-index-track"><div class="modal-index-fill ${gr.cls}" style="width:${Math.min(100, sim.hr.pct * 3)}%"></div></div>
-            <div class="mi-sub">index ${p.hrIndex} · ${SIM_RUNS.toLocaleString()} sims</div>
+            <div class="mi-sub">${SIM_RUNS.toLocaleString()} simulated games · graded against tonight's slate</div>
           </div>
         </div>`;
       })()}
@@ -8062,8 +8699,8 @@ function openGameModal(g){
   const isLive = status === 'Live';
   const isFinal = status === 'Final';
   const ls = g.liveScore || {};
-  const topHR_away = g.awayRoster?.length ? [...g.awayRoster].sort((a,b)=>b.hrIndex-a.hrIndex)[0] : null;
-  const topHR_home = g.homeRoster?.length ? [...g.homeRoster].sort((a,b)=>b.hrIndex-a.hrIndex)[0] : null;
+  const topHR_away = g.awayRoster?.length ? [...g.awayRoster].sort((a,b)=>simulatePlayer(b).hr.exact - simulatePlayer(a).hr.exact)[0] : null;
+  const topHR_home = g.homeRoster?.length ? [...g.homeRoster].sort((a,b)=>simulatePlayer(b).hr.exact - simulatePlayer(a).hr.exact)[0] : null;
   const rlFavName = o?.runline?.favorite==='away' ? g.awayName : g.homeName;
   const rlDogName = o?.runline?.favorite==='away' ? g.homeName : g.awayName;
 
@@ -8096,8 +8733,8 @@ function openGameModal(g){
         ${weatherDiagramHTML(g)}
       </div>
       ${topHR_away || topHR_home ? `<div class="matchup-block"><h5>Top Home Run Threats</h5>
-        <p>${topHR_away ? `${g.awayName}: <b>${topHR_away.name}</b> (${topHR_away.hrIndex}% HR Index)`:''}</p>
-        <p>${topHR_home ? `${g.homeName}: <b>${topHR_home.name}</b> (${topHR_home.hrIndex}% HR Index)`:''}</p>
+        <p>${topHR_away ? `${g.awayName}: <b>${topHR_away.name}</b> — ${simulatePlayer(topHR_away).hr.pct}% to go over 0.5 HR (grade ${gradeFor('hr', simulatePlayer(topHR_away).hr.exact).g})`:''}</p>
+        <p>${topHR_home ? `${g.homeName}: <b>${topHR_home.name}</b> — ${simulatePlayer(topHR_home).hr.pct}% to go over 0.5 HR (grade ${gradeFor('hr', simulatePlayer(topHR_home).hr.exact).g})`:''}</p>
       </div>` : ''}
       ${isLive ? `<div class="matchup-block"><h5>Live Situation</h5>
         <p>${ls.inningState||''} ${ls.inning||''} · ${ls.outs||0} out(s)</p>
@@ -9513,7 +10150,10 @@ function exportRows(){
       'Wind Effect': g.windLabel || (g.roof !== 'open-air' ? 'Indoor' : ''),
 
       // --- projections ---
-      'HR Index %': xnum(p.hrIndex, 0),
+      // Was 'HR Index %', an internal 0-100 composite. Now the simulated
+      // probability plus its letter grade — both directly comparable to a price.
+      'HR Probability %': xnum(simulatePlayer(p).hr.exact, 1),
+      'HR Grade': gradeFor('hr', simulatePlayer(p).hr.exact).letter,
       'Proj Hits': xnum(p.projHits),
       '1+ Hit %': xnum(p.hitProb, 0),
       'Proj TB': xnum(p.projTB),
@@ -9578,7 +10218,7 @@ function exportToExcel(){
 
     // One tab per prop, pre-sorted best-first so the sheet is useful on open.
     const sheets = [
-      { name:'Home Runs',   key:'HR Index %',    dp:0 },
+      { name:'Home Runs',   key:'HR Probability %', dp:1 },
       { name:'Hits',        key:'Proj Hits' },
       { name:'Total Bases', key:'Proj TB' },
       { name:'RBIs',        key:'Proj RBI' },
@@ -9609,7 +10249,7 @@ function exportToExcel(){
     }
 
     // Everything, every column — for pivot tables and custom models.
-    const allSorted = [...rows].sort((a,b) => (b['HR Index %'] ?? -1) - (a['HR Index %'] ?? -1));
+    const allSorted = [...rows].sort((a,b) => (b['HR Probability %'] ?? -1) - (a['HR Probability %'] ?? -1));
     const wsAll = XLSX.utils.json_to_sheet(allSorted);
     wsAll['!cols'] = fitColumns(allSorted);
     wsAll['!autofilter'] = { ref: wsAll['!ref'] };
@@ -9640,8 +10280,14 @@ function exportToExcel(){
       { Field:'Games',             Value: games.length },
       { Field:'Hitters',           Value: rows.length },
       { Field:'Statcast source',   Value: slateMeta.sources?.statcast || 'unknown' },
-      { Field:'HR weights',        Value: JSON.stringify(MODEL.hr.weights) },
+      // Record the weights that produced these numbers, so an exported sheet can
+      // always be traced back to the exact model settings behind it.
       { Field:'Expected AB',       Value: MODEL.hits.expectedAB },
+      ...Object.keys(MODEL.props).map(prop => ({
+        Field: `${prop.toUpperCase()} weights`,
+        Value: JSON.stringify(MODEL.props[prop].weights),
+      })),
+      { Field:'Grade percentiles',  Value: JSON.stringify(MODEL.grading.percentiles) },
       { Field:'Note',              Value: 'Projections are modelled estimates, not sportsbook lines. Not betting advice.' },
     ];
     (slateMeta.warnings || []).forEach((w,i) => meta.push({ Field:`Warning ${i+1}`, Value:w }));
@@ -9740,6 +10386,468 @@ document.addEventListener('visibilitychange', ()=>{
     fullLiveRefresh();
   }
 });
+
+// ============================================================================
+//  TUNING PANEL — ?tune=1
+// ============================================================================
+//  A live editor for every weight in the model. Drag a slider, the board
+//  re-ranks under you, and when it looks right you copy the JSON straight into
+//  model-config.json. That loop is the whole point: a weight system you cannot
+//  feel is a weight system you cannot tune.
+//
+//  DESIGN NOTES
+//  * Hidden behind a query param, so no bundle-size or UI cost for real users.
+//    Nothing below runs unless ?tune=1 is present.
+//  * All markup is created here with a `dwtune-` class prefix and its own
+//    injected stylesheet. It shares no class name or DOM id with the app, so it
+//    cannot collide with anything the rest of the JS queries.
+//  * Editing writes into MODEL, then invalidates the context and sim caches and
+//    rescores. It never writes model-config.json — you copy the diff yourself.
+//    Tuning is a deliberate act, not an autosave.
+//  * Only CHANGED values are emitted. Pasting a full dump would bury the three
+//    numbers you actually moved and would freeze every default you did not
+//    intend to pin.
+// ============================================================================
+
+(function initTuningPanel(){
+  const params = new URLSearchParams(location.search);
+  if(params.get('tune') !== '1') return;
+
+  // Fast preview: full precision is ~10s per rescore, which makes a slider
+  // useless. 2,000 runs lands within a point or two and rescores in ~2s.
+  const PREVIEW_RUNS = 2000;
+
+  const CSS = `
+  .dwtune-panel{position:fixed;top:0;right:0;bottom:0;width:420px;max-width:92vw;
+    background:var(--surface,#0f1421);border-left:1px solid rgba(255,255,255,.12);
+    z-index:99999;display:flex;flex-direction:column;
+    font-family:'Satoshi',system-ui,sans-serif;color:var(--text,#e2e8f0);
+    box-shadow:-8px 0 32px rgba(0,0,0,.5);transform:translateX(0);
+    transition:transform .22s cubic-bezier(.4,0,.2,1)}
+  .dwtune-panel.dwtune-hidden{transform:translateX(100%)}
+  .dwtune-head{display:flex;align-items:center;gap:8px;padding:12px 14px;
+    border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0}
+  .dwtune-head h2{font-size:13px;font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase;margin:0;flex:1}
+  .dwtune-body{flex:1;overflow-y:auto;padding:0 14px 24px}
+  .dwtune-btn{background:rgba(255,255,255,.07);color:inherit;border:1px solid rgba(255,255,255,.14);
+    border-radius:6px;padding:5px 10px;font-size:11px;font-weight:600;cursor:pointer;
+    font-family:inherit;transition:background .15s}
+  .dwtune-btn:hover{background:rgba(255,255,255,.14)}
+  .dwtune-btn.dwtune-primary{background:var(--accent,#2d7fff);border-color:transparent;color:#fff}
+  .dwtune-status{font-size:11px;padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.08);
+    color:var(--mute,#8b95a8);font-family:'JetBrains Mono',monospace;flex-shrink:0;
+    display:flex;justify-content:space-between;gap:8px}
+  .dwtune-status.dwtune-busy{color:var(--accent,#2d7fff)}
+  .dwtune-sec{margin-top:16px}
+  .dwtune-sec > summary{cursor:pointer;font-size:12px;font-weight:700;padding:8px 0;
+    letter-spacing:.04em;text-transform:uppercase;list-style:none;
+    border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:6px}
+  .dwtune-sec > summary::-webkit-details-marker{display:none}
+  .dwtune-sec > summary::before{content:'▸';font-size:9px;transition:transform .15s}
+  .dwtune-sec[open] > summary::before{transform:rotate(90deg)}
+  .dwtune-grp{font-size:10px;font-weight:700;color:var(--mute,#8b95a8);letter-spacing:.08em;
+    text-transform:uppercase;margin:12px 0 4px}
+  .dwtune-row{display:grid;grid-template-columns:1fr 66px;gap:6px 8px;align-items:center;
+    padding:5px 0}
+  .dwtune-row label{font-size:11.5px;line-height:1.25;min-width:0}
+  .dwtune-row label small{display:block;color:var(--mute,#8b95a8);font-size:10px}
+  .dwtune-row input[type=range]{grid-column:1/-1;width:100%;height:16px;margin:0;
+    accent-color:var(--accent,#2d7fff)}
+  .dwtune-row input[type=number]{width:100%;background:rgba(0,0,0,.35);color:inherit;
+    border:1px solid rgba(255,255,255,.14);border-radius:5px;padding:3px 5px;
+    font-size:11px;font-family:'JetBrains Mono',monospace;text-align:right}
+  .dwtune-row.dwtune-dirty input[type=number]{border-color:var(--accent,#2d7fff)}
+  .dwtune-row.dwtune-neg label{color:#ff8a8a}
+  .dwtune-dist{font-family:'JetBrains Mono',monospace;font-size:10px;line-height:1.7;
+    color:var(--mute,#8b95a8);padding:6px 0}
+  .dwtune-dist b{color:var(--text,#e2e8f0)}
+  .dwtune-warn{color:#f59e0b}
+  .dwtune-out{width:100%;min-height:180px;background:#05070c;color:#9ad;border:1px solid rgba(255,255,255,.14);
+    border-radius:6px;padding:8px;font-family:'JetBrains Mono',monospace;font-size:10.5px;
+    line-height:1.5;resize:vertical;margin-top:8px}
+  .dwtune-note{font-size:10.5px;color:var(--mute,#8b95a8);line-height:1.5;margin:6px 0 0}
+  .dwtune-toggle{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:99998;
+    background:var(--accent,#2d7fff);color:#fff;border:0;border-radius:6px 0 0 6px;
+    padding:12px 6px;font-size:10px;font-weight:700;letter-spacing:.1em;cursor:pointer;
+    writing-mode:vertical-rl;font-family:inherit}
+  @media(max-width:520px){.dwtune-panel{width:100vw}}
+  `;
+
+  // -------------------------------------------------------------------------
+  //  Which knobs the panel exposes, and over what range.
+  // -------------------------------------------------------------------------
+  //  Sliders are only useful with sane bounds, and the bounds differ by kind of
+  //  number: a weight lives in ±0.6, a league ERA in 3–6. `SLIDER_RANGE` maps a
+  //  MODEL path prefix to [min, max, step]; the first match wins.
+  const SLIDER_RANGE = [
+    [/^props\.[a-z]+\.weights\./,        [-0.6, 1.2, 0.01]],
+    [/^props\.[a-z]+\.clamp\.min$/,      [0.10, 1.00, 0.01]],
+    [/^props\.[a-z]+\.clamp\.max$/,      [1.00, 3.00, 0.05]],
+    [/^grading\.percentiles\./,          [1, 99, 1]],
+    [/^confidence\./,                    [0, 500, 10]],
+    [/^factorDefs\.[a-z]+\.[A-Za-z]+\.cap$/, [0.05, 1.00, 0.05]],
+    [/^league\.rates\./,                 [0, 0.4, 0.0005]],
+    [/^league\./,                        [0, 120, 0.05]],
+  ];
+
+  function rangeFor(path, value){
+    for(const [re, r] of SLIDER_RANGE) if(re.test(path)) return r;
+    // Fallback: a symmetric window around the current value, so an unforeseen
+    // knob is still draggable rather than silently read-only.
+    const span = Math.max(Math.abs(value) * 2, 1);
+    return [-span, span, span / 200];
+  }
+
+  const PROP_LABEL = { hr:'Home Runs', hits:'Hits (0.5+)', tb:'Total Bases (1.5+)',
+                       rbi:'RBI', hrr:'Hits+Runs+RBI (1.5+)', sb:'Stolen Bases' };
+  const GRADE_LABEL = { aPlus:'A+ cut', a:'A cut', bPlus:'B+ cut', b:'B cut',
+                        cPlus:'C+ cut', c:'C cut' };
+
+  // -------------------------------------------------------------------------
+  //  Path helpers
+  // -------------------------------------------------------------------------
+  const getPath = (obj, path) => path.split('.').reduce((o,k) => o == null ? o : o[k], obj);
+  function setPath(obj, path, val){
+    const ks = path.split('.');
+    let cur = obj;
+    for(let i = 0; i < ks.length - 1; i++){
+      if(typeof cur[ks[i]] !== 'object' || cur[ks[i]] === null) cur[ks[i]] = {};
+      cur = cur[ks[i]];
+    }
+    cur[ks[ks.length-1]] = val;
+  }
+
+  // -------------------------------------------------------------------------
+  //  Rescore, debounced.
+  // -------------------------------------------------------------------------
+  let pending = null;
+  const status = () => document.getElementById('dwtuneStatus');
+
+  function scheduleRescore(){
+    const el = status();
+    if(el){ el.classList.add('dwtune-busy'); el.firstElementChild.textContent = 'recomputing…'; }
+    clearTimeout(pending);
+    pending = setTimeout(() => {
+      // Two frames of breathing room so the "recomputing" label actually paints
+      // before the main thread blocks on 379 x 2,000 simulations.
+      requestAnimationFrame(() => requestAnimationFrame(runRescore));
+    }, 320);
+  }
+
+  function runRescore(){
+    const t0 = performance.now();
+    try{
+      invalidateContext();
+      if(typeof rescoreAllPlayers === 'function') rescoreAllPlayers();
+      if(typeof renderList === 'function') renderList();
+    }catch(e){
+      console.error('[tune] rescore failed', e);
+    }
+    const ms = Math.round(performance.now() - t0);
+    const el = status();
+    if(el){
+      el.classList.remove('dwtune-busy');
+      el.firstElementChild.textContent = `${SIM_RUNS.toLocaleString()} sims · ${ms}ms`;
+    }
+    refreshReadout();
+    markDirty();
+  }
+
+  // -------------------------------------------------------------------------
+  //  Live readout: grade distribution + clamp saturation, per prop.
+  // -------------------------------------------------------------------------
+  //  These two numbers are what tell you whether a change was an improvement or
+  //  just louder. Saturation especially: once a prop is pinning a chunk of the
+  //  slate against its clamp, extra weight stops separating anyone.
+  function refreshReadout(){
+    const box = document.getElementById('dwtuneReadout');
+    if(!box || typeof allBatters === 'undefined' || !allBatters.length) return;
+    const letters = ['A+','A','B+','B','C+','C','D'];
+    const lines = Object.keys(MODEL.props || {}).map(prop => {
+      const dist = {};
+      let sat = 0;
+      for(const p of allBatters){
+        try{
+          dist[gradeFor(prop, scoreExactFor(prop, p)).letter] = (dist[gradeFor(prop, scoreExactFor(prop, p)).letter] || 0) + 1;
+          if(contextFor(prop, p).saturated) sat++;
+        }catch(e){ /* a mid-edit invalid model should not blank the readout */ }
+      }
+      const satPct = Math.round(100 * sat / allBatters.length);
+      const satTxt = satPct >= 15
+        ? `<span class="dwtune-warn">clamped ${satPct}%</span>`
+        : `clamped ${satPct}%`;
+      return `<div><b>${prop.padEnd(5,'\u00a0')}</b> ` +
+        letters.map(L => `${L}:${dist[L]||0}`).join(' ') + ` · ${satTxt}</div>`;
+    });
+    box.innerHTML = lines.join('') +
+      `<div style="margin-top:6px">n = ${allBatters.length} graded hitters</div>`;
+  }
+
+  // -------------------------------------------------------------------------
+  //  Diff against defaults — the JSON you paste back.
+  // -------------------------------------------------------------------------
+  function diffTree(cur, ref){
+    const out = {};
+    for(const k of Object.keys(cur || {})){
+      const a = cur[k], b = ref ? ref[k] : undefined;
+      if(a && typeof a === 'object' && !Array.isArray(a)){
+        const sub = diffTree(a, b && typeof b === 'object' ? b : {});
+        if(Object.keys(sub).length) out[k] = sub;
+      } else if(Array.isArray(a)){
+        if(JSON.stringify(a) !== JSON.stringify(b)) out[k] = a;
+      } else if(a !== b){
+        out[k] = a;
+      }
+    }
+    return out;
+  }
+
+  function currentDiff(){
+    const ref = snapshotModelDefaults();
+    return diffTree(JSON.parse(JSON.stringify(MODEL)), ref);
+  }
+
+  function markDirty(){
+    const diff = currentDiff();
+    const n = countLeaves(diff);
+    const el = document.getElementById('dwtuneDirty');
+    if(el) el.textContent = n ? `${n} changed` : 'unchanged';
+  }
+
+  function countLeaves(o){
+    let n = 0;
+    for(const v of Object.values(o || {})){
+      if(v && typeof v === 'object' && !Array.isArray(v)) n += countLeaves(v);
+      else n++;
+    }
+    return n;
+  }
+
+  // -------------------------------------------------------------------------
+  //  Row builder
+  // -------------------------------------------------------------------------
+  function row(path, labelText, hint){
+    const value = getPath(MODEL, path);
+    if(typeof value !== 'number') return '';
+    const [min, max, step] = rangeFor(path, value);
+    const neg = /^props\.[a-z]+\.weights\./.test(path) && value < 0;
+    return `<div class="dwtune-row${neg ? ' dwtune-neg' : ''}" data-path="${path}">
+      <label>${labelText}${hint ? `<small>${hint}</small>` : ''}</label>
+      <input type="number" step="${step}" value="${value}">
+      <input type="range" min="${min}" max="${max}" step="${step}" value="${value}">
+    </div>`;
+  }
+
+  function propSection(prop){
+    const cfg = MODEL.props[prop];
+    let html = `<details class="dwtune-sec"><summary>${PROP_LABEL[prop] || prop}</summary>`;
+    html += `<div class="dwtune-grp">Clamp — combined multiplier floor / ceiling</div>`;
+    html += row(`props.${prop}.clamp.min`, 'Minimum');
+    html += row(`props.${prop}.clamp.max`, 'Maximum');
+    for(const [group, ws] of Object.entries(cfg.weights || {})){
+      html += `<div class="dwtune-grp">${group}</div>`;
+      for(const name of Object.keys(ws)){
+        const label = (typeof FACTOR_LABELS !== 'undefined' && FACTOR_LABELS[group]?.[name]) || name;
+        const def = MODEL.factorDefs?.[group]?.[name];
+        html += row(`props.${prop}.weights.${group}.${name}`, label,
+          def ? `${def.type}${def.league ? ' vs league.' + def.league : ''}` : '');
+      }
+    }
+    html += `</details>`;
+    return html;
+  }
+
+  // -------------------------------------------------------------------------
+  //  Build and mount
+  // -------------------------------------------------------------------------
+  function build(){
+    const style = document.createElement('style');
+    style.textContent = CSS;
+    document.head.appendChild(style);
+
+    const toggle = document.createElement('button');
+    toggle.className = 'dwtune-toggle';
+    toggle.textContent = 'TUNE';
+    document.body.appendChild(toggle);
+
+    const panel = document.createElement('div');
+    panel.className = 'dwtune-panel';
+
+    let body = '';
+
+    // Props first — this is what anyone opening the panel came for.
+    for(const prop of Object.keys(MODEL.props || {})) body += propSection(prop);
+
+    body += `<details class="dwtune-sec" open><summary>Live board</summary>
+      <div class="dwtune-dist" id="dwtuneReadout"></div>
+      <p class="dwtune-note">Grade counts are shares of tonight's board, so they
+      barely move when you change a weight — the letters just land on different
+      players. <b>Clamped</b> is the share of hitters pinned to the multiplier
+      floor or ceiling; above ~15% the model has stopped telling them apart, and
+      the fix is smaller weights rather than a wider clamp.</p>
+    </details>`;
+
+    body += `<details class="dwtune-sec"><summary>Grade cuts</summary>`;
+    for(const k of Object.keys(GRADE_LABEL)){
+      body += row(`grading.percentiles.${k}`, GRADE_LABEL[k], 'percentile of the slate');
+    }
+    body += `<p class="dwtune-note">Must descend. A+ at 96 means the top 4% of
+      the board.</p></details>`;
+
+    body += `<details class="dwtune-sec"><summary>Confidence</summary>`;
+    for(const k of Object.keys(MODEL.confidence || {})) body += row(`confidence.${k}`, k, 'plate appearances');
+    body += `</details>`;
+
+    body += `<details class="dwtune-sec"><summary>Factor caps</summary>`;
+    for(const [group, defs] of Object.entries(MODEL.factorDefs || {})){
+      const caps = Object.entries(defs).filter(([,d]) => d.type === 'ratio');
+      if(!caps.length) continue;
+      body += `<div class="dwtune-grp">${group}</div>`;
+      for(const [name] of caps){
+        body += row(`factorDefs.${group}.${name}.cap`,
+          (typeof FACTOR_LABELS !== 'undefined' && FACTOR_LABELS[group]?.[name]) || name,
+          'max deviation from league');
+      }
+    }
+    body += `<p class="dwtune-note">A cap is the outlier guard. 0.55 on starter
+      HR/9 means the most homer-prone arm alive counts as 55% worse than average
+      and no worse.</p></details>`;
+
+    body += `<details class="dwtune-sec"><summary>League baselines</summary>`;
+    for(const k of Object.keys(MODEL.league || {})){
+      if(k === 'rates') continue;
+      body += row(`league.${k}`, k);
+    }
+    body += `<div class="dwtune-grp">per-PA rates</div>`;
+    for(const k of Object.keys(MODEL.league?.rates || {})) body += row(`league.rates.${k}`, k);
+    body += `</details>`;
+
+    body += `<details class="dwtune-sec" open><summary>Export</summary>
+      <p class="dwtune-note">Only what you changed. Paste it into
+      <b>model-config.json</b> — anything absent keeps its default.</p>
+      <button class="dwtune-btn dwtune-primary" id="dwtuneGen">Generate JSON</button>
+      <button class="dwtune-btn" id="dwtuneCopy">Copy</button>
+      <button class="dwtune-btn" id="dwtuneReset">Reset all</button>
+      <textarea class="dwtune-out" id="dwtuneOut" readonly
+        placeholder="Move something, then press Generate JSON."></textarea>
+    </details>`;
+
+    panel.innerHTML = `
+      <div class="dwtune-head">
+        <h2>Model tuning</h2>
+        <button class="dwtune-btn" id="dwtuneClose">Close</button>
+      </div>
+      <div class="dwtune-status" id="dwtuneStatus">
+        <span>fast preview · ${PREVIEW_RUNS.toLocaleString()} sims</span>
+        <span id="dwtuneDirty">unchanged</span>
+      </div>
+      <div class="dwtune-body">${body}</div>`;
+    document.body.appendChild(panel);
+
+    // ---- events ----
+    const commit = (pathEl, raw) => {
+      const path = pathEl.dataset.path;
+      const v = parseFloat(raw);
+      if(!isFinite(v)) return;
+      setPath(MODEL, path, v);
+      pathEl.classList.toggle('dwtune-dirty', v !== getPath(snapshotModelDefaults(), path));
+      pathEl.classList.toggle('dwtune-neg', /^props\.[a-z]+\.weights\./.test(path) && v < 0);
+      scheduleRescore();
+    };
+
+    panel.addEventListener('input', e => {
+      const rowEl = e.target.closest('.dwtune-row');
+      if(!rowEl) return;
+      const num = rowEl.querySelector('input[type=number]');
+      const rng = rowEl.querySelector('input[type=range]');
+      if(e.target === rng) num.value = rng.value;
+      else rng.value = e.target.value;
+      commit(rowEl, e.target.value);
+    });
+
+    const closePanel = () => {
+      panel.classList.add('dwtune-hidden');
+      // Restore full precision on the way out, so the board the user goes back
+      // to is the real one and not the fast preview.
+      if(SIM_RUNS !== SIM_RUNS_FULL){
+        SIM_RUNS = SIM_RUNS_FULL;
+        runRescore();
+      }
+    };
+    document.getElementById('dwtuneClose').addEventListener('click', closePanel);
+    toggle.addEventListener('click', () => {
+      const hidden = panel.classList.toggle('dwtune-hidden');
+      if(!hidden){
+        SIM_RUNS = PREVIEW_RUNS;
+        runRescore();
+      } else {
+        closePanel();
+      }
+    });
+
+    document.getElementById('dwtuneGen').addEventListener('click', () => {
+      const diff = currentDiff();
+      const out = document.getElementById('dwtuneOut');
+      out.value = Object.keys(diff).length
+        ? JSON.stringify(diff, null, 2)
+        : '// Nothing changed yet.';
+    });
+
+    document.getElementById('dwtuneCopy').addEventListener('click', async () => {
+      const out = document.getElementById('dwtuneOut');
+      if(!out.value) out.value = JSON.stringify(currentDiff(), null, 2);
+      try{
+        await navigator.clipboard.writeText(out.value);
+        const b = document.getElementById('dwtuneCopy');
+        b.textContent = 'Copied';
+        setTimeout(() => { b.textContent = 'Copy'; }, 1200);
+      }catch(e){
+        // Clipboard is blocked in some contexts; selecting the text is the
+        // reliable fallback.
+        out.removeAttribute('readonly'); out.select(); out.setAttribute('readonly','');
+      }
+    });
+
+    document.getElementById('dwtuneReset').addEventListener('click', () => {
+      const ref = JSON.parse(JSON.stringify(snapshotModelDefaults()));
+      for(const k of Object.keys(MODEL)) delete MODEL[k];
+      Object.assign(MODEL, ref);
+      panel.querySelectorAll('.dwtune-row').forEach(r => {
+        const v = getPath(MODEL, r.dataset.path);
+        r.querySelector('input[type=number]').value = v;
+        r.querySelector('input[type=range]').value = v;
+        r.classList.remove('dwtune-dirty');
+        r.classList.toggle('dwtune-neg', /^props\.[a-z]+\.weights\./.test(r.dataset.path) && v < 0);
+      });
+      document.getElementById('dwtuneOut').value = '';
+      runRescore();
+    });
+
+    // Mark rows that model-config.json already moved off the default, so it is
+    // obvious at a glance which knobs are yours and which are stock.
+    panel.querySelectorAll('.dwtune-row').forEach(r => {
+      const path = r.dataset.path;
+      if(getPath(MODEL, path) !== getPath(snapshotModelDefaults(), path)) r.classList.add('dwtune-dirty');
+    });
+
+    SIM_RUNS = PREVIEW_RUNS;
+    runRescore();
+    console.info('[tune] panel open · fast preview at', PREVIEW_RUNS, 'sims per player');
+  }
+
+  // The panel reads MODEL.props and needs players to score, so it waits for the
+  // slate rather than racing it.
+  const waitForSlate = setInterval(() => {
+    if(typeof allBatters !== 'undefined' && allBatters && allBatters.length &&
+       typeof MODEL !== 'undefined' && MODEL.props){
+      clearInterval(waitForSlate);
+      try{ build(); }catch(e){ console.error('[tune] failed to build panel', e); }
+    }
+  }, 500);
+  setTimeout(() => clearInterval(waitForSlate), 60000);
+})();
+
 </script>
 
 <!-- ===== Floating Chat Panel ===== -->
