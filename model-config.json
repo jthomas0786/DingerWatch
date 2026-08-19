@@ -77,16 +77,16 @@
   //  120 (was 220) and lowSamplePA 50 (was 150). Both mean "trust small samples
   //  more than the old model did".
   "confidence": {
-    "regressionPA": 120,   // PA at which a hitter's own rates are trusted outright.
+    "regressionPA": 300,   // PA at which a hitter's own rates are trusted outright.
                            //   At 110 PA his stats count half, league average counts half.
                            //   Try 300 to be conservative, 150 to chase early-season form.
-    "lowSamplePA": 50,     // Below this, the card shows a low-sample warning.
+    "lowSamplePA": 140,     // Below this, the card shows a low-sample warning.
                            //   Display only — does not change any math.
     "platoonPA": 90,       // PA needed in a vs-LHP / vs-RHP split before that split
                            //   is taken at face value. Splits are noisy; this is the
                            //   single best guard against a 22-PA platoon mirage.
                            //   Try 140 if platoon edges feel overstated.
-    "statcastPA": 120,     // PA before batted-ball metrics (barrel, xSLG) are trusted.
+    "statcastPA": 150,     // PA before batted-ball metrics (barrel, xSLG) are trusted.
   },
 
   // =========================================================================
@@ -108,7 +108,7 @@
     "xwoba": 0.320,        // league expected wOBA
     "babip": 0.300,        // league BABIP — the anchor for the luck factor
     "kPct": 22.5,          // league strikeout % (batters)
-    "iso": 0.135,          // league isolated power
+    "iso": 0.164,          // league isolated power
     "hr9": 1.10,           // league HR allowed per 9 innings
     "era": 4.20,           // league ERA
     "k9": 8.80,            // league K per 9 innings
@@ -123,7 +123,7 @@
     // player or context adjustment. Only touch these if the whole board's
     // probabilities look systematically too high or too low.
     "rates": {
-      "hr": 0.0275,
+      "hr": 0.0317,
       "hits": 0.2250,
       "dbl": 0.0433,
       "trp": 0.0033,
@@ -144,12 +144,12 @@
   //     A+ ~15   A ~38   B+ ~61   B ~68   C+ ~68   C ~68   D ~61
   "grading": {
     "percentiles": {
-      "aPlus": 96,         // top 4%
-      "a": 86,             // next 10%
-      "bPlus": 70,         // next 16%
-      "b": 52,             // next 18%
-      "cPlus": 34,         // next 18%
-      "c": 16,             // next 18%
+      "aPlus": 97,         // top 4%
+      "a": 87,             // next 10%
+      "bPlus": 71,         // next 16%
+      "b": 53,             // next 18%
+      "cPlus": 35,         // next 18%
+      "c": 17,             // next 18%
                            // everything below 16 is D
     },
 
