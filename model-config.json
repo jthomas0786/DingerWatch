@@ -1,322 +1,143 @@
 {
-  // Dinger Watch model config — JSONC (// and /* */ comments both work, and
-  // a trailing comma before a closing } or ] is fine). Deep-merged over the
-  // app's built-in defaults at load, so this survives any rebuild of
-  // index.html untouched. Delete any key to fall back to its default.
-  // Place next to index.html.
-  //
-  // Every weight below has its own comment explaining exactly what raising
-  // or lowering it does — read the one next to the number you're about to
-  // change, not just the section header.
-
   "regression": {
-    // The plate-appearance count at which a player's OWN rate and the
-    // LEAGUE AVERAGE rate are trusted equally, for small-sample Statcast
-    // data and for platoon splits. Raise it to trust small samples less
-    // (a hot 15-PA callup gets pulled harder toward average). Lower it to
-    // let hot small samples rank higher, faster.
     "regressionPA": 500,
-
-    // League-average isolated power (SLG - AVG), used as the blend target
-    // when a player's own Statcast is too thin to trust. Rarely needs
-    // touching — only if the league-wide power environment shifts a lot
-    // season over season.
     "leagueIso": 0.164,
-
-    // Below this many plate appearances, cards show a "small sample"
-    // warning badge. Purely a UI signal — raising it flags more players as
-    // small-sample, lowering it flags fewer. Does not affect scoring.
     "lowSamplePA": 150,
-
-    // NEW — league-average PER-PLATE-APPEARANCE rates, the target the
-    // 10,000-run Monte Carlo simulation regresses every player toward by
-    // sample size (using regressionPA above). Previously only lived as a
-    // hardcoded default inside the app itself — was never actually tunable
-    // from this file. Roughly the current MLB environment; adjust if the
-    // league-wide offensive environment shifts a lot season over season.
-    // Raising any single rate makes that outcome more common league-wide
-    // (pulls every player's simulation slightly toward it); lowering it
-    // makes that outcome rarer across the board.
     "leagueRates": {
-      "hr":   0.0317, // ~19 HR per 600 PA
-      "hits": 0.2250, // ~135 H per 600 PA
-      "dbl":  0.0433,
-      "trp":  0.0033,
-      "bb":   0.0867,
-      "k":    0.2250
+      "hr": 0.0317,
+      "hits": 0.225,
+      "dbl": 0.0433,
+      "trp": 0.0033,
+      "bb": 0.0867,
+      "k": 0.225
     }
   },
-
   "grading": {
-    // Grades are PERCENTILE-ONLY: a player's letter depends on where he
-    // RANKS among tonight's hitters for that prop, not a fixed probability
-    // he clears. That means "A+" always means "top N% of tonight's slate,"
-    // whether it's a great night for power across the league or a dead one
-    // — the letter is always relative to what's actually on the board.
-    //
-    // (There used to be a second, fixed-threshold "absolute" grading mode
-    // here. It's gone from this file on purpose — percentile is the only
-    // system worth tuning. A small, fixed fallback still exists in the app
-    // itself purely so a 2-3 game slate too small to rank meaningfully
-    // doesn't crash; it isn't meant to be edited and isn't exposed here.)
     "percentiles": {
-      "aPlus": 99, // top X% of the slate get A+. Raise = rarer A+, lower = more of them.
-      "a":     85, // top X% get A or better.
-      "bPlus": 70, // top X% get B+ or better.
-      "b":     55, // top X% get B or better.
-      "cPlus": 40, // top X% get C+ or better.
-      "c":     25  // top X% get C or better. Below this line = D.
+      "aPlus": 99,
+      "a": 85,
+      "bPlus": 70,
+      "b": 55,
+      "cPlus": 40,
+      "c": 25
     },
-
-    // Per-prop overrides layer ON TOP of percentiles above, so you can make
-    // one prop's grading stricter or looser without touching the rest.
-    // Example: "hr": { "aPlus": 98 } makes HR A+ rarer than every other
-    // prop's A+, while HR's other letters still use the global numbers.
-    // Any letter left out of an override falls back to the global value.
     "byProp": {}
   },
-
   "hr": {
-    // Must total 100 — these are the shares of the 0-100 HR index each
-    // CATEGORY is allowed to contribute. Each category is now broken into
-    // its own independent sub-weights below (contact, parkWeights, etc.) —
-    // this top-level split still controls the balance BETWEEN categories;
-    // the sub-weights control the balance WITHIN each one.
     "weights": {
-      "statcast": 40, // contact quality overall. Raise to trust what the bat did more than context.
-      "form":     20, // recent hot/cold streak overall. Raise for a faster-reacting grade.
-      "park":     15, // ballpark + weather overall. Raise to weight the SETTING more than the hitter.
-      "matchup":  25  // opposing pitcher overall. Raise to weight the ARM more than the hitter.
+      "statcast": 40,
+      "form": 20,
+      "park": 15,
+      "matchup": 25
     },
-
-    // ---- Contact quality sub-weights — must sum to weights.statcast (50) ----
-    // Four independent signals now, not one blend ratio between two things.
-    // Previously barrel% and hard-hit% were forced to trade off against each
-    // other (raising one automatically lowered the other's share); now each
-    // has its own budget, so you can push weight toward exactly the signal
-    // you trust most without an automatic knock-on effect elsewhere.
     "contact": {
-      "barrel":     15, // barrel% (ball hit exactly right). Raise to reward elite barrels specifically.
-      "hardHit":    15, // hard-hit% (95mph+ exit velo rate). Raise to reward hard contact generally, barreled or not.
-      "exitVelo":    6, // NEW — raw average exit velocity, a continuous signal distinct from the hard-hit threshold above.
-      "battedBall":  4  // NEW — fly-ball-leaning batted-ball profile. See note below on why this is ONE knob, not two.
+      "barrel": 15,
+      "hardHit": 15,
+      "exitVelo": 6,
+      "battedBall": 4
     },
-    // The barrel% that earns full marks on its slice. Raise to make elite
-    // barrel rates harder to max out; lower to make max marks easier.
     "barrelScale": 15,
-    // Same idea for hard-hit%: the rate that earns full marks on its slice.
     "hardHitScale": 35,
-    // NEW — the raw exit-velocity range (mph) the exitVelo slice is scored
-    // across. Below the floor scores 0 on this slice; at or above the scale
-    // value scores full marks. These are rough MLB replacement-level /
-    // elite bounds — adjust if the league-wide exit-velo environment shifts.
     "exitVeloFloor": 85,
     "exitVeloScale": 95,
-
-    // Flat point swing applied to the "form" share when a player is
-    // trending up or down on BATTING AVERAGE (hot/cold overall, last 10
-    // games vs. season). Raise to make an overall hot/cold streak move the
-    // grade more.
     "trendBonus": 6,
-    // NEW — a SEPARATE hot/cold signal, specifically for HOME RUN RATE
-    // rather than overall batting average. A player can be flat on the
-    // signal above while running unusually hot or cold on power
-    // specifically (e.g. a string of solo shots without his average
-    // actually moving). powerTrendScale converts the recent-vs-season HR
-    // rate gap into points; powerTrendCap bounds how far a small,
-    // noisy sample can swing it — raise the cap to let it move the grade
-    // more, raise the scale to make even a small gap matter more.
     "powerTrendScale": 150,
     "powerTrendCap": 5,
-
-    // Multipliers applied within the park score based on tonight's
-    // wind/weather read. pos = wind blowing out / helpful conditions,
-    // neg = wind in / unhelpful, neu = calm or indoors. Raise pos above 1
-    // to reward good wind more; lower neg further below 1 to punish bad
-    // wind more.
-    "weatherMult": { "pos": 1.08, "neg": 0.9, "neu": 1 },
-    // ---- Park & weather sub-weights — must sum to weights.park (15) ----
-    // Previously the WHOLE park score was multiplied by the weather
-    // multiplier above, meaning one bad-wind reading could crush an elite
-    // park's entire contribution regardless of how much you wanted park
-    // factor itself to matter. Now each gets its own budget — a bad wind
-    // night only costs its own smaller share, not the whole category.
-    "parkWeights": {
-      "parkFactor": 10, // the ballpark's own HR factor. Raise to weight the VENUE more.
-      "weather":     5  // tonight's wind/weather read. Raise to weight TONIGHT'S CONDITIONS more.
+    "weatherMult": {
+      "pos": 1.08,
+      "neg": 0.9,
+      "neu": 1
     },
-    // The park-factor range parkWeights.parkFactor is scored across. Below
-    // the floor scores 0 on that slice; at or above the scale value scores
-    // full marks. 80-120 covers roughly the real range from an extreme
-    // pitcher's park to an extreme hitter's park (Coors Field territory) —
-    // narrow this range to make the park-factor slice more sensitive to
-    // smaller differences; widen it to require a more extreme park before
-    // maxing out.
+    "parkWeights": {
+      "parkFactor": 10,
+      "weather": 5
+    },
     "parkFactorFloor": 80,
     "parkFactorScale": 110,
-
-    // League-average HR/9 allowed by a starting pitcher. This is the
-    // denominator for "how much more (or less) homer-prone is tonight's
-    // starter than average" — only needs updating if the league-wide home
-    // run rate shifts meaningfully season over season.
     "leagueHR9": 1.1,
-    // Caps how far above average a pitcher's matchup score can climb, so
-    // one small-sample disaster start doesn't send the matchup score off
-    // the scale. Raise to allow more extreme matchup boosts; lower to cap
-    // them more conservatively.
     "matchupCap": 1.5,
-
-    // League-average ERA, the denominator for a pitcher's OVERALL quality
-    // signal, deliberately separate from HR9 above: a pitcher can be
-    // homer-prone specifically (high HR9) while pitching well overall (low
-    // ERA), or the reverse. This lets tonight's matchup score react to "is
-    // this pitcher generally hittable right now," not just his homer rate
-    // specifically.
     "leagueEra": 4.2,
-    // How much that overall-quality (ERA) signal moves the matchup score.
-    // 0 disables it entirely (matchup score is purely HR9/groundball-rate
-    // based). Raise toward 1 to let a struggling pitcher's overall bad form
-    // matter as much as his specific homer-proneness.
     "pitcherEraWeight": 0.15,
-
-    // How much tonight's SPECIFIC pitcher handedness matchup matters, using
-    // the batter's own platoon split (his SLG vs LHP or vs RHP this season,
-    // regressed toward his overall SLG by sample size — see regressionPA
-    // above). 0 = platoon splits ignored entirely. 1 = fully trust the
-    // platoon-adjusted number once the sample is large enough.
     "platoonWeight": 0.75,
-
-    // Ground-ball pitchers structurally suppress home runs. This is how
-    // much a pitcher's groundball-to-flyball ratio nudges the matchup score
-    // beyond his raw HR9 — raise to weight pitch-type tendency more heavily
-    // than his results so far; lower to trust his actual HR9 results more.
     "pitcherGbWeight": 0.15,
-    // League-average groundball/flyball ratio — the neutral point pitcherGbWeight measures pitchers against.
     "leagueGbFb": 1.35,
-
-    // League-average share of batted balls hit in the air — the neutral
-    // point contact.battedBall (above) measures a hitter against. Fly-ball
-    // rate and ground-ball rate are perfect complements of each other (one
-    // is always 100 minus the other), so only ONE knob exists for this
-    // signal — a separate "ground ball weight" would just be the same dial
-    // wired to move in the opposite direction, not real additional
-    // precision.
     "leagueAirPct": 62
   },
-
   "hits": {
-    // Expected at-bats for a full game at the plate, before any lineup-slot
-    // adjustment. This is the multiplier that turns a rate stat (AVG) into
-    // a projected COUNT ("1.2 hits tonight"). Rarely needs touching.
     "expectedAB": 4,
-
-    // How much a strikeout-rate mismatch (this batter's K% vs. tonight's
-    // pitcher's K%) moves the hit projection. Raise to make contact-skill
-    // matchups matter more; lower to trust raw batting average more and
-    // the specific pitcher's strikeout stuff less.
     "kSensitivity": 0.55,
-    // League-average strikeout rate — the neutral point the batter/pitcher matchup is measured against.
     "leagueKPct": 22.5,
-
-    // Pulls a lucky/unlucky hitter's average back toward league-normal
-    // BABIP (a .380-BABIP hitter has mostly been getting lucky bounces and
-    // is likely to come back toward the pack). 0 disables this regression
-    // entirely — raw season AVG is trusted as-is. Raise toward 1 to pull
-    // hot/cold BABIP streaks back harder.
     "babipWeight": 0.25,
-    // League-average BABIP — the target babipWeight regresses toward.
     "leagueBabip": 0.3,
-
-    // NEW — same platoon mechanism as hr.platoonWeight above, applied to
-    // this batter's AVG split against tonight's specific pitcher handedness
-    // instead of his SLG split. 0 = ignore platoon splits for hits, 1 =
-    // fully trust them once the sample is large enough.
     "platoonWeight": 0.4
   },
-
   "order": {
-    // Batting-order multipliers, index 0 = leadoff spot, index 8 = 9-hole.
-    // Only applied once MLB has posted the actual starting lineup. Raise a
-    // slot's number to boost players hitting there; lower it to dampen them.
-    "paMult":  [1.09, 1.07, 1.05, 1.03, 1, 0.97, 0.95, 0.92, 0.9],   // plate appearances — leadoff bats more often
-    "runMult": [1.22, 1.18, 1.1, 1.02, 0.96, 0.92, 0.88, 0.85, 0.88], // runs scored — top of the order scores more
-    "rbiMult": [0.78, 0.92, 1.18, 1.24, 1.16, 1.02, 0.92, 0.85, 0.8]  // RBI — heart of the order (3-5) drives in more
+    "paMult": [
+      1.09,
+      1.07,
+      1.05,
+      1.03,
+      1,
+      0.97,
+      0.95,
+      0.92,
+      0.9
+    ],
+    "runMult": [
+      1.22,
+      1.18,
+      1.1,
+      1.02,
+      0.96,
+      0.92,
+      0.88,
+      0.85,
+      0.88
+    ],
+    "rbiMult": [
+      0.78,
+      0.92,
+      1.18,
+      1.24,
+      1.16,
+      1.02,
+      0.92,
+      0.85,
+      0.8
+    ]
   },
-
   "steal": {
-    // How much a runner's stolen-base attempt RATE (vs. his raw season
-    // SB/game) drives the projection. Raise toward 1 to weight "how often
-    // does he actually run when on base" over his flat season total; lower
-    // toward 0 to trust the simple season rate instead.
     "attemptWeight": 0.6,
-    // Below this stolen-base SUCCESS rate, a manager typically stops
-    // sending the runner — the projection gets damped once a player falls
-    // below this floor. Raise it to damp more runners (stricter cutoff);
-    // lower it to only damp the very worst basestealers.
     "successFloor": 0.65
   },
-
   "tb": {
-    // How much of the total-bases projection comes from Statcast's expected
-    // SLG (xSLG, quality-of-contact based) vs. this player's actual SLG
-    // this season. Raise toward 1 to trust underlying contact quality over
-    // results so far; lower toward 0 to trust his actual results more.
     "xslgWeight": 0.45,
-    // How much tonight's ballpark factor scales the total-bases projection.
-    // Raise to make park matter more; lower to make it matter less.
     "parkSensitivity": 0.5,
-    // How much tonight's wind/weather multiplier compounds into the
-    // projection (as an exponent, so this controls how STRONGLY weather
-    // bends the number, not just whether it applies). Raise for a bigger
-    // weather swing; lower for a gentler one.
     "weatherExponent": 0.5,
-
-    // NEW — same platoon mechanism as hr.platoonWeight, applied to this
-    // batter's SLG split against tonight's specific pitcher handedness.
-    // 0 = ignore platoon splits for total bases, 1 = fully trust them once
-    // the sample is large enough.
     "platoonWeight": 0.4
   },
-
   "rbi": {
-    // How much tonight's ballpark run-scoring environment scales the RBI
-    // projection. Raise to make park matter more; lower to make it matter less.
     "parkSensitivity": 0.6,
-    // How much a hot/cold recent-form trend nudges the RBI projection as a
-    // percentage swing (0.12 = up to a ±12% move). Raise for a bigger swing
-    // from being hot or cold lately; lower to keep RBI projections closer
-    // to the season-rate baseline regardless of recent form.
     "formSensitivity": 0.12
   },
-
   "hrr": {
-    // When a player's season runs-scored total isn't available (rare, only
-    // on older/incomplete data), runs are estimated from his on-base rate
-    // instead — this is what fraction of his times-on-base are assumed to
-    // score. Only matters when the real stat is missing; raise or lower to
-    // adjust how aggressive that fallback estimate is.
     "runsFromOnBaseRate": 0.33,
-    // How much tonight's ballpark run environment scales the runs-scored
-    // half of the H+R+RBI projection. Raise to make park matter more here too.
     "parkSensitivity": 0.6
   },
-
   "sb": {
-    // Stolen-base attempts are damped this much in cold/bad weather (colder
-    // air, worse footing). 1 = no effect, lower = more damping in bad
-    // weather.
     "coldWeatherMult": 0.95,
-    // Scales the blended attempt-opportunity rate into the final speed
-    // score. Rarely needs touching — it's a unit-conversion constant more
-    // than a "belief" knob.
     "rateMultiplier": 120,
     "baseline": 28,
-    // Flat adjustment to the speed score by defensive position — proxies
-    // for the kind of athlete who typically plays each spot. Raise a
-    // position's number to boost players there; lower it to dampen them.
     "posBonus": {
-      "CF": 12, "SS": 8, "2B": 6, "LF": 4, "RF": 0,
-      "3B": -4, "1B": -10, "DH": -12, "C": -14
+      "CF": 12,
+      "SS": 8,
+      "2B": 6,
+      "LF": 4,
+      "RF": 0,
+      "3B": -4,
+      "1B": -10,
+      "DH": -12,
+      "C": -14
     }
   }
 }
