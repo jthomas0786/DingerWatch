@@ -512,6 +512,12 @@ body:has(.betslip-bar) main{ padding-bottom:70px; }
   display:flex; align-items:flex-start; justify-content:center; overflow-y:auto; padding:24px 18px 40px; }
 /* Stop the app scrolling behind the gate. */
 body.gated{ overflow:hidden; }
+/* While booting (before the sign-in gate appears or the slate reveals), hide
+   every direct child of <body> except the splash and the gate overlay. This
+   keeps the app shell / empty slate from flashing on screen before the
+   sign-in screen — the first thing the user sees is either the gate (signed
+   out) or the splash → slate (signed in). Removed once the UI is revealed. */
+body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .gate-card{ max-width:520px; width:100%; margin-top:min(6vh, 50px); }
 .gate-brand{ display:flex; align-items:center; gap:14px; margin-bottom:22px; }
 .gate-logo{ width:56px; height:56px; border-radius:14px; flex-shrink:0; }
@@ -2321,7 +2327,7 @@ footer{ margin-left:0; }
 #notifyBtn{ position:relative; }
 </style>
 </head>
-<body>
+<body class="dw-booting">
 
 <!-- ============ SPLASH SCREEN ============ -->
 <div id="splash">
@@ -4910,6 +4916,10 @@ function paintBVP(slot){
 
 
 function renderList(){
+  // Suppress renders until the splash sequence finishes, so the slate can never
+  // flash on screen before the sign-in gate / splash loading screen. Once
+  // revealed, this is a no-op guard and every caller behaves as before.
+  if(!_uiRevealed) return;
   const meta = SECTION_META[activeTab];
   sectionTitle.textContent = meta.title;
   sectionSub.textContent = meta.sub;
@@ -7755,6 +7765,10 @@ function showGate(mode = 'signin'){
 }
 
 function dismissGate(){
+  // Show the splash BEFORE removing the gate, so there's never a frame where
+  // the slate (or an empty content area) is visible between the sign-in screen
+  // and the loading screen.
+  showSplash();
   document.getElementById('gate')?.remove();
   document.body.classList.remove('gated');
   renderAuthButton();
@@ -7789,9 +7803,14 @@ function evaluateGate(){
   const acked = store.get(GATE_ACK_KEY) === '1';
 
   // Signed in and already acknowledged: check Whop before dismissing.
-  if(signedIn && acked){ checkWhopAndDismiss(); return; }
+  // Show the splash first so the user isn't staring at a hidden shell while
+  // the access check is in flight.
+  if(signedIn && acked){ showSplash(); checkWhopAndDismiss(); return; }
   // Backend unavailable and already acknowledged: don't block a working app.
   if(!canAuth && acked){ dismissGate(); return; }
+  // Not signed in (or not acknowledged): the sign-in gate is the first screen.
+  // Stop hiding the shell so the gate (an overlay) renders, then show it.
+  document.body.classList.remove('dw-booting');
   showGate(signedIn ? 'signin' : 'signup');
 }
 
@@ -8808,13 +8827,39 @@ function openPitcherModal(p){
 let _slateLoaded = false;
 let _gateDismissed = false;
 let _simsStarted = false;
+// True only once the splash sequence has finished and the slate is allowed to
+// be visible. Until then, renderList() is suppressed so the pick list can
+// never flash on screen before the sign-in gate / splash loading screen.
+let _uiRevealed = false;
+let _slateFailed = false;
+
+function showSplash(){
+  const el = document.getElementById('splash');
+  if(el){ el.classList.remove('hide'); el.classList.add('show'); }
+}
 
 function maybeRunSims(){
-  if(!_slateLoaded || !_gateDismissed || _simsStarted) return;
+  // Gate not yet dismissed (signed out, or Whop check pending) — wait.
+  if(!_gateDismissed || _simsStarted) return;
+
+  // Slate failed to load — reveal the error message instead of looping on the
+  // splash forever. The error markup is already in pickList from the boot path.
+  if(_slateFailed){
+    _uiRevealed = true;
+    document.body.classList.remove('dw-booting');
+    hideSplash();
+    return;
+  }
+
+  // Sign-in just succeeded: show the splash immediately, even if the slate
+  // hasn't finished loading yet, so the user never sees an empty slate area.
+  showSplash();
+  if(!_slateLoaded) return;
+
   _simsStarted = true;
-  const splash = document.getElementById('splash');
-  if(splash) splash.classList.add('show');
   preRunSimulations().then(() => {
+    _uiRevealed = true;
+    document.body.classList.remove('dw-booting');
     hideSplash();
     renderList();
   });
@@ -10082,7 +10127,12 @@ function initOnlinePresence(){
 
   const ok = await loadSlate();
   if(!ok){
-    hideSplash();
+    // Slate failed — flag it so maybeRunSims reveals the error markup (instead
+    // of looping on the splash forever) once the gate is dismissed. The error
+    // is placed in pickList now; it stays hidden behind the gate/splash until
+    // reveal, so the user still sees sign-in → splash → error, never a bare
+    // empty slate.
+    _slateFailed = true;
     pickList.innerHTML = `<div style="text-align:center;padding:46px 22px;color:var(--mute);font-family:'Oswald',sans-serif;font-size:14px;line-height:1.7;">
       <div style="font-size:17px;color:var(--white);margin-bottom:10px;">Couldn't load slate.json</div>
       Expected it next to this page at <code style="color:var(--accent);">./slate.json</code>.<br>
@@ -10090,6 +10140,7 @@ function initOnlinePresence(){
       ${slateMeta.loadError ? `<div style="margin-top:12px;font-size:11.5px;">${slateMeta.loadError}</div>` : ''}
     </div>`;
     document.getElementById('dayNote').innerHTML = '<span style="color:var(--hot)">No slate data</span>';
+    maybeRunSims();
     return;
   }
 
