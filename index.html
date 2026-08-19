@@ -10848,6 +10848,142 @@ document.addEventListener('visibilitychange', ()=>{
   setTimeout(() => clearInterval(waitForSlate), 60000);
 })();
 
+// ============================================================================
+//  ?perf=1 — read-only model performance / calibration panel.
+//  Fetches model-logs/calibration-history.json (committed nightly by the build)
+//  and shows how the letter grades and probabilities held up against real
+//  outcomes: Brier score, log loss, hit rate per prop, and a per-grade +
+//  per-probability-bin calibration table. Self-contained, dwperf- prefix so it
+//  can never collide with existing UI. No writes, no model mutation.
+// ============================================================================
+(function(){
+  try{
+    if(!/[?&]perf=1/.test(location.search)) return;
+  }catch(e){ return; }
+  const A = {p:'hr',h:'hits',t:'tb',r:'rbi',x:'hrr',s:'sb'};
+  const CSS = `
+#dwperf{position:fixed;inset:0;z-index:2147483000;background:var(--bg,#080b14);color:var(--text,#e2e8f0);font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;overflow:auto;padding:24px 20px 80px}
+#dwperf *{box-sizing:border-box}
+.dwperf-wrap{max-width:980px;margin:0 auto}
+.dwperf-h{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+.dwperf-h h1{font-size:22px;font-weight:700;margin:0;letter-spacing:-.01em}
+.dwperf-h .sub{color:#9aa4b2;font-size:13px}
+.dwperf-badge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:rgba(45,127,255,.14);color:#7eb4ff;border:1px solid rgba(45,127,255,.3)}
+.dwperf-card{background:var(--surface,#0f1421);border:1px solid #1e2638;border-radius:12px;padding:16px 18px;margin:14px 0}
+.dwperf-card h2{font-size:14px;font-weight:600;margin:0 0 10px;color:#cdd6e4;text-transform:uppercase;letter-spacing:.06em}
+.dwperf-tbl{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.dwperf-tbl th,.dwperf-tbl td{padding:7px 10px;text-align:right;border-bottom:1px solid #1a2233;white-space:nowrap}
+.dwperf-tbl th:first-child,.dwperf-tbl td:first-child{text-align:left}
+.dwperf-tbl th{font-size:11px;font-weight:600;color:#8b94a4;text-transform:uppercase;letter-spacing:.05em}
+.dwperf-tbl td{font-size:13px}
+.dwperf-mono{font-family:'JetBrains Mono',ui-monospace,Menlo,monospace}
+.dwperf-good{color:var(--success,#22c55e)}
+.dwperf-warn{color:#f0a83a}
+.dwperf-bad{color:var(--hr-red,#ff3b3b)}
+.dwperf-empty{padding:40px;text-align:center;color:#9aa4b2}
+.dwperf-empty b{color:#cdd6e4;display:block;font-size:15px;margin-bottom:6px}
+.dwperf-sel{background:#0b1322;color:#e2e8f0;border:1px solid #2a3550;border-radius:7px;padding:6px 9px;font-size:13px}
+.dwperf-rowlabel{color:#9aa4b2}
+.dwperf-close{position:fixed;top:16px;right:20px;z-index:1;background:#1a2438;color:#cdd6e4;border:1px solid #2a3550;border-radius:8px;padding:7px 13px;font-size:13px;font-weight:600;cursor:pointer}
+.dwperf-close:hover{background:#243150}
+`;
+  function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;return e;}
+  function fmt(v,d=3){return v==null?'—':(typeof v==='number'?v.toFixed(d):v);}
+  // |predicted − actual| as a share of the predicted rate, capped for display.
+  function calibClass(meanProb,hitRate){
+    if(meanProb==null||hitRate==null)return'';
+    const gap=Math.abs(meanProb-hitRate);
+    if(gap<=0.02)return'dwperf-good';if(gap<=0.05)return'dwperf-warn';return'dwperf-bad';
+  }
+  function brierClass(b){if(b==null)return'';if(b<=0.12)return'dwperf-good';if(b<=0.2)return'dwperf-warn';return'dwperf-bad';}
+  const root=el('div','dwperf-wrap');
+  const close=el('button','dwperf-close','Close ×');
+  close.onclick=()=>{document.getElementById('dwperf').remove();};
+  root.appendChild(el('div','dwperf-h',`<h1>Model Performance</h1><span class="sub">nightly predictions vs actual outcomes</span><span class="dwperf-badge" id="dwperf-badge">loading…</span>`));
+  const propsCard=el('div','dwperf-card');
+  propsCard.appendChild(el('h2',null,'Calibration by prop'));
+  const pt=el('table','dwperf-tbl');
+  pt.innerHTML=`<thead><tr><th>Prop</th><th>Line</th><th>n</th><th>Voids</th><th>Mean p</th><th>Hit rate</th><th>Brier</th><th>Log loss</th></tr></thead><tbody id="dwperf-props"></tbody>`;
+  propsCard.appendChild(pt);
+  root.appendChild(propsCard);
+
+  const gradeCard=el('div','dwperf-card');
+  gradeCard.appendChild(el('h2',null,'Hit rate by grade'));
+  const sel=el('select','dwperf-sel');
+  ['hr','hits','tb','rbi','hrr','sb'].forEach(p=>{const o=el('option');o.value=p;o.textContent=p.toUpperCase();sel.appendChild(o);});
+  gradeCard.appendChild(sel);
+  const gt=el('table','dwperf-tbl');
+  gt.innerHTML=`<thead><tr><th>Grade</th><th>n</th><th>Hit rate</th><th>Mean p</th></tr></thead><tbody id="dwperf-grade"></tbody>`;
+  gradeCard.appendChild(gt);
+  root.appendChild(gradeCard);
+
+  const binCard=el('div','dwperf-card');
+  binCard.appendChild(el('h2',null,'Hit rate by predicted probability (ideal: bar ≈ label)'));
+  const bt=el('table','dwperf-tbl');
+  bt.innerHTML=`<thead><tr><th>Prob range</th><th>n</th><th>Hit rate</th><th>Mean p</th></tr></thead><tbody id="dwperf-bin"></tbody>`;
+  binCard.appendChild(bt);
+  root.appendChild(binCard);
+
+  root.appendChild(el('p','dwperf-rowlabel','Brier = mean squared error of the probability (lower is better). Log loss penalizes confident wrong calls. Hit rate should track mean p.'));
+
+  async function render(){
+    let cal=null;
+    try{
+      const res=await fetch('model-logs/calibration-history.json',{cache:'no-cache'});
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      cal=await res.json();
+    }catch(e){
+      const box=document.getElementById('dwperf');
+      box.innerHTML='';
+      box.appendChild(el('div','dwperf-wrap',`<div class="dwperf-card dwperf-empty"><b>No scored slates yet</b>Calibration history appears the morning after the first night of games finish. Check <code class=\"dwperf-mono\">model-logs/calibration-history.json</code>.</div>`));
+      return;
+    }
+    const pp=cal.perProp||{};
+    // Show the most recent model version's metrics, not a mix across versions.
+    // cal.days is sorted by date; the last entry's modelHash is the current model.
+    const latestDay = cal.days && cal.days.length ? cal.days[cal.days.length-1] : null;
+    const latestHash = latestDay && latestDay.modelHash || null;
+    const active = (latestHash && cal.byModel && cal.byModel[latestHash] && cal.byModel[latestHash].perProp)
+      ? cal.byModel[latestHash].perProp : pp;
+    const badge=document.getElementById('dwperf-badge');
+    if(!cal.daysScored){badge.textContent='waiting for first scored slate';badge.style.color='#9aa4b2';}
+    else badge.textContent=`${cal.daysScored} day${cal.daysScored>1?'s':''} · ${cal.totalRows||0} rows${latestHash?' · '+latestHash.slice(0,7):''}`;
+
+    const lines={hr:'0.5 HR',hits:'0.5 H',tb:'1.5 TB',rbi:'0.5 RBI',hrr:'1.5 H+R+RBI',sb:'0.5 SB'};
+    const pb=document.getElementById('dwperf-props');
+    pb.innerHTML='';
+    ['hr','hits','tb','rbi','hrr','sb'].forEach(p=>{
+      const m=active[p]||{};const tr=el('tr');
+      tr.innerHTML=`<td>${p.toUpperCase()}</td><td class="dwperf-rowlabel">${lines[p]}</td><td>${m.n??0}</td><td>${m.voids??0}</td><td class="dwperf-mono ${calibClass(m.meanProb,m.hitRate)}">${fmt(m.meanProb)}</td><td class="dwperf-mono ${calibClass(m.meanProb,m.hitRate)}">${fmt(m.hitRate)}</td><td class="dwperf-mono ${brierClass(m.brier)}">${fmt(m.brier,4)}</td><td class="dwperf-mono">${fmt(m.logLoss,4)}</td>`;
+      pb.appendChild(tr);
+    });
+
+    function drawGrade(p){
+      const m=active[p]||{};const gb=document.getElementById('dwperf-grade');gb.innerHTML='';
+      ['A+','A','B+','B','C+','C','D'].forEach(g=>{
+        const r=(m.byGrade||{})[g]||{};const tr=el('tr');
+        tr.innerHTML=`<td>${g}</td><td>${r.n??0}</td><td class="dwperf-mono ${calibClass(r.meanProb,r.hitRate)}">${fmt(r.hitRate)}</td><td class="dwperf-mono">${fmt(r.meanProb)}</td>`;
+        gb.appendChild(tr);
+      });
+    }
+    function drawBin(p){
+      const m=active[p]||{};const bb=document.getElementById('dwperf-bin');bb.innerHTML='';
+      (m.byBin||[]).forEach(b=>{const tr=el('tr');tr.innerHTML=`<td>${b.range}</td><td>${b.n??0}</td><td class="dwperf-mono ${calibClass(b.meanProb,b.hitRate)}">${fmt(b.hitRate)}</td><td class="dwperf-mono">${fmt(b.meanProb)}</td>`;bb.appendChild(tr);});
+    }
+    sel.onchange=()=>{drawGrade(sel.value);drawBin(sel.value);};
+    drawGrade(sel.value);drawBin(sel.value);
+  }
+
+  function mount(){
+    const style=el('style');style.textContent=CSS;document.head.appendChild(style);
+    const box=el('div');box.id='dwperf';box.appendChild(close);box.appendChild(root);
+    document.body.appendChild(box);
+    render();
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);
+  else mount();
+})();
+
 </script>
 
 <!-- ===== Floating Chat Panel ===== -->

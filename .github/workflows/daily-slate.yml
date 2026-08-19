@@ -112,7 +112,7 @@ jobs:
 
           # Commit only the files this job owns, so a concurrent push of
           # index.html or config isn't clobbered.
-          git add slate.json
+          git add slate.json model-logs/
           git diff --staged --quiet && echo "no changes" && exit 0
           git commit -m "slate: $(date -u +%Y-%m-%d)"
 

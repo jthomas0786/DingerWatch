@@ -776,6 +776,24 @@ async function build() {
   await writeOut(payload);
   console.log(`✓ ${games.length} games → ${OUT} (${((Date.now() - started) / 1000).toFixed(1)}s)`);
   if (warnings.length) console.log(`  ${warnings.length} warning(s):`), warnings.forEach(w => console.log(`    · ${w}`));
+
+  // 7. Model logging — capture tonight's predictions (seeded, before first
+  // pitch) and score any prior dates now that their games are final, so the
+  // grading model can be backtested over time. Runs after the slate is written
+  // and never breaks the build: every step is wrapped and failures only warn.
+  try {
+    const { runLogging } = await import('./model-logger.js');
+    const ROOT = path.dirname(new URL(import.meta.url).pathname);
+    const logsDir = path.join(ROOT, 'model-logs');
+    const gitSha = process.env.GITHUB_SHA ? process.env.GITHUB_SHA.slice(0, 7) : null;
+    const r = await runLogging({
+      slatePath: OUT, htmlPath: path.join(ROOT, 'index.html'),
+      configPath: path.join(ROOT, 'model-config.json'), logsDir, gitSha,
+    });
+    console.log(`✓ model logged: predictions ${r.predictions?.date ?? 'skipped'}, scored ${(r.scored?.scored || []).length} day(s), ${r.calibration?.daysScored ?? 0} days calibrated`);
+  } catch (e) {
+    console.warn('  ⚠ model logging skipped:', e.message);
+  }
 }
 
 async function writeOut(payload) {
