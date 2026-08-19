@@ -5677,7 +5677,17 @@ async function pollHomeRunFeed(){
       const res = await fetch(`https://statsapi.mlb.com/api/v1/game/${g.gamePk}/playByPlay`);
       if(!res.ok) return;
       const data = await res.json();
-      for(const play of (data.allPlays || [])){
+      // Watch-list at-bat detection needs EVERY play, not just home runs —
+      // the "up to bat" moment happens before the at-bat completes, and a
+      // strikeout/walk/groundout is a result worth alerting on too. So we
+      // run checkWatchlistPlay on all plays (plus the in-progress currentPlay)
+      // BEFORE the home-run-only filter below feeds the HR ticker.
+      // currentPlay holds the at-bat in progress right now, which allPlays
+      // may not have caught yet — exactly the "up to bat" trigger.
+      const plays = [...(data.allPlays || [])];
+      if(data.currentPlay && !plays.some(p => p.atBatIndex === data.currentPlay.atBatIndex)) plays.push(data.currentPlay);
+      for(const play of plays){
+        try{ checkWatchlistPlay(g, play); }catch(e){ /* one play failing shouldn't stall the feed */ }
         if(play.result?.eventType !== 'home_run') continue;
         const key = `${g.gamePk}:${play.atBatIndex}`;
         if(seenHRKeys.has(key)) continue;
@@ -5890,6 +5900,7 @@ function renderFeed(){
 let foryouSub = null;
 let watchedPlayerIds = new Set();
 let seenWatchUpKeys = new Set();
+let seenWatchResultKeys = new Set();
 let notifyItems = [];   // newest first: { id, title, body, ts, read }
 let notifyUnsub = null;
 const AVATAR_PRESETS = [
@@ -8265,24 +8276,26 @@ function avatarPickerHTML(prof){
 
 // === PORTED FROM GITHUB: checkWatchlistPlay ===
 function checkWatchlistPlay(g, play){
-  if(!watchedPlayerIds.size) return;      // nobody signed in, or nothing watched
   const batterId = play.matchup?.batter?.id;
-  if(!batterId || !isWatched(batterId)) return;
-
+  if(!batterId) return;
   const complete = play.about?.isComplete;
   const atBatKey = `${g.gamePk}:${play.atBatIndex}`;
 
+  // Record seen keys for EVERY at-bat, not just watched players. Otherwise a
+  // player added mid-game would replay the whole day's backlog as alerts,
+  // because their old at-bats were never marked seen. The watch + prime gates
+  // below stop the notification firing; the seen-key recording still happens.
   if(!complete){
     // In progress — this is the "up to bat" moment. Fire once per at-bat.
     if(seenWatchUpKeys.has(atBatKey)) return;
     rememberWatchKey(seenWatchUpKeys, 'up', atBatKey);
-    if(!feedPrimed) return;               // first poll after load = backlog, don't alert
+    if(!feedPrimed || !watchedPlayerIds.size || !isWatched(batterId)) return;
     const name = play.matchup?.batter?.fullName ?? 'Watched player';
     social()?.selfNotify?.('atbat_up', {
       player_name: name, player_id: batterId, atbat_key: atBatKey,
       game: `${g.awayName} @ ${g.homeName}`,
     }, slateMeta.date);   // stamped so this alert stops showing after today
-    pushAppNotification({ title: `⚾ ${name} is up to bat`, body: `${g.awayName} @ ${g.homeName}` });
+    pushAppNotification({ title: `⚾ ${name} is up to bat`, body: `${g.awayName} @ ${g.homeName}`, dedupeKey: `atbat_up:${atBatKey}` });
     return;
   }
 
@@ -8291,7 +8304,7 @@ function checkWatchlistPlay(g, play){
   // suppression not blocked it) — either way this key guards it from repeats.
   if(seenWatchResultKeys.has(atBatKey)) return;
   rememberWatchKey(seenWatchResultKeys, 'result', atBatKey);
-  if(!feedPrimed) return;
+  if(!feedPrimed || !watchedPlayerIds.size || !isWatched(batterId)) return;
 
   const name = play.matchup?.batter?.fullName ?? 'Watched player';
   const hitEvent = [...(play.playEvents || [])].reverse().find(e => e.hitData?.launchSpeed != null);
@@ -8305,7 +8318,7 @@ function checkWatchlistPlay(g, play){
   social()?.selfNotify?.('atbat_result', {
     player_name: name, player_id: batterId, result, detail, emoji, atbat_key: atBatKey,
   }, slateMeta.date);   // stamped so this alert stops showing after today
-  pushAppNotification({ title: `${emoji} ${name}: ${result}`, body: detail });
+  pushAppNotification({ title: `${emoji} ${name}: ${result}`, body: detail, dedupeKey: `atbat_result:${atBatKey}` });
 }
 
 // === PORTED FROM GITHUB: closeNotifyPop ===
@@ -8779,18 +8792,33 @@ async function primeAllSimulations(){
 }
 
 // === PORTED FROM GITHUB: pushAppNotification ===
-/** Add one notification to the in-memory list and repaint. */
-function pushAppNotification({ title, body = '', id = null, ts = Date.now(), read = false } = {}){
-  notifyItems.unshift({ id: id ?? `n${Date.now()}`, title, body, ts, read });
+/** Add one notification to the in-memory list and repaint.
+ *  dedupeKey: a stable key (e.g. `atbat_up:<gamePk>:<atBatIndex>`) shared
+ *  by the local instant-add and the Supabase realtime echo of the same
+ *  alert. If an item with this key already exists, the echo is skipped —
+ *  so the bell never shows two entries for one at-bat. */
+function pushAppNotification({ title, body = '', id = null, ts = Date.now(), read = false, dedupeKey = null } = {}){
+  if(dedupeKey && notifyItems.some(n => n.dedupeKey === dedupeKey)) return;   // realtime echo of an alert already shown locally
+  notifyItems.unshift({ id: id ?? `n${Date.now()}`, title, body, ts, read, dedupeKey });
   notifyItems = notifyItems.slice(0, 50);   // cap so this can't grow unbounded
   renderNotifyBtn();
   const pop = document.getElementById('notifyPop');
   if(pop?.classList.contains('open')) renderNotifyPop();
 }
 // === PORTED FROM GITHUB: rememberWatchKey ===
+let _watchKeyWritePending = false;
 function rememberWatchKey(set, suffix, key){
   set.add(key);
-  try{ store.set(watchKeysStorageKey(suffix), JSON.stringify([...set].slice(-500))); }catch{}
+  // Debounce the localStorage persistence. On the first poll after load,
+  // hundreds of completed at-bats are "new" at once — a synchronous write per
+  // key would jank the UI for ~1s. Batch them into one write after the task drains.
+  if(_watchKeyWritePending) return;
+  _watchKeyWritePending = true;
+  setTimeout(() => {
+    _watchKeyWritePending = false;
+    try{ store.set(watchKeysStorageKey('up'), JSON.stringify([...seenWatchUpKeys].slice(-500))); }catch{}
+    try{ store.set(watchKeysStorageKey('result'), JSON.stringify([...seenWatchResultKeys].slice(-500))); }catch{}
+  }, 0);
 }
 
 // === PORTED FROM GITHUB: renderNotifyPop ===
@@ -8907,21 +8935,34 @@ function showSubscribeGate(checkoutUrl, connected){
 }
 
 // === PORTED FROM GITHUB: startNotifications ===
-/** Load history + subscribe to new ones arriving live. Called once per sign-in. */
+/** Load history + subscribe to new ones arriving live. Called once per
+ *  sign-in (boot + dw-auth-changed). Safe to re-call: it unsubscribes first
+ *  and snapshots the user id so a slow load can't repaint after sign-out. */
 async function startNotifications(){
   const s = social();
   if(!s || !s.socialEnabled() || !s.getUser?.()) return;
+  const userId = s.getUser().id;   // snapshot — guards against sign-out mid-load
 
+  if(notifyUnsub){ notifyUnsub(); notifyUnsub = null; }
   const rows = await s.loadNotifications();
+  if(social().getUser?.()?.id !== userId) return;   // signed out / switched user while loading
   notifyItems = rows.map(r => ({ id: r.id, ts: new Date(r.created_at).getTime(),
-    read: r.read, ...formatNotification(r) }));
+    read: r.read, dedupeKey: watchDedupeKey(r), ...formatNotification(r) }));
   renderNotifyBtn();
 
-  if(notifyUnsub) notifyUnsub();
   notifyUnsub = s.subscribeNotifications(row => {
     pushAppNotification({ id: row.id, ts: new Date(row.created_at).getTime(),
-      read: false, ...formatNotification(row) });
+      read: false, dedupeKey: watchDedupeKey(row), ...formatNotification(row) });
   });
+}
+
+/** Reconstruct the dedupe key from a Supabase notification row so a locally-
+ *  added at-bat alert and its realtime echo collapse into one bell entry. */
+function watchDedupeKey(row){
+  const p = row.payload || {};
+  if(row.type === 'atbat_up' && p.atbat_key) return `atbat_up:${p.atbat_key}`;
+  if(row.type === 'atbat_result' && p.atbat_key) return `atbat_result:${p.atbat_key}`;
+  return null;   // comments/follows have no local echo, so no dedupe needed
 }
 
 // === PORTED FROM GITHUB: stopNotifications ===
@@ -9346,6 +9387,19 @@ function initOnlinePresence(){
     renderAuthButton();
     refreshExportVisibility();
     refreshSocialUI();
+    const s = social();
+    if(s && s.getUser?.()){
+      // Signed in — (re)load notification history + (re)subscribe to live ones.
+      // This is what was missing before: sign-in via the auth modal (not a
+      // persisted cookie) never set up the realtime subscription, so watch-list
+      // at-bat alerts written by selfNotify were never echoed back to the bell.
+      startNotifications();
+    } else {
+      // Signed out — drop the inbox + realtime subscription so the next user
+      // starts clean and the previous user's alerts don't linger in the bell.
+      stopNotifications();
+      renderNotifyBtn();
+    }
     // Watch list is per-user: reload it and repaint every star so the
     // signed-in state is reflected immediately across all open tabs.
     loadWatchlistCache().then(() => { syncWatchStars(); renderList(); });
