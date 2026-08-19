@@ -15,7 +15,7 @@
     // data and for platoon splits. Raise it to trust small samples less
     // (a hot 15-PA callup gets pulled harder toward average). Lower it to
     // let hot small samples rank higher, faster.
-    "regressionPA": 220,
+    "regressionPA": 500,
 
     // League-average isolated power (SLG - AVG), used as the blend target
     // when a player's own Statcast is too thin to trust. Rarely needs
@@ -96,8 +96,8 @@
     // has its own budget, so you can push weight toward exactly the signal
     // you trust most without an automatic knock-on effect elsewhere.
     "contact": {
-      "barrel":     20, // barrel% (ball hit exactly right). Raise to reward elite barrels specifically.
-      "hardHit":    10, // hard-hit% (95mph+ exit velo rate). Raise to reward hard contact generally, barreled or not.
+      "barrel":     15, // barrel% (ball hit exactly right). Raise to reward elite barrels specifically.
+      "hardHit":    15, // hard-hit% (95mph+ exit velo rate). Raise to reward hard contact generally, barreled or not.
       "exitVelo":    6, // NEW — raw average exit velocity, a continuous signal distinct from the hard-hit threshold above.
       "battedBall":  4  // NEW — fly-ball-leaning batted-ball profile. See note below on why this is ONE knob, not two.
     },
@@ -117,7 +117,7 @@
     // trending up or down on BATTING AVERAGE (hot/cold overall, last 10
     // games vs. season). Raise to make an overall hot/cold streak move the
     // grade more.
-    "trendBonus": 4,
+    "trendBonus": 6,
     // NEW — a SEPARATE hot/cold signal, specifically for HOME RUN RATE
     // rather than overall batting average. A player can be flat on the
     // signal above while running unusually hot or cold on power
@@ -184,13 +184,13 @@
     // regressed toward his overall SLG by sample size — see regressionPA
     // above). 0 = platoon splits ignored entirely. 1 = fully trust the
     // platoon-adjusted number once the sample is large enough.
-    "platoonWeight": 0.5,
+    "platoonWeight": 0.75,
 
     // Ground-ball pitchers structurally suppress home runs. This is how
     // much a pitcher's groundball-to-flyball ratio nudges the matchup score
     // beyond his raw HR9 — raise to weight pitch-type tendency more heavily
     // than his results so far; lower to trust his actual HR9 results more.
-    "pitcherGbWeight": 0.18,
+    "pitcherGbWeight": 0.15,
     // League-average groundball/flyball ratio — the neutral point pitcherGbWeight measures pitchers against.
     "leagueGbFb": 1.35,
 
