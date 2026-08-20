@@ -68,6 +68,17 @@ webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+// A subscription is permanently dead if the endpoint is gone (404/410) OR the
+// VAPID key it was created under no longer matches the one we're sending with.
+// Apple reports that as a 400 {reason:VapidPkHashMismatch}; FCM reports it as a
+// 403 "credentials ... do not correspond". Either way the only fix is for the
+// device to re-subscribe (which the app does automatically on next open), so we
+// prune it instead of retrying it forever.
+const isSubDead = (code, body) =>
+  code === 404 || code === 410 ||
+  (code === 403 && /do not correspond|VapidPkHashMismatch/i.test(body)) ||
+  (code === 400 && /VapidPkHashMismatch/i.test(body));
+
 // How many of the most recent new homers to pack into one push. sw.js caps its
 // own display at the newest 5 anyway, and a smaller payload encrypts faster and
 // stays well under the 4KB push-service limit.
@@ -98,11 +109,7 @@ async function pushBatch(hrs) {
     } catch (e) {
       const code = e.statusCode;
       const body = String(e.body ?? '');
-      // 404/410 = subscription permanently gone. A 403 with VapidPkHashMismatch
-      // is just as dead — the device subscribed under an old VAPID key and will
-      // get a fresh endpoint next time it reopens the app. Prune both; retrying
-      // either never succeeds.
-      if (code === 404 || code === 410 || (code === 403 && body.includes('VapidPkHashMismatch'))) {
+      if (isSubDead(code, body)) {
         deadIds.push(sub.id);
       } else {
         console.warn(`  ! push failed ${code ?? '?'}: ${body.slice(0, 120) || e.message}`);
@@ -197,7 +204,7 @@ async function runSelfTest() {
       ok++;
     } catch (e) {
       const code = e.statusCode; const body = String(e.body ?? '');
-      if (code === 404 || code === 410 || (code === 403 && body.includes('VapidPkHashMismatch'))) {
+      if (isSubDead(code, body)) {
         deadIds.push(sub.id);
       } else {
         console.warn(`  ! test push failed ${code ?? '?'}: ${body.slice(0, 120) || e.message}`);
