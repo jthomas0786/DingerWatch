@@ -695,8 +695,11 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .pf-empty{ text-align:center; color:var(--mute); font-size:13px; padding:26px; }
 
 .status{ background:var(--night2); border:1px solid var(--line); border-radius:12px; padding:13px 15px; }
-/* For You: a status with an attached betslip gets a blue accent so slips stand out. */
-.status.status--slip{ border-color: rgba(45,127,255,0.40); box-shadow: inset 3px 0 0 var(--accent); background: linear-gradient(90deg, rgba(45,127,255,0.08), var(--night2) 30%); }
+/* For You feed: highlight each betslip leg by its live HR result. */
+/* Blue border = that leg's player went deep tonight; red border = game final, */
+/* player appeared in the boxscore, 0 HR. Live/preview legs stay neutral. */
+.sl-leg.sl-leg--dinger{ border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: linear-gradient(90deg, rgba(45,127,255,0.12), var(--night) 50%); }
+.sl-leg.sl-leg--missed{ border-color: var(--hr-red); box-shadow: 0 0 0 1px var(--hr-red); background: linear-gradient(90deg, rgba(255,59,59,0.10), var(--night) 50%); }
 .status-head{ display:flex; align-items:center; gap:9px; }
 .status-name{ font-family:'Oswald',sans-serif; font-size:14px; cursor:pointer; }
 .status-name:hover{ color:var(--accent); }
@@ -1784,13 +1787,10 @@ footer{ margin-left:0; }
 }
 .pick-card.is-compact:hover{ border-color: var(--border-bright); }
 
-/* Top 20 Home Run — live result highlights (applied in place by applyLiveHRHighlights). */
-/* Blue accent = player went deep tonight; red accent = prop missed (game final, 0 HR). */
-/* Uses inset box-shadow rather than a real border so card width never shifts. */
-.pick-card.pick-card--dinger{ box-shadow: inset 3px 0 0 var(--accent), 0 0 0 1px rgba(45,127,255,0.25), var(--shadow-card); background: linear-gradient(90deg, rgba(45,127,255,0.10), var(--surface) 28%); }
-.pick-card.pick-card--dinger:hover{ box-shadow: inset 3px 0 0 var(--accent), 0 0 0 1px rgba(45,127,255,0.40), var(--shadow-card); }
-.pick-card.pick-card--missed{ box-shadow: inset 3px 0 0 var(--hr-red), 0 0 0 1px rgba(255,59,59,0.18), var(--shadow-card); background: linear-gradient(90deg, rgba(255,59,59,0.07), var(--surface) 28%); }
-.pick-card.pick-card--missed:hover{ box-shadow: inset 3px 0 0 var(--hr-red), 0 0 0 1px rgba(255,59,59,0.30), var(--shadow-card); }
+/* Top 20 Home Run — a player who went deep tonight gets a full blue border. */
+/* Scoped under .app-shell to outrank the generic .app-shell .pick-card lift rule. */
+.app-shell .pick-card.pick-card--dinger{ border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent), var(--shadow-card); background: linear-gradient(90deg, rgba(45,127,255,0.10), var(--surface) 40%); }
+.app-shell .pick-card.pick-card--dinger:hover{ box-shadow: 0 0 0 2px var(--accent), 0 4px 14px rgba(45,127,255,0.30), var(--shadow-card); }
 /* Solid multi-HR pill — only shown when a player hits 2+ tonight. */
 .hr-multi-pill{ position:absolute; top:6px; right:8px; z-index:6; display:inline-flex; align-items:center; justify-content:center; min-width:34px; height:24px; padding:0 8px; border-radius:12px; font-family:'Cabinet Grotesk','Archivo Black',sans-serif; font-weight:800; font-size:13px; letter-spacing:0.3px; color:#fff; background:var(--accent); box-shadow: 0 2px 8px rgba(45,127,255,0.55), 0 0 0 2px var(--surface); }
 .pick-card.is-compact{ position:relative; }
@@ -5138,8 +5138,6 @@ function applyLiveHRHighlights(){
     if(oldPill) oldPill.remove();
     if(!p) return;
     const r = playerHRResult(p);
-    const g = p.game;
-    const live = g && g.mlbStatus === 'Live';
     if(r.hr >= 1){
       card.classList.add('pick-card--dinger');
       if(r.hr >= 2){
@@ -5148,15 +5146,41 @@ function applyLiveHRHighlights(){
         pill.textContent = 'x' + r.hr;
         card.appendChild(pill);
       }
-    } else if(isCompletedResultGame(g) && r.appeared){
-      card.classList.add('pick-card--missed');
-    } else if(live){
-      // In progress, nothing yet — leave neutral.
     }
+    // No red "missed" state on the Top 20 list — once a game goes final a
+    // player who didn't go deep just returns to a normal card.
+  });
+}
+
+// For You feed: color each betslip leg by whether that player went deep.
+// Legs only carry a display string (e.g. "Kyle Schwarber HR over 0.5"), so we
+// match the leg text to today's slate batters by name (longest prefix match)
+// and reuse the same live boxscore result as the Top 20 list. Idempotent so
+// the 20s poll can call it without a full re-render.
+function applyLegHighlights(){
+  const root = document.querySelector('.foryou-list');
+  if(!root) return;
+  const legs = root.querySelectorAll('.sl-leg');
+  if(!legs.length) return;
+  const batters = (typeof allBatters !== 'undefined' && Array.isArray(allBatters)) ? allBatters : [];
+  legs.forEach(leg => {
+    leg.classList.remove('sl-leg--dinger','sl-leg--missed');
+    const txt = (leg.textContent || '').trim().toLowerCase();
+    if(!txt) return;
+    let match = null;
+    for(const b of batters){
+      const nm = (b.name || '').trim().toLowerCase();
+      if(nm && txt.startsWith(nm) && (!match || nm.length > (match.name||'').length)) match = b;
+    }
+    if(!match) return;
+    const r = playerHRResult(match);
+    if(r.hr >= 1) leg.classList.add('sl-leg--dinger');
+    else if(isCompletedResultGame(match.game) && r.appeared) leg.classList.add('sl-leg--missed');
   });
 }
 
 function windDirLabel(deg){ const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW']; return dirs[Math.round(deg/22.5)%16]; }
+
 
 // ---- RotoGrinders-style ballpark wind diagram ----
 function windRelativeToPark(windFromDeg, cfDeg){
@@ -8155,8 +8179,7 @@ function statusHTML(st, canDelete){
   const rx = s?.statusReactionsFor ? s.statusReactionsFor(st.id) : {};
   const name = st.display_name || st.username;
   const legs = st.legs ? (Array.isArray(st.legs) ? st.legs : []) : [];
-  const hasSlip = legs.length > 0;
-  return `<div class="status${hasSlip ? ' status--slip' : ''}" data-sid="${st.id}">
+  return `<div class="status" data-sid="${st.id}">
     <div class="status-head">
       <span class="chat-av">${escapeHTML((st.username||'?')[0].toUpperCase())}</span>
       <span class="status-name chat-user" data-username="${escapeHTML(st.username)}">${escapeHTML(name)}</span>
@@ -8436,6 +8459,7 @@ async function renderForYou(){
   );
 
   wireStatusInteractions(pickList, signedIn);
+  applyLegHighlights();
 
   const signInBtn = document.getElementById('fySignIn');
   if(signInBtn) signInBtn.onclick = () => openAuthModal('signin');
@@ -10688,6 +10712,7 @@ setInterval(()=>{
   }).then(()=>{
     if(activeTab==='feed') renderList();   // renderFeed primes reactions itself
     else if(activeTab==='hr') applyLiveHRHighlights();  // live HR results on the Top 20 list, no scroll reset
+    else if(activeTab==='foryou') applyLegHighlights(); // live HR results on each betslip leg
     renderTabs();                       // keeps the unread badge current
   });
 }, 20*1000);
