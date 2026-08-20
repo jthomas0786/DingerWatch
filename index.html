@@ -4451,6 +4451,13 @@ function renderTabs(){
 function renderInlinePropMenu(){
   const host = document.getElementById('propMenuInline');
   if(!host) return;
+  // Phones use the #propMenu popover anchored above the bottom bar, not this
+  // in-flow host — leave it hidden so the menu never jumps to the top of the frame.
+  if(window.innerWidth <= 600){
+    host.className = 'prop-menu-inline';
+    host.innerHTML = '';
+    return;
+  }
   host.className = 'prop-menu-inline' + (propMenuOpen ? ' open' : '');
   host.innerHTML = propMenuOpen
     ? PROP_MENU.map(p=>`<button class="prop-menu-item ${p.id===activeTab?'active':''}" data-tab="${p.id}">${p.label}</button>`).join('')
@@ -4477,9 +4484,17 @@ function openPropMenu(btn){
   const menu = document.getElementById('propMenu');
   const isMobile = window.innerWidth <= 600;
 
-  // Mobile uses the in-flow panel only — no overlay, no reparenting.
+  // Mobile (≤600px): anchor #propMenu right above the Props button using the
+  // existing .app-sidebar .prop-menu CSS (bottom: calc(100% + 10px)). Keep it
+  // inside .prop-dropdown so that CSS applies — don't reparent to <body> and
+  // don't fall back to the top-of-frame #propMenuInline host.
   if(isMobile){
     propMenuOpen = true;
+    if(menu){
+      const dropdown = btn ? btn.closest('.prop-dropdown') : null;
+      if(dropdown && menu.parentElement !== dropdown) dropdown.appendChild(menu);
+      menu.classList.add('open');
+    }
     renderInlinePropMenu();
     return;
   }
