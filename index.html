@@ -669,7 +669,7 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .profile-modal{ align-items:flex-start; padding-top:40px; overflow-y:auto; }
 .profile-card{ background:var(--panel); border:1px solid var(--line); border-radius:16px;
   padding:24px; max-width:620px; width:100%; position:relative; margin-bottom:40px; }
-.pf-head{ display:flex; align-items:center; gap:14px; }
+.pf-head{ display:flex; align-items:center; gap:14px; padding-right:38px; }   /* clear the × close button */
 .pf-av{ width:58px; height:58px; border-radius:50%; background:var(--accent); color:var(--night);
   display:flex; align-items:center; justify-content:center; font-family:'Cabinet Grotesk','Archivo Black',sans-serif;
   font-size:22px; flex-shrink:0; }
@@ -692,7 +692,24 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .pf-attach{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:10.5px; color:var(--mute); display:flex;
   align-items:center; gap:6px; cursor:pointer; }
 .pf-statuses{ margin-top:18px; display:flex; flex-direction:column; gap:10px; }
+.pf-av .dw-avatar{ width:100%!important; height:100%!important; border-radius:50%; }
 .pf-empty{ text-align:center; color:var(--mute); font-size:13px; padding:26px; }
+/* Avatar picker in the profile editor */
+.pe-av-row{ display:flex; align-items:center; gap:14px; margin:4px 0 2px; }
+.pe-av-preview{ width:64px; height:64px; border-radius:50%; overflow:hidden; flex-shrink:0;
+  border:2px solid var(--line); background:var(--night); display:flex; align-items:center; justify-content:center; }
+.pe-av-preview .dw-avatar{ width:100%!important; height:100%!important; border-radius:50%; }
+.pe-av-actions{ display:flex; flex-direction:column; gap:5px; }
+.pe-av-upload{ background:var(--accent); border:1px solid var(--accent); color:var(--night); font-weight:700;
+  font-family:'Oswald',sans-serif; font-size:12px; padding:7px 14px; border-radius:18px; cursor:pointer; }
+.pe-av-upload:hover{ filter:brightness(1.08); }
+.pe-av-upload:disabled{ opacity:.6; cursor:default; }
+.pe-av-hint{ font-size:10.5px; color:var(--mute); font-family:'JetBrains Mono','Space Mono',monospace; }
+.pe-av-grid{ display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin:8px 0 14px; }
+.pe-av-opt{ aspect-ratio:1; border-radius:50%; border:2px solid var(--line); cursor:pointer;
+  display:flex; align-items:center; justify-content:center; font-size:18px; transition:border-color .12s, transform .12s; }
+.pe-av-opt:hover{ transform:scale(1.06); }
+.pe-av-opt.sel{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-glow); }
 
 .status{ background:var(--night2); border:1px solid var(--line); border-radius:12px; padding:13px 15px; }
 /* For You feed: highlight each betslip leg by its live HR result. */
@@ -8251,7 +8268,7 @@ async function openProfile(username){
     <div class="profile-card">
       <button class="modal-close" id="pfClose">&times;</button>
       <div class="pf-head">
-        <div class="pf-av">${escapeHTML((prof.username||'?')[0].toUpperCase())}</div>
+        <div class="pf-av">${avatarHTML(prof, 58)}</div>
         <div class="pf-id">
           <div class="pf-name">${escapeHTML(prof.display_name || prof.username)}</div>
           <div class="pf-handle">@${escapeHTML(prof.username)}${prof.team ? ` · ${escapeHTML(prof.team)}` : ''}</div>
@@ -8394,6 +8411,15 @@ function openProfileEditor(prof){
   wrap.innerHTML = `
     <div class="dw-card">
       <h3>Edit profile</h3>
+      <div class="pe-av-row">
+        <div class="pe-av-preview" id="peAvPreview">${avatarHTML(prof, 64)}</div>
+        <div class="pe-av-actions">
+          <button class="pe-av-upload" id="peAvUploadBtn">Upload photo</button>
+          <span class="pe-av-hint">From your phone or computer</span>
+        </div>
+      </div>
+      <input type="file" id="peAvFile" accept="image/*" style="display:none">
+      <div class="pe-av-grid" id="peAvGrid">${AVATAR_PRESETS.map(p => `<button type="button" class="pe-av-opt${('preset:'+p.id)===prof.avatar_url?' sel':''}" data-preset="${p.id}" style="background:${p.bg}">${p.emoji}</button>`).join('')}</div>
       <input id="peName" placeholder="display name" maxlength="40" value="${escapeHTML(prof.display_name||'')}">
       <input id="peUser" placeholder="username" maxlength="20" value="${escapeHTML(prof.username||'')}">
       <input id="peTeam" placeholder="team (e.g. LAD)" maxlength="4" value="${escapeHTML(prof.team||'')}">
@@ -8409,6 +8435,46 @@ function openProfileEditor(prof){
   const close = () => wrap.remove();
   document.getElementById('peCancel').onclick = close;
   wrap.onclick = e => { if(e.target === wrap) close(); };
+
+  // Avatar: upload a photo OR pick from the preset grid. Both persist immediately
+  // through social.js (uploadAvatar / setAvatarPreset → updateProfile) and
+  // refresh the preview + top-right auth button in place.
+  const avPreview = document.getElementById('peAvPreview');
+  const avFile = document.getElementById('peAvFile');
+  const avUploadBtn = document.getElementById('peAvUploadBtn');
+  const avGrid = document.getElementById('peAvGrid');
+  const reflectAvatar = next => {
+    if(next?.avatar_url) prof.avatar_url = next.avatar_url;
+    if(avPreview) avPreview.innerHTML = avatarHTML(prof, 64);
+    if(avGrid) avGrid.querySelectorAll('.pe-av-opt').forEach(b =>
+      b.classList.toggle('sel', prof.avatar_url === 'preset:' + b.dataset.preset));
+    renderAuthButton();
+  };
+  if(avUploadBtn) avUploadBtn.onclick = () => avFile && avFile.click();
+  if(avFile) avFile.onchange = async () => {
+    const err = document.getElementById('peErr');
+    const file = avFile.files && avFile.files[0];
+    if(!file) return;
+    avUploadBtn.disabled = true; avUploadBtn.textContent = 'Uploading…';
+    const res = await s.uploadAvatar(file);
+    avUploadBtn.disabled = false; avUploadBtn.textContent = 'Upload photo';
+    avFile.value = '';
+    if(res?.error){ if(err) err.textContent = res.error; return; }
+    if(err) err.textContent = '';
+    reflectAvatar(res?.profile || prof);
+  };
+  if(avGrid) avGrid.onclick = async e => {
+    const opt = e.target.closest('.pe-av-opt');
+    if(!opt) return;
+    const err = document.getElementById('peErr');
+    opt.disabled = true;
+    const res = await s.setAvatarPreset(opt.dataset.preset);
+    opt.disabled = false;
+    if(res?.error){ if(err) err.textContent = res.error; return; }
+    if(err) err.textContent = '';
+    if(avGrid) avGrid.querySelectorAll('.pe-av-opt').forEach(b => b.classList.toggle('sel', b === opt));
+    reflectAvatar(res?.profile || prof);
+  };
   document.getElementById('peSignOut').onclick = async () => {
     await s.signOut();
     close();
