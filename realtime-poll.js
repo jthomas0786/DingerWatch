@@ -44,6 +44,8 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const POLL_MS = Number(process.env.POLL_MS || 25000);
+// For smoke tests only: exit after N ticks (0 = run until timeout/SIGTERM).
+const MAX_TICKS = Number(process.env.MAX_TICKS || 0);
 
 const DRY = process.argv.includes('--dry-run');
 
@@ -156,6 +158,10 @@ async function loop() {
       }
     } catch (e) {
       console.warn(`  ! poll error (will retry next tick): ${e.message}`);
+    }
+    if (MAX_TICKS && tick >= MAX_TICKS) {
+      console.log(`✓ reached MAX_TICKS=${MAX_TICKS} — exiting (smoke test)`);
+      break;
     }
     await sleep(POLL_MS);
   }

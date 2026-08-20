@@ -67,6 +67,9 @@ jobs:
           SUPABASE_URL:      ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           POLL_MS: '25000'
+          # Dry-run is a smoke test: exit after a few ticks so logs are readable
+          # instead of running the full 6h. Scheduled/real runs leave this 0.
+          MAX_TICKS: ${{ inputs.dry_run == true && '3' || '0' }}
         run: |
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             node realtime-poll.js --dry-run
