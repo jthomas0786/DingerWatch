@@ -56,18 +56,42 @@ async function rememberKey(key) {
 
 self.addEventListener('push', event => {
   event.waitUntil((async () => {
-    let hrs = [];
+    let items = [];
 
     // A payload is optional — use it if the sender included one, otherwise
     // fetch. cache:'no-store' matters here or we'd re-show a stale homer.
     try {
       if (event.data) {
         const parsed = event.data.json();
-        hrs = Array.isArray(parsed) ? parsed : [parsed];
+        items = Array.isArray(parsed) ? parsed : [parsed];
       }
     } catch {}
 
-    if (!hrs.length) {
+    // Generic (non-home-run) notifications — e.g. the daily slate summary and
+    // top-3 list. These carry their own title/body, go to every subscriber (no
+    // watchlist filter), and dedup by key so a workflow rerun can't re-send.
+    const generic = items.filter(i => i && i.type === 'generic' && i.key);
+    let hrs = items.filter(i => !(i && i.type === 'generic'));
+
+    const seen = await seenKeys();
+
+    for (const g of generic) {
+      if (seen.has(g.key)) continue;
+      await self.registration.showNotification(g.title || 'Dinger Watch', {
+        body: g.body || '',
+        icon: ICON,
+        badge: ICON,
+        tag: g.key,
+        data: { url: g.url || 'index.html' },
+        vibrate: [200, 100, 200],
+      });
+      await rememberKey(g.key);
+    }
+
+    // Only fall back to fetching a home run when the push carried NO payload at
+    // all (a bare "wake up" from push.yml). A slate-summary push has a payload
+    // but no HRs — we must NOT fetch a stale homer to accompany it.
+    if (!items.length) {
       try {
         const res = await fetch(LATEST_URL + '?t=' + Date.now(), { cache: 'no-store' });
         if (res.ok) {
@@ -79,7 +103,6 @@ self.addEventListener('push', event => {
 
     if (!hrs.length) return;   // nothing to say — stay silent rather than show a placeholder
 
-    const seen = await seenKeys();
     let fresh = hrs.filter(h => h.key && !seen.has(h.key)).slice(-5);
 
     // Narrow to the watch list. latest-hr.json is a single global file shared by

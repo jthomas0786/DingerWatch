@@ -1,0 +1,56 @@
+name: Slate summary push
+
+# Fires right after the daily "Build daily MLB slate" workflow finishes
+# successfully, sending two notifications to every subscriber: a slate summary
+# and the top-3 HR leaders + probability %. Can also be run by hand.
+on:
+  workflow_run:
+    workflows: ["Build daily MLB slate"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print payloads without sending"
+        required: false
+        default: false
+        type: boolean
+
+# Two slate pushes a day is plenty — never let a queued run pile up behind a
+# stuck one.
+concurrency:
+  group: slate-notify
+  cancel-in-progress: true
+
+jobs:
+  notify:
+    # Only run when the slate build actually succeeded (not on cancellation/
+    # failure) and only for the public branch.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: public
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install web-push
+        run: npm install --no-audit --no-fund
+
+      - name: Send slate summary + top 3
+        env:
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          args=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then args="--dry-run"; fi
+          node slate-notify.js $args
