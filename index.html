@@ -165,22 +165,27 @@ main{ max-width:1280px; margin:0 auto; padding:0 24px 100px; }
 .chip{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:10px; background: var(--night2); border:1px solid var(--line); color: var(--mute); padding:3px 8px; border-radius:6px; }
 .chip b{ color: var(--white); }
 
-/* Game-modal Players tab — both teams' lineups as scannable rows. */
-.roster-team{ font-family:'Oswald',sans-serif; font-weight:600; font-size:13px; color: var(--white); margin:14px 0 6px; padding-bottom:5px; border-bottom:1px solid var(--line); display:flex; align-items:baseline; gap:8px; }
-.roster-team:first-child{ margin-top:0; }
-.roster-team.home{ margin-top:18px; }
-.roster-abbr{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:10px; color: var(--mute); }
-.roster-list{ display:flex; flex-direction:column; gap:2px; }
-.roster-row{ display:flex; align-items:flex-start; gap:10px; padding:8px; border-radius:9px; cursor:pointer; transition: background .14s ease, border-color .14s ease; border:1px solid transparent; }
-.roster-row:hover, .roster-row:focus-visible{ background: var(--night2); border-color: var(--line); outline:none; }
-.roster-head{ width:32px; height:32px; border-radius:50%; flex-shrink:0; object-fit:cover; background: var(--foul); margin-top:1px; }
-.roster-body{ flex:1; min-width:0; }
-.roster-name{ font-family:'Oswald',sans-serif; font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.roster-pos{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:10px; color: var(--mute); font-weight:400; }
-.roster-stats{ display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:6px; }
-.rs{ display:flex; align-items:baseline; gap:3px; font-family:'JetBrains Mono','Space Mono',monospace; }
-.rs b{ font-size:11px; color: var(--white); font-weight:600; }
-.rs i{ font-size:9px; color: var(--mute); font-style:normal; }
+/* Game-modal Players tab — clean table per team: # | player | SLG | HR | Barrel% */
+.rt-team{ margin-bottom:18px; }
+.rt-team:first-child{ margin-bottom:18px; }
+.rt-team-name{ font-family:'Oswald',sans-serif; font-weight:600; font-size:14px; color: var(--white); margin-bottom:4px; display:flex; align-items:baseline; gap:8px; padding-bottom:5px; border-bottom:1px solid var(--line); }
+.rt-abbr{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:10px; color: var(--mute); }
+.rt-row{ display:flex; align-items:center; gap:0; padding:7px 6px; border-radius:8px; cursor:pointer; transition: background .13s ease; border:1px solid transparent; }
+.rt-row:hover, .rt-row:focus-visible{ background: var(--night2); outline:none; }
+.rt-head{ cursor:default; }
+.rt-head:hover{ background:transparent; }
+.rt-ord{ flex:0 0 20px; font-family:'JetBrains Mono','Space Mono',monospace; font-size:11px; color: var(--mute); text-align:center; }
+.rt-pl{ flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:8px; padding-left:6px; }
+.roster-head{ width:28px; height:28px; border-radius:50%; flex-shrink:0; object-fit:cover; background: var(--foul); }
+.rt-pl-txt{ min-width:0; display:flex; flex-direction:column; line-height:1.15; }
+.rt-name{ font-family:'Oswald',sans-serif; font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rt-pos{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:9px; color: var(--mute); white-space:nowrap; }
+.rt-c{ flex:0 0 52px; text-align:center; font-family:'JetBrains Mono','Space Mono',monospace; font-size:13px; color: var(--white); font-weight:600; }
+.rt-head .rt-c{ font-size:9px; color: var(--mute); font-weight:400; text-transform:uppercase; letter-spacing:0.5px; }
+/* Faint vertical separators between columns. */
+.rt-row > span + span{ border-left:1px solid var(--line); }
+.rt-head > span + span{ border-left:1px solid var(--line); }
+@media(max-width:420px){ .rt-c{ flex:0 0 44px; font-size:12px; } .rt-ord{ flex:0 0 16px; } }
 .pick-env{ display:flex; align-items:center; gap:12px; margin-top:9px; flex-wrap:wrap; }
 .env-item{ display:flex; align-items:center; gap:5px; font-family:'JetBrains Mono','Space Mono',monospace; font-size:10px; color: var(--mute); }
 .env-item b{ color: var(--white); font-weight:600; }
@@ -8746,36 +8751,31 @@ function gamePlayersHTML(g){
   const fmtAvg = v => v!=null ? '.'+Math.round(v*1000).toString().padStart(3,'0') : '—';
   const fmtSlg = v => v!=null ? v.toFixed(3).replace(/^0/,'') : '—';
 
-  // simulatePlayer is memoized after the splash pre-sim pass; calling it once
-  // per row here is cheap and gives the live HR probability for tonight.
+  // Column layout: # | player | SLG | HR | Barrel%
+  // Headers sit under each team name so both rosters read as their own table.
+  const header = () => `<div class="rt-row rt-head"><span class="rt-ord">#</span><span class="rt-pl">Player</span><span class="rt-c">SLG</span><span class="rt-c">HR</span><span class="rt-c">Barrel%</span></div>`;
+
   const row = (p, side, idx) => {
-    const sim = simulatePlayer(p);
-    const hrPct = sim?.hr?.pct;
     const barrel = p.statcast?.barrel;
-    return `<div class="roster-row" data-side="${side}" data-idx="${idx}" role="button" tabindex="0">
-      ${headshotImgTag(p.name, 'roster-head', p.team, p.id)}
-      <div class="roster-body">
-        <div class="roster-name">${escapeHTML(p.name)} <span class="roster-pos">${escapeHTML(p.pos||'')} · ${p.hand||'?'}B</span></div>
-        <div class="roster-stats">
-          <span class="rs"><b>${hrPct!=null?hrPct+'%':'—'}</b><i>HR%</i></span>
-          <span class="rs"><b>${p.hr??'—'}</b><i>HR</i></span>
-          <span class="rs"><b>${fmtAvg(p.avg)}</b><i>AVG</i></span>
-          <span class="rs"><b>${fmtSlg(p.slg)}</b><i>SLG</i></span>
-          <span class="rs"><b>${barrel!=null?barrel+'%':'—'}</b><i>Barrel</i></span>
-          <span class="rs"><b>${p.rbi??'—'}</b><i>RBI</i></span>
-          <span class="rs"><b>${p.sb??'—'}</b><i>SB</i></span>
-        </div>
-      </div>
+    return `<div class="rt-row" data-side="${side}" data-idx="${idx}" role="button" tabindex="0">
+      <span class="rt-ord">${idx+1}</span>
+      <span class="rt-pl">${headshotImgTag(p.name, 'roster-head', p.team, p.id)}<span class="rt-pl-txt"><span class="rt-name">${escapeHTML(p.name)}</span><span class="rt-pos">${escapeHTML(p.pos||'')} · ${p.hand||'?'}B</span></span></span>
+      <span class="rt-c">${fmtSlg(p.slg)}</span>
+      <span class="rt-c">${p.hr??'—'}</span>
+      <span class="rt-c">${barrel!=null?barrel.toFixed(1):'—'}</span>
     </div>`;
   };
 
-  // Grouped by team, lineup order preserved within each team — batting order
-  // is the most useful sort in a game context (who's up, who protects).
+  const team = (name, abbr, roster, side, isHome) => `
+    <div class="rt-team${isHome?' home':''}">
+      <div class="rt-team-name">${escapeHTML(name)} <span class="rt-abbr">${escapeHTML(abbr||'')}</span></div>
+      ${header()}
+      <div class="rt-body">${roster.map((p,i)=>row(p,side,i)).join('')}</div>
+    </div>`;
+
   return `
-    <div class="roster-team">${escapeHTML(g.awayName)} <span class="roster-abbr">${escapeHTML(g.away||'')}</span></div>
-    <div class="roster-list">${away.map((p,i)=>row(p,'away',i)).join('')}</div>
-    <div class="roster-team home">${escapeHTML(g.homeName)} <span class="roster-abbr">${escapeHTML(g.home||'')}</span></div>
-    <div class="roster-list">${home.map((p,i)=>row(p,'home',i)).join('')}</div>
+    ${team(g.awayName, g.away, away, 'away', false)}
+    ${team(g.homeName, g.home, home, 'home', true)}
     <div class="narrative" style="margin-top:12px;font-size:11px;">Tap any player for their full model — projected props, Statcast profile, and matchup edges.</div>
   `;
 }
@@ -8863,7 +8863,7 @@ function openGameModal(g){
   // Wire the roster rows in the Players tab — tap (or Enter/Space) opens that
   // player's full model. Resolved by index within the side's roster, since ids
   // can be missing for some entries.
-  modalBody.querySelectorAll('.roster-row').forEach(r => {
+  modalBody.querySelectorAll('.rt-row[data-side]').forEach(r => {
     const side = r.dataset.side;
     const idx = parseInt(r.dataset.idx, 10);
     const roster = side==='away' ? g.awayRoster : g.homeRoster;
