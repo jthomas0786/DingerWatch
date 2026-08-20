@@ -192,10 +192,12 @@ main{ max-width:1280px; margin:0 auto; padding:0 24px 100px; }
 /* Live-game highlights: current batter + on-deck. */
 .rt-head-live{ display:inline-flex; align-items:center; gap:4px; margin-left:8px; font-family:'JetBrains Mono','Space Mono',monospace; font-size:9px; color: var(--grass-bright); text-transform:uppercase; letter-spacing:0.5px; }
 .rt-head-live .dot.live{ width:6px; height:6px; border-radius:50%; background: var(--grass-bright); box-shadow: 0 0 6px var(--grass-bright); }
-.rt-row.rt-at-bat{ background: rgba(45,127,255,0.14); border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
-.rt-row.rt-at-bat:hover{ background: rgba(45,127,255,0.20); }
+.rt-row.rt-at-bat{ background: rgba(45,127,255,0.14); border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); animation: rt-pulse 2s ease-in-out infinite; }
+.rt-row.rt-at-bat:hover{ background: rgba(45,127,255,0.20); animation: none; }
 .rt-row.rt-on-deck{ background: rgba(45,127,255,0.06); border-color: rgba(45,127,255,0.35); box-shadow: inset 3px 0 0 rgba(45,127,255,0.5); }
 .rt-row.rt-on-deck:hover{ background: rgba(45,127,255,0.10); }
+@keyframes rt-pulse{ 0%,100%{ box-shadow: inset 3px 0 0 var(--accent), 0 0 0 0 rgba(45,127,255,0); } 50%{ box-shadow: inset 3px 0 0 var(--accent), 0 0 14px 0 rgba(45,127,255,0.30); } }
+@media (prefers-reduced-motion: reduce){ .rt-row.rt-at-bat{ animation: none; } }
 .rt-tag{ flex-shrink:0; display:inline-flex; align-items:center; padding:1px 6px; border-radius:4px; font-family:'JetBrains Mono','Space Mono',monospace; font-size:8.5px; font-weight:600; letter-spacing:0.5px; background: var(--accent); color: #fff; text-transform:uppercase; white-space:nowrap; }
 .rt-tag.deck{ background: transparent; color: var(--accent); border:1px solid var(--accent); }
 .pick-env{ display:flex; align-items:center; gap:12px; margin-top:9px; flex-wrap:wrap; }
