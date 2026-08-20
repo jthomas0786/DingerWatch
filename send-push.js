@@ -44,7 +44,7 @@ const b64url = b => Buffer.from(b).toString('base64')
   .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const fromB64url = s => Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
 
-const todayEastern = () => new Intl.DateTimeFormat('en-CA', {
+export const todayEastern = () => new Intl.DateTimeFormat('en-CA', {
   timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
 }).format(new Date());
 
@@ -58,7 +58,7 @@ const todayCentral = () => new Intl.DateTimeFormat('en-CA', {
   timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit',
 }).format(new Date());
 
-async function getJSON(url, tries = 3) {
+export async function getJSON(url, tries = 3) {
   for (let i = 1; i <= tries; i++) {
     try {
       const r = await fetch(url, { headers: { 'User-Agent': 'dinger-watch-push/1.0' } });
@@ -121,7 +121,7 @@ async function sendBarePush(sub) {
  * they actually got there (copy-paste error, stale secret, wrong slot, etc).
  * Never prints the private key itself, only whether the two match.
  */
-function checkVapidKeysMatch() {
+export function checkVapidKeysMatch() {
   try {
     const ecdh = crypto.createECDH('prime256v1');
     ecdh.setPrivateKey(fromB64url(VAPID_PRIVATE));
@@ -142,7 +142,7 @@ function checkVapidKeysMatch() {
 }
 
 // ---------------------------------------------------------------- push subscriptions
-async function fetchAllSubscriptions() {
+export async function fetchAllSubscriptions() {
   const url = `${SUPABASE_URL}/rest/v1/push_subscriptions?select=id,endpoint,p256dh,auth_key,user_id`;
   const res = await fetch(url, {
     headers: {
@@ -190,7 +190,7 @@ async function fetchWatchlists() {
 }
 
 /** One batched DELETE rather than one request per dead subscription. */
-async function pruneDeadSubscriptions(ids) {
+export async function pruneDeadSubscriptions(ids) {
   if (!ids.length) return;
   const url = `${SUPABASE_URL}/rest/v1/push_subscriptions?id=in.(${ids.join(',')})`;
   const res = await fetch(url, {
@@ -206,7 +206,7 @@ async function pruneDeadSubscriptions(ids) {
 }
 
 // ---------------------------------------------------------------- home runs
-async function collectHomeRuns(date) {
+export async function collectHomeRuns(date) {
   const sched = await getJSON(`${MLB}/schedule?sportId=1&date=${date}&hydrate=venue,team`);
   const games = (sched.dates || []).flatMap(d => d.games || [])
     .filter(g => ['Live', 'Final'].includes(g.status?.abstractGameState));
@@ -247,10 +247,10 @@ async function collectHomeRuns(date) {
   return out.sort((a, b) => a.ts - b.ts);
 }
 
-const readJSON = async (p, fallback) => {
+export const readJSON = async (p, fallback) => {
   try { return JSON.parse(await fs.readFile(p, 'utf8')); } catch { return fallback; }
 };
-const writeJSON = async (p, v) => {
+export const writeJSON = async (p, v) => {
   await fs.mkdir(p.split('/').slice(0, -1).join('/') || '.', { recursive: true });
   await fs.writeFile(p, JSON.stringify(v, null, 2));
 };
@@ -379,4 +379,8 @@ async function main() {
   console.log('✓ done');
 }
 
-main().catch(e => { console.error('✗ ' + e.message); process.exit(1); });
+// Only run main() when executed directly (node send-push.js), not when imported
+// by the real-time poller (which reuses these helpers in a long-running loop).
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch(e => { console.error('✗ ' + e.message); process.exit(1); });
+}

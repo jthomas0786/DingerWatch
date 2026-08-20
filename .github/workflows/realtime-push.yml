@@ -1,0 +1,75 @@
+# .github/workflows/realtime-push.yml
+#
+# Near-real-time home run push poller — the FAST path (every ~25 seconds).
+#
+# send-push.js / push.yml polls every 5 minutes. That cap comes from GitHub
+# Actions' cron minimum, and 5 minutes is too long once a ball is in the seats.
+# This workflow instead runs ONE long-lived job that polls the MLB Stats API
+# every 25s and pushes an ENCRYPTED payload the instant it sees a new home run.
+# sw.js already understands push payloads, so it reads the home-run data straight
+# off the push and never has to fetch latest-hr.json — which sidesteps GitHub
+# Pages' ~1-minute deployment lag entirely. End-to-end latency is roughly one
+# poll interval (~25s) plus the push service's own delivery time.
+#
+# Coexistence with push.yml (untouched):
+#   push.yml stays as a 5-minute fallback AND the ledger committer. This poller
+#   keeps its dedup ledger in memory only, so push.yml still re-sees a just-pushed
+#   home run as "new", re-sends it as a bare push, and commits the ledger. That
+#   re-send is harmless: sw.js dedups by home-run key (seen keys persist in
+#   CacheStorage), so a device never shows the same homer twice. If this job is
+#   ever down, push.yml keeps notifications flowing at 5-minute latency.
+#
+# Cost: the repo is public, so GitHub Actions minutes are unlimited — a long
+# running job costs nothing. Two scheduled starts cover the full MLB slate; the
+# concurrency group cancels the earlier run when the later one fires.
+
+name: Realtime HR push
+
+on:
+  schedule:
+    # 20:00 UTC = 4 PM ET — catch afternoon + evening game starts
+    - cron: '0 20 * * *'
+    # 01:30 UTC = 9:30 PM ET — catch west-coast late games (hands off from prior)
+    - cron: '30 1 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Detect home runs but send nothing'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  # A later start cancels the earlier run so only one poller is ever live.
+  group: realtime-hr-push
+  cancel-in-progress: true
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install web-push
+        run: npm install --no-audit --no-fund
+
+      - name: Poll for home runs
+        env:
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_PUBLIC_KEY:  ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_SUBJECT:     ${{ secrets.VAPID_SUBJECT }}
+          SUPABASE_URL:      ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          POLL_MS: '25000'
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            node realtime-poll.js --dry-run
+          else
+            node realtime-poll.js
+          fi
