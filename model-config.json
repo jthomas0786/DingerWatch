@@ -100,13 +100,13 @@
   //  CARRIED OVER from the same hand edits: iso 0.135 (was 0.164) and the
   //  per-PA hr rate 0.0275 (was 0.0317) — a slightly less homer-heavy baseline.
   "league": {
-    "barrel": 8.0,         // league barrel %
+    "barrel": 13.5,         // league barrel %
     "hardHit": 38.0,       // league hard-hit %
     "exitVelo": 89.0,      // league average exit velocity (mph)
-    "airPct": 62.0,        // league air-ball % (fly balls + line drives)
+    "airPct": 68.0,        // league air-ball % (fly balls + line drives)
     "xslg": 0.410,         // league expected slugging
     "xwoba": 0.320,        // league expected wOBA
-    "babip": 0.300,        // league BABIP — the anchor for the luck factor
+    "babip": 0.280,        // league BABIP — the anchor for the luck factor
     "kPct": 22.5,          // league strikeout % (batters)
     "iso": 0.164,          // league isolated power
     "hr9": 1.10,           // league HR allowed per 9 innings
@@ -144,7 +144,7 @@
   //     A+ ~15   A ~38   B+ ~61   B ~68   C+ ~68   C ~68   D ~61
   "grading": {
     "percentiles": {
-      "aPlus": 97,         // top 4%
+      "aPlus": 98,         // top 4%
       "a": 87,             // next 10%
       "bPlus": 71,         // next 16%
       "b": 53,             // next 18%
@@ -216,7 +216,7 @@
       // Air-ball rate vs league. Ground balls cannot leave the yard.
       "airRate":   { "type": "ratio", "league": "airPct", "cap": 0.35 },
       // Expected slugging — power output stripped of park and luck.
-      "xSLG":      { "type": "curve", "floor": 0.32, "scale": 0.56 },
+      "xSLG":      { "type": "curve", "floor": 0.31, "scale": 0.56 },
       // Expected wOBA — overall production, the right input for hits.
       "xwOBA":     { "type": "curve", "floor": 0.28, "scale": 0.40 },
       // BABIP vs league. Used with a NEGATIVE weight on hits: a hitter
@@ -232,7 +232,7 @@
       "k9":         { "type": "ratio", "league": "k9",   "cap": 0.40 },
       // Ground-ball tendency. Weighted NEGATIVE for power props — a sinker
       // pitcher suppresses homers even when his ERA is bad.
-      "gbFb":       { "type": "ratio", "league": "gbFb", "cap": 0.40 },
+      "gbFb":       { "type": "ratio", "league": "gbFb", "cap": 0.35 },
       // The batter's own strikeout rate vs league. NEGATIVE on hits: a hitter
       // who whiffs a lot puts fewer balls in play.
       "kMismatch":  { "type": "ratio", "league": "kPct", "cap": 0.35 },
@@ -333,24 +333,24 @@
       "clamp": { "min": 0.45, "max": 2.10 },
       "weights": {
         "contact": {
-          "barrel":      0.30,   // strongest single HR signal
-          "xSLG":        0.18,   // power output, park-neutral
-          "airRate":     0.12,   // must get it airborne
+          "barrel":      0.32,   // strongest single HR signal
+          "xSLG":        0.20,   // power output, park-neutral
+          "airRate":     0.15,   // must get it airborne
           "hardHit":     0.00,   // off by default — correlated with barrel
           "exitVelo":    0.00,   // off by default — correlated with barrel
         },
         "pitcher": {
           "hr9":         0.22,   // homer-prone starters are the classic edge
           "gbFb":       -0.12,   // NEGATIVE: sinkerballers suppress HR
-          "hand":        0.15,   // platoon edge, slugging version
+          "hand":        0.20,   // platoon edge, slugging version
         },
         "park": {
-          "hrFactor":    0.20,
-          "weather":     0.10,
+          "hrFactor":    0.21,
+          "weather":     0.12,
           "temperature": 0.08,
         },
         "form": {
-          "powerTrend":  0.10,   // small on purpose — 10 games is noise
+          "powerTrend":  0.13,   // small on purpose — 10 games is noise
         },
       },
     },
