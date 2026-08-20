@@ -48,6 +48,7 @@ const POLL_MS = Number(process.env.POLL_MS || 25000);
 const MAX_TICKS = Number(process.env.MAX_TICKS || 0);
 
 const DRY = process.argv.includes('--dry-run');
+const TEST = process.argv.includes('--test');   // send one test push to every device, then exit
 
 // ---- preflight --------------------------------------------------------------
 if (!VAPID_PRIVATE || !VAPID_PUBLIC) {
@@ -168,4 +169,47 @@ async function loop() {
   console.log('✓ realtime poller stopped');
 }
 
-loop().catch(e => { console.error('✗ ' + e.message); process.exit(1); });
+/** Send ONE clearly-labeled test notification to every subscribed device.
+ *  Verifies the full encrypted-push path end-to-end without needing a real HR. */
+async function runSelfTest() {
+  const subs = await fetchAllSubscriptions();
+  if (!subs.length) { console.log('✗ no subscribed devices found — subscribe from the app first'); return; }
+  // batterId 999999 is on nobody's watchlist, so sw.js falls back to showing the
+  // newest HR in the batch (this one). A unique key keeps it out of seen-key dedup.
+  const testHr = {
+    key: 'test-' + Date.now(),
+    batter: 'TEST (Dinger Watch check)',
+    batterId: 999999,
+    exitVelo: 0, distance: 0, launchAngle: null,
+    half: 'Self-test', inning: 'push',
+    battingTeam: 'Dinger Watch', opponent: 'delivery check',
+    date: todayEastern(),
+  };
+  const payload = JSON.stringify([testHr]);
+  let ok = 0;
+  const deadIds = [];
+  for (const sub of subs) {
+    if (!sub?.endpoint || !sub.p256dh || !sub.auth_key) continue;
+    try {
+      await webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth_key } },
+        payload, { TTL: 900, urgency: 'high' });
+      ok++;
+    } catch (e) {
+      const code = e.statusCode; const body = String(e.body ?? '');
+      if (code === 404 || code === 410 || (code === 403 && body.includes('VapidPkHashMismatch'))) {
+        deadIds.push(sub.id);
+      } else {
+        console.warn(`  ! test push failed ${code ?? '?'}: ${body.slice(0, 120) || e.message}`);
+      }
+    }
+  }
+  if (deadIds.length) await pruneDeadSubscriptions(deadIds);
+  console.log(`✓ test push sent to ${ok}/${subs.length} device(s)${deadIds.length ? ` · ${deadIds.length} pruned (expired)` : ''}`);
+}
+
+if (TEST) {
+  runSelfTest().catch(e => { console.error('✗ ' + e.message); process.exit(1); });
+} else {
+  loop().catch(e => { console.error('✗ ' + e.message); process.exit(1); });
+}

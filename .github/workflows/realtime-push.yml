@@ -37,6 +37,10 @@ on:
         description: 'Detect home runs but send nothing'
         type: boolean
         default: false
+      self_test:
+        description: 'Send ONE test push to every device, then exit'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -71,7 +75,9 @@ jobs:
           # instead of running the full 6h. Scheduled/real runs leave this 0.
           MAX_TICKS: ${{ inputs.dry_run == true && '3' || '0' }}
         run: |
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
+          if [ "${{ inputs.self_test }}" = "true" ]; then
+            node realtime-poll.js --test
+          elif [ "${{ inputs.dry_run }}" = "true" ]; then
             node realtime-poll.js --dry-run
           else
             node realtime-poll.js
