@@ -4418,7 +4418,9 @@ function renderTabs(){
       </div>`;
     }
     const badge = (t.id==='feed' && feedUnread>0 && activeTab!=='feed')
-      ? `<span class="tab-badge">${feedUnread>99?'99+':feedUnread}</span>` : '';
+      ? `<span class="tab-badge">${feedUnread>99?'99+':feedUnread}</span>`
+      : (t.id==='foryou' && foryouUnread>0 && activeTab!=='foryou')
+      ? `<span class="tab-badge">${foryouUnread>99?'99+':foryouUnread}</span>` : '';
     return `<button class="prop-tab ${t.id===activeTab?'active':''}" data-tab="${t.id}">${t.label}${badge}</button>`;
   }).join('');
 
@@ -4426,6 +4428,7 @@ function renderTabs(){
     activeTab = id;
     closePropMenu();
     if(id==='feed') markFeedRead();
+    if(id==='foryou') markForYouRead();
     renderTabs();
     renderList();
     window.scrollTo({top:0, behavior:'smooth'});
@@ -6424,6 +6427,7 @@ function renderNotifyBtn(){
 
 let feedEvents = [];          // newest first
 let feedUnread = 0;
+let foryouUnread = 0;         // new community statuses posted while not viewing For You
 /**
  * gamePk:atBatIndex for every home run we've already surfaced.
  *
@@ -6458,6 +6462,7 @@ function rememberNotified(key){
 }
 
 function markFeedRead(){ feedUnread = 0; }
+function markForYouRead(){ foryouUnread = 0; }
 
 async function pollHomeRunFeed(){
   const live = games.filter(g => g.gamePk && (g.mlbStatus === 'Live' || g.mlbStatus === 'Final'));
@@ -6715,10 +6720,15 @@ function startForYouSubscription(){
   if(!s?.subscribeStatuses) return;
   if(foryouSub) foryouSub();
   foryouSub = s.subscribeStatuses(newStatus => {
-    // Prepend new status to the feed if it's visible
-    const feed = document.getElementById('feedList');
-    if(feed && feed.offsetParent !== null){
-      renderFeed();
+    // A genuinely new community status was posted. If the user isn't looking at
+    // For You, bump the unread badge; if they are, refresh the list so the new
+    // post appears live.
+    if(activeTab === 'foryou'){
+      const list = document.querySelector('.foryou-list');
+      if(list && list.offsetParent !== null){ renderForYou(); }
+    } else {
+      foryouUnread++;
+      renderTabs();
     }
   });
 }
