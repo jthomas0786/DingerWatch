@@ -170,32 +170,38 @@ main{ max-width:1280px; margin:0 auto; padding:0 24px 100px; }
 .rt-team:first-child{ margin-bottom:18px; }
 .rt-team-name{ font-family:'Oswald',sans-serif; font-weight:600; font-size:14px; color: var(--white); margin-bottom:4px; display:flex; align-items:baseline; gap:8px; padding-bottom:5px; border-bottom:1px solid var(--line); }
 .rt-abbr{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:10px; color: var(--mute); }
-.rt-row{ display:flex; align-items:center; gap:0; padding:7px 6px; border-radius:8px; cursor:pointer; transition: background .13s ease; border:1px solid transparent; }
+.rt-row{ display:flex; align-items:center; gap:0; padding:7px 6px; border-radius:8px; cursor:pointer; transition: background .13s ease; border:1px solid transparent; min-width:420px; }
 .rt-row:hover, .rt-row:focus-visible{ background: var(--night2); outline:none; }
-.rt-head{ cursor:default; }
+.rt-head{ cursor:default; padding:9px 6px; border-bottom:1px solid var(--line); border-radius:0; }
 .rt-head:hover{ background:transparent; }
-.rt-ord{ flex:0 0 20px; font-family:'JetBrains Mono','Space Mono',monospace; font-size:11px; color: var(--mute); text-align:center; }
-.rt-pl{ flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:8px; padding-left:6px; }
-.roster-head{ width:28px; height:28px; border-radius:50%; flex-shrink:0; object-fit:cover; background: var(--foul); }
+.rt-head .rt-c{ line-height:1.4; }
+.rt-scroll{ overflow-x:auto; -webkit-overflow-scrolling:touch; margin:0 -6px; padding:0 6px; }
+.rt-ord{ flex:0 0 20px; font-family:'JetBrains Mono','Space Mono',monospace; font-size:11px; color: var(--mute); text-align:center; position:sticky; left:0; background: var(--surface); z-index:2; }
+.rt-pl{ flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:8px; padding-left:6px; position:sticky; left:20px; background: var(--surface); z-index:2; border-right:1px solid var(--line); }
+.rt-pl + .rt-c{ border-left:none; }
+.rt-head .rt-ord, .rt-head .rt-pl{ background: var(--surface); }
+.rt-at-bat .rt-ord, .rt-at-bat .rt-pl{ background: rgba(45,127,255,0.16); }
+.rt-on-deck .rt-ord, .rt-on-deck .rt-pl{ background: rgba(45,127,255,0.13); }
+.roster-head{ width:26px; height:26px; border-radius:50%; flex-shrink:0; object-fit:cover; background: var(--foul); }
 .rt-pl-txt{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; line-height:1.15; }
 .rt-name-line{ display:flex; align-items:center; gap:6px; min-width:0; }
-.rt-name{ flex:1 1 auto; min-width:0; font-family:'Oswald',sans-serif; font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rt-name{ flex:1 1 auto; min-width:0; font-family:'Oswald',sans-serif; font-weight:600; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .rt-meta{ display:flex; align-items:center; gap:6px; min-width:0; }
 .rt-pos{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:9px; color: var(--mute); white-space:nowrap; }
-.rt-c{ flex:0 0 52px; text-align:center; font-family:'JetBrains Mono','Space Mono',monospace; font-size:13px; color: var(--white); font-weight:600; }
-.rt-head .rt-c{ font-size:9px; color: var(--mute); font-weight:400; text-transform:uppercase; letter-spacing:0.5px; }
+.rt-c{ flex:0 0 46px; text-align:center; font-family:'JetBrains Mono','Space Mono',monospace; font-size:13px; color: var(--white); font-weight:600; font-variant-numeric: tabular-nums lining-nums; }
+.rt-head .rt-c{ font-size:8.5px; color: var(--mute); font-weight:400; text-transform:uppercase; letter-spacing:0.3px; }
 /* Faint vertical separators between columns. */
 .rt-row > span + span{ border-left:1px solid var(--line); }
 .rt-head > span + span{ border-left:1px solid var(--line); }
-@media(max-width:420px){ .rt-c{ flex:0 0 44px; font-size:12px; } .rt-ord{ flex:0 0 16px; } }
+@media(max-width:420px){ .rt-c{ flex:0 0 42px; font-size:12px; } .rt-row{ min-width:400px; } }
 
 /* Live-game highlights: current batter + on-deck. */
 .rt-head-live{ display:inline-flex; align-items:center; gap:4px; margin-left:8px; font-family:'JetBrains Mono','Space Mono',monospace; font-size:9px; color: var(--grass-bright); text-transform:uppercase; letter-spacing:0.5px; }
 .rt-head-live .dot.live{ width:6px; height:6px; border-radius:50%; background: var(--grass-bright); box-shadow: 0 0 6px var(--grass-bright); }
-.rt-row.rt-at-bat{ background: rgba(45,127,255,0.14); border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); animation: rt-pulse 2s ease-in-out infinite; }
-.rt-row.rt-at-bat:hover{ background: rgba(45,127,255,0.20); animation: none; }
-.rt-row.rt-on-deck{ background: rgba(45,127,255,0.06); border-color: rgba(45,127,255,0.35); box-shadow: inset 3px 0 0 rgba(45,127,255,0.5); }
-.rt-row.rt-on-deck:hover{ background: rgba(45,127,255,0.10); }
+.rt-row.rt-at-bat{ background: rgba(45,127,255,0.16); border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); animation: rt-pulse 2s ease-in-out infinite; }
+.rt-row.rt-at-bat:hover{ background: rgba(45,127,255,0.22); animation: none; }
+.rt-row.rt-on-deck{ background: rgba(45,127,255,0.13); border-color: transparent; box-shadow: inset 3px 0 0 rgba(45,127,255,0.60); }
+.rt-row.rt-on-deck:hover{ background: rgba(45,127,255,0.14); }
 @keyframes rt-pulse{ 0%,100%{ box-shadow: inset 3px 0 0 var(--accent), 0 0 0 0 rgba(45,127,255,0); } 50%{ box-shadow: inset 3px 0 0 var(--accent), 0 0 14px 0 rgba(45,127,255,0.30); } }
 @media (prefers-reduced-motion: reduce){ .rt-row.rt-at-bat{ animation: none; } }
 .rt-tag{ flex-shrink:0; display:inline-flex; align-items:center; padding:1px 6px; border-radius:4px; font-family:'JetBrains Mono','Space Mono',monospace; font-size:8.5px; font-weight:600; letter-spacing:0.5px; background: var(--accent); color: #fff; text-transform:uppercase; white-space:nowrap; }
@@ -2604,6 +2610,19 @@ const STADIUM_COORDS = {
 
 let games = [];
 let allBatters = [];
+// Cache of slate-wide HR-probability ranks (player.id -> 1-based rank).
+// Building it requires simulating the whole slate, so it's computed lazily on
+// first use and patched into already-rendered tables so the modal opens
+// instantly instead of blocking on ~379 sims.
+let _hrRankMap = null;
+function buildHrRankMap(){
+  const map = new Map();
+  if(typeof allBatters === 'undefined' || !allBatters.length) return map;
+  [...allBatters].filter(isPlayable)
+    .sort((a,b)=> simulatePlayer(b).hr.exact - simulatePlayer(a).hr.exact)
+    .forEach((p,i)=> map.set(p.id, i+1));
+  return map;
+}
 let allPitchers = [];
 let slateMeta = { date: null, generatedAt: null, warnings: [], sources: {} };
 
@@ -3587,6 +3606,7 @@ function contextFor(prop, p){
 function invalidateContext(){
   if(typeof allBatters === 'undefined' || !allBatters) return;
   allBatters.forEach(p => { p._ctx = null; p._sim = null; });
+  _hrRankMap = null;   // ranks depend on sims, so they're stale now too
   if(typeof invalidateGradeCache === 'function') invalidateGradeCache();
 }
 
@@ -8765,8 +8785,6 @@ function gamePlayersHTML(g){
     return `<div class="narrative">Lineups aren't posted yet for this game — they usually appear 1–2 hours before first pitch. Check back closer to game time.</div>`;
   }
 
-  const fmtSlg = v => v!=null ? v.toFixed(3).replace(/^0/,'') : '—';
-
   // Live games only: highlight the batter at the plate and the on-deck hitter.
   // inningState 'Top' = away batting, 'Bottom' = home batting. The ids come from
   // the MLB live feed (liveScore.batterId / onDeckId) and match p.id on the
@@ -8778,16 +8796,16 @@ function gamePlayersHTML(g){
   const atBatId = battingSide ? ls.batterId : null;
   const onDeckId = battingSide ? ls.onDeckId : null;
 
-  // Column layout: # | player | SLG | HR | Barrel%
-  // Headers sit under each team name so both rosters read as their own table.
+  // Columns: # | Player | RNK | HR% | TB% | HIT% | HRR%
+  // All five stat columns are tonight's simulated probabilities (vs a line).
   const header = (side) => {
     const liveBadge = side === battingSide
       ? `<span class="rt-head-live"><span class="dot live"></span>BATTING</span>` : '';
-    return `<div class="rt-row rt-head"><span class="rt-ord">#</span><span class="rt-pl">Player ${liveBadge}</span><span class="rt-c">SLG</span><span class="rt-c">HR</span><span class="rt-c">Barrel%</span></div>`;
+    return `<div class="rt-row rt-head"><span class="rt-ord">#</span><span class="rt-pl">Player ${liveBadge}</span><span class="rt-c">RNK</span><span class="rt-c">HR%</span><span class="rt-c">TB%</span><span class="rt-c">HIT%</span><span class="rt-c">HRR%</span></div>`;
   };
 
   const row = (p, side, idx) => {
-    const barrel = p.statcast?.barrel;
+    const sim = simulatePlayer(p);
     const isAtBat = side === battingSide && atBatId != null && p.id === atBatId;
     const isOnDeck = side === battingSide && onDeckId != null && p.id === onDeckId && !isAtBat;
     const rowCls = isAtBat ? ' rt-at-bat' : isOnDeck ? ' rt-on-deck' : '';
@@ -8795,17 +8813,18 @@ function gamePlayersHTML(g){
     return `<div class="rt-row${rowCls}" data-side="${side}" data-idx="${idx}" role="button" tabindex="0">
       <span class="rt-ord">${idx+1}</span>
       <span class="rt-pl">${headshotImgTag(p.name, 'roster-head', p.team, p.id)}<span class="rt-pl-txt"><span class="rt-name">${escapeHTML(p.name)}</span><span class="rt-meta"><span class="rt-pos">${escapeHTML(p.pos||'')} · ${p.hand||'?'}B</span>${tag}</span></span></span>
-      <span class="rt-c">${fmtSlg(p.slg)}</span>
-      <span class="rt-c">${p.hr??'—'}</span>
-      <span class="rt-c">${barrel!=null?barrel.toFixed(1):'—'}</span>
+      <span class="rt-c rt-rnk">${_hrRankMap ? (_hrRankMap.get(p.id) ?? '—') : '—'}</span>
+      <span class="rt-c">${sim.hr.pct}</span>
+      <span class="rt-c">${sim.tb15.pct}</span>
+      <span class="rt-c">${sim.hits05.pct}</span>
+      <span class="rt-c">${sim.hrr15.pct}</span>
     </div>`;
   };
 
   const team = (name, abbr, roster, side, isHome) => `
     <div class="rt-team${isHome?' home':''}">
       <div class="rt-team-name">${escapeHTML(name)} <span class="rt-abbr">${escapeHTML(abbr||'')}</span></div>
-      ${header(side)}
-      <div class="rt-body">${roster.map((p,i)=>row(p,side,i)).join('')}</div>
+      <div class="rt-scroll">${header(side)}<div class="rt-body">${roster.map((p,i)=>row(p,side,i)).join('')}</div></div>
     </div>`;
 
   return `
@@ -8908,6 +8927,24 @@ function openGameModal(g){
     r.onclick = open;
     r.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); open(); } });
   });
+
+  // Slate-wide HR-probability rank is expensive on first use (it sims the whole
+  // board). Render the table immediately with '—' placeholders, then fill the
+  // rank cells on the next tick so the modal never blocks.
+  if(!_hrRankMap){
+    setTimeout(()=>{
+      _hrRankMap = buildHrRankMap();
+      modalBody.querySelectorAll('.rt-rnk').forEach(cell => {
+        const r = cell.closest('.rt-row[data-side]');
+        if(!r) return;
+        const side = r.dataset.side;
+        const idx = parseInt(r.dataset.idx, 10);
+        const roster = side==='away' ? g.awayRoster : g.homeRoster;
+        const p = roster && roster[idx];
+        if(p) cell.textContent = _hrRankMap.get(p.id) ?? '—';
+      });
+    }, 0);
+  }
 }
 
 function openPitcherModal(p){
