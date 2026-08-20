@@ -333,16 +333,16 @@
       "clamp": { "min": 0.45, "max": 2.10 },
       "weights": {
         "contact": {
-          "barrel":      0.32,   // strongest single HR signal
-          "xSLG":        0.20,   // power output, park-neutral
-          "airRate":     0.15,   // must get it airborne
+          "barrel":      0.45,   // strongest single HR signal
+          "xSLG":        0.34,   // power output, park-neutral
+          "airRate":     0.25,   // must get it airborne
           "hardHit":     0.00,   // off by default — correlated with barrel
           "exitVelo":    0.00,   // off by default — correlated with barrel
         },
         "pitcher": {
           "hr9":         0.22,   // homer-prone starters are the classic edge
           "gbFb":       -0.12,   // NEGATIVE: sinkerballers suppress HR
-          "hand":        0.20,   // platoon edge, slugging version
+          "hand":        0.40,   // platoon edge, slugging version
         },
         "park": {
           "hrFactor":    0.21,
