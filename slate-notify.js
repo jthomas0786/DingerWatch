@@ -16,12 +16,16 @@
  *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  */
 import fs from 'node:fs';
+import path from 'node:path';
 import webpush from 'web-push';
 import { EngineVM } from './model-engine-vm.js';
 import { stripComments } from './model-logger.js';
 import { fetchAllSubscriptions, pruneDeadSubscriptions, checkVapidKeysMatch } from './send-push.js';
 
 const DRY = process.argv.includes('--dry-run');
+// Re-sending the same date would be swallowed by the service worker's seen-key
+// dedup, so --test makes the keys unique to force a visible re-delivery.
+const TEST = process.argv.includes('--test');
 const SLATE_PATH = process.env.SLATE_PATH || './slate.json';
 
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY;
@@ -55,8 +59,78 @@ const isSubDead = (code, body) =>
   (code === 403 && /do not correspond|VapidPkHashMismatch/i.test(body)) ||
   (code === 400 && /VapidPkHashMismatch/i.test(body));
 
+const LOGS_DIR = process.env.MODEL_LOGS_DIR || './model-logs';
+const PRED_DIR = path.join(LOGS_DIR, 'predictions');
+
+/** "2026-08-17" -> "Aug 17" */
+function fmtShort(date) {
+  const d = new Date(date + 'T12:00:00');
+  return isNaN(d) ? date : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+/** Every logged prediction date, ascending. */
+function predictionDates() {
+  try {
+    return fs.readdirSync(PRED_DIR)
+      .filter(f => /^\d{4}-\d{2}-\d{2}\.json$/.test(f))
+      .map(f => f.replace(/\.json$/, ''))
+      .sort();
+  } catch { return []; }
+}
+
+/** Load one logged prediction file's players, or null. */
+function loadPredictions(date) {
+  try {
+    const j = JSON.parse(fs.readFileSync(path.join(PRED_DIR, `${date}.json`), 'utf8'));
+    return Array.isArray(j.players) && j.players.length ? j.players : null;
+  } catch { return null; }
+}
+
+/** HR pct by playerId, for diffing two days. */
+function hrByPlayer(players) {
+  const m = new Map();
+  for (const p of players || []) {
+    const pct = p?.props?.hr?.pct;
+    if (p?.playerId != null && typeof pct === 'number') m.set(String(p.playerId), { pct, name: p.name });
+  }
+  return m;
+}
+
+/**
+ * Biggest upward move in HR probability vs the most recent earlier slate.
+ * Compares against whatever prior logged date exists (usually yesterday, but
+ * an off-day or a missed build means it can be further back) and reports that
+ * date so the notification never claims "yesterday" inaccurately.
+ */
+function biggestMover(todayPlayers, todayDate) {
+  const prior = predictionDates().filter(d => d < todayDate).pop();
+  if (!prior) return null;
+  const prev = hrByPlayer(loadPredictions(prior));
+  const now = hrByPlayer(todayPlayers);
+  if (!prev.size || !now.size) return null;
+
+  let best = null;
+  for (const [id, cur] of now) {
+    const was = prev.get(id);
+    if (!was) continue;                    // not on the previous slate — not a "move"
+    const delta = cur.pct - was.pct;
+    if (!best || delta > best.delta) best = { name: cur.name, delta, from: was.pct, to: cur.pct };
+  }
+  if (!best || best.delta <= 0) return null;   // nobody moved up — say nothing
+  return { ...best, priorDate: prior };
+}
+
 /** Build the two notification payloads from the slate + model. */
 function buildPayloads(slate) {
+  // Prefer today's LOGGED predictions when the daily build already wrote them:
+  // that's the canonical record the backtests score against, and using it for
+  // both the top 3 and the mover keeps the two numbers on the same basis.
+  const logged = loadPredictions(slate.date);
+  if (logged) {
+    console.log(`  using logged predictions for ${slate.date} (${logged.length} players)`);
+    return finishPayloads(slate, logged, true);
+  }
+
   const vm = new EngineVM('./index.html');
   vm.setSeed(`${slate.date}:${slate.generatedAt || ''}:slate-notify`);
   vm.load();
@@ -79,6 +153,11 @@ function buildPayloads(slate) {
   const players = vm.api.predict(['hr']);
   if (!players.length) throw new Error('predict returned no players');
 
+  return finishPayloads(slate, players, cfgApplied);
+}
+
+/** Turn a player list (logged or freshly simulated) into the two payloads. */
+function finishPayloads(slate, players, cfgApplied) {
   const top = [...players]
     .sort((a, b) => (b.props?.hr?.pct ?? 0) - (a.props?.hr?.pct ?? 0))
     .slice(0, 3);
@@ -109,15 +188,22 @@ function buildPayloads(slate) {
   const top3Body = top
     .map((p, i) => `${i + 1}. ${p.name} ${p.props.hr.pct}%`)
     .join('  ·  ');
+
+  // Biggest riser vs the previous logged slate, appended as its own line.
+  const mover = biggestMover(players, slate.date);
+  const moverLine = mover
+    ? `📈 Biggest mover: ${mover.name} +${mover.delta.toFixed(1)}pts (${mover.from}% → ${mover.to}%) since ${fmtShort(mover.priorDate)}`
+    : null;
+
   const top3 = {
     type: 'generic',
     key: `slate-top3-${slate.date}`,
     title: 'Top 3 HR Today',
-    body: top3Body || 'No picks available',
+    body: [top3Body || 'No picks available', moverLine].filter(Boolean).join('\n'),
     url: 'index.html',
   };
 
-  return { summary, top3, gameCount, top, cfgApplied };
+  return { summary, top3, gameCount, top, mover, cfgApplied };
 }
 
 async function send(payload) {
@@ -157,14 +243,22 @@ async function main() {
     return;
   }
 
-  const { summary, top3, top, cfgApplied } = buildPayloads(slate);
+  const { summary, top3, mover, cfgApplied } = buildPayloads(slate);
   console.log(`slate ${slate.date} · ${gameCount} games · cfg ${cfgApplied ? 'applied' : 'defaults'}`);
   console.log('  [1]', summary.title, '—', summary.body);
-  console.log('  [2]', top3.title, '—', top3.body);
+  console.log('  [2]', top3.title, '—', top3.body.replace(/\n/g, '\n        '));
+  if (!mover) console.log('  (no biggest mover — no earlier logged slate to compare against)');
 
   if (DRY) {
     console.log('\n(dry run — no pushes sent)');
     return;
+  }
+
+  if (TEST) {
+    const nonce = Date.now();
+    summary.key += `-test-${nonce}`;
+    top3.key += `-test-${nonce}`;
+    console.log('  (test mode — unique keys so the dedup does not swallow this)');
   }
 
   // One push carrying both generic items; sw.js renders two notifications.
