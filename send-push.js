@@ -159,9 +159,12 @@ async function fetchAllSubscriptions() {
 /**
  * Every user's watched player ids, as user_id -> Set(player_id).
  *
- * Used to wake only the devices that actually care about a given home run.
- * Without this every subscriber was woken for every home run league-wide, which
- * is both the wrong product behaviour and a good way to get uninstalled.
+ * Kept for reference but no longer used to gate sends: background alerts are
+ * league-wide now (matching the in-page bell, which fires for every homer),
+ * so every subscribed device is woken for each new batch. The per-device
+ * narrowing — only show homers by players I follow, falling back to the
+ * newest homer otherwise — lives in sw.js instead, where it has the device's
+ * cached watch list to work with.
  */
 async function fetchWatchlists() {
   const dates = [...new Set([todayEastern(), todayCentral()])];
@@ -305,25 +308,20 @@ async function main() {
     return;
   }
 
-  // Only wake devices whose owner is actually watching one of these batters.
-  // A null map means the watchlist lookup itself failed, in which case fall back
-  // to the old notify-everyone behaviour rather than going silent.
-  const watchlists = await fetchWatchlists();
-  const batchIds = new Set(fresh.slice(-5).map(h => h.batterId).filter(v => v != null).map(String));
-  const relevantTo = (sub) => {
-    if (!watchlists) return true;
-    if (!batchIds.size) return false;          // no batter ids to match on
-    const watched = watchlists.get(sub.user_id);
-    if (!watched?.size) return false;          // nothing on their list
-    for (const id of watched) if (batchIds.has(id)) return true;
-    return false;
-  };
-
-  let ok = 0, skipped = 0;
+  // Wake every subscribed device for each new home run batch. The app's
+  // home-run alerts are league-wide — the in-page bell fires for every homer —
+  // so background delivery matches that here. An earlier version only woke a
+  // device whose owner watched the batter who homered, which meant that on any
+  // night a user's watched players didn't go deep they received nothing at all:
+  // every device was skipped ("not watching these batters") and the homers were
+  // marked delivered, so the alerts looked permanently broken even though the
+  // whole pipeline was healthy. The per-device watch-list narrowing now lives
+  // only in sw.js, which falls back to the newest homer when a watched player
+  // isn't in the batch.
+  let ok = 0;
   const deadIds = [];
   for (const sub of list) {
     if (!sub?.endpoint) continue;
-    if (!relevantTo(sub)) { skipped++; continue; }
     try {
       const res = await sendBarePush(sub);
       if (res.status === 404 || res.status === 410) {
@@ -349,9 +347,7 @@ async function main() {
       console.warn(`  ! push error: ${e.message}`);
     }
   }
-  const targeted = list.length - skipped;
-  console.log(`  pushed to ${ok}/${targeted} targeted device(s)` +
-              (skipped ? ` · ${skipped} skipped (not watching these batters)` : ''));
+  console.log(`  pushed to ${ok}/${list.length} subscribed device(s)`);
 
   if (deadIds.length) {
     await pruneDeadSubscriptions(deadIds);
@@ -370,10 +366,7 @@ async function main() {
   // meaningless backlog. A real send attempt that fully failed (ok === 0
   // with subscribers present) does NOT get marked — that's what makes the
   // next run retry it automatically instead of silently giving up.
-  // targeted === 0 means nobody was watching any of these batters, so there is
-  // no one to retry toward and holding the keys forever would only build a
-  // backlog that can never be delivered.
-  const shouldMarkDone = list.length === 0 || targeted === 0 || ok > 0;
+  const shouldMarkDone = list.length === 0 || ok > 0;
   if (shouldMarkDone) {
     fresh.forEach(h => pushed.add(h.key));
     await writeJSON(STATE_FILE, {
@@ -381,7 +374,7 @@ async function main() {
       pushed: [...pushed].slice(-3000),
     });
   } else {
-    console.warn(`  ! every send to ${targeted} targeted device(s) failed — NOT marking ${fresh.length} home run(s) as pushed, will retry next run`);
+    console.warn(`  ! every send to ${list.length} subscribed device(s) failed — NOT marking ${fresh.length} home run(s) as pushed, will retry next run`);
   }
   console.log('✓ done');
 }
