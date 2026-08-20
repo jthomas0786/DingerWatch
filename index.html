@@ -8287,7 +8287,7 @@ async function openProfile(username){
     err.textContent = '';
     postBtn.disabled = true;
     const legs = attach ? betslip.map(l => ({ text: legToText(l), price: l.price ?? null })) : null;
-    const res = await s.postStatus(ta.value, legs, slateMeta.date || null);
+    const res = await s.postStatus(ta.value, legs, slateDate());
     postBtn.disabled = false;
     if(res.error){ err.textContent = res.error; return; }
     ta.value = '';
@@ -8433,8 +8433,9 @@ async function renderForYou(){
   pickList.innerHTML = `<div class="foryou-empty"><div class="foryou-empty-icon">⟳</div>Loading community feed…</div>`;
 
   const signedIn = !!s.getUser?.();
+  const slateFor = slateDate();   // date-scope the feed so it clears with the slate
   const [statuses, following] = await Promise.all([
-    s.loadStatuses({ limit: 50 }),
+    s.loadStatuses({ limit: 50, date: slateFor }),
     signedIn ? s.loadFollowing?.() : Promise.resolve([]),
   ]);
   if(statuses.length) await s.loadStatusReactions(statuses.map(x => x.id));
@@ -8472,7 +8473,7 @@ async function renderForYou(){
     err.textContent = '';
     postBtn.disabled = true;
     const legs = attach ? betslip.map(l => ({ text: legToText(l), price: l.price ?? null })) : null;
-    const res = await s.postStatus(ta.value, legs, slateMeta.date || null);
+    const res = await s.postStatus(ta.value, legs, slateDate());
     postBtn.disabled = false;
     if(res.error){ err.textContent = res.error; return; }
     ta.value = '';
@@ -10689,7 +10690,7 @@ async function fullLiveRefresh(){
   const ok = await loadSlate();
   if(ok){ refreshDayLabelsAndStaleness(); updateSlateFooter(); }
   await fetchLiveGameStates();
-  renderList();
+  renderList();   // re-renders the active tab — incl. For You (date-scoped to the new slate)
   touchLastUpdated();
   if(btn) btn.classList.remove('spinning');
 }

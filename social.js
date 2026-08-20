@@ -763,9 +763,12 @@ async function deleteStatus(id){
 }
 
 /** Statuses for one user, or the global feed when userId is null. */
-async function loadStatuses({ userId = null, limit = 40 } = {}){
+async function loadStatuses({ userId = null, limit = 40, date = null } = {}){
   if(!socialReady) return [];
   let q = sb.from('status_feed').select('*').order('created_at', { ascending: false }).limit(limit);
+  // Scope For You to the current slate date so prior-slate posts don't carry
+  // forward once the slate rolls to a new day.
+  if(date) q = q.eq('slate_date', date);
   if(userId) q = q.eq('user_id', userId);
   const { data, error } = await q;
   if(error){ console.warn('[social] statuses failed:', error.message); return []; }
