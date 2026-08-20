@@ -695,6 +695,8 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .pf-empty{ text-align:center; color:var(--mute); font-size:13px; padding:26px; }
 
 .status{ background:var(--night2); border:1px solid var(--line); border-radius:12px; padding:13px 15px; }
+/* For You: a status with an attached betslip gets a blue accent so slips stand out. */
+.status.status--slip{ border-color: rgba(45,127,255,0.40); box-shadow: inset 3px 0 0 var(--accent); background: linear-gradient(90deg, rgba(45,127,255,0.08), var(--night2) 30%); }
 .status-head{ display:flex; align-items:center; gap:9px; }
 .status-name{ font-family:'Oswald',sans-serif; font-size:14px; cursor:pointer; }
 .status-name:hover{ color:var(--accent); }
@@ -1781,6 +1783,17 @@ footer{ margin-left:0; }
   background: var(--surface);
 }
 .pick-card.is-compact:hover{ border-color: var(--border-bright); }
+
+/* Top 20 Home Run — live result highlights (applied in place by applyLiveHRHighlights). */
+/* Blue accent = player went deep tonight; red accent = prop missed (game final, 0 HR). */
+/* Uses inset box-shadow rather than a real border so card width never shifts. */
+.pick-card.pick-card--dinger{ box-shadow: inset 3px 0 0 var(--accent), 0 0 0 1px rgba(45,127,255,0.25), var(--shadow-card); background: linear-gradient(90deg, rgba(45,127,255,0.10), var(--surface) 28%); }
+.pick-card.pick-card--dinger:hover{ box-shadow: inset 3px 0 0 var(--accent), 0 0 0 1px rgba(45,127,255,0.40), var(--shadow-card); }
+.pick-card.pick-card--missed{ box-shadow: inset 3px 0 0 var(--hr-red), 0 0 0 1px rgba(255,59,59,0.18), var(--shadow-card); background: linear-gradient(90deg, rgba(255,59,59,0.07), var(--surface) 28%); }
+.pick-card.pick-card--missed:hover{ box-shadow: inset 3px 0 0 var(--hr-red), 0 0 0 1px rgba(255,59,59,0.30), var(--shadow-card); }
+/* Solid multi-HR pill — only shown when a player hits 2+ tonight. */
+.hr-multi-pill{ position:absolute; top:6px; right:8px; z-index:6; display:inline-flex; align-items:center; justify-content:center; min-width:34px; height:24px; padding:0 8px; border-radius:12px; font-family:'Cabinet Grotesk','Archivo Black',sans-serif; font-weight:800; font-size:13px; letter-spacing:0.3px; color:#fff; background:var(--accent); box-shadow: 0 2px 8px rgba(45,127,255,0.55), 0 0 0 2px var(--surface); }
+.pick-card.is-compact{ position:relative; }
 
 .pick-card.is-compact .pick-rank{
   padding-top: 0; font-size: 21px; width: 24px;
@@ -4155,6 +4168,43 @@ function getTop5(tabId){
   return sorted.slice(0,TOP_N);
 }
 
+/** A game finished cleanly — used to decide if a 0-HR player "missed". */
+function isCompletedResultGame(g){
+  if(!g) return false;
+  if(g.mlbStatus !== 'Final') return false;
+  const blocked = new Set(['Postponed','Suspended','Cancelled']);
+  return !blocked.has(g.detailedState);
+}
+
+/**
+ * Tonight's home-run result for a Top 20 player, straight from the live MLB
+ * boxscore (refreshed every 20s by fetchLiveGameStates). Returns:
+ *   { hr, appeared, boxReady }
+ * - hr: home runs hit tonight (boxscore + feedEvents, whichever is higher)
+ * - appeared: the player has a batting row in the boxscore (had an at-bat)
+ * - boxReady: a boxscore exists for the game at all
+ * Slate player ids are MLB ids (e.g. 680664), matching the boxscore's
+ * p.person.id, so the join is reliable rather than name-based.
+ */
+function playerHRResult(p){
+  const g = p && p.game;
+  const box = g && g.boxScore;
+  const rows = [
+    ...((box && box.away && box.away.batters) || []),
+    ...((box && box.home && box.home.batters) || []),
+  ];
+  const row = rows.find(b => b.id != null && String(b.id) === String(p.id));
+  const boxHr = row ? (row.hr || 0) : 0;
+  const feedHr = Array.isArray(feedEvents)
+    ? feedEvents.filter(e => e.gamePk === g.gamePk && String(e.batterId) === String(p.id)).length
+    : 0;
+  return {
+    hr: Math.max(boxHr, feedHr),
+    appeared: !!row,
+    boxReady: !!box,
+  };
+}
+
 function getAllByTeam(){
   const byTeam = {};
   allBatters.filter(isPlayable).forEach(p=>{ (byTeam[p.team] = byTeam[p.team] || []).push(p); });
@@ -5064,6 +5114,46 @@ function renderList(){
   wireWatchStars(pickList);
   // Kick off async batter-vs-pitcher H2H lookups for the visible cards
   fetchBVPForCards();
+  // On the HR tab, paint live home-run results (blue for a dinger, red for a
+  // missed prop once the game is final) onto the freshly rendered cards.
+  if(activeTab === 'hr') applyLiveHRHighlights();
+}
+
+/**
+ * Top 20 Home Run tab only: highlight each card with the player's live result.
+ *  - Hit 1+ HR tonight → blue accent (.pick-card--dinger)
+ *  - Hit 2+ HR tonight → solid "x2" / "x3" pill (.hr-multi-pill)
+ *  - Game final, player appeared, 0 HR → red accent (.pick-card--missed)
+ * Live games with 0 HR stay neutral (the at-bat is still in progress).
+ * Idempotent — strips the previous pass's classes/pills before reapplying —
+ * so the 20s live poll can call it without a full re-render (no scroll reset).
+ */
+function applyLiveHRHighlights(){
+  if(activeTab !== 'hr') return;
+  const top = getTop5('hr');
+  pickList.querySelectorAll('.pick-card[data-idx]').forEach(card => {
+    const p = top[parseInt(card.dataset.idx, 10)];
+    card.classList.remove('pick-card--dinger','pick-card--missed');
+    const oldPill = card.querySelector('.hr-multi-pill');
+    if(oldPill) oldPill.remove();
+    if(!p) return;
+    const r = playerHRResult(p);
+    const g = p.game;
+    const live = g && g.mlbStatus === 'Live';
+    if(r.hr >= 1){
+      card.classList.add('pick-card--dinger');
+      if(r.hr >= 2){
+        const pill = document.createElement('span');
+        pill.className = 'hr-multi-pill';
+        pill.textContent = 'x' + r.hr;
+        card.appendChild(pill);
+      }
+    } else if(isCompletedResultGame(g) && r.appeared){
+      card.classList.add('pick-card--missed');
+    } else if(live){
+      // In progress, nothing yet — leave neutral.
+    }
+  });
 }
 
 function windDirLabel(deg){ const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW']; return dirs[Math.round(deg/22.5)%16]; }
@@ -5474,6 +5564,7 @@ function extractBoxSide(side){
     const order = p.battingOrder ? String(p.battingOrder) : '';
     const sub = order && !order.endsWith('00');
     return {
+      id: p.person ? p.person.id : null,
       name: p.person ? p.person.fullName : '—',
       pos: p.position ? p.position.abbreviation : '',
       sub,
@@ -8064,7 +8155,8 @@ function statusHTML(st, canDelete){
   const rx = s?.statusReactionsFor ? s.statusReactionsFor(st.id) : {};
   const name = st.display_name || st.username;
   const legs = st.legs ? (Array.isArray(st.legs) ? st.legs : []) : [];
-  return `<div class="status" data-sid="${st.id}">
+  const hasSlip = legs.length > 0;
+  return `<div class="status${hasSlip ? ' status--slip' : ''}" data-sid="${st.id}">
     <div class="status-head">
       <span class="chat-av">${escapeHTML((st.username||'?')[0].toUpperCase())}</span>
       <span class="status-name chat-user" data-username="${escapeHTML(st.username)}">${escapeHTML(name)}</span>
@@ -10595,7 +10687,8 @@ setInterval(()=>{
     return pollHomeRunFeed();
   }).then(()=>{
     if(activeTab==='feed') renderList();   // renderFeed primes reactions itself
-    else renderTabs();                     // keeps the unread badge current
+    else if(activeTab==='hr') applyLiveHRHighlights();  // live HR results on the Top 20 list, no scroll reset
+    renderTabs();                       // keeps the unread badge current
   });
 }, 20*1000);
 
