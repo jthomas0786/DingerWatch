@@ -627,9 +627,11 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .chat-list{ display:flex; flex-direction:column; gap:8px; margin-top:14px; }
 .chat-msg{ display:flex; gap:10px; background:var(--night2); border:1px solid var(--line);
   border-radius:10px; padding:10px 13px; }
-.chat-av{ width:30px; height:30px; border-radius:50%; flex-shrink:0; background:var(--accent);
-  display:flex; align-items:center; justify-content:center; font-family:'Cabinet Grotesk','Archivo Black',sans-serif;
+.chat-av{ width:30px; height:30px; border-radius:8px; flex-shrink:0; background:var(--accent);
+  display:flex; align-items:center; justify-content:center; overflow:hidden; font-family:'Cabinet Grotesk','Archivo Black',sans-serif;
   font-size:12px; color:var(--night); }
+.chat-av .dw-avatar{ width:100%!important; height:100%!important; border-radius:8px; }
+.comment .chat-av{ width:22px; height:22px; font-size:10px; }
 .chat-body{ flex:1; min-width:0; }
 .chat-top{ display:flex; align-items:baseline; gap:8px; }
 .chat-user{ font-family:'Oswald',sans-serif; font-size:13px; color:var(--white); cursor:pointer; }
@@ -8141,11 +8143,10 @@ let chatUnsub = null;
 
 function chatMsgHTML(m){
   const name = m.profiles?.username || 'unknown';
-  const initial = name[0]?.toUpperCase() || '?';
   const t = new Date(m.created_at);
   const ago = timeAgo(t.getTime());
   return `<div class="chat-msg">
-    <div class="chat-av">${initial}</div>
+    <div class="chat-av">${avatarHTML(m.profiles || { username: name }, 30)}</div>
     <div class="chat-body">
       <div class="chat-top">
         <span class="chat-user" data-username="${escapeHTML(name)}">@${escapeHTML(name)}</span>
@@ -8224,7 +8225,7 @@ function statusHTML(st, canDelete){
   const legs = st.legs ? (Array.isArray(st.legs) ? st.legs : []) : [];
   return `<div class="status" data-sid="${st.id}">
     <div class="status-head">
-      <span class="chat-av">${escapeHTML((st.username||'?')[0].toUpperCase())}</span>
+      <span class="chat-av">${avatarHTML(st, 30)}</span>
       <span class="status-name chat-user" data-username="${escapeHTML(st.username)}">${escapeHTML(name)}</span>
       <span class="chat-time">${timeAgo(new Date(st.created_at).getTime())}</span>
       ${canDelete ? `<button class="status-del" data-del="${st.id}" title="Delete">&times;</button>` : ''}
@@ -8374,6 +8375,7 @@ function wireStatusInteractions(root, canDelete){
     box.classList.add('open');
     box.innerHTML = `
       ${comments.map(c => `<div class="comment">
+        <span class="chat-av">${avatarHTML(c.profiles || { username: c.profiles?.username||'?' }, 22)}</span>
         <span class="chat-user" data-username="${escapeHTML(c.profiles?.username||'')}">@${escapeHTML(c.profiles?.username||'?')}</span>
         <span>${escapeHTML(c.body)}</span>
       </div>`).join('')}
@@ -8389,7 +8391,8 @@ function wireStatusInteractions(root, canDelete){
       if(res.error){ return; }
       input.value = '';
       box.querySelector('.comment-compose').insertAdjacentHTML('beforebegin',
-        `<div class="comment"><span class="chat-user">@${escapeHTML(res.comment.profiles.username)}</span>
+        `<div class="comment"><span class="chat-av">${avatarHTML(res.comment.profiles || { username: res.comment.profiles?.username||'?' }, 22)}</span>
+        <span class="chat-user">@${escapeHTML(res.comment.profiles.username)}</span>
          <span>${escapeHTML(res.comment.body)}</span></div>`);
       b.textContent = `💬 ${comments.length + 1}`;
     };
