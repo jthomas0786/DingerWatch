@@ -547,7 +547,7 @@ body:has(.betslip-bar) main{ padding-bottom:70px; }
 
 /* --- auth + chat --- */
 #authBtn{ background:var(--panel); border:1px solid var(--line); color:var(--mute);
-  font-family:'JetBrains Mono','Space Mono',monospace; font-size:10.5px; padding:4px 10px; border-radius:14px; cursor:pointer; }
+  font-family:'JetBrains Mono','Space Mono',monospace; font-size:10.5px; padding:0; border-radius:9px; overflow:hidden; cursor:pointer; }
 #authBtn:hover{ border-color:var(--accent); color:var(--white); }
 #authBtn.signed-in{ border-color:var(--grass-bright); color:var(--grass-bright); }
 
@@ -670,8 +670,8 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .profile-card{ background:var(--panel); border:1px solid var(--line); border-radius:16px;
   padding:24px; max-width:620px; width:100%; position:relative; margin-bottom:40px; }
 .pf-head{ display:flex; align-items:center; gap:14px; padding-right:38px; }   /* clear the × close button */
-.pf-av{ width:58px; height:58px; border-radius:50%; background:var(--accent); color:var(--night);
-  display:flex; align-items:center; justify-content:center; font-family:'Cabinet Grotesk','Archivo Black',sans-serif;
+.pf-av{ width:58px; height:58px; border-radius:12px; background:var(--accent); color:var(--night);
+  display:flex; align-items:center; justify-content:center; overflow:hidden; font-family:'Cabinet Grotesk','Archivo Black',sans-serif;
   font-size:22px; flex-shrink:0; }
 .pf-id{ flex:1; min-width:0; }
 .pf-name{ font-family:'Oswald',sans-serif; font-size:19px; }
@@ -692,13 +692,13 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .pf-attach{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:10.5px; color:var(--mute); display:flex;
   align-items:center; gap:6px; cursor:pointer; }
 .pf-statuses{ margin-top:18px; display:flex; flex-direction:column; gap:10px; }
-.pf-av .dw-avatar{ width:100%!important; height:100%!important; border-radius:50%; }
+.pf-av .dw-avatar{ width:100%!important; height:100%!important; border-radius:12px; }
 .pf-empty{ text-align:center; color:var(--mute); font-size:13px; padding:26px; }
 /* Avatar picker in the profile editor */
 .pe-av-row{ display:flex; align-items:center; gap:14px; margin:4px 0 2px; }
-.pe-av-preview{ width:64px; height:64px; border-radius:50%; overflow:hidden; flex-shrink:0;
+.pe-av-preview{ width:64px; height:64px; border-radius:12px; overflow:hidden; flex-shrink:0;
   border:2px solid var(--line); background:var(--night); display:flex; align-items:center; justify-content:center; }
-.pe-av-preview .dw-avatar{ width:100%!important; height:100%!important; border-radius:50%; }
+.pe-av-preview .dw-avatar{ width:100%!important; height:100%!important; border-radius:12px; }
 .pe-av-actions{ display:flex; flex-direction:column; gap:5px; }
 .pe-av-upload{ background:var(--accent); border:1px solid var(--accent); color:var(--night); font-weight:700;
   font-family:'Oswald',sans-serif; font-size:12px; padding:7px 14px; border-radius:18px; cursor:pointer; }
@@ -706,7 +706,7 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .pe-av-upload:disabled{ opacity:.6; cursor:default; }
 .pe-av-hint{ font-size:10.5px; color:var(--mute); font-family:'JetBrains Mono','Space Mono',monospace; }
 .pe-av-grid{ display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin:8px 0 14px; }
-.pe-av-opt{ aspect-ratio:1; border-radius:50%; border:2px solid var(--line); cursor:pointer;
+.pe-av-opt{ aspect-ratio:1; border-radius:10px; border:2px solid var(--line); cursor:pointer;
   display:flex; align-items:center; justify-content:center; font-size:18px; transition:border-color .12s, transform .12s; }
 .pe-av-opt:hover{ transform:scale(1.06); }
 .pe-av-opt.sel{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-glow); }
@@ -1291,13 +1291,14 @@ body{
 .icon-btn[hidden]{ display:none; }
 
 .avatar-btn{
-  width:38px; height:38px; border-radius:50%; flex-shrink:0;
+  width:38px; height:38px; border-radius:9px; flex-shrink:0;
   background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dim) 100%);
-  display:flex; align-items:center; justify-content:center;
+  display:flex; align-items:center; justify-content:center; overflow:hidden;
   color:#fff; border:2px solid var(--border-light); transition: var(--transition);
   font-size:12px; font-weight:700; padding:0;
 }
 .avatar-btn svg{ width:17px; height:17px; }
+.avatar-btn .dw-avatar{ width:100%!important; height:100%!important; border-radius:9px; }
 .avatar-btn:hover{ border-color: var(--accent-bright); box-shadow:0 0 0 3px var(--accent-glow); }
 
 /* Day toggle in topbar */
@@ -8038,8 +8039,8 @@ function renderAuthButton(){
   const u = s.getUser?.();
   const GLYPH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
   if(u){
-    btn.textContent = String(u.username).slice(0,2).toUpperCase();
-    btn.title = `Signed in as @${u.username}`;
+    btn.innerHTML = avatarHTML(u, 38);
+    btn.title = `Signed in as @${u.username} — view profile`;
   } else {
     btn.innerHTML = GLYPH;
     btn.title = 'Sign in to react and chat';
