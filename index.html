@@ -4617,9 +4617,17 @@ function getTop5(tabId){
   }
   let sorted;
   if(TAB_SIM[tabId]){
-    const k = TAB_SIM[tabId].key;
+    // Rank on the EXACT (unrounded) probability, not the rounded .pct. With ~300+
+    // hitters and integer percentages, the top of the board is a solid block of
+    // ties — a dozen players all showing "30%". Sorting that block by its
+    // rounded value is a no-op, so JS's stable sort leaves them in pool order,
+    // which pins the same handful of elite names to the top every single night
+    // regardless of tonight's matchup or park. The exact figure (see
+    // scoreExactFor) is what grading already uses to split those blocks, so
+    // ranking on it too keeps the visible order honest about who's actually
+    // best tonight and lets matchup/park context reshuffle the board.
     sorted = [...allBatters].filter(isPlayable)
-      .sort((a,b)=>simulatePlayer(b)[k].pct - simulatePlayer(a)[k].pct);
+      .sort((a,b)=>scoreExactFor(tabId, b) - scoreExactFor(tabId, a));
   }
   else return [];
   return sorted.slice(0,TOP_N);

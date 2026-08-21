@@ -21,7 +21,11 @@ import crypto from 'node:crypto';
 export function extractScript(htmlPath) {
   const src = fs.readFileSync(htmlPath, 'utf8');
   const a = src.indexOf('<script>', 2400);
-  const b = src.lastIndexOf('</script>');
+  // NOTE: this file grew a trailing `<script type="module" src="..."></script>`
+  // tag after the NFL router work, so a naive lastIndexOf('</script>') grabs
+  // that self-closing tag instead of the inline block's real close. Find the
+  // FIRST </script> after `a` instead — the inline block is the first script.
+  const b = src.indexOf('</script>', a);
   if (a < 0 || b < 0 || b <= a) throw new Error('could not locate inline <script> block');
   return src.slice(a + '<script>'.length, b);
 }
