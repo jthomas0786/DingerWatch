@@ -1590,10 +1590,11 @@ footer{ margin-left:0; }
 }
 .online-user-tb:hover{ background: var(--surface-2); }
 .online-user-tb .oav{
-  width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+  width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
   display: grid; place-items: center; font-size: 11px; font-weight: 700;
   background: var(--accent-dim); color: #fff; overflow: hidden;
 }
+.online-user-tb .oav .dw-avatar{ width:100%!important; height:100%!important; border-radius:8px; }
 .online-user-tb .oav img{ width: 100%; height: 100%; object-fit: cover; }
 .online-user-tb .oname{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .online-user-tb .ome{
@@ -8176,7 +8177,7 @@ function onlineBarHTML(){
     <div class="online-pop" id="onlinePop">
       ${n ? onlineList.map(u => `
         <button class="online-user" data-username="${escapeHTML(u.username)}">
-          <span class="chat-av">${escapeHTML((u.username||'?')[0].toUpperCase())}</span>
+          <span class="chat-av">${avatarHTML(u, 24)}</span>
           <span>@${escapeHTML(u.username)}</span>
         </button>`).join('')
         : '<div class="online-empty">Nobody else right now.</div>'}
@@ -10367,10 +10368,8 @@ function renderOnlinePopTb(){
   list.innerHTML = rows.map(u => {
     const name = u?.username || 'anonymous';
     const isMe = me && u?.id === me.id;
-    const initial = escapeHTML(name[0].toUpperCase());
-    const hue = tbAvatarHue(name);
     return `<button class="online-user-tb" data-username="${escapeHTML(name)}" role="menuitem">
-      <span class="oav" style="background:hsl(${hue} 55% 34%)">${initial}</span>
+      <span class="oav">${avatarHTML(u, 26)}</span>
       <span class="oname">@${escapeHTML(name)}</span>
       ${isMe ? '<span class="ome">You</span>' : ''}
     </button>`;
