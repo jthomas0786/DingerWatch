@@ -14,7 +14,11 @@
     "lowRoleSnapThreshold": 0.3,
     "lowRoleGamesThreshold": 8,
     "lowRoleReduction": 0.5,
-    "matchupWeight": 1.0,
+    "rzDefWeight": 0.6,
+    "rzDefMin": 0.85,
+    "rzDefMax": 1.18,
+    "rzDefMinPlaysFaced": 60,
+    "availabilityMultiplier": { "active": 1.0, "questionable": 0.85, "doubtful": 0.25, "out": 0.0, "unknown": 1.0 },
     "minProb": 0.005,
     "maxProb": 0.8
   },
@@ -27,7 +31,7 @@
   ],
   "availability": {
     "oddsAvailable": false,
-    "availabilityStatus": "unconfirmed",
-    "note": "Inactives/odds not wired in MVP. T-90 inactive refresh and OpticOdds ATD markets are a Phase 1 follow-up."
+    "source": "espn-injuries",
+    "note": "Live injury/inactive status comes from the ESPN league-wide injuries endpoint (nflverse's injury feed has no data after 2024). OUT/IR/suspended players are zeroed and flagged; questionable/doubtful are discounted. Per-game official inactives (T-90) and OpticOdds ATD markets are still a follow-up."
   }
 }

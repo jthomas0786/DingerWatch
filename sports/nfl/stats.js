@@ -88,10 +88,13 @@ export async function buildStatsCache() {
   warnings.push(`snap_counts: ${snapRows} rows, ${snapMatched} matched`);
 
   // --- 3. play-by-play → red-zone usage + TDs, joined by gsis_id ---
+  // Also aggregates opponent red-zone DEFENSE by defteam (RZ plays faced and RZ
+  // TDs allowed), which feeds the ATD matchup factor.
   const pbpText = await fetchText(PBP_URL);
   const pbpHeader = headerMap(pbpText.slice(0, pbpText.indexOf('\n')));
   let pbpRows = 0, tdMatched = 0, rzMatched = 0;
-  iterCSV(pbpText, pbpHeader, ['yardline_100', 'td_player_id', 'td_player_name', 'receiver_player_id', 'receiver_player_name', 'rusher_player_id', 'rusher_player_name', 'posteam', 'season_type'], (r) => {
+  const defense = new Map(); // defteam -> { rzPlays, rzTdsAllowed }
+  iterCSV(pbpText, pbpHeader, ['yardline_100', 'td_player_id', 'td_player_name', 'receiver_player_id', 'receiver_player_name', 'rusher_player_id', 'rusher_player_name', 'posteam', 'defteam', 'play_type', 'season_type'], (r) => {
     pbpRows++;
     if (r.season_type !== 'REG') return;
     if (r.td_player_id) {
@@ -99,17 +102,43 @@ export async function buildStatsCache() {
       if (p) { p.tds++; tdMatched++; }
     }
     const yl = parseFloat(r.yardline_100);
+    const isScrimmage = r.play_type === 'run' || r.play_type === 'pass';
     if (!isNaN(yl) && yl <= 20) {
       if (r.receiver_player_id) { const p = byGsis.get(r.receiver_player_id); if (p) { p.rzTargets++; rzMatched++; } }
       if (r.rusher_player_id) { const p = byGsis.get(r.rusher_player_id); if (p) { p.rzCarries++; rzMatched++; } }
+      // red-zone defense: scrimmage plays faced inside the opponent 20, and how
+      // many of those the defense gave up a TD on
+      if (isScrimmage && r.defteam) {
+        let d = defense.get(r.defteam);
+        if (!d) { d = { rzPlays: 0, rzTdsAllowed: 0 }; defense.set(r.defteam, d); }
+        d.rzPlays++;
+        if (r.td_player_id) d.rzTdsAllowed++;
+      }
     }
   });
   warnings.push(`pbp: ${pbpRows} rows, ${tdMatched} TDs + ${rzMatched} RZ plays matched`);
 
+  // --- 4. finalize red-zone defense into a league-relative rate ---
+  let totalPlays = 0, totalTds = 0;
+  for (const d of defense.values()) { totalPlays += d.rzPlays; totalTds += d.rzTdsAllowed; }
+  const leagueRzTdRate = totalPlays > 0 ? totalTds / totalPlays : 0;
+  const teamDefense = {};
+  for (const [team, d] of defense) {
+    const rate = d.rzPlays > 0 ? d.rzTdsAllowed / d.rzPlays : leagueRzTdRate;
+    teamDefense[team] = {
+      rzPlaysFaced: d.rzPlays,
+      rzTdsAllowed: d.rzTdsAllowed,
+      rzTdRateAllowed: +rate.toFixed(4),
+      // >1 = softer than average (more TDs allowed per RZ play), <1 = tougher
+      rzDefIndex: leagueRzTdRate > 0 ? +(rate / leagueRzTdRate).toFixed(3) : 1,
+    };
+  }
+  warnings.push(`rz-defense: ${Object.keys(teamDefense).length} teams, league RZ TD rate ${leagueRzTdRate.toFixed(3)}`);
+
   // serialize keyed by gsis_id
   const players = {};
   for (const [gsis, p] of byGsis) players[gsis] = p;
-  return { players, warnings };
+  return { players, teamDefense, leagueRzTdRate: +leagueRzTdRate.toFixed(4), warnings };
 }
 
 /** Load the cache from disk if fresh, else rebuild + persist. */
