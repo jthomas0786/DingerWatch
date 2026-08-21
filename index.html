@@ -887,11 +887,12 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .slate-card:hover{ border-color: var(--accent); }
 .slate-card.is-live{ border-color: var(--accent); box-shadow: 0 0 0 1px rgba(45,127,255,0.25); }
 .slate-status-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-.slate-card-top{ display:flex; align-items:flex-start; gap:14px; }
-.slate-card-top .slate-teams{ flex:0 0 auto; min-width:140px; max-width:200px; }
-.slate-card-top .slate-team-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.slate-linescore-inline{ flex:1 1 auto; min-width:0; overflow-x:auto; }
-.slate-linescore-inline .linescore{ margin-top:0; padding-top:0; border-top:0; }
+.slate-card-top{ margin-bottom:4px; overflow-x:auto; }
+/* Inline line score = one table: logo + team name (left), innings (middle),
+   R/H/E (right). The team abbreviation column is replaced by logo + name. */
+.linescore-inline{ margin-top:0; padding-top:0; border-top:0; }
+.linescore-inline td.team-cell{ display:flex; align-items:center; gap:8px; min-width:128px; padding-left:0; text-align:left; }
+.linescore-inline .slate-team-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
 .slate-badge{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:10px; letter-spacing:0.05em; padding:3px 9px; border-radius:20px; text-transform:uppercase; font-weight:700; }
 .slate-badge.live{ background:rgba(45,127,255,0.18); color:var(--accent-bright); border:1px solid rgba(45,127,255,0.4); animation: pulse 1.8s infinite; }
 .slate-badge.final{ background: var(--night2); color: var(--mute); border:1px solid var(--line); }
@@ -900,6 +901,13 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .slate-teams{ display:flex; flex-direction:column; gap:8px; }
 .slate-team-row{ display:flex; align-items:center; gap:10px; }
 .slate-team-row.batting .slate-team-name{ color: var(--accent-bright); }
+/* winner highlight now lives on the line-score <tr> (logo+name replaced the
+   old .slate-team-row divs) */
+.linescore tr.won td.team-cell, .linescore tr.won .slate-team-name{ color: var(--text); font-weight:700; }
+.linescore tr.won td.rhe{ color: var(--text); }
+.slate-card.is-final .linescore tr:not(.won) td.team-cell,
+.slate-card.is-final .linescore tr:not(.won) .slate-team-name,
+.slate-card.is-final .linescore tr:not(.won) td.rhe{ color: var(--text-muted); }
 .slate-logo{ width:26px; height:26px; flex-shrink:0; object-fit:contain; }
 .slate-team-name{ font-family:'Oswald',sans-serif; font-weight:600; font-size:14.5px; flex:1; }
 .slate-runs{ font-family:'Cabinet Grotesk','Archivo Black',sans-serif; font-size:20px; min-width:28px; text-align:right; }
@@ -1103,10 +1111,26 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .is-hit-mode .gc-zone{ opacity:.18; transition:opacity .4s ease; }
 .is-hit-mode .gc-hit-overlay{ opacity:1; transform:none; }
 .is-hit-mode .gc-3d-loading{ display:none; }
-/* During a hit, hide the matchup panel so it can't collide with the readout
-   (the readout is the relevant info for the ~9s a ball is in flight). It
-   reappears when the next at-bat returns to the strike-zone view. */
-.is-hit-mode .gc-matchup-card.gc-overlay{ opacity:0; pointer-events:none; transition:opacity .3s ease; }
+/* Batter (left) + pitcher (right) flank the strike zone inside the 3D gamecast:
+   headshot + name + one tiny stat. They fade out while a ball is in flight
+   (overhead view) so the field + landing spot stay unobstructed. */
+.gc-participant{
+  position:absolute; top:50%; transform:translateY(-50%);
+  display:flex; align-items:center; gap:8px; max-width:44%;
+  padding:6px 8px; border-radius:10px; z-index:2;
+  background:rgba(15,20,33,.45); backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px);
+  border:1px solid rgba(255,255,255,.12); transition:opacity .3s ease;
+}
+.gc-batter{ left:8px; }
+.gc-pitcher{ right:8px; flex-direction:row-reverse; text-align:right; }
+.gc-participant-img{ width:46px; height:46px; border-radius:50%; object-fit:cover; flex-shrink:0; background:var(--night2); }
+.gc-participant-img.gc-participant-noimg{ opacity:.4; }
+.gc-participant-info{ display:flex; flex-direction:column; min-width:0; }
+.gc-pitcher .gc-participant-info{ align-items:flex-end; }
+.gc-participant-role{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:8px; color:var(--mute); text-transform:uppercase; letter-spacing:.05em; }
+.gc-participant-name{ font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; color:#fff; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:96px; }
+.gc-participant-stat{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:9px; color:var(--accent-bright); }
+.is-hit-mode .gc-participant{ opacity:0; pointer-events:none; }
 .gc-hit-top{ display:flex; margin-bottom:4px; }
 .gc-verdict{ font-size:12px; font-weight:800; letter-spacing:.04em; padding:2px 9px; border-radius:6px; }
 .gc-verdict.hr{ background:var(--hr-red); color:#fff; }
@@ -1234,8 +1258,16 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
   .gamecast-diamond{ width:160px; height:160px; margin:0 auto; }
   .gc-3d-wrap{ max-width:100%; }
   .gc-odds-grid{ grid-template-columns:1fr 1fr 1fr; }
-  .gc-matchup-card.gc-overlay{ width:150px; padding:7px 8px; }
-  .gc-hit-overlay{ width:152px; }
+  .gc-participant{ max-width:38%; padding:4px 6px; gap:6px; }
+  .gc-participant-img{ width:36px; height:36px; }
+  .gc-participant-name{ font-size:11px; max-width:64px; }
+  /* Keep the hit-outcome readout small so it doesn't cover half the field. */
+  .gc-hit-overlay{ width:120px; max-width:46%; padding:6px; top:4px; }
+  .gc-hit-overlay.on-left{ left:4px; }
+  .gc-hit-overlay.on-right{ right:4px; }
+  .gc-hit-stats b{ font-size:12px; }
+  .gc-hit-stats i, .gc-hit-note{ font-size:8px; }
+  .gc-verdict{ font-size:10px; padding:2px 7px; }
 }
 /* ---- gamecast controller: 3D field sizing ---- */
 .gc-3d-wrap{ width:100%; max-width:760px; }
@@ -1296,9 +1328,10 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 
 @media (max-width:520px){
   .gc-pbp-viewport{ height:230px; }
-  .slate-card-top{ flex-direction:column; }
-  .slate-card-top .slate-teams{ flex-direction:row; justify-content:space-between; max-width:none; }
-  .slate-linescore-inline .linescore table{ font-size:10px; }
+  .linescore-inline table{ font-size:10px; }
+  .linescore-inline td.team-cell{ min-width:104px; gap:6px; }
+  .linescore-inline .slate-logo{ width:22px; height:22px; }
+  .linescore-inline .slate-team-name{ font-size:12px; }
 }
 @media (prefers-reduced-motion: reduce){
   .pbp-row.in{ animation:none; }
@@ -5924,17 +5957,17 @@ async function fetchLiveGameStates(){
  *    the actual innings array, not a hardcoded 9.
  */
 function linescoreHTML(g){
-  const ls = g.liveScore;
-  if(!ls || !ls.innings || !ls.innings.length) return '';
-
+  const ls = g.liveScore || {};
+  const isLive = (g.mlbStatus === 'Live');
+  const isFinal = (g.mlbStatus === 'Final');
+  const hasInn = !!(ls.innings && ls.innings.length);
   const scheduled = ls.scheduledInnings || 9;
-  const played = ls.innings.length;
+  const played = hasInn ? ls.innings.length : 0;
   const cols = Math.max(scheduled, played);       // pad to 9, extend for extras
   const nums = Array.from({length: cols}, (_,i)=> i+1);
-  const byNum = Object.fromEntries(ls.innings.map(i => [i.num, i]));
+  const byNum = hasInn ? Object.fromEntries(ls.innings.map(i => [i.num, i])) : {};
 
-  const isLive = (g.mlbStatus === 'Live');
-  const cell = (v, isCurrent) => {
+  const cell = (v) => {
     if(v === undefined || v === null) return '<td></td>';
     return `<td class="${v > 0 ? 'scored' : ''}">${v}</td>`;
   };
@@ -5942,23 +5975,31 @@ function linescoreHTML(g){
   const head = nums.map(n =>
     `<th class="${isLive && n === ls.inning ? 'current-inn' : ''}">${n}</th>`).join('');
 
-  const row = (side, label) => {
-    const battingNow = isLive &&
+  const row = (side) => {
+    const team = side === 'away' ? g.away : g.home;
+    const name = side === 'away' ? g.awayName : g.homeName;
+    const battingNow = isLive && ls &&
       ((side === 'away' && ls.inningState === 'Top') || (side === 'home' && ls.inningState === 'Bottom'));
+    const won = isFinal && ls && ls.away!=null && ls.home!=null &&
+      (side==='away' ? ls.away>ls.home : ls.home>ls.away);
     const cells = nums.map(n => cell(byNum[n] ? byNum[n][side] : undefined)).join('');
-    const r = side === 'away' ? ls.away : ls.home;
-    const h = side === 'away' ? ls.awayHits : ls.homeHits;
-    const e = side === 'away' ? ls.awayErrors : ls.homeErrors;
-    return `<tr class="${battingNow ? 'batting' : ''}">
-      <td class="team-cell">${label}</td>${cells}
-      <td class="rhe sep">${r ?? '–'}</td><td class="rhe">${h ?? '–'}</td><td class="rhe">${e ?? '–'}</td>
+    const r = ls ? (side === 'away' ? ls.away : ls.home) : null;
+    const h = ls ? (side === 'away' ? ls.awayHits : ls.homeHits) : null;
+    const e = ls ? (side === 'away' ? ls.awayErrors : ls.homeErrors) : null;
+    const rhe = (isLive||isFinal) ? `<td class="rhe sep">${r ?? '–'}</td><td class="rhe">${h ?? '–'}</td><td class="rhe">${e ?? '–'}</td>` : '';
+    return `<tr class="${battingNow ? 'batting' : ''} ${won?'won':''}">
+      <td class="team-cell"><img class="slate-logo" src="${teamLogoUrl(team)}" alt="${escapeHTML(team)}" onerror="this.style.visibility='hidden'"><span class="slate-team-name">${escapeHTML(name)}</span></td>${cells}${rhe}
     </tr>`;
   };
 
-  return `<div class="linescore"><table>
+  if(!hasInn){
+    // pre-game / no innings yet: show the two team rows (logo + name) only
+    return `<div class="linescore linescore-inline"><table><tbody>${row('away')}${row('home')}</tbody></table></div>`;
+  }
+  return `<div class="linescore linescore-inline"><table>
     <thead><tr><th class="team-cell"></th>${head}
       <th class="rhe-head sep">R</th><th class="rhe-head">H</th><th class="rhe-head">E</th></tr></thead>
-    <tbody>${row('away', g.away)}${row('home', g.home)}</tbody>
+    <tbody>${row('away')}${row('home')}</tbody>
   </table></div>`;
 }
 
@@ -6384,7 +6425,8 @@ class GamecastController {
       this.pitchLegend = el.querySelector('.gc-pitch-legend');
       this.countWrap = el.querySelector('.gc-count-row');
       this.basesRow = el.querySelector('.gc-bases-row');
-      this.muWrap = el.querySelector('.gc-mu-body');
+      this.batterCard = el.querySelector('.gc-batter');
+      this.pitcherCard = el.querySelector('.gc-pitcher');
       this.lastPlayEl = el.querySelector('.gc-last-play');
       // PBP box now lives in its own tab pane (sibling of the gc-mount),
       // bound separately in _bindPBP() — not scoped to this element.
@@ -6503,11 +6545,23 @@ class GamecastController {
               <line class="gc-zone-line" x1="44" y1="164.7" x2="156" y2="164.7"></line>
               <g class="gc-zone-dots"></g>
             </svg>
-            <div class="gc-matchup-card gc-overlay">
-              <div class="gc-mu-head"><span class="gc-mu-title">Batter vs Pitcher</span></div>
-              <div class="gc-mu-body"><div class="gc-mu-skel">Loading matchup…</div></div>
-              <div class="gc-last-play"></div>
+            <div class="gc-participant gc-batter">
+              <img class="gc-participant-img" alt="" onerror="this.classList.add('gc-participant-noimg')">
+              <div class="gc-participant-info">
+                <span class="gc-participant-role">Batter</span>
+                <span class="gc-participant-name">—</span>
+                <span class="gc-participant-stat"></span>
+              </div>
             </div>
+            <div class="gc-participant gc-pitcher">
+              <img class="gc-participant-img" alt="" onerror="this.classList.add('gc-participant-noimg')">
+              <div class="gc-participant-info">
+                <span class="gc-participant-role">Pitcher</span>
+                <span class="gc-participant-name">—</span>
+                <span class="gc-participant-stat"></span>
+              </div>
+            </div>
+            <div class="gc-last-play"></div>
             <div class="gc-hit-overlay"></div>
             <div class="gc-3d-loading">Loading 3D field…</div>
           </div>
@@ -6692,7 +6746,7 @@ class GamecastController {
   // ---- batter-vs-pitcher matchup: on-demand fetch, cached ----
   async _updateMatchup(mu){
     if(!mu || !mu.batter || !mu.pitcher){
-      if(this.muWrap) this.muWrap.innerHTML = '<div class="gc-mu-none">At-bat pending</div>';
+      this._clearParticipants();
       this.matchupKey = null; return;
     }
     const key = mu.batter.id + ':' + mu.pitcher.id;
@@ -6708,33 +6762,29 @@ class GamecastController {
     this._muCache = res;
     this._renderMatchup(mu, res);
   }
+  // Batter (left) + pitcher (right) flank the strike zone: headshot + name +
+  // one tiny stat. No more big overlay frame.
+  _participantHTML(role, name, playerId, stat){
+    const img = headshotImgTag(name || '—', 'gc-participant-img', null, playerId);
+    return `${img}<div class="gc-participant-info"><span class="gc-participant-role">${role}</span><span class="gc-participant-name">${escapeHTML(name || '—')}</span><span class="gc-participant-stat">${stat || ''}</span></div>`;
+  }
+  _clearParticipants(){
+    if(this.batterCard) this.batterCard.innerHTML = this._participantHTML('Batter', null, null, '');
+    if(this.pitcherCard) this.pitcherCard.innerHTML = this._participantHTML('Pitcher', null, null, '');
+  }
   _renderMatchupNames(mu){
-    if(!this.muWrap) return;
-    this.muWrap.innerHTML = `<div class="gc-mu-names"><span><b>${escapeHTML(mu.batter.name)}</b></span><span class="gc-mu-vs">vs</span><span><b>${escapeHTML(mu.pitcher.name)}</b></span></div><div class="gc-mu-skel">Loading stats…</div>`;
+    if(!this.batterCard && !this.pitcherCard) return;
+    if(this.batterCard) this.batterCard.innerHTML = this._participantHTML('Batter', mu.batter.name, mu.batter.id, 'Loading…');
+    if(this.pitcherCard) this.pitcherCard.innerHTML = this._participantHTML('Pitcher', mu.pitcher.name, mu.pitcher.id, 'Loading…');
   }
   _renderMatchup(mu, res){
-    if(!this.muWrap) return;
-    const b = res && res.batter, p = res && res.pitcher, h2h = res && res.h2h;
-    const trend = (hot) => hot == null ? '<span class="gc-trend neutral">•</span>' : (hot ? '<span class="gc-trend hot" title="Hot">▲</span>' : '<span class="gc-trend cold" title="Cold">▼</span>');
+    if(!this.batterCard && !this.pitcherCard) return;
+    const b = res && res.batter, p = res && res.pitcher;
     const f = (v, d) => v == null ? '—' : (typeof v === 'number' ? v.toFixed(d == null ? 3 : d) : escapeHTML(String(v)));
-    this.muWrap.innerHTML = `
-      <div class="gc-mu-names"><span><b>${escapeHTML(mu.batter.name)}</b></span><span class="gc-mu-vs">vs</span><span><b>${escapeHTML(mu.pitcher.name)}</b></span></div>
-      <div class="gc-mu-grid">
-        <div class="gc-mu-col">
-          <div class="gc-mu-col-h">Batter ${trend(b && b.hot)}</div>
-          <div class="gc-mu-cell"><span>AVG</span><b>${b ? f(b.avg) : '—'}</b></div>
-          <div class="gc-mu-cell"><span>OPS</span><b>${b ? f(b.ops) : '—'}</b></div>
-          <div class="gc-mu-cell"><span>K%</span><b>${b ? f(b.kPct * 100, 1) : '—'}</b></div>
-          ${b && b.last7 != null ? `<div class="gc-mu-cell sub"><span>Last 7 AVG</span><b>${f(b.last7)}</b></div>` : ''}
-        </div>
-        <div class="gc-mu-col">
-          <div class="gc-mu-col-h">Pitcher ${trend(p && p.hot)}</div>
-          <div class="gc-mu-cell"><span>ERA</span><b>${p ? f(p.era, 2) : '—'}</b></div>
-          <div class="gc-mu-cell"><span>K/9</span><b>${p ? f(p.k9, 1) : '—'}</b></div>
-          <div class="gc-mu-cell"><span>K%</span><b>${p ? f(p.kPct * 100, 1) : '—'}</b></div>
-        </div>
-      </div>
-      ${h2h ? `<div class="gc-mu-h2h">vs this pitcher · ${h2h.ab} AB · AVG <b>${f(h2h.avg)}</b> · OPS <b>${f(h2h.ops)}</b> · K <b>${h2h.k}</b></div>` : '<div class="gc-mu-h2h muted">Season form shown · H2H unavailable</div>'}`;
+    const bStat = b ? `AVG ${f(b.avg)}` : '';
+    const pStat = p ? `ERA ${f(p.era, 2)}` : '';
+    if(this.batterCard) this.batterCard.innerHTML = this._participantHTML('Batter', mu.batter.name, mu.batter.id, bStat);
+    if(this.pitcherCard) this.pitcherCard.innerHTML = this._participantHTML('Pitcher', mu.pitcher.name, mu.pitcher.id, pStat);
   }
 
   destroy(){
@@ -7003,15 +7053,7 @@ function slateCardHTML(g){
   const badge = isLive ? `<span class="slate-badge live">● Live</span>`
     : (isFinal ? `<span class="slate-badge final">Final</span>` : `<span class="slate-badge pre">Scheduled</span>`);
   const ls = g.liveScore || {};
-  const awayRuns = isLive || isFinal ? (ls.away!=null ? ls.away : '–') : '';
-  const homeRuns = isLive || isFinal ? (ls.home!=null ? ls.home : '–') : '';
-  const battingHome = isLive && ls.inningState === 'Bottom';
-  const battingAway = isLive && ls.inningState === 'Top';
   const inningTxt = isLive && ls.inning ? `${ls.inningState==='Top'?'▲':'▼'} ${ls.inning===1?'1st':ls.inning===2?'2nd':ls.inning===3?'3rd':ls.inning+'th'}` : '';
-
-  // Highlight the winner on a completed game the way a scoreboard does.
-  const awayWon = isFinal && ls.away != null && ls.home != null && ls.away > ls.home;
-  const homeWon = isFinal && ls.away != null && ls.home != null && ls.home > ls.away;
 
   // Scheduled → animated ballpark + weather. Live → tabbed gamecast, box
   // score, and line score. Final → line score summary plus the box score.
@@ -7019,8 +7061,9 @@ function slateCardHTML(g){
     : isFinal ? liveDetailHTML(g, { gamecast: false })
     : slateFieldHTML(g);
 
-  // Line score renders inline at the top, to the right of the team logos
-  // (it used to be its own tab). Empty for games that haven't started.
+  // Line score renders inline at the top of the card: logo + team name (left),
+  // inning-by-inning line score (middle), R/H/E (right) — all in one table so
+  // the rows line up. Team abbreviations are gone (logo + name replace them).
   const line = linescoreHTML(g);
 
   return `
@@ -7029,21 +7072,7 @@ function slateCardHTML(g){
         ${badge}
         <span class="slate-time">${isLive ? inningTxt : (isFinal ? (g.parkShort || g.park.split(',')[0]) : gameTime(g))}</span>
       </div>
-      <div class="slate-card-top">
-        <div class="slate-teams">
-          <div class="slate-team-row ${battingAway?'batting':''} ${awayWon?'won':''}">
-            <img class="slate-logo" src="${teamLogoUrl(g.away)}" alt="${g.away}" onerror="this.style.visibility='hidden'">
-            <span class="slate-team-name">${g.awayName}</span>
-            <span class="slate-runs" id="away-runs-${g.id}">${awayRuns}</span>
-          </div>
-          <div class="slate-team-row ${battingHome?'batting':''} ${homeWon?'won':''}">
-            <img class="slate-logo" src="${teamLogoUrl(g.home)}" alt="${g.home}" onerror="this.style.visibility='hidden'">
-            <span class="slate-team-name">${g.homeName}</span>
-            <span class="slate-runs" id="home-runs-${g.id}">${homeRuns}</span>
-          </div>
-        </div>
-        ${line ? `<div class="slate-linescore-inline" id="ls-${g.id}">${line}</div>` : ''}
-      </div>
+      <div class="slate-card-top" id="ls-${g.id}">${line}</div>
       ${body}
     </div>`;
 }
@@ -7059,19 +7088,11 @@ function refreshLiveCardHeaders(){
     const ls = g.liveScore || {};
     const isLive = slateBucket(g) === 'live';
     const isFinal = slateBucket(g) === 'final';
-    const awayRuns = isLive || isFinal ? (ls.away!=null ? ls.away : '–') : '';
-    const homeRuns = isLive || isFinal ? (ls.home!=null ? ls.home : '–') : '';
-    const ar = card.querySelector(`#away-runs-${g.id}`); if(ar) ar.textContent = awayRuns;
-    const hr = card.querySelector(`#home-runs-${g.id}`); if(hr) hr.textContent = homeRuns;
     const t = card.querySelector('.slate-time');
     if(t) t.textContent = isLive ? (ls.inning ? `${ls.inningState==='Top'?'▲':'▼'} ${ls.inning===1?'1st':ls.inning===2?'2nd':ls.inning===3?'3rd':ls.inning+'th'}` : '') : (isFinal ? (g.parkShort || g.park.split(',')[0]) : gameTime(g));
-    const rows = card.querySelectorAll('.slate-team-row');
-    if(rows.length === 2 && isLive){
-      rows[0].classList.toggle('batting', ls.inningState === 'Top');
-      rows[1].classList.toggle('batting', ls.inningState === 'Bottom');
-    }
-    // Inline line score (moved out of its own tab into the card header):
-    // re-render only when an inning / R-H-E / current-inning signature changes.
+    // Inline line score (logo + name + innings + R/H/E in one table). Re-render
+    // only when an inning / R-H-E / current-inning / batting signature changes —
+    // that rebuild covers score, batting arrow, and winner highlight in one go.
     const lsSlot = card.querySelector(`#ls-${g.id}`);
     if(lsSlot){
       const inn = ls.innings || [];
