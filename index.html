@@ -1239,6 +1239,11 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .gc-ot-label{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:8px; color:var(--mute); text-transform:uppercase; letter-spacing:0.05em; }
 .gc-ot-val{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:14px; font-weight:700; color:var(--white); margin-top:2px; }
 .gc-ot-val.changed{ color: var(--accent-bright); }
+/* Live win-probability coloring: the team more likely to win turns green,
+   the underdog red; the O/U shows the most-probable side in green. */
+.gc-ot-val.wp-win{ color: var(--live-green); }
+.gc-ot-val.wp-lose{ color: var(--hot); }
+.gc-ot-val.wp-proj{ color: var(--mute); font-size:11.5px; }
 
 .gc-props-list{ display:flex; flex-direction:column; gap:6px; }
 .gc-prop-row{
@@ -6867,7 +6872,7 @@ class GamecastController {
     this._diffPlays(ls.plays || []);
     this._updateMatchup(ls.matchup);
     const ow = this.root && this.root.querySelector('.gc-odds-wrap');
-    if(ow){ const osig = (g.awayOdds||'')+'-'+(g.homeOdds||'')+'-'+(g.totalOdds||'')+'-'+(ls.awayScore??g.awayScore??'')+'-'+(ls.homeScore??g.homeScore??''); if(this._oddsSig !== osig){ this._oddsSig = osig; ow.innerHTML = gcOddsPropsHTML(g); } }
+    if(ow){ const osig = (g.awayOdds||'')+'-'+(g.homeOdds||'')+'-'+(g.totalOdds||'')+'-'+(ls.away??g.awayScore??'')+'-'+(ls.home??g.homeScore??'')+'-'+(ls.inning??'')+'-'+(ls.inningState||'')+'-'+(ls.outs??'')+'-'+(ls.firstBase?1:0)+(ls.secondBase?1:0)+(ls.thirdBase?1:0)+'-'+(ls.matchup&&ls.matchup.batter?ls.matchup.batter.id:''); if(this._oddsSig !== osig){ this._oddsSig = osig; ow.innerHTML = gcOddsPropsHTML(g); } }
     // 3D strike zone + batted-ball trajectory
     this._renderZoneFromLive(ls);
     this._checkHit(ls);
@@ -7109,10 +7114,228 @@ function mountGamecasts(){
 }
 
 /** Preserved live-odds + HR-props strip (was part of the old gamecast). */
+// ---- Live game win probability (Poisson remaining-runs model) -----------------
+// Self-contained and deterministic (no Monte Carlo, so it never flickers).
+// The pre-game moneyline sets team strength via a Pythagorean run-rate split;
+// the live score / inning / base-out state updates each team's expected
+// REMAINING runs; the difference of the two Poisson distributions gives
+// P(away wins). A small late-game lineup-slot nudge refines the team batting
+// right now in the 8th/9th+.
+
+// Standard base/out run expectancy (expected runs from this state to the end
+// of the inning), keyed by base bitmask (1=1B, 2=2B, 4=3B) → [0,1,2 outs].
+const GC_RE24 = {
+  0:[0.47,0.25,0.10], 1:[0.85,0.50,0.22], 2:[1.07,0.67,0.32], 3:[1.37,0.91,0.44],
+  4:[1.35,0.98,0.38], 5:[1.72,1.18,0.49], 6:[1.95,1.45,0.63], 7:[2.31,1.54,0.77],
+};
+
+function gcAmericanProb(odds){
+  if(odds == null || odds === '') return null;
+  const o = Number(odds);
+  if(!isFinite(o) || o === 0) return null;
+  // American odds → implied probability (with vig). +150 → 100/250; -150 → 150/250.
+  return o > 0 ? 100/(o+100) : (-o)/(-o+100);
+}
+
+// De-vigged pre-game win prior for the away team. Falls back to 50/50 when no
+// moneyline is attached to the game (the common case for the slate).
+function gcPregameAwayProb(g){
+  const a = gcAmericanProb(g.awayOdds);
+  const h = gcAmericanProb(g.homeOdds);
+  if(a != null && h != null && (a+h) > 0) return a/(a+h);   // remove the vig
+  if(a != null) return a;
+  if(h != null) return 1 - h;
+  return 0.5;
+}
+
+// Pythagorean run-rate split from the pre-game win prior. Keeps the league run
+// environment fixed at MODEL.league.runsPerGame (~4.4) while making the favorite
+// score more and the underdog less.
+function gcTeamRunRates(g){
+  const pAway = Math.min(0.75, Math.max(0.25, gcPregameAwayProb(g)));  // clamp so a stale line can't explode it
+  const EXP = 1.83; // MLB Pythagorean exponent
+  const ratio = Math.pow(pAway/(1-pAway), 1/EXP);
+  const rpg = (MODEL && MODEL.league && MODEL.league.runsPerGame) || 4.4;
+  const awayRPG = (2*rpg*ratio)/(1+ratio);
+  const homeRPG = (2*rpg)/(1+ratio);
+  return { awayRate: awayRPG/9, homeRate: homeRPG/9 };
+}
+
+// Late-game lineup-slot nudge — only the team batting right now, only 8th+.
+// Top of the order due up late gets a small boost; 8/9 hitters a small penalty.
+function gcLateLineupMult(slot, inning){
+  if(!slot || inning < 8) return 1;
+  const late = Math.min(1, Math.max(0, (inning - 7)/2)); // 8th partial, 9th full
+  const adj = Math.max(-0.08, Math.min(0.08, (5 - slot)*0.018));
+  return 1 + late*adj;
+}
+
+// Current batter's lineup slot (1-9) for the live game, if we can find him in
+// the slate roster. Used for the late-game lineup nudge.
+function gcCurrentBatterSlot(g){
+  const ls = g.liveScore || {};
+  const bid = ls.matchup && ls.matchup.batter && ls.matchup.batter.id;
+  if(!bid) return null;
+  const p = (typeof allBatters !== 'undefined' ? allBatters : [])
+    .filter(x => x.game && x.game.id === g.id)
+    .find(x => String(x.id) === String(bid));
+  return p && p.battingOrder ? p.battingOrder : null;
+}
+
+// Expected REMAINING runs for each team: future half-innings at the team's
+// run rate, plus the run expectancy of the live base/out state for the team
+// batting right now (replacing a fresh inning's ~0.47 with the live state).
+function gcRemainingRunMeans(g){
+  const ls = g.liveScore || {};
+  const inning = ls.inning || 0;
+  const half = ls.inningState || '';
+  const isTop = /^Top/i.test(half);
+  const isBottom = /^Bottom/i.test(half);
+  const isAfter = /Middle|End/i.test(half);   // a completed half-inning
+  const outs = Math.max(0, Math.min(2, ls.outs ?? 0));
+  const base = (ls.firstBase?1:0) | (ls.secondBase?2:0) | (ls.thirdBase?4:0);
+  const re = GC_RE24[base] ? GC_RE24[base][outs] : 0.47;
+
+  const { awayRate, homeRate } = gcTeamRunRates(g);
+
+  // Half-innings each team has ALREADY batted, from inning + half.
+  let awayBatted, homeBatted;
+  if(isTop){ awayBatted = inning-1; homeBatted = inning-1; }
+  else if(isBottom){ awayBatted = inning; homeBatted = inning-1; }
+  else { awayBatted = inning; homeBatted = inning; }
+
+  let awayRemaining, homeRemaining;
+  if(inning <= 9){
+    awayRemaining = Math.max(0, 9 - awayBatted);
+    homeRemaining = Math.max(0, 9 - homeBatted);
+  } else {
+    // Extras — approximate a short tail (~1-2 frames each); the tie keeps it
+    // close to the pre-game prior, which is the right shape for extras.
+    awayRemaining = (isTop ? 1 : 0) + 1;
+    homeRemaining = (isBottom ? 1 : 0) + 1;
+  }
+
+  const slot = gcCurrentBatterSlot(g);
+  let awayMean = awayRate * awayRemaining;
+  let homeMean = homeRate * homeRemaining;
+  // The team batting RIGHT NOW swaps one fresh inning's expectation for the
+  // live base/out run expectancy, plus a small late-game lineup nudge on its
+  // future-inning rate.
+  if(isTop && awayRemaining > 0){
+    const mult = gcLateLineupMult(slot, inning);
+    awayMean = awayRate*mult*(awayRemaining-1) + re;
+  } else if(isBottom && homeRemaining > 0){
+    const mult = gcLateLineupMult(slot, inning);
+    homeMean = homeRate*mult*(homeRemaining-1) + re;
+  }
+  return { awayMean: Math.max(0, awayMean), homeMean: Math.max(0, homeMean) };
+}
+
+// Poisson PMF for k = 0..maxK.
+function gcPoissonPMF(lambda, maxK){
+  const out = [];
+  let p = Math.exp(-lambda); // P(k=0)
+  out.push(p);
+  for(let k=1; k<=maxK; k++){ p = p*lambda/k; out.push(p); }
+  return out;
+}
+
+/**
+ * Live win probability for the gamecast's moneyline + O/U tiles.
+ * Returns { awayPct, homePct, overPct, totalLine, projTotal }.
+ *  - awayPct/homePct: P(each team wins), summing to 1.
+ *  - overPct: P(final combined runs exceed the O/U line), or null if no line.
+ *  - projTotal: projected final combined runs (shown when no O/U line is set).
+ */
+function gcLiveWinProb(g){
+  const ls = g.liveScore || {};
+  const aScore = ls.away ?? g.awayScore ?? 0;
+  const hScore = ls.home ?? g.homeScore ?? 0;
+  const status = g.mlbStatus || '';
+  const half = ls.inningState || '';
+  const inning = ls.inning || 0;
+  const pAwayPre = gcPregameAwayProb(g);
+
+  // Final → winner takes all (extra-inning ties resolve to the pre-game prior).
+  if(status === 'Final' || /Final|Game Over/i.test(half)){
+    const dec = aScore === hScore ? pAwayPre : (aScore > hScore ? 1 : 0);
+    return { awayPct: dec, homePct: 1-dec, overPct: null, totalLine: null, projTotal: null };
+  }
+  // Not started → pre-game prior.
+  if(!inning || inning < 1 || status === 'Preview' || /Scheduled|Pre-Game|Warmup|Pregame/i.test(half)){
+    return { awayPct: pAwayPre, homePct: 1-pAwayPre, overPct: null, totalLine: null, projTotal: null };
+  }
+
+  const { awayMean, homeMean } = gcRemainingRunMeans(g);
+  const MAXK = 18;
+  const pa = gcPoissonPMF(awayMean, MAXK);
+  const ph = gcPoissonPMF(homeMean, MAXK);
+
+  // P(away wins) = sum over remaining-run outcomes of P(away final > home final);
+  // ties (same remaining runs → same final score) split by the pre-game prior.
+  let awayWin = 0, homeWin = 0;
+  for(let i=0;i<=MAXK;i++){
+    for(let j=0;j<=MAXK;j++){
+      const pr = pa[i]*ph[j];
+      if(pr < 1e-12) continue;
+      const fa = aScore + i, fh = hScore + j;
+      if(fa > fh) awayWin += pr;
+      else if(fh > fa) homeWin += pr;
+      else { awayWin += pr*pAwayPre; homeWin += pr*(1-pAwayPre); }
+    }
+  }
+  const tot = awayWin + homeWin;
+  if(tot > 0){ awayWin /= tot; homeWin /= tot; }
+
+  // O/U: P(over) = P(remaining combined runs > line - current). When no line is
+  // attached, show a projected final total instead of inventing a side.
+  let overPct = null, totalLine = null, projTotal = null;
+  const tl = g.totalOdds != null ? Number(g.totalOdds) : NaN;
+  if(isFinite(tl)){
+    totalLine = tl;
+    const need = tl - (aScore + hScore); // remaining runs needed to go OVER
+    if(need < 0) overPct = 1;
+    else {
+      const pmfT = gcPoissonPMF(awayMean + homeMean, MAXK); // combined ~ Poisson(mean sum)
+      let pOver = 0;
+      for(let k=0;k<=MAXK;k++){ if(k > need) pOver += pmfT[k]; }
+      overPct = pOver;
+    }
+  } else {
+    projTotal = (aScore + hScore) + awayMean + homeMean;
+  }
+  return { awayPct: awayWin, homePct: homeWin, overPct, totalLine, projTotal };
+}
+
 function gcOddsPropsHTML(g){
-  const awayOdds = g.awayOdds != null ? fmtOdds(g.awayOdds) : '—';
-  const homeOdds = g.homeOdds != null ? fmtOdds(g.homeOdds) : '—';
-  const totalOdds = g.totalOdds != null ? g.totalOdds : '—';
+  const wp = gcLiveWinProb(g);
+  const aPct = Math.round(wp.awayPct*100);
+  const hPct = Math.round(wp.homePct*100);
+  const aWin = wp.awayPct >= wp.homePct;
+  // Moneyline tiles: the team more likely to win turns green, the other red.
+  const awayCls = aWin ? 'wp-win' : 'wp-lose';
+  const homeCls = aWin ? 'wp-lose' : 'wp-win';
+
+  // O/U tile: show the most-probable side (Over/Under) in green with its %;
+  // when no line is attached, show a projected final total instead.
+  let ouVal, ouCls;
+  if(wp.overPct != null && wp.totalLine != null){
+    const overFav = wp.overPct >= 0.5;
+    const side = overFav ? 'Over' : 'Under';
+    const pct = overFav ? wp.overPct : 1 - wp.overPct;
+    ouVal = `${side} ${wp.totalLine} · ${Math.round(pct*100)}%`;
+    ouCls = 'wp-win';
+  } else if(wp.projTotal != null){
+    ouVal = `Proj ${wp.projTotal.toFixed(1)}`;
+    ouCls = 'wp-proj';
+  } else { ouVal = '—'; ouCls = ''; }
+
+  const grid = `<div class="gc-odds-grid">` +
+    `<div class="gc-odds-tile"><div class="gc-ot-label">${g.away} ML</div><div class="gc-ot-val ${awayCls}">${aPct}%</div></div>` +
+    `<div class="gc-odds-tile"><div class="gc-ot-label">${g.home} ML</div><div class="gc-ot-val ${homeCls}">${hPct}%</div></div>` +
+    `<div class="gc-odds-tile"><div class="gc-ot-label">O/U</div><div class="gc-ot-val ${ouCls}">${ouVal}</div></div>` +
+    `</div>`;
+
   const gameBatters = (typeof allBatters !== 'undefined' ? allBatters : []).filter(p => p.game && p.game.id === g.id)
     .sort((a, b) => simulatePlayer(b).hr.exact - simulatePlayer(a).hr.exact).slice(0, 3);
   const propsHTML = gameBatters.length ? gameBatters.map(p => {
@@ -7121,8 +7344,8 @@ function gcOddsPropsHTML(g){
     const odds = p.odds ? fmtOdds(p.odds) : '—';
     return `<div class="gc-prop-row"><span class="gc-prop-name">${p.name}</span><span class="gc-prop-edge ${edge}">${gr.g}</span><span class="gc-prop-odds">${odds}</span></div>`;
   }).join('') : '';
-  if(!propsHTML) return `<div class="gc-odds-grid"><div class="gc-odds-tile"><div class="gc-ot-label">${g.away} ML</div><div class="gc-ot-val">${awayOdds}</div></div><div class="gc-odds-tile"><div class="gc-ot-label">${g.home} ML</div><div class="gc-ot-val">${homeOdds}</div></div><div class="gc-odds-tile"><div class="gc-ot-label">O/U</div><div class="gc-ot-val">${totalOdds}</div></div></div>`;
-  return `<div class="gc-odds-grid"><div class="gc-odds-tile"><div class="gc-ot-label">${g.away} ML</div><div class="gc-ot-val">${awayOdds}</div></div><div class="gc-odds-tile"><div class="gc-ot-label">${g.home} ML</div><div class="gc-ot-val">${homeOdds}</div></div><div class="gc-odds-tile"><div class="gc-ot-label">O/U</div><div class="gc-ot-val">${totalOdds}</div></div></div><div class="gc-props-list">${propsHTML}</div>`;
+  if(!propsHTML) return grid;
+  return grid + `<div class="gc-props-list">${propsHTML}</div>`;
 }
 
 // ---- on-demand stats fetch + cache (statsapi, client-side, CORS-allowed) ----
