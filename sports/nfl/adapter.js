@@ -38,7 +38,9 @@ function arg(flag, fallback) {
 const SEASON = arg('--season', '2026');
 const SEASON_TYPE = arg('--seasontype'); // 1=pre 2=reg 3=post, or null=current
 const WEEK = arg('--week');              // or null=current
-const OUT = arg('--out', 'public/slates/nfl.json');
+// Default output lives at the site root (GitHub Pages serves this repo directly,
+// so `slates/nfl.json` is fetchable as `./slates/nfl.json` from index.html).
+const OUT = arg('--out', 'slates/nfl.json');
 const VERBOSE = process.argv.includes('--verbose');
 const SKIP_AVAIL = process.argv.includes('--no-availability');
 

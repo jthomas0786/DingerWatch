@@ -1495,7 +1495,229 @@ body{
 .sport-pill:disabled{ cursor:not-allowed; opacity:0.55; }
 .sport-pill-soon{ font-size:9px; letter-spacing:0.06em; text-transform:uppercase; color:var(--mute); background:var(--night2); padding:1px 5px; border-radius:9999px; }
 .sport-pill.active .sport-pill-soon{ color:rgba(11,15,26,0.7); background:rgba(255,255,255,0.25); }
-@media (max-width:560px){ .sport-pill{ padding:5px 9px; font-size:10.5px; } .sport-pill-name{ display:none; } .sport-pill-soon{ display:none; } }
+.sport-pill-code{ display:none; }
+/* On phones the topbar is tight and the sidebar becomes a bottom nav bar, so switch
+   to compact league codes, keep the switcher to blessed sports only, and let the
+   NFL view's own filter pills stand in for the desktop side nav. */
+@media (max-width:900px){
+  .sport-switch{ min-width:0; flex:none; }
+  .sport-pill-name{ display:none; }
+  .sport-pill-code{ display:inline; }
+  .sport-pill:disabled:not(.active){ display:none; }
+  .nfl-sidenav{ display:none !important; }
+}
+/* Narrow phones can't fit wordmark + switcher + 4 actions. The logo alone still
+   identifies the app, and the switcher is the more useful of the two. */
+@media (max-width:560px){
+  .sport-pill{ padding:5px 9px; font-size:10px; letter-spacing:0.03em; }
+  .sport-pill-soon{ display:none; }
+  .tb-mobile-brand .brand-text{ display:none; }
+}
+
+/* ============================================================================
+   TOUCHDOWN WATCH (NFL) VIEW
+   Scoped entirely under .nfl-view / .nfl-* so it cannot collide with the MLB
+   app's classes. Uses the shared design tokens plus an NFL amber accent.
+   ========================================================================= */
+/* The router toggles [hidden] on MLB's containers. Several of them set an explicit
+   `display`, which beats the UA [hidden] rule — force it so view swapping works. */
+.app-main > main[hidden], .app-main > footer[hidden], .app-main > .status-bar[hidden],
+.nfl-view[hidden]{ display:none !important; }
+/* MLB-only sidebar prop nav is meaningless on another sport's view. */
+html[data-sport="nfl"] #propTabs{ display:none; }
+
+/* NFL sidebar nav — mirrors the MLB prop-tab rhythm without reusing its classes. */
+.nfl-sidenav{ display:flex; flex-direction:column; gap:2px; padding:14px 12px; }
+.nfl-sidenav[hidden]{ display:none !important; }
+.nfl-sn-label{ font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:0.1em;
+  text-transform:uppercase; color:var(--mute); padding:14px 10px 6px; }
+.nfl-sn-label:first-child{ padding-top:0; }
+.nfl-sn-item{ text-align:left; background:none; border:none; color:var(--cool); font-size:13.5px;
+  padding:9px 12px; border-radius:9px; cursor:pointer; transition:var(--transition); }
+.nfl-sn-item:hover:not(:disabled){ background:var(--panel); color:var(--white); }
+.nfl-sn-item.is-active{ background:rgba(245,158,11,0.14); color:#fbbf24; font-weight:600;
+  box-shadow:inset 2px 0 0 #f59e0b; }
+.nfl-sn-item:disabled{ color:var(--mute); opacity:0.5; cursor:not-allowed; }
+
+.nfl-view{ --nfl:#f59e0b; --nfl-dim:rgba(245,158,11,0.14); flex:1; margin:0; max-width:none;
+  padding:20px 28px 120px; }
+
+.nfl-preview-banner{ margin:14px 0 0; padding:10px 14px; border-radius:10px; font-size:12.5px; line-height:1.5;
+  color:#fde68a; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.32); }
+.nfl-preview-banner b{ color:var(--nfl); }
+
+.nfl-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap; padding:20px 0 14px; }
+.nfl-title{ margin:0; font-size:23px; font-weight:800; letter-spacing:-0.01em; color:var(--white); }
+.nfl-sub{ margin:5px 0 0; font-size:12.5px; line-height:1.55; color:var(--mute); max-width:62ch; }
+.nfl-head-meta{ text-align:right; }
+.nfl-freshness{ font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--nfl); }
+.nfl-datamix{ display:flex; gap:10px; margin-top:6px; font-size:10.5px; color:var(--mute); flex-wrap:wrap; justify-content:flex-end; }
+.nfl-datamix span{ background:var(--panel); border:1px solid var(--line); border-radius:9999px; padding:2px 9px; cursor:help; }
+
+.nfl-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+.nfl-filters{ display:inline-flex; gap:4px; background:var(--panel); border:1px solid var(--line); border-radius:9999px; padding:3px; }
+.nfl-filter{ border:none; background:transparent; color:var(--mute); font-family:'JetBrains Mono',monospace; font-size:11.5px;
+  padding:6px 14px; border-radius:9999px; cursor:pointer; transition:var(--transition); }
+.nfl-filter:hover:not(.active){ color:var(--white); }
+.nfl-filter.active{ background:var(--nfl); color:#1a1204; font-weight:700; }
+.nfl-clear{ border:1px solid var(--line); background:var(--panel); color:var(--cool); font-size:12px; padding:7px 14px;
+  border-radius:8px; cursor:pointer; transition:var(--transition); }
+.nfl-clear:hover{ border-color:var(--nfl); color:var(--nfl); }
+
+/* ---- game grid ---- */
+.nfl-games{ display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:14px; margin-bottom:30px; }
+.nfl-game{ background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:hidden;
+  cursor:pointer; transition:var(--transition); box-shadow:var(--shadow-card); }
+.nfl-game:hover{ border-color:rgba(245,158,11,0.5); transform:translateY(-2px); }
+.nfl-game:focus-visible{ outline:2px solid var(--nfl); outline-offset:2px; }
+
+.nfl-game-field{ position:relative; }
+.nfl-field{ display:block; width:100%; height:92px; }
+.nfl-field.is-full{ height:132px; }
+/* End zones occupy a fixed 8.67% of the field width each, so pad by percentage
+   rather than px — the crests then clear the end zone at every card size. */
+.nfl-game-overlay{ position:absolute; inset:0; display:flex; align-items:center; justify-content:space-between;
+  padding:0 11%; gap:8px; }
+.nfl-team{ display:flex; align-items:center; gap:8px; min-width:0; }
+/* Faint disc behind the crest so dark logos (Jets, Ravens, Raiders) stay legible
+   against the dark end zone. */
+.nfl-logo{ width:38px; height:38px; object-fit:contain; flex:none; padding:3px; border-radius:50%;
+  background:radial-gradient(circle,rgba(255,255,255,0.16) 0%,rgba(255,255,255,0.05) 70%,transparent 100%);
+  filter:drop-shadow(0 2px 6px rgba(0,0,0,.7)); }
+.nfl-logo.lg{ width:52px; height:52px; }
+.nfl-team-meta{ display:flex; flex-direction:column; line-height:1.15; min-width:0; }
+.nfl-ta-right{ text-align:right; }
+.nfl-team-abbr{ font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:700; color:#fff;
+  text-shadow:0 1px 4px rgba(0,0,0,.8); }
+.nfl-team-rec{ font-size:10.5px; color:rgba(255,255,255,.72); text-shadow:0 1px 3px rgba(0,0,0,.8); }
+.nfl-game-center{ text-align:center; flex:none; }
+.nfl-kick{ font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; color:#fff; text-shadow:0 1px 4px rgba(0,0,0,.9); }
+.nfl-at{ font-size:10px; color:rgba(255,255,255,.6); }
+.nfl-score{ display:flex; align-items:center; gap:6px; font-family:'JetBrains Mono',monospace; font-size:20px;
+  font-weight:800; color:#fff; text-shadow:0 1px 5px rgba(0,0,0,.9); }
+.nfl-score-dash{ color:rgba(255,255,255,.5); font-size:14px; }
+.nfl-status{ font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:rgba(255,255,255,.7); }
+.nfl-status.is-live{ color:#fff; background:var(--hr-red); border-radius:9999px; padding:1px 7px; display:inline-block;
+  animation:nflPulse 2s ease-in-out infinite; }
+@keyframes nflPulse{ 0%,100%{ opacity:1 } 50%{ opacity:0.62 } }
+
+.nfl-game-body{ padding:11px 13px 13px; }
+.nfl-game-info{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; font-size:11.5px; color:var(--mute); margin-bottom:9px; }
+.nfl-chip{ font-size:10px; font-family:'JetBrains Mono',monospace; background:var(--panel2); border:1px solid var(--line);
+  color:var(--cool); border-radius:5px; padding:2px 6px; white-space:nowrap; }
+
+.nfl-rz-row{ display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-bottom:9px; }
+.nfl-rz{ border-radius:8px; padding:6px 8px; border:1px solid var(--line); background:var(--panel); cursor:help;
+  min-width:0; }
+.nfl-rz-team{ display:block; font-family:'JetBrains Mono',monospace; font-size:9.5px; color:var(--mute);
+  letter-spacing:0.04em; text-transform:uppercase; }
+.nfl-rz-text{ display:block; font-size:11px; margin-top:2px; color:var(--cool); }
+.nfl-rz-pos{ border-color:rgba(34,197,94,0.35); } .nfl-rz-pos .nfl-rz-text{ color:var(--success); }
+.nfl-rz-neg{ border-color:rgba(255,59,59,0.32); } .nfl-rz-neg .nfl-rz-text{ color:#ff8f8f; }
+
+.nfl-top-scorers{ display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+.nfl-ts{ background:var(--panel2); border-radius:8px; padding:6px 8px; min-width:0; }
+.nfl-ts-label{ display:block; font-family:'JetBrains Mono',monospace; font-size:9.5px; color:var(--mute);
+  text-transform:uppercase; letter-spacing:0.04em; }
+/* Name may truncate; the probability must never be cut off. */
+.nfl-scorer{ display:flex; align-items:baseline; gap:6px; font-size:11.5px; color:var(--white); margin-top:2px; min-width:0; }
+.nfl-scorer b{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; font-weight:600; }
+.nfl-scorer-pct{ color:var(--nfl); font-family:'JetBrains Mono',monospace; font-weight:700; flex:none; margin-left:auto; }
+.nfl-scorer-none{ color:var(--mute); }
+
+/* ---- expanded gamecast ---- */
+.nfl-gamecast{ background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:hidden;
+  margin-bottom:24px; box-shadow:var(--shadow-card); }
+.nfl-gc-field{ position:relative; }
+.nfl-gc-overlay{ position:absolute; inset:0; display:flex; align-items:center; justify-content:space-between; padding:0 10.5%; gap:12px; }
+.nfl-gc-team{ display:flex; align-items:center; gap:11px; min-width:0; }
+.nfl-gc-abbr{ font-size:14.5px; font-weight:700; color:#fff; text-shadow:0 1px 5px rgba(0,0,0,.85); white-space:nowrap; }
+.nfl-gc-short{ display:none; }
+.nfl-gc-rz{ font-size:10.5px; color:rgba(255,255,255,.74); text-shadow:0 1px 4px rgba(0,0,0,.85); margin-top:2px; }
+.nfl-gc-center{ text-align:center; flex:none; }
+.nfl-gc-kick{ font-family:'JetBrains Mono',monospace; font-size:19px; font-weight:800; color:#fff; text-shadow:0 2px 7px rgba(0,0,0,.9); }
+.nfl-gc-detail{ font-size:10px; color:rgba(255,255,255,.68); margin-top:2px; }
+.nfl-gc-info{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:11px 16px; font-size:11.5px;
+  color:var(--mute); border-top:1px solid var(--border); }
+
+/* ---- pick list ---- */
+.nfl-picklist-head h3{ margin:0 0 10px; font-size:13px; font-weight:700; color:var(--cool);
+  text-transform:uppercase; letter-spacing:0.06em; }
+.nfl-picklist{ display:flex; flex-direction:column; gap:7px; }
+.nfl-player{ display:grid; grid-template-columns:26px 40px 1fr auto 34px; align-items:center; gap:11px;
+  background:var(--surface); border:1px solid var(--border); border-radius:11px; padding:9px 12px; transition:var(--transition); }
+.nfl-player:hover{ border-color:rgba(245,158,11,0.42); }
+.nfl-player.is-out{ opacity:0.5; }
+.nfl-p-rank{ font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--mute); text-align:center; }
+.nfl-p-head{ width:40px; height:40px; border-radius:50%; object-fit:cover; object-position:50% 12%;
+  background:var(--panel2); border:1px solid var(--line); }
+.nfl-p-main{ min-width:0; }
+.nfl-p-name{ font-size:14px; font-weight:600; color:var(--white); display:flex; align-items:baseline; gap:7px;
+  flex-wrap:wrap; line-height:1.25; }
+.nfl-p-pos{ font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--mute); font-weight:400; }
+.nfl-p-sub{ display:flex; align-items:center; gap:6px; margin-top:4px; flex-wrap:wrap; font-size:11px; color:var(--mute); }
+.nfl-p-team{ font-family:'JetBrains Mono',monospace; color:var(--cool); font-weight:600; }
+.nfl-chip-depth{ border-color:rgba(45,127,255,0.4); color:#9dc4ff; }
+.nfl-chip-moved{ border-color:rgba(245,158,11,0.4); color:#fbbf24; }
+.nfl-chip-warn{ border-color:rgba(139,149,168,0.45); color:var(--mute); }
+.nfl-avail-out{ border-color:rgba(255,59,59,0.5); color:#ff8f8f; }
+.nfl-avail-doubtful{ border-color:rgba(255,59,59,0.4); color:#ffb3b3; }
+.nfl-avail-questionable{ border-color:rgba(245,158,11,0.45); color:#fcd34d; }
+.nfl-p-prob{ text-align:right; min-width:88px; }
+.nfl-p-pct{ font-family:'JetBrains Mono',monospace; font-size:14.5px; font-weight:700; color:var(--white); }
+.nfl-p-bar{ height:4px; background:rgba(255,255,255,0.09); border-radius:9999px; overflow:hidden; margin-top:5px; }
+.nfl-p-bar span{ display:block; height:100%; background:linear-gradient(90deg,var(--nfl),#fbbf24); border-radius:9999px; }
+.nfl-p-grade{ width:34px; height:34px; border-radius:9px; display:grid; place-items:center;
+  font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:800; }
+.nfl-grade-A{ background:rgba(34,197,94,0.16); color:#4ade80; border:1px solid rgba(34,197,94,0.4); }
+.nfl-grade-B{ background:rgba(45,127,255,0.16); color:#7db3ff; border:1px solid rgba(45,127,255,0.4); }
+.nfl-grade-C{ background:rgba(245,158,11,0.14); color:#fcd34d; border:1px solid rgba(245,158,11,0.36); }
+.nfl-grade-D{ background:rgba(139,149,168,0.14); color:var(--mute); border:1px solid rgba(139,149,168,0.3); }
+.nfl-grade-F{ background:rgba(255,59,59,0.13); color:#ff8f8f; border:1px solid rgba(255,59,59,0.32); }
+
+.nfl-foot{ margin-top:28px; padding-top:16px; border-top:1px solid var(--border); font-size:11px; line-height:1.65; color:var(--mute); }
+.nfl-empty{ padding:26px; text-align:center; color:var(--mute); font-size:13px; background:var(--surface);
+  border:1px solid var(--border); border-radius:11px; }
+.nfl-loading{ display:flex; flex-direction:column; gap:12px; padding:26px 0; }
+.nfl-skel{ height:112px; border-radius:14px; background:linear-gradient(90deg,var(--surface) 25%,var(--panel2) 50%,var(--surface) 75%);
+  background-size:200% 100%; animation:nflShimmer 1.4s ease-in-out infinite; }
+@keyframes nflShimmer{ 0%{ background-position:200% 0 } 100%{ background-position:-200% 0 } }
+.nfl-error{ margin:26px 0; padding:20px; border-radius:12px; background:var(--surface);
+  border:1px solid rgba(255,59,59,0.36); font-size:13px; color:var(--cool); line-height:1.6; }
+.nfl-error-title{ font-size:16px; color:var(--white); margin-bottom:7px; font-weight:600; }
+.nfl-error-hint{ margin-top:8px; color:var(--mute); font-size:12px; }
+.nfl-error code, .nfl-foot code{ color:var(--nfl); font-family:'JetBrains Mono',monospace; }
+
+@media (min-width:1200px){ .nfl-view{ padding:22px 36px 120px; } }
+@media (min-width:1700px){ .nfl-view{ padding:24px 48px 120px; max-width:2100px; margin:0 auto; } }
+
+@media (max-width:640px){
+  .nfl-view{ padding:14px 16px calc(var(--mobile-nav-h) + 90px); }
+  .nfl-games{ grid-template-columns:1fr; }
+  .nfl-head{ padding:16px 0 12px; }
+  .nfl-title{ font-size:20px; }
+  .nfl-head-meta{ text-align:left; }
+  .nfl-datamix{ justify-content:flex-start; }
+  .nfl-player{ grid-template-columns:22px 34px 1fr auto; gap:9px; padding:8px 10px; }
+  .nfl-p-grade{ display:none; }
+  .nfl-p-head{ width:34px; height:34px; }
+  .nfl-p-name{ font-size:13px; }
+  .nfl-p-prob{ min-width:66px; }
+  .nfl-p-pct{ font-size:13px; }
+  .nfl-logo{ width:32px; height:32px; }
+  .nfl-logo.lg{ width:40px; height:40px; }
+  .nfl-rz-row, .nfl-top-scorers{ grid-template-columns:1fr; }
+  /* Full club names collide with the centered kickoff on a phone — use the code,
+     and move RZ context to the card list where there's room. */
+  .nfl-gc-full{ display:none; }
+  .nfl-gc-short{ display:inline; font-family:'JetBrains Mono',monospace; font-size:16px; }
+  .nfl-gc-rz{ display:none; }
+  .nfl-gc-kick{ font-size:16px; }
+}
+@media (prefers-reduced-motion:reduce){
+  .nfl-skel{ animation:none; } .nfl-status.is-live{ animation:none; }
+  .nfl-game:hover{ transform:none; }
+}
 
 /* Status bar strip */
 .status-bar{
@@ -2711,6 +2933,18 @@ footer{ margin-left:0; }
     <!-- #propTabs keeps its id/class: JS renders nav buttons into it -->
     <nav class="prop-tabs" id="propTabs"></nav>
 
+    <!-- NFL-only sidebar nav. Static markup; router.js toggles it with the view so the
+         sidebar isn't blank once the MLB prop tabs are hidden. -->
+    <nav class="nfl-sidenav" id="nflSideNav" hidden>
+      <div class="nfl-sn-label">Player Props</div>
+      <button type="button" class="nfl-sn-item is-active">Anytime TD</button>
+      <div class="nfl-sn-label">Next Up</div>
+      <button type="button" class="nfl-sn-item" disabled>Rush Yards</button>
+      <button type="button" class="nfl-sn-item" disabled>Receiving Yards</button>
+      <button type="button" class="nfl-sn-item" disabled>Receptions</button>
+      <button type="button" class="nfl-sn-item" disabled>Passing TDs</button>
+    </nav>
+
     <div class="sb-foot">
       <div class="sb-legal">Modeled projections. Entertainment only.</div>
     </div>
@@ -2793,6 +3027,12 @@ footer{ margin-left:0; }
       </div>
       <div class="pick-list" id="pickList"></div>
     </main>
+
+    <!-- ============ TOUCHDOWN WATCH (NFL) VIEW ============
+         Self-contained NFL surface, rendered by sports/nfl/ui.js and toggled by
+         sports/router.js on #nfl. Hidden by default so the MLB experience is
+         completely unaffected. All classes are `nfl-` prefixed — no collisions. -->
+    <div class="nfl-view" id="nflView" hidden></div>
 
 <footer>
   All game, roster, player, pitcher, and weather data is loaded from <b>slate.json</b>, rebuilt each morning by <code>build-slate.js</code> against the MLB Stats API and Open-Meteo. Because it is server-generated and served same-origin, it does not depend on the browser making cross-origin calls — and stats, trades, and injuries self-correct daily.

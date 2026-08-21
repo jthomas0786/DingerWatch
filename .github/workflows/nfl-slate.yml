@@ -1,0 +1,128 @@
+# .github/workflows/nfl-slate.yml
+#
+# Rebuilds slates/nfl.json (Touchdown Watch) and commits it, so GitHub Pages
+# serves it same-origin next to index.html. Deliberately separate from
+# daily-slate.yml: the MLB build must never be blocked by an NFL failure, and
+# vice versa. Each job commits only the files it owns.
+
+name: Build NFL slate
+
+on:
+  schedule:
+    # 12:00 UTC = 8am ET / 5am PT — after any overnight roster/inactive churn
+    # and well before a 1pm ET kickoff. GitHub cron is UTC and does NOT shift
+    # with daylight saving.
+    - cron: '0 12 * * *'
+    # Second pass 90 minutes before the Sunday early window, to pick up the
+    # official inactives that drop at T-90.
+    - cron: '0 16 * * 0'
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Date to build (YYYY-MM-DD), blank = today'
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  # Two overlapping runs would both try to commit slates/nfl.json.
+  group: nfl-slate
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # No npm install needed — the adapter uses only Node's built-in fetch.
+
+      - name: Build the NFL slate
+        run: |
+          mkdir -p slates
+          if [ -n "${{ inputs.date }}" ]; then
+            node build-slate.js --sport nfl --date "${{ inputs.date }}" --out slates/nfl.json --verbose
+          else
+            node build-slate.js --sport nfl --out slates/nfl.json --verbose
+          fi
+
+      - name: Sanity check output
+        run: |
+          cat > /tmp/check-nfl.mjs << 'SCRIPT_EOF'
+          import { readFileSync } from 'node:fs';
+          const raw = readFileSync('slates/nfl.json', 'utf8');
+          let s;
+          try {
+            s = JSON.parse(raw);
+          } catch (err) {
+            const m = raw.match(/:\s*(NaN|Infinity|-Infinity)/);
+            if (m) {
+              const at = raw.indexOf(m[0]);
+              console.error('::error::slates/nfl.json contains bare ' + m[1] + ', which is not valid JSON.');
+              console.error('Context: ' + raw.slice(Math.max(0, at - 120), at + 120).replace(/\n/g, ' '));
+            } else {
+              console.error('::error::slates/nfl.json is not valid JSON: ' + err.message);
+              console.error('Context: ' + raw.slice(0, 300));
+            }
+            process.exit(1);
+          }
+          if (!Array.isArray(s.games)) { console.error('::error::malformed slate — no games array'); process.exit(1); }
+          const players = s.games.reduce((n, g) => n + (g.players || []).length, 0);
+          console.log('✓ ' + s.games.length + ' games, ' + players + ' players graded');
+          console.log('  ' + s.seasonType + ' week ' + s.week + ' for ' + s.date + ', generated ' + s.generatedAt);
+          const byStatus = s.games.reduce((a, g) => ((a[g.status] = (a[g.status] || 0) + 1), a), {});
+          console.log('  status: ' + JSON.stringify(byStatus));
+          console.log('  confidence: ' + JSON.stringify(s.rosters?.dataConfidence || {}));
+
+          // An empty slate is legitimate in the offseason / on a bye day, but a
+          // slate with games and no graded players means the roster join broke.
+          if (s.games.length && players === 0) {
+            console.error('::error::' + s.games.length + ' games but 0 graded players — roster/depth join failed.');
+            process.exit(1);
+          }
+          // Guard the AZ/ARI-style abbreviation mismatch that silently empties a team.
+          const staffed = new Set(s.games.flatMap(g => (g.players || []).map(p => p.team)));
+          const empty = s.games.flatMap(g => [g.away.abbr, g.home.abbr]).filter(a => !staffed.has(a));
+          if (empty.length) {
+            console.error('::error::teams with zero graded players: ' + [...new Set(empty)].join(', '));
+            process.exit(1);
+          }
+          (s.warnings || []).forEach(w => console.log('  warn: ' + w));
+          SCRIPT_EOF
+          node /tmp/check-nfl.mjs
+
+      - name: Commit if changed
+        run: |
+          git config user.name  'slate-bot'
+          git config user.email 'actions@github.com'
+
+          # Only the files this job owns — never index.html, slate.json, or config.
+          git add slates/nfl.json
+          [ -d model-logs ] && git add model-logs/ || true
+          git diff --staged --quiet && echo "no changes" && exit 0
+          git commit -m "nfl slate: $(date -u +%Y-%m-%d)"
+
+          # push.yml auto-commits every few minutes, so the checkout can go stale
+          # while the build runs. Rebase onto whatever arrived and retry.
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              echo "pushed on attempt $attempt"
+              exit 0
+            fi
+            echo "push rejected — rebasing onto remote (attempt $attempt)"
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || {
+              echo "::error::rebase failed — resolve the conflict in slates/nfl.json manually"
+              exit 1
+            }
+            sleep $((attempt * 3))
+          done
+
+          echo "::error::could not push after 5 attempts"
+          exit 1
