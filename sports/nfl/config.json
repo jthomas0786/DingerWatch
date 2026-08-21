@@ -1,0 +1,33 @@
+{
+  "sport": "nfl",
+  "prop": "atd",
+  "propLabel": "Anytime Touchdown",
+  "propShort": "ATD",
+  "description": "Probability a player scores a rushing or receiving touchdown in the game. QB passing TDs are NOT credited to the QB — only the scorer (runner/receiver) gets an ATD. QB ATD = rushing TDs only.",
+  "model": {
+    "method": "regressed-touchdown-rate",
+    "sampleYear": 2025,
+    "prior": { "QB": 0.15, "RB": 0.32, "WR": 0.22, "TE": 0.16 },
+    "priorWeight": 8,
+    "rzBoostPerPlay": 0.012,
+    "rzBoostMax": 0.25,
+    "lowRoleSnapThreshold": 0.3,
+    "lowRoleGamesThreshold": 8,
+    "lowRoleReduction": 0.5,
+    "matchupWeight": 1.0,
+    "minProb": 0.005,
+    "maxProb": 0.8
+  },
+  "grades": [
+    { "grade": "A", "min": 0.45, "label": "Elite" },
+    { "grade": "B", "min": 0.30, "label": "Strong" },
+    { "grade": "C", "min": 0.18, "label": "Lean" },
+    { "grade": "D", "min": 0.08, "label": "Fade" },
+    { "grade": "F", "min": 0.0, "label": "Avoid" }
+  ],
+  "availability": {
+    "oddsAvailable": false,
+    "availabilityStatus": "unconfirmed",
+    "note": "Inactives/odds not wired in MVP. T-90 inactive refresh and OpticOdds ATD markets are a Phase 1 follow-up."
+  }
+}
