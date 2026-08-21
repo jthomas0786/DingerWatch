@@ -10175,6 +10175,14 @@ function openGameModal(g){
         </div>` : ''}
       </div>
     </div>
+    ${isFinal ? `
+    <div class="tabs">
+      <div class="tab active" data-tab="boxscore">Box Score</div>
+    </div>
+    <div class="tab-content active" data-panel="boxscore">
+      ${boxScoreHTML(g) || '<div class="narrative">Box score is still processing — check back shortly.</div>'}
+    </div>
+    ` : `
     <div class="tabs">
       <div class="tab active" data-tab="players">Players</div>
       <div class="tab" data-tab="overview">Matchup</div>
@@ -10221,6 +10229,7 @@ function openGameModal(g){
       </div>
       <div class="odds-source-note">Odds via FanDuel Sportsbook · for reference only, not betting advice</div>
     </div>` : ''}
+    `}
   `;
   overlay.classList.add('open');
   document.getElementById('modalClose').onclick = closeModal;
