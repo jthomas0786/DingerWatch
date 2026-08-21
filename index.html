@@ -1066,15 +1066,15 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 
 /* ===== FANDUEL-STYLE GAMECAST ===== */
 .gamecast-wrap{ margin-top:14px; padding-top:14px; border-top:1px solid var(--line); }
-.gamecast-grid{ display:grid; grid-template-columns: 200px 1fr; gap:16px; }
-@media (max-width:520px){ .gamecast-grid{ grid-template-columns: 1fr; } }
+.gamecast-grid{ display:flex; flex-direction:column; gap:12px; }
+@media (max-width:520px){ .gamecast-grid{ gap:10px; } }
 
-.gamecast-diamond-wrap{ display:flex; flex-direction:column; align-items:center; gap:10px; }
+.gamecast-diamond-wrap{ display:flex; flex-direction:column; align-items:center; gap:8px; width:100%; }
 .gamecast-diamond{ width:200px; height:200px; position:relative; }
 .gamecast-diamond svg{ width:100%; height:100%; }
 
 /* ---- 3D field + strike zone ---- */
-.gc-3d-wrap{ position:relative; width:100%; max-width:340px; aspect-ratio:3/4; border-radius:12px; overflow:hidden; background:linear-gradient(180deg,#b9d4ee 0%,#cfe2f3 55%,#9fb98f 56%,#2f6b34 100%); border:1px solid var(--line); }
+.gc-3d-wrap{ position:relative; width:100%; max-width:760px; aspect-ratio:16/9; border-radius:12px; overflow:hidden; background:linear-gradient(180deg,#b9d4ee 0%,#cfe2f3 55%,#9fb98f 56%,#2f6b34 100%); border:1px solid var(--line); }
 .gc-3d-host{ position:absolute; inset:0; }
 .gc-3d-canvas{ width:100%; height:100%; display:block; }
 .gc-3d-loading{ position:absolute; left:50%; bottom:8px; transform:translateX(-50%); font-size:10px; color:#1b2a3a; background:rgba(255,255,255,.5); padding:2px 8px; border-radius:8px; pointer-events:none; }
@@ -1089,20 +1089,28 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .gc-pdot-ball{ fill:var(--live-green); }
 .gc-pdot-inplay{ fill:#ffb020; }
 .gc-pdot-num{ fill:#fff; font-size:11px; font-weight:800; font-family:'JetBrains Mono',monospace; text-anchor:middle; dominant-baseline:central; pointer-events:none; }
-/* Hit-trajectory readout overlay */
-.gc-hit-overlay{ position:absolute; left:8px; right:8px; bottom:8px; pointer-events:none; opacity:0; transform:translateY(6px); transition:opacity .3s ease, transform .3s ease; }
+/* Hit-trajectory readout: a transparent side panel, placed on the side
+   OPPOSITE the batted ball's landing spot so it never blocks the view of
+   where the ball was hit. */
+.gc-hit-overlay{ position:absolute; top:6px; width:188px; max-height:calc(100% - 12px); overflow:auto; pointer-events:none; opacity:0; transform:translateY(6px); transition:opacity .3s ease, transform .3s ease; background:rgba(15,20,33,.6); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); border:1px solid var(--line); border-radius:10px; padding:8px; }
+.gc-hit-overlay.on-left{ left:6px; right:auto; }
+.gc-hit-overlay.on-right{ right:6px; left:auto; }
 .is-hit-mode .gc-zone{ opacity:.18; transition:opacity .4s ease; }
 .is-hit-mode .gc-hit-overlay{ opacity:1; transform:none; }
 .is-hit-mode .gc-3d-loading{ display:none; }
-.gc-hit-top{ display:flex; justify-content:center; margin-bottom:4px; }
-.gc-verdict{ font-size:13px; font-weight:800; letter-spacing:.04em; padding:2px 10px; border-radius:6px; }
+/* During a hit, hide the matchup panel so it can't collide with the readout
+   (the readout is the relevant info for the ~9s a ball is in flight). It
+   reappears when the next at-bat returns to the strike-zone view. */
+.is-hit-mode .gc-matchup-card.gc-overlay{ opacity:0; pointer-events:none; transition:opacity .3s ease; }
+.gc-hit-top{ display:flex; margin-bottom:4px; }
+.gc-verdict{ font-size:12px; font-weight:800; letter-spacing:.04em; padding:2px 9px; border-radius:6px; }
 .gc-verdict.hr{ background:var(--hr-red); color:#fff; }
 .gc-verdict.out{ background:rgba(15,20,33,.78); color:var(--accent-bright); }
-.gc-hit-stats{ display:flex; flex-wrap:wrap; gap:6px 10px; justify-content:center; background:rgba(15,20,33,.72); backdrop-filter:blur(4px); border:1px solid var(--line); border-radius:8px; padding:6px 8px; }
+.gc-hit-stats{ display:flex; flex-wrap:wrap; gap:6px 9px; background:transparent; border:0; border-radius:0; padding:0; }
 .gc-hit-stats span{ display:inline-flex; flex-direction:column; align-items:center; min-width:42px; }
 .gc-hit-stats b{ font-size:14px; color:#fff; font-family:'JetBrains Mono',monospace; }
 .gc-hit-stats i{ font-size:9px; font-style:normal; color:var(--mute); }
-.gc-hit-note{ text-align:center; font-size:9px; color:rgba(255,255,255,.6); margin-top:3px; }
+.gc-hit-note{ font-size:9px; color:rgba(255,255,255,.6); margin-top:3px; }
 /* Pitch legend under the zone */
 .gc-pitch-legend{ display:flex; flex-wrap:wrap; gap:4px; justify-content:center; max-width:340px; }
 .gc-pl-item{ display:inline-flex; align-items:center; gap:3px; font-size:9px; background:var(--night2); border:1px solid var(--line); border-radius:5px; padding:2px 5px; color:var(--mute); }
@@ -1159,12 +1167,21 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .gc-base-flag{ padding:2px 6px; border-radius:4px; background:var(--night2); border:1px solid var(--line); }
 .gc-base-flag.active{ background: var(--accent-glow); border-color: var(--accent); color: var(--accent-bright); }
 
-.gamecast-right{ display:flex; flex-direction:column; gap:12px; }
+.gamecast-right{ display:flex; flex-direction:column; gap:12px; width:100%; max-width:760px; margin:0 auto; }
 
+/* Batter-vs-pitcher panel overlaid on the wide 3D field (left side by
+   default). Transparent + blurred so the field reads through it. */
 .gc-matchup-card{
   background: var(--night2); border:1px solid var(--line); border-radius:10px;
   padding:12px 14px;
 }
+.gc-matchup-card.gc-overlay{
+  position:absolute; top:6px; left:6px; width:182px; max-height:calc(100% - 12px); overflow:auto;
+  background:rgba(15,20,33,.55); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  padding:9px 10px; z-index:2; transition:opacity .3s ease;
+}
+/* horizontal strip under the field: count + bases + pitch legend */
+.gc-strip{ display:flex; align-items:center; justify-content:center; gap:16px; flex-wrap:wrap; width:100%; max-width:760px; }
 .gc-matchup-row{ display:flex; align-items:center; gap:10px; }
 .gc-matchup-row + .gc-matchup-row{ margin-top:8px; padding-top:8px; border-top:1px solid var(--line); }
 .gc-mu-label{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:9px; color:var(--mute); text-transform:uppercase; width:48px; flex-shrink:0; }
@@ -1210,11 +1227,13 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 
 @media (max-width:520px){
   .gamecast-diamond{ width:160px; height:160px; margin:0 auto; }
-  .gc-3d-wrap{ max-width:280px; }
+  .gc-3d-wrap{ max-width:100%; }
   .gc-odds-grid{ grid-template-columns:1fr 1fr 1fr; }
+  .gc-matchup-card.gc-overlay{ width:150px; padding:7px 8px; }
+  .gc-hit-overlay{ width:152px; }
 }
 /* ---- gamecast controller: 3D field sizing ---- */
-.gc-3d-wrap{ width:100%; max-width:340px; }
+.gc-3d-wrap{ width:100%; max-width:760px; }
 
 /* ---- batter vs pitcher matchup card ---- */
 .gc-mu-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
@@ -6222,6 +6241,7 @@ class GamecastField {
     if(!this.ready){ this.mode = 'zone'; return; }
     this.mode = 'zone';
     if(this.ball){ this.ball.visible = false; this.ball.scale.setScalar(1); }
+    this.camera.up.set(0, 1, 0);
     if(this.camera.fov !== 58){ this.camera.fov = 58; this.camera.updateProjectionMatrix(); }
     if(this.trajectory){ this.scene.remove(this.trajectory); this.trajectory.geometry.dispose(); this.trajectory.material.dispose(); this.trajectory = null; }
     if(this._landRing){ this.scene.remove(this._landRing); this._landRing.geometry.dispose(); this._landRing.material.dispose(); this._landRing = null; }
@@ -6272,13 +6292,14 @@ class GamecastField {
     // as it tracks the arc. (Reset on return to the zone view.)
     this.ball.scale.setScalar(1.8);
 
-    // Camera pulls back + climbs high behind home plate, offset to the side
-    // opposite the pull, to frame the WHOLE field (home → outfield wall, both
-    // foul lines) instead of zooming in on the landing spot.
-    const sideSign = lx >= 0 ? -1 : 1;
+    // Overhead "blimp" camera: high above the field looking straight down, so
+    // the whole field + the landing spot read clearly. camera.up = (0,0,1)
+    // keeps the outfield pointing up in the overhead frame and avoids the
+    // gimbal roll the default up vector produces when looking nearly straight down.
     this._camFrom = { pos: this.camera.position.clone(), target: (this._lookTarget || new THREE.Vector3(0,5,120)).clone() };
+    this.camera.up.set(0, 0, 1);
     if(this.camera.fov !== 62){ this.camera.fov = 62; this.camera.updateProjectionMatrix(); }
-    this._camTo = { pos: new THREE.Vector3(sideSign * 130, 100, -140), target: new THREE.Vector3(0, 7, 170) };
+    this._camTo = { pos: new THREE.Vector3(0, 540, 205), target: new THREE.Vector3(0, 0, 205) };
     this._camT0 = performance.now(); this._camDur = 1000;
     this.mode = 'hit';
 
@@ -6299,7 +6320,7 @@ class GamecastField {
 
     if(this.onHitSummary) this.onHitSummary({
       event: h.event, dist, launchSpeed: h.launchSpeed, launchAngle: h.launchAngle,
-      apex, wallDist, fenceH, heightAtWall, clearance, isHR, trajectory: h.trajectory, rbi: h.rbi, scoring: h.scoring
+      apex, wallDist, fenceH, heightAtWall, clearance, isHR, trajectory: h.trajectory, rbi: h.rbi, scoring: h.scoring, landingX: lx
     });
 
     if(this.hitTimeout) clearTimeout(this.hitTimeout);
@@ -6456,19 +6477,21 @@ class GamecastController {
               <line class="gc-zone-line" x1="44" y1="164.7" x2="156" y2="164.7"></line>
               <g class="gc-zone-dots"></g>
             </svg>
+            <div class="gc-matchup-card gc-overlay">
+              <div class="gc-mu-head"><span class="gc-mu-title">Batter vs Pitcher</span></div>
+              <div class="gc-mu-body"><div class="gc-mu-skel">Loading matchup…</div></div>
+              <div class="gc-last-play"></div>
+            </div>
             <div class="gc-hit-overlay"></div>
             <div class="gc-3d-loading">Loading 3D field…</div>
           </div>
-          <div class="gc-pitch-legend"></div>
-          <div class="gc-count-row"></div>
-          <div class="gc-bases-row"></div>
+          <div class="gc-strip">
+            <div class="gc-count-row"></div>
+            <div class="gc-bases-row"></div>
+            <div class="gc-pitch-legend"></div>
+          </div>
         </div>
       <div class="gamecast-right">
-        <div class="gc-matchup-card">
-          <div class="gc-mu-head"><span class="gc-mu-title">Batter vs Pitcher</span></div>
-          <div class="gc-mu-body"><div class="gc-mu-skel">Loading matchup…</div></div>
-          <div class="gc-last-play"></div>
-        </div>
         <div class="gc-pbp-card">
           <div class="gc-pbp-head">
             <span class="gc-mu-title">Play by Play</span>
@@ -6565,6 +6588,12 @@ class GamecastController {
   _setMode(m){ this.mode = m; if(this.root) this.root.classList.toggle('is-hit-mode', m === 'hit'); }
   _renderHitReadout(s){
     if(!this.hitOverlay) return;
+    // Place the readout on the side OPPOSITE the batted ball's landing spot, so
+    // it never covers where the ball was hit. Right-field hit (landingX>=0)
+    // → panel on the left; left-field hit → panel on the right.
+    const goLeft = (s.landingX != null ? s.landingX : 0) >= 0;
+    this.hitOverlay.classList.toggle('on-left', goLeft);
+    this.hitOverlay.classList.toggle('on-right', !goLeft);
     const f = (v, d) => v == null ? '—' : (typeof v === 'number' ? v.toFixed(d) : escapeHTML(String(v)));
     const ev = (s.event || 'Batted ball').replace(/_/g, ' ');
     const clearanceTxt = s.clearance == null ? '' : (s.clearance > 0
