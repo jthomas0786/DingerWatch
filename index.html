@@ -1486,6 +1486,17 @@ body{
 }
 .topbar .day-toggle button.active{ background: var(--accent); color:#fff; box-shadow:0 2px 10px var(--accent-glow); }
 
+/* Sport switcher — Phase 0 foundation. Additive only; mlb is the only
+   adapter-ready sport, the rest render as "coming soon" (disabled, no-op). */
+.sport-switch{ display:inline-flex; gap:4px; background: var(--panel); border:1px solid var(--line); border-radius:9999px; padding:3px; }
+.sport-pill{ display:inline-flex; align-items:center; gap:5px; border:none; background:transparent; color:var(--mute); font-family:'JetBrains Mono','Space Mono',monospace; font-size:11.5px; padding:6px 12px; border-radius:9999px; cursor:pointer; transition:var(--transition); }
+.sport-pill:hover:not(.active):not(:disabled){ color: var(--white); }
+.sport-pill.active{ background: var(--sport-accent, var(--accent)); color:#0b0f1a; font-weight:700; box-shadow:0 2px 10px var(--accent-glow); }
+.sport-pill:disabled{ cursor:not-allowed; opacity:0.55; }
+.sport-pill-soon{ font-size:9px; letter-spacing:0.06em; text-transform:uppercase; color:var(--mute); background:var(--night2); padding:1px 5px; border-radius:9999px; }
+.sport-pill.active .sport-pill-soon{ color:rgba(11,15,26,0.7); background:rgba(255,255,255,0.25); }
+@media (max-width:560px){ .sport-pill{ padding:5px 9px; font-size:10.5px; } .sport-pill-name{ display:none; } .sport-pill-soon{ display:none; } }
+
 /* Status bar strip */
 .status-bar{
   display:flex; align-items:center; gap:14px; flex-wrap:wrap;
@@ -2723,6 +2734,7 @@ footer{ margin-left:0; }
         <div class="day-toggle" id="dayToggle">
           <button class="active" data-day="today" id="todayBtn">Today</button>
         </div>
+        <div class="sport-switch" id="sportSwitch" aria-label="Sport"></div>
         <div class="tb-status">
           <div class="live-status">
             <span><span class="dot pending" id="dotSlate"></span>Slate data</span>
@@ -12575,6 +12587,9 @@ document.addEventListener('visibilitychange', ()=>{
     </div>
   </div>
 </div>
+
+<!-- Phase 0: sport switcher + #hash routing (mlb active; nfl/nhl/nba "coming soon") -->
+<script type="module" src="./sports/router.js"></script>
 
 </body>
 </html>
