@@ -890,9 +890,13 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .slate-card-top{ margin-bottom:4px; overflow-x:auto; }
 /* Inline line score = one table: logo + team name (left), innings (middle),
    R/H/E (right). The team abbreviation column is replaced by logo + name. */
-.linescore-inline{ margin-top:0; padding-top:0; border-top:0; }
+.linescore-inline{ margin-top:0; padding-top:0; border-top:0; overflow-x:auto; -webkit-overflow-scrolling:touch; max-width:100%; }
 .linescore-inline td.team-cell{ display:flex; align-items:center; gap:8px; min-width:128px; padding-left:0; text-align:left; }
 .linescore-inline .slate-team-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+/* Total runs (R) = the headline game score: big bold number so the scoreboard
+   reads at a glance. H/E stay small secondary cells beside it. */
+.linescore-inline td.rhe.runs{ font-family:'Cabinet Grotesk','Archivo Black',sans-serif; font-size:20px; font-weight:800; min-width:30px; color:var(--white); text-align:right; }
+.linescore tr.batting td.rhe.runs{ color:var(--accent-bright); }
 .slate-badge{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:10px; letter-spacing:0.05em; padding:3px 9px; border-radius:20px; text-transform:uppercase; font-weight:700; }
 .slate-badge.live{ background:rgba(45,127,255,0.18); color:var(--accent-bright); border:1px solid rgba(45,127,255,0.4); animation: pulse 1.8s infinite; }
 .slate-badge.final{ background: var(--night2); color: var(--mute); border:1px solid var(--line); }
@@ -1329,9 +1333,11 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 @media (max-width:520px){
   .gc-pbp-viewport{ height:230px; }
   .linescore-inline table{ font-size:10px; }
-  .linescore-inline td.team-cell{ min-width:104px; gap:6px; }
+  .linescore-inline th, .linescore-inline td{ padding:3px 4px; min-width:18px; }
+  .linescore-inline td.team-cell{ min-width:84px; gap:6px; }
   .linescore-inline .slate-logo{ width:22px; height:22px; }
   .linescore-inline .slate-team-name{ font-size:12px; }
+  .linescore-inline td.rhe.runs{ font-size:15px; min-width:24px; }
 }
 @media (prefers-reduced-motion: reduce){
   .pbp-row.in{ animation:none; }
@@ -5986,7 +5992,12 @@ function linescoreHTML(g){
     const r = ls ? (side === 'away' ? ls.away : ls.home) : null;
     const h = ls ? (side === 'away' ? ls.awayHits : ls.homeHits) : null;
     const e = ls ? (side === 'away' ? ls.awayErrors : ls.homeErrors) : null;
-    const rhe = (isLive||isFinal) ? `<td class="rhe sep">${r ?? '–'}</td><td class="rhe">${h ?? '–'}</td><td class="rhe">${e ?? '–'}</td>` : '';
+    // Total runs (R) is the headline "total game score" — render it as a big
+    // prominent number so the scoreboard reads at a glance. H/E stay small next to it.
+    // Restore the old away-runs/home-runs hooks + slate-runs class so the R cell
+    // carries the same identity the old headline score had.
+    const runsId = side === 'away' ? `away-runs-${g.id}` : `home-runs-${g.id}`;
+    const rhe = (isLive||isFinal) ? `<td id="${runsId}" class="rhe sep runs slate-runs">${r ?? '–'}</td><td class="rhe">${h ?? '–'}</td><td class="rhe">${e ?? '–'}</td>` : '';
     return `<tr class="${battingNow ? 'batting' : ''} ${won?'won':''}">
       <td class="team-cell"><img class="slate-logo" src="${teamLogoUrl(team)}" alt="${escapeHTML(team)}" onerror="this.style.visibility='hidden'"><span class="slate-team-name">${escapeHTML(name)}</span></td>${cells}${rhe}
     </tr>`;
@@ -7001,8 +7012,9 @@ function liveDetailHTML(g, opts){
   ].filter(Boolean);
 
   if(!panes.length) return '';
-  if(panes.length === 1) return panes[0].html;
-
+  // A finished game only has the Box Score pane (no live gamecast), but it must
+  // still render inside the tab bar — never as bare content — so the card keeps
+  // a consistent "Box Score" tab the user can click.
   const active = panes.some(p => p.id === _gcView[g.id]) ? _gcView[g.id] : panes[0].id;
   const tabs = panes.map(p =>
     `<button type="button" class="gc-tab ${p.id === active ? 'active' : ''}" data-gcview="${p.id}" data-gcgid="${g.id}">${p.label}</button>`).join('');
