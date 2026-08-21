@@ -6221,7 +6221,8 @@ class GamecastField {
   showZone(){
     if(!this.ready){ this.mode = 'zone'; return; }
     this.mode = 'zone';
-    if(this.ball) this.ball.visible = false;
+    if(this.ball){ this.ball.visible = false; this.ball.scale.setScalar(1); }
+    if(this.camera.fov !== 58){ this.camera.fov = 58; this.camera.updateProjectionMatrix(); }
     if(this.trajectory){ this.scene.remove(this.trajectory); this.trajectory.geometry.dispose(); this.trajectory.material.dispose(); this.trajectory = null; }
     if(this._landRing){ this.scene.remove(this._landRing); this._landRing.geometry.dispose(); this._landRing.material.dispose(); this._landRing = null; }
     if(this.hitTimeout){ clearTimeout(this.hitTimeout); this.hitTimeout = null; }
@@ -6251,10 +6252,10 @@ class GamecastField {
     const mid = new THREE.Vector3(lx/2, 3 + apex, lz/2);
     const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
 
-    // trajectory — a 3D tube (real width, unlike 1px WebGL lines) so the arc
-    // reads clearly from the broadcast camera, with a faint glow line on top.
+    // trajectory — a thin 3D tube (real width, unlike 1px WebGL lines) so the
+    // arc reads cleanly against the full-field broadcast view, with a faint glow line on top.
     if(this.trajectory){ this.scene.remove(this.trajectory); this.trajectory.geometry.dispose(); this.trajectory.material.dispose(); }
-    const tubeGeo = new THREE.TubeGeometry(curve, 80, 5, 8, false);
+    const tubeGeo = new THREE.TubeGeometry(curve, 80, 0.8, 8, false);
     const tubeMat = new THREE.MeshBasicMaterial({ color: 0xffd24a, transparent: true, opacity: 0.95 });
     this.trajectory = new THREE.Mesh(tubeGeo, tubeMat);
     this.scene.add(this.trajectory);
@@ -6267,12 +6268,18 @@ class GamecastField {
     if(!this.ball) this._buildBall(THREE, this.scene);
     this.ball.visible = true;
     this.ball.position.copy(start);
+    // Full-field view is zoomed way out, so scale the ball up to stay readable
+    // as it tracks the arc. (Reset on return to the zone view.)
+    this.ball.scale.setScalar(1.8);
 
-    // camera to a broadcast angle on the side opposite the pull, to read the arc
+    // Camera pulls back + climbs high behind home plate, offset to the side
+    // opposite the pull, to frame the WHOLE field (home → outfield wall, both
+    // foul lines) instead of zooming in on the landing spot.
     const sideSign = lx >= 0 ? -1 : 1;
     this._camFrom = { pos: this.camera.position.clone(), target: (this._lookTarget || new THREE.Vector3(0,5,120)).clone() };
-    this._camTo = { pos: new THREE.Vector3(sideSign * 135, 50, lz * 0.28), target: new THREE.Vector3(lx * 0.45, 7, lz * 0.72) };
-    this._camT0 = performance.now(); this._camDur = 900;
+    if(this.camera.fov !== 62){ this.camera.fov = 62; this.camera.updateProjectionMatrix(); }
+    this._camTo = { pos: new THREE.Vector3(sideSign * 130, 100, -140), target: new THREE.Vector3(0, 7, 170) };
+    this._camT0 = performance.now(); this._camDur = 1000;
     this.mode = 'hit';
 
     this.hitAnim = { curve, t0: performance.now() + 250, dur: Math.max(1600, Math.min(3600, dist * 8)) };
