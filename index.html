@@ -682,6 +682,12 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
   font-family:'Oswald',sans-serif; font-size:13px; padding:8px 18px; border-radius:20px; cursor:pointer; }
 .pf-btn.following{ background:none; color:var(--grass-bright); border-color:var(--grass-bright); font-weight:400; }
 .pf-bio{ font-size:13px; color:var(--white); line-height:1.6; margin-top:14px; }
+.pf-joined{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:10.5px; color:var(--mute); margin-top:3px; }
+.pf-nudge{ display:flex; align-items:center; gap:12px; margin-top:14px; padding:11px 13px;
+  background:var(--accent-glow); border:1px solid var(--accent); border-radius:12px; }
+.pf-nudge b{ display:block; font-family:'Oswald',sans-serif; font-size:13px; color:var(--text); }
+.pf-nudge span{ font-size:11px; color:var(--mute); }
+.pf-nudge .pf-btn{ margin-left:auto; flex-shrink:0; }
 .pf-stats{ display:flex; gap:18px; margin-top:14px; padding-bottom:14px; border-bottom:1px solid var(--line);
   font-family:'JetBrains Mono','Space Mono',monospace; font-size:11.5px; color:var(--mute); }
 .pf-stats b{ color:var(--white); font-family:'Oswald',sans-serif; font-size:14px; }
@@ -8139,6 +8145,16 @@ function refreshSocialUI(){
   });
 }
 
+/** After a user changes their own avatar, repaint every view that shows it so
+ *  the new photo/preset appears without a page reload. */
+function refreshAvatarsEverywhere(){
+  renderAuthButton();
+  if(activeTab === 'foryou') renderList();          // status posts + comments
+  if(typeof window.refreshChatPanelAuth === 'function') window.refreshChatPanelAuth();   // chat messages
+  // Online Now: re-render the dropdown lists from current presence state.
+  if(typeof window.refreshOnlineAvatars === 'function') window.refreshOnlineAvatars();
+}
+
 // ---------------------------------------------------------------- chat tab
 let chatUnsub = null;
 
@@ -8258,6 +8274,13 @@ async function openProfile(username){
 
   const me = s.getUser?.();
   const isMe = me && me.id === prof.id;
+  const joined = prof.created_at
+    ? new Date(prof.created_at).toLocaleDateString('en-US', { month:'short', year:'numeric' })
+    : '';
+  const missingBits = isMe ? [
+    !prof.avatar_url && 'photo', !prof.bio && 'bio', !prof.team && 'team',
+  ].filter(Boolean) : [];
+  const incomplete = isMe && missingBits.length > 0;
   const [counts, following, statuses] = await Promise.all([
     s.followCounts(prof.id),
     isMe ? Promise.resolve(false) : s.isFollowing(prof.id),
@@ -8275,11 +8298,13 @@ async function openProfile(username){
         <div class="pf-id">
           <div class="pf-name">${escapeHTML(prof.display_name || prof.username)}</div>
           <div class="pf-handle">@${escapeHTML(prof.username)}${prof.team ? ` · ${escapeHTML(prof.team)}` : ''}</div>
+          ${joined ? `<div class="pf-joined">Joined ${escapeHTML(joined)}</div>` : ''}
         </div>
         ${isMe
           ? `<button class="pf-btn" id="pfEdit">Edit</button>`
           : `<button class="pf-btn ${following?'following':''}" id="pfFollow">${following?'Following':'Follow'}</button>`}
       </div>
+      ${incomplete ? `<div class="pf-nudge"><div><b>Complete your profile</b><span>Add ${missingBits.length ? missingBits.join(', ') : 'a photo'} so people recognize you.</span></div><button class="pf-btn" id="pfNudgeEdit">Edit</button></div>` : ''}
       ${prof.bio ? `<div class="pf-bio">${escapeHTML(prof.bio)}</div>` : ''}
       <div class="pf-stats">
         <span><b id="pfFollowers">${counts.followers}</b> followers</span>
@@ -8323,6 +8348,9 @@ async function openProfile(username){
 
   const eBtn = document.getElementById('pfEdit');
   if(eBtn) eBtn.onclick = () => { close(); openProfileEditor(prof); };
+
+  const nudgeBtn = document.getElementById('pfNudgeEdit');
+  if(nudgeBtn) nudgeBtn.onclick = () => { close(); openProfileEditor(prof); };
 
   const postBtn = document.getElementById('pfPost');
   if(postBtn) postBtn.onclick = async () => {
@@ -8453,7 +8481,7 @@ function openProfileEditor(prof){
     if(avPreview) avPreview.innerHTML = avatarHTML(prof, 64);
     if(avGrid) avGrid.querySelectorAll('.pe-av-opt').forEach(b =>
       b.classList.toggle('sel', prof.avatar_url === 'preset:' + b.dataset.preset));
-    renderAuthButton();
+    refreshAvatarsEverywhere();
   };
   if(avUploadBtn) avUploadBtn.onclick = () => avFile && avFile.click();
   if(avFile) avFile.onchange = async () => {
@@ -10411,6 +10439,22 @@ function initOnlineDropdown(){
   document.addEventListener('keydown', e => { if(e.key === 'Escape') closeOnlinePopTb(); });
 }
 window.initOnlineDropdown = initOnlineDropdown;
+
+/** Re-render the Online Now dropdown from current presence state so avatars
+ *  refresh after a user changes their own picture. */
+function refreshOnlineAvatars(){
+  const pop = document.getElementById('onlinePopTb');
+  if(pop && pop.classList.contains('open')) renderOnlinePopTb();
+  const legacyPop = document.getElementById('onlinePop');
+  if(legacyPop && legacyPop.classList.contains('open') && typeof onlineBarHTML === 'function'){
+    legacyPop.innerHTML = onlineList.map(u => `
+      <button class="online-user" data-username="${escapeHTML(u.username||'')}">
+        <span class="chat-av">${avatarHTML(u, 24)}</span>
+        <span>@${escapeHTML(u.username||'?')}</span>
+      </button>`).join('') || '<div class="online-empty">Nobody else right now.</div>';
+  }
+}
+window.refreshOnlineAvatars = refreshOnlineAvatars;
 
 function refreshChatPanelAuth(){
   const input = document.getElementById('chatPanelInput');
