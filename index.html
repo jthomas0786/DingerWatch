@@ -1073,6 +1073,46 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .gamecast-diamond{ width:200px; height:200px; position:relative; }
 .gamecast-diamond svg{ width:100%; height:100%; }
 
+/* ---- 3D field + strike zone ---- */
+.gc-3d-wrap{ position:relative; width:100%; max-width:340px; aspect-ratio:3/4; border-radius:12px; overflow:hidden; background:linear-gradient(180deg,#b9d4ee 0%,#cfe2f3 55%,#9fb98f 56%,#2f6b34 100%); border:1px solid var(--line); }
+.gc-3d-host{ position:absolute; inset:0; }
+.gc-3d-canvas{ width:100%; height:100%; display:block; }
+.gc-3d-loading{ position:absolute; left:50%; bottom:8px; transform:translateX(-50%); font-size:10px; color:#1b2a3a; background:rgba(255,255,255,.5); padding:2px 8px; border-radius:8px; pointer-events:none; }
+.gc-3d-failed .gc-3d-loading{ display:none; }
+.gc-3d-host:not(:empty) ~ .gc-3d-loading{ display:none; }   /* hide once the canvas mounts */
+/* Strike zone overlay (semi-transparent 3x3 grid floating in front of the field) */
+.gc-zone{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; opacity:.95; }
+.gc-zone-box{ fill:rgba(20,30,48,.42); stroke:rgba(255,255,255,.55); stroke-width:1.2; }
+.gc-zone-line{ stroke:rgba(255,255,255,.3); stroke-width:1; }
+.gc-pdot{ stroke:#0f1421; stroke-width:1; }
+.gc-pdot-strike{ fill:var(--hr-red); }
+.gc-pdot-ball{ fill:var(--live-green); }
+.gc-pdot-inplay{ fill:#ffb020; }
+.gc-pdot-num{ fill:#fff; font-size:11px; font-weight:800; font-family:'JetBrains Mono',monospace; text-anchor:middle; dominant-baseline:central; pointer-events:none; }
+/* Hit-trajectory readout overlay */
+.gc-hit-overlay{ position:absolute; left:8px; right:8px; bottom:8px; pointer-events:none; opacity:0; transform:translateY(6px); transition:opacity .3s ease, transform .3s ease; }
+.is-hit-mode .gc-zone{ opacity:.18; transition:opacity .4s ease; }
+.is-hit-mode .gc-hit-overlay{ opacity:1; transform:none; }
+.is-hit-mode .gc-3d-loading{ display:none; }
+.gc-hit-top{ display:flex; justify-content:center; margin-bottom:4px; }
+.gc-verdict{ font-size:13px; font-weight:800; letter-spacing:.04em; padding:2px 10px; border-radius:6px; }
+.gc-verdict.hr{ background:var(--hr-red); color:#fff; }
+.gc-verdict.out{ background:rgba(15,20,33,.78); color:var(--accent-bright); }
+.gc-hit-stats{ display:flex; flex-wrap:wrap; gap:6px 10px; justify-content:center; background:rgba(15,20,33,.72); backdrop-filter:blur(4px); border:1px solid var(--line); border-radius:8px; padding:6px 8px; }
+.gc-hit-stats span{ display:inline-flex; flex-direction:column; align-items:center; min-width:42px; }
+.gc-hit-stats b{ font-size:14px; color:#fff; font-family:'JetBrains Mono',monospace; }
+.gc-hit-stats i{ font-size:9px; font-style:normal; color:var(--mute); }
+.gc-hit-note{ text-align:center; font-size:9px; color:rgba(255,255,255,.6); margin-top:3px; }
+/* Pitch legend under the zone */
+.gc-pitch-legend{ display:flex; flex-wrap:wrap; gap:4px; justify-content:center; max-width:340px; }
+.gc-pl-item{ display:inline-flex; align-items:center; gap:3px; font-size:9px; background:var(--night2); border:1px solid var(--line); border-radius:5px; padding:2px 5px; color:var(--mute); }
+.gc-pl-item b{ color:#fff; font-family:'JetBrains Mono',monospace; }
+.gc-pl-item i{ font-style:normal; }
+.gc-pl-item.strike i:nth-child(2){ color:var(--hr-red); }
+.gc-pl-item.ball i:nth-child(2){ color:var(--live-green); }
+.gc-pl-item.inplay i:nth-child(2){ color:#ffb020; }
+.gc-pl-empty{ font-size:10px; color:var(--mute); }
+
 .gc-base{ transition: fill .3s ease, filter .3s ease; }
 .gc-base.occupied{ fill: var(--accent-bright); filter: drop-shadow(0 0 6px var(--accent-glow)); }
 .gc-runner{ fill: var(--white); font-size:9px; font-family:'JetBrains Mono','Space Mono',monospace; font-weight:700; text-anchor:middle; dominant-baseline:central; }
@@ -1170,11 +1210,11 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 
 @media (max-width:520px){
   .gamecast-diamond{ width:160px; height:160px; margin:0 auto; }
+  .gc-3d-wrap{ max-width:280px; }
   .gc-odds-grid{ grid-template-columns:1fr 1fr 1fr; }
 }
-/* ---- gamecast controller: canvas diamond ---- */
-.gc-canvas{ width:200px; height:200px; display:block; }
-.gamecast-diamond{ width:200px; height:200px; position:relative; }
+/* ---- gamecast controller: 3D field sizing ---- */
+.gc-3d-wrap{ width:100%; max-width:340px; }
 
 /* ---- batter vs pitcher matchup card ---- */
 .gc-mu-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
@@ -1231,7 +1271,6 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .gc-odds-wrap{ margin-top:4px; }
 
 @media (max-width:520px){
-  .gc-canvas, .gamecast-diamond{ width:160px; height:160px; }
   .gc-pbp-viewport{ height:200px; }
 }
 @media (prefers-reduced-motion: reduce){
@@ -5821,6 +5860,10 @@ async function fetchLiveGameStates(){
                 };
               });
             })(),
+            // Pitch-by-pitch state for the 3D strike zone + batted-ball trajectory:
+            // the current at-bat's pitches (px/pz, zone, code, speed, call) and the
+            // most recent batted-ball hitData (launch speed/angle, distance).
+            pitchState: gcExtractPitchState(data),
             // Per-inning runs. The API omits the bottom half when the home team
             // hasn't batted yet (or doesn't need to), so `runs` can be undefined —
             // that's meaningfully different from 0 and is rendered as a blank cell.
@@ -5930,17 +5973,344 @@ const _gcMatchupCache = {};      // "batterId:pitcherId" -> { data, fetchedAt }
 const _gcPlayerCache = {};        // playerId -> { season, fetchedAt }
 
 // Base coordinates on the 200×200 overhead diamond.
-const GC_BASES = { home:{x:100,y:160}, '1B':{x:142,y:118}, '2B':{x:100,y:76}, '3B':{x:58,y:118} };
-const GC_MOUND = { x:100, y:118 };
-const GC_ANIM_MS = 600;
+// ---- shared: MLB feed -> pitch / strike-zone / batted-ball state ----
+// Used by both the 20s full poll (all games) and the visible-gamecast fast poll
+// (single game, ~6s) so the strike zone feels pitch-by-pitch live.
+function gcExtractPitchState(data){
+  const plays = data && data.liveData && data.liveData.plays;
+  const cp = plays && plays.currentPlay;
+  if(!cp) return null;
+  const playEvents = cp.playEvents || [];
+  const pitches = [];
+  let strikeZone = null, lastHit = null, currentHitId = null, currentPitchId = null;
+  playEvents.forEach(pe => {
+    if(!pe) return;
+    const pd = pe.pitchData || null;
+    const det = pe.details || {};
+    if(pe.isPitch && pd){
+      const coords = pd.coordinates || {};
+      const px = (coords.pX != null ? Number(coords.pX) : null);
+      const pz = (coords.pZ != null ? Number(coords.pZ) : null);
+      const zone = pd.zone != null ? pd.zone : (det.zone != null ? det.zone : null);
+      const speed = pd.startSpeed != null ? Number(pd.startSpeed) : (pd.endSpeed != null ? Number(pd.endSpeed) : null);
+      if(strikeZone == null){
+        const t = pd.strikeZoneTop != null ? Number(pd.strikeZoneTop) : null;
+        const b = pd.strikeZoneBottom != null ? Number(pd.strikeZoneBottom) : null;
+        if(t != null && b != null) strikeZone = { top: t, bottom: b };
+      }
+      pitches.push({
+        index: pe.index != null ? pe.index : (pitches.length + 1),
+        px, pz, zone,
+        call: det.call || null,
+        isStrike: !!det.isStrike, isBall: !!det.isBall, isInPlay: !!det.isInPlay,
+        code: det.code || null, speed, desc: det.description || ''
+      });
+      currentPitchId = (pe.index != null ? pe.index : pitches.length) + '';
+    }
+    if(pe.hitData){
+      const hd = pe.hitData;
+      lastHit = {
+        launchSpeed: hd.launchSpeed != null ? Number(hd.launchSpeed) : null,
+        launchAngle: hd.launchAngle != null ? Number(hd.launchAngle) : null,
+        totalDistance: hd.totalDistance != null ? Number(hd.totalDistance) : null,
+        trajectory: hd.trajectory || null,
+        direction: hd.direction != null ? Number(hd.direction) : null,
+        event: (cp.result && cp.result.event) || (det.description || ''),
+        rbi: (cp.result && cp.result.rbi) || 0,
+        scoring: !!(cp.about && cp.about.isScoringPlay)
+      };
+      currentHitId = (cp.about && cp.about.atBatIndex != null ? cp.about.atBatIndex : 0) + '-' + (pe.index != null ? pe.index : 0);
+    }
+  });
+  if(!strikeZone) strikeZone = { top: 3.5, bottom: 1.5 };
+  const a = cp.about || {};
+  return {
+    pitches, strikeZone, lastHit, currentHitId, currentPitchId,
+    currentPlayId: (a.atBatIndex != null ? a.atBatIndex : 0) + '-' + (a.playIndex != null ? a.playIndex : 0),
+    lastEvent: (cp.result && cp.result.event) || null,
+    isScoringPlay: !!a.isScoringPlay,
+    lastPlay: (cp.result && cp.result.description) || null,
+    leverageIndex: a.leverageIndex != null ? Number(a.leverageIndex) : null
+  };
+}
+
+// ---- Three.js 3D field (lazy-loaded ES module from CDN) ----
+const GC_THREE_URL = 'https://esm.sh/three@0.161.0';
+let _gcThreePromise = null;
+function gcLoadThree(){
+  if(_gcThreePromise) return _gcThreePromise;
+  _gcThreePromise = import(GC_THREE_URL)
+    .then(m => { const T = m && m.default ? m.default : m; if(!T || !T.Scene) throw new Error('three missing'); return T; })
+    .catch(e => { _gcThreePromise = null; throw e; });
+  return _gcThreePromise;
+}
+const GC_PITCH_LABELS = { FF:'4-Seam', SI:'Sinker', FC:'Cutter', SL:'Slider', CH:'Changeup', CU:'Curveball', KC:'Knuckle Curve', FS:'Splitter', KN:'Knuckleball', FO:'Forkball', EP:'Eephus', SC:'Screwball', IN:'Int. Ball', PO:'Pitchout', AB:'Auto Ball', UN:'Unknown' };
+function gcPitchName(code){ return GC_PITCH_LABELS[code] || (code || 'Pitch'); }
+
+class GamecastField {
+  constructor(host){
+    this.host = host;
+    this.ready = false; this.raf = null; this.mode = 'zone';
+    this.ball = null; this.trajectory = null; this.hitAnim = null; this.hitTimeout = null;
+    this._lookTarget = null; this._camFrom = null; this._camTo = null; this._camT0 = 0; this._camDur = 800;
+    this.onHitSummary = null;   // controller callback(summary)
+    this._initStarted = false;
+  }
+  async init(){
+    if(this._initStarted) return; this._initStarted = true;
+    let THREE;
+    try{ THREE = await gcLoadThree(); }catch(e){ this._failed = true; if(this.host) this.host.classList.add('gc-3d-failed'); return; }
+    this.THREE = THREE;
+    const host = this.host;
+    const w = host.clientWidth || 300, h = host.clientHeight || 320;
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(w, h);
+    this.renderer = renderer; this.domElement = renderer.domElement;
+    this.domElement.className = 'gc-3d-canvas';
+    host.appendChild(this.domElement);
+    const scene = new THREE.Scene(); this.scene = scene;
+    const cam = new THREE.PerspectiveCamera(58, w / h, 0.1, 2500); this.camera = cam;
+    scene.add(new THREE.HemisphereLight(0xcfe6ff, 0x314a22, 0.95));
+    const sun = new THREE.DirectionalLight(0xfff0d4, 1.15); sun.position.set(-130, 170, 70); scene.add(sun);
+    this._buildField(THREE, scene);
+    this._buildBall(THREE, scene);
+    this.ready = true;
+    this._setZoneCamera(true);
+    this.start();
+    if(this._pendingHit){ const h = this._pendingHit; this._pendingHit = null; this.showHit(h); }
+  }
+  _buildField(THREE, scene){
+    // Grass plane with subtle mowing stripes (canvas texture).
+    const tex = (() => {
+      const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+      const x = c.getContext('2d');
+      for(let i=0;i<8;i++){ x.fillStyle = i%2 ? '#2f6b34' : '#357539'; x.fillRect(0, i*32, 256, 32); }
+      const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(6, 6); return t;
+    })();
+    const grass = new THREE.Mesh(new THREE.CircleGeometry(430, 48), new THREE.MeshLambertMaterial({ map: tex }));
+    grass.rotation.x = -Math.PI/2; grass.position.y = 0; scene.add(grass);
+
+    // Infield dirt (diamond, rotated square).
+    const dirtMat = new THREE.MeshLambertMaterial({ color: 0x9c7a4b });
+    const dirt = new THREE.Mesh(new THREE.PlaneGeometry(150, 150), dirtMat);
+    dirt.rotation.x = -Math.PI/2; dirt.rotation.z = Math.PI/4; dirt.position.set(0, 0.02, 63); scene.add(dirt);
+
+    // Infield grass inside the diamond.
+    const infGrass = new THREE.Mesh(new THREE.PlaneGeometry(96, 96), new THREE.MeshLambertMaterial({ color: 0x357039 }));
+    infGrass.rotation.x = -Math.PI/2; infGrass.rotation.z = Math.PI/4; infGrass.position.set(0, 0.03, 63); scene.add(infGrass);
+
+    // Mound + rubber.
+    const mound = new THREE.Mesh(new THREE.CylinderGeometry(9, 10, 1.4, 24), new THREE.MeshLambertMaterial({ color: 0xb89464 }));
+    mound.position.set(0, 0.7, 60.5); scene.add(mound);
+    const rubber = new THREE.Mesh(new THREE.BoxGeometry(3, 0.3, 0.5), new THREE.MeshLambertMaterial({ color: 0xf0ece8 }));
+    rubber.position.set(0, 1.5, 60.5); scene.add(rubber);
+
+    // Bases + home plate.
+    const baseMat = new THREE.MeshLambertMaterial({ color: 0xf5f1ea });
+    const baseGeo = new THREE.BoxGeometry(4, 0.6, 4);
+    const b1 = new THREE.Mesh(baseGeo, baseMat); b1.position.set(63.6, 0.3, 63.6); scene.add(b1);
+    const b2 = new THREE.Mesh(baseGeo, baseMat); b2.position.set(0, 0.3, 127.2); scene.add(b2);
+    const b3 = new THREE.Mesh(baseGeo, baseMat); b3.position.set(-63.6, 0.3, 63.6); scene.add(b3);
+    const hp = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.6, 0.5, 5), baseMat);
+    hp.rotation.y = Math.PI/2; hp.position.set(0, 0.25, 0); scene.add(hp);
+
+    // Foul lines (home -> corners).
+    const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 });
+    const addLine = (x1,z1,x2,z2) => {
+      const g = new THREE.BufferGeometry().setFromPoints([ new THREE.Vector3(x1,0.1,z1), new THREE.Vector3(x2,0.1,z2) ]);
+      scene.add(new THREE.Line(g, lineMat));
+    };
+    addLine(0,0, 245, 245); addLine(0,0, -245, 245);
+
+    // Outfield wall — arc of segments through LF/CF/RF corners, ~9 ft tall.
+    const wallMat = new THREE.MeshLambertMaterial({ color: 0x10331c });
+    const padMat = new THREE.MeshLambertMaterial({ color: 0x1d5230 });
+    const N = 30;
+    for(let i=0;i<N;i++){
+      const t0 = i/N, t1 = (i+1)/N;
+      const ang0 = Math.PI/2 - (t0 - 0.5)*Math.PI*0.92;
+      const ang1 = Math.PI/2 - (t1 - 0.5)*Math.PI*0.92;
+      const r0 = 330 + 70*Math.cos((t0-0.5)*Math.PI), r1 = 330 + 70*Math.cos((t1-0.5)*Math.PI);
+      const ax = Math.cos(ang0)*r0, az = Math.sin(ang0)*r0;
+      const bx = Math.cos(ang1)*r1, bz = Math.sin(ang1)*r1;
+      const cx = (ax+bx)/2, cz = (az+bz)/2;
+      const segLen = Math.hypot(bx-ax, bz-az);
+      const seg = new THREE.Mesh(new THREE.BoxGeometry(segLen+1, 9, 1.2), wallMat);
+      seg.position.set(cx, 4.5, cz);
+      seg.lookAt(0, 4.5, 0);
+      scene.add(seg);
+      const pad = new THREE.Mesh(new THREE.BoxGeometry(segLen+1, 1.4, 1.5), padMat);
+      pad.position.set(cx, 9.2, cz); pad.lookAt(0, 9.2, 0); scene.add(pad);
+    }
+
+    // Foul poles.
+    const poleMat = new THREE.MeshLambertMaterial({ color: 0xffe14d });
+    [245, -245].forEach(x => {
+      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 44, 8), poleMat);
+      p.position.set(x, 22, 245); scene.add(p);
+    });
+
+    // Crowd ring (instanced, behind the wall).
+    const crowdColors = [0x2b3550, 0x4a3a55, 0x333a4a, 0x554033];
+    const count = 1400, ringR = 470;
+    const cg = new THREE.BoxGeometry(4, 3, 4);
+    const inst = new THREE.InstancedMesh(cg, new THREE.MeshLambertMaterial({ color: 0x3a4254 }), count);
+    const dummy = new THREE.Object3D();
+    for(let i=0;i<count;i++){
+      const a = Math.PI*0.15 + (Math.PI*0.7)*(i/count);
+      const r = ringR + (i%3)*3;
+      const x = Math.cos(a)*r * (i%2 ? 1 : -1);
+      const z = Math.sin(a)*r;
+      dummy.position.set(x, 1.5 + (i%2)*3, z);
+      dummy.updateMatrix();
+      inst.setMatrixAt(i, dummy.matrix);
+      inst.setColorAt(i, new THREE.Color(crowdColors[i % crowdColors.length]));
+    }
+    scene.add(inst);
+
+    // Sky-ish haze plane far behind.
+    scene.fog = new THREE.Fog(0xbcd6f0, 520, 900);
+  }
+  _buildBall(THREE, scene){
+    const ball = new THREE.Group();
+    const sphere = new THREE.Mesh(new THREE.SphereGeometry(3.6, 20, 16), new THREE.MeshLambertMaterial({ color: 0xfffefb }));
+    ball.add(sphere);
+    const seam = new THREE.Mesh(new THREE.TorusGeometry(3.6, 0.4, 8, 28), new THREE.MeshBasicMaterial({ color: 0xd33b2a }));
+    seam.rotation.x = Math.PI/2; ball.add(seam);
+    ball.position.set(0, 3, 0); ball.visible = false;
+    scene.add(ball);
+    this.ball = ball;
+  }
+  _setZoneCamera(instant){
+    const pos = new this.THREE.Vector3(0, 13, -34);
+    const target = new this.THREE.Vector3(0, 5, 120);
+    if(instant){ this.camera.position.copy(pos); this._lookTarget = target; this.camera.lookAt(target); return; }
+    this._camFrom = { pos: this.camera.position.clone(), target: (this._lookTarget||target).clone() };
+    this._camTo = { pos, target }; this._camT0 = performance.now(); this._camDur = 800;
+  }
+  start(){ if(this.raf || !this.ready) return; const loop = () => { this._tick(); this.raf = requestAnimationFrame(loop); }; this.raf = requestAnimationFrame(loop); }
+  stop(){ if(this.raf){ cancelAnimationFrame(this.raf); this.raf = null; } }
+  _tick(){
+    const now = performance.now();
+    // camera transition
+    if(this._camTo){
+      const t = Math.min(1, (now - this._camT0) / this._camDur);
+      const e = 1 - Math.pow(1 - t, 3);
+      this.camera.position.lerpVectors(this._camFrom.pos, this._camTo.pos, e);
+      const tg = this._camFrom.target.clone().lerp(this._camTo.target, e);
+      this._lookTarget = tg; this.camera.lookAt(tg);
+      if(t >= 1) this._camTo = null;
+    } else if(this._lookTarget){ this.camera.lookAt(this._lookTarget); }
+    // hit ball animation
+    if(this.hitAnim){
+      const t = Math.min(1, (now - this.hitAnim.t0) / this.hitAnim.dur);
+      const p = this.hitAnim.curve.getPoint(t);
+      if(this.ball) this.ball.position.copy(p);
+      if(t >= 1){ this.hitAnim = null; }
+    }
+    if(this.renderer) this.renderer.render(this.scene, this.camera);
+  }
+  resize(){
+    if(!this.ready || !this.host) return;
+    const w = this.host.clientWidth || 300, h = this.host.clientHeight || 320;
+    this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
+    this.renderer.setSize(w, h);
+  }
+  // ---- strike-zone mode ----
+  showZone(){
+    if(!this.ready){ this.mode = 'zone'; return; }
+    this.mode = 'zone';
+    if(this.ball) this.ball.visible = false;
+    if(this.trajectory){ this.scene.remove(this.trajectory); this.trajectory.geometry.dispose(); this.trajectory.material.dispose(); this.trajectory = null; }
+    if(this._landRing){ this.scene.remove(this._landRing); this._landRing.geometry.dispose(); this._landRing.material.dispose(); this._landRing = null; }
+    if(this.hitTimeout){ clearTimeout(this.hitTimeout); this.hitTimeout = null; }
+    this._setZoneCamera(false);
+  }
+  // ---- batted-ball mode ----
+  showHit(h){
+    if(!this.ready){ this._pendingHit = h; return; }
+    if(!h || h.totalDistance == null || h.totalDistance <= 0) return null;
+    const THREE = this.THREE;
+    const dist = h.totalDistance;
+    const dir = (h.direction != null ? h.direction : 0) * Math.PI / 180;
+    const lx = Math.sin(dir) * dist;
+    const lz = Math.cos(dir) * dist;
+    const la = h.launchAngle != null ? h.launchAngle * Math.PI / 180 : null;
+    let apex;
+    if(la != null){ apex = Math.max(6, Math.min(95, dist * Math.tan(la) / 4)); }
+    else {
+      const tr = (h.trajectory || 'fly_ball').toLowerCase();
+      if(/popup/.test(tr)) apex = Math.min(70, dist * 0.22);
+      else if(/fly/.test(tr)) apex = Math.max(18, dist * 0.17);
+      else if(/line/.test(tr)) apex = Math.max(8, dist * 0.08);
+      else apex = 5;
+    }
+    const start = new THREE.Vector3(0, 3, 0);
+    const end = new THREE.Vector3(lx, 0.6, lz);
+    const mid = new THREE.Vector3(lx/2, 3 + apex, lz/2);
+    const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
+
+    // trajectory — a 3D tube (real width, unlike 1px WebGL lines) so the arc
+    // reads clearly from the broadcast camera, with a faint glow line on top.
+    if(this.trajectory){ this.scene.remove(this.trajectory); this.trajectory.geometry.dispose(); this.trajectory.material.dispose(); }
+    const tubeGeo = new THREE.TubeGeometry(curve, 80, 5, 8, false);
+    const tubeMat = new THREE.MeshBasicMaterial({ color: 0xffd24a, transparent: true, opacity: 0.95 });
+    this.trajectory = new THREE.Mesh(tubeGeo, tubeMat);
+    this.scene.add(this.trajectory);
+    // landing marker — a ring on the ground where the ball comes down.
+    if(this._landRing){ this.scene.remove(this._landRing); this._landRing.geometry.dispose(); this._landRing.material.dispose(); }
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(6, 0.5, 8, 28), new THREE.MeshBasicMaterial({ color: 0xffd24a, transparent:true, opacity:0.8 }));
+    ring.rotation.x = Math.PI/2; ring.position.set(end.x, 0.2, end.z);
+    this.scene.add(ring); this._landRing = ring;
+
+    if(!this.ball) this._buildBall(THREE, this.scene);
+    this.ball.visible = true;
+    this.ball.position.copy(start);
+
+    // camera to a broadcast angle on the side opposite the pull, to read the arc
+    const sideSign = lx >= 0 ? -1 : 1;
+    this._camFrom = { pos: this.camera.position.clone(), target: (this._lookTarget || new THREE.Vector3(0,5,120)).clone() };
+    this._camTo = { pos: new THREE.Vector3(sideSign * 135, 50, lz * 0.28), target: new THREE.Vector3(lx * 0.45, 7, lz * 0.72) };
+    this._camT0 = performance.now(); this._camDur = 900;
+    this.mode = 'hit';
+
+    this.hitAnim = { curve, t0: performance.now() + 250, dur: Math.max(1600, Math.min(3600, dist * 8)) };
+
+    // fence comparison (approx, generic park)
+    const wallDist = 330 + 70 * Math.cos(dir) * Math.cos(dir);
+    const fenceH = 8;
+    let clearance = null, heightAtWall = null, isHR = false;
+    if(dist >= wallDist){
+      isHR = true;
+      const tw = wallDist / dist;
+      heightAtWall = 3 + 4 * apex * tw * (1 - tw);
+      clearance = heightAtWall - fenceH;
+    } else {
+      isHR = false;
+    }
+
+    if(this.onHitSummary) this.onHitSummary({
+      event: h.event, dist, launchSpeed: h.launchSpeed, launchAngle: h.launchAngle,
+      apex, wallDist, fenceH, heightAtWall, clearance, isHR, trajectory: h.trajectory, rbi: h.rbi, scoring: h.scoring
+    });
+
+    if(this.hitTimeout) clearTimeout(this.hitTimeout);
+    this.hitTimeout = setTimeout(() => this.showZone(), 9000);
+    return { dist, apex, wallDist, clearance, isHR };
+  }
+  dispose(){
+    this.stop();
+    if(this.hitTimeout){ clearTimeout(this.hitTimeout); this.hitTimeout = null; }
+    if(this.renderer){ try{ this.renderer.dispose(); }catch(e){} }
+    if(this.domElement && this.domElement.parentNode) this.domElement.parentNode.removeChild(this.domElement);
+    this.scene = null; this.camera = null; this.renderer = null; this.ball = null; this.trajectory = null;
+  }
+}
 
 class GamecastController {
   constructor(gid){
     this.gid = gid;
-    this.runners = {};        // id -> { base, x, y, sx, sy, tx, ty, t0, name, leaving }
-    this.prevPlayId = null;
-    this.pulses = [];
-    this.pulseColor = '#2d7fff';
     this.pbp = [];           // newest first (display order)
     this.seenPlayIds = new Set();
     this.filter = 'all';
@@ -5950,13 +6320,24 @@ class GamecastController {
     this.io = null;
     this.visible = false;
     this.g = null;
+    // 3D field + strike zone
+    this.field = null;            // GamecastField (durable WebGL context)
+    this.fieldInitStarted = false;
+    this.zoneSvg = null;
+    this.hitOverlay = null;
+    this.mode = 'zone';           // 'zone' | 'hit'
+    this.prevPitchId = null;
+    this.prevHitId = null;
+    this.fastPoll = null;        // visible-game fast poll (pitch-by-pitch feel)
   }
 
   mount(el){
     this.root = el;
     el.innerHTML = this._buildHTML();
-    this.canvas = el.querySelector('.gc-canvas');
-    this.ctx = this.canvas && this.canvas.getContext('2d');
+    this.fieldHost = el.querySelector('.gc-3d-host');
+    this.zoneSvg = el.querySelector('.gc-zone');
+    this.hitOverlay = el.querySelector('.gc-hit-overlay');
+    this.pitchLegend = el.querySelector('.gc-pitch-legend');
     this.countWrap = el.querySelector('.gc-count-row');
     this.basesRow = el.querySelector('.gc-bases-row');
     this.muWrap = el.querySelector('.gc-mu-body');
@@ -5981,23 +6362,75 @@ class GamecastController {
         this._scrollRaf = requestAnimationFrame(() => { this._scrollRaf = null; this.renderPBP(); });
       });
     }
+    // Lazy-load the 3D field. The strike-zone SVG overlay renders immediately
+    // (it's just SVG), so the gamecast never blocks on Three.js loading.
+    this._initField();
+    if(this.g && this.g.liveScore) this._renderZoneFromLive(this.g.liveScore);
     if('IntersectionObserver' in window){
       this.io = new IntersectionObserver(es => {
         this.visible = !!(es[0] && es[0].isIntersecting);
-        if(this.visible) this._startRAF(); else this._stopRAF();
+        if(this.visible) this._onVisible(); else this._onHidden();
       }, { threshold: 0.05 });
       this.io.observe(el);
-    } else { this.visible = true; this._startRAF(); }
+    } else { this.visible = true; this._onVisible(); }
+  }
+
+  _initField(){
+    if(this.fieldInitStarted || !this.fieldHost) return;
+    this.fieldInitStarted = true;
+    if(!this.field) this.field = new GamecastField(this.fieldHost);
+    this.field.onHitSummary = (s) => this._renderHitReadout(s);
+    this.field.init();
+  }
+  _onVisible(){ this._startFastPoll(); if(this.field && this.field.ready) this.field.start(); }
+  _onHidden(){ this._stopFastPoll(); if(this.field && this.field.ready) this.field.stop(); }
+
+  // Fast poll (visible game only, ~6s) for pitch-by-pitch live feel.
+  _startFastPoll(){ if(this.fastPoll) return; this._fastTick(); this.fastPoll = setInterval(() => this._fastTick(), 6000); }
+  _stopFastPoll(){ if(this.fastPoll){ clearInterval(this.fastPoll); this.fastPoll = null; } }
+  async _fastTick(){
+    const g = this.g; if(!g || !g.gamePk) return;
+    try{
+      const res = await fetch(`https://statsapi.mlb.com/api/v1.1/game/${g.gamePk}/feed/live`);
+      if(!res.ok) return;
+      const data = await res.json();
+      const ps = gcExtractPitchState(data); if(!ps) return;
+      const ls = g.liveScore || (g.liveScore = {});
+      ls.pitchState = ps;
+      ls.lastPlay = ps.lastPlay; ls.lastEvent = ps.lastEvent; ls.isScoringPlay = ps.isScoringPlay;
+      // refresh count + runners from the linescore
+      const line = data.liveData && data.liveData.linescore;
+      if(line){
+        const off = line.offense || {};
+        ls.balls = line.balls; ls.strikes = line.strikes; ls.outs = line.outs;
+        ls.inning = line.currentInning; ls.inningState = line.inningState;
+        ls.runners = [ off.first&&{base:'1B',id:off.first.id,name:off.first.fullName}, off.second&&{base:'2B',id:off.second.id,name:off.second.fullName}, off.third&&{base:'3B',id:off.third.id,name:off.third.fullName} ].filter(Boolean);
+      }
+      this.update(g);
+    }catch(e){ /* transient fetch failure — leave last-known state */ }
   }
 
   _buildHTML(){
     return `
     <div class="gamecast-grid">
       <div class="gamecast-diamond-wrap">
-        <div class="gamecast-diamond"><canvas class="gc-canvas" width="200" height="200" aria-label="Live field"></canvas></div>
-        <div class="gc-count-row"></div>
-        <div class="gc-bases-row"></div>
-      </div>
+          <div class="gc-3d-wrap">
+            <div class="gc-3d-host"></div>
+            <svg class="gc-zone" viewBox="0 0 200 280" aria-label="Strike zone">
+              <rect class="gc-zone-box" x="44" y="66" width="112" height="148" rx="4"></rect>
+              <line class="gc-zone-line" x1="81.3" y1="66" x2="81.3" y2="214"></line>
+              <line class="gc-zone-line" x1="118.6" y1="66" x2="118.6" y2="214"></line>
+              <line class="gc-zone-line" x1="44" y1="115.3" x2="156" y2="115.3"></line>
+              <line class="gc-zone-line" x1="44" y1="164.7" x2="156" y2="164.7"></line>
+              <g class="gc-zone-dots"></g>
+            </svg>
+            <div class="gc-hit-overlay"></div>
+            <div class="gc-3d-loading">Loading 3D field…</div>
+          </div>
+          <div class="gc-pitch-legend"></div>
+          <div class="gc-count-row"></div>
+          <div class="gc-bases-row"></div>
+        </div>
       <div class="gamecast-right">
         <div class="gc-matchup-card">
           <div class="gc-mu-head"><span class="gc-mu-title">Batter vs Pitcher</span></div>
@@ -6023,45 +6456,88 @@ class GamecastController {
   update(g){
     this.g = g;
     const ls = g.liveScore || {};
-    const live = {};
-    (ls.runners || []).forEach(r => { live[r.id] = r; this._setRunner(r); });
-    // runners no longer on base → animate home, then drop
-    Object.keys(this.runners).forEach(id => {
-      if(!live[id]){
-        const r = this.runners[id];
-        if(!r.leaving){
-          r.sx = r.x; r.sy = r.y; r.tx = GC_BASES.home.x; r.ty = GC_BASES.home.y;
-          r.t0 = performance.now(); r.leaving = true;
-        }
-      }
-    });
     if(this.countWrap) this.countWrap.innerHTML = this._countHTML(ls);
     if(this.basesRow) this.basesRow.innerHTML = this._basesHTML(ls.runners || []);
     if(this.lastPlayEl){ this.lastPlayEl.textContent = ls.lastPlay || ''; this.lastPlayEl.classList.toggle('has', !!ls.lastPlay); }
-    // new play → pulse occupied bases + flash, color-coded by event
-    if(ls.currentPlayId && ls.currentPlayId !== this.prevPlayId){
-      this.prevPlayId = ls.currentPlayId;
-      this._flashEvent(ls.lastEvent || '', !!ls.isScoringPlay);
-    }
     this._diffPlays(ls.plays || []);
     this._updateMatchup(ls.matchup);
     const ow = this.root && this.root.querySelector('.gc-odds-wrap');
     if(ow) ow.innerHTML = gcOddsPropsHTML(g);
+    // 3D strike zone + batted-ball trajectory
+    this._renderZoneFromLive(ls);
+    this._checkHit(ls);
   }
 
-  _setRunner(r){
-    const base = GC_BASES[r.base] || GC_BASES.home;
-    const cur = this.runners[r.id];
-    if(!cur){
-      // first appearance → snap to base, pulse once (no fly-in)
-      this.runners[r.id] = { base:r.base, x:base.x, y:base.y, sx:base.x, sy:base.y, tx:base.x, ty:base.y, t0:performance.now(), name:r.name };
-      this._pulse(base.x, base.y);
-    } else if(cur.base !== r.base){
-      // advanced → interpolate from current animated pos to the new base
-      cur.sx = cur.x; cur.sy = cur.y; cur.tx = base.x; cur.ty = base.y;
-      cur.base = r.base; cur.t0 = performance.now(); cur.leaving = false; cur.name = r.name;
-      this._pulse(base.x, base.y);
+  // ---- strike zone (SVG overlay) ----
+  _renderZoneFromLive(ls){
+    const ps = ls && ls.pitchState;
+    if(!ps){ if(this.zoneSvg){ const g = this.zoneSvg.querySelector('.gc-zone-dots'); if(g) g.innerHTML=''; } return; }
+    this._renderZone(ps.pitches || [], ps.strikeZone || { top: 3.5, bottom: 1.5 });
+  }
+  _renderZone(pitches, sz){
+    const svg = this.zoneSvg; if(!svg) return;
+    const g = svg.querySelector('.gc-zone-dots'); if(!g) return;
+    if(!pitches || !pitches.length){ g.innerHTML = ''; return; }
+    const top = sz ? sz.top : 3.5, bot = sz ? sz.bottom : 1.5;
+    // plot range: a bit beyond the plate/zone so balls outside still show
+    const xMin = -1.1, xMax = 1.1, yMin = Math.max(0.2, bot - 1.3), yMax = top + 1.3;
+    const boxL = 44, boxR = 156, boxT = 66, boxB = 214;
+    const toX = px => boxL + ((Math.max(xMin, Math.min(xMax, px)) - xMin) / (xMax - xMin)) * (boxR - boxL);
+    const toY = pz => boxT + ((yMax - Math.max(yMin, Math.min(yMax, pz))) / (yMax - yMin)) * (boxB - boxT);
+    const zonePos = z => { const c = {1:[-0.35,3.05],2:[0,3.05],3:[0.35,3.05],4:[-0.35,2.45],5:[0,2.45],6:[0.35,2.45],7:[-0.35,1.85],8:[0,1.85],9:[0.35,1.85],11:[-1.0,2.45],12:[1.0,2.45],13:[0,3.9],14:[0,1.0]}; return c[z] || [0,2.45]; };
+    g.innerHTML = pitches.map(p => {
+      let px = p.px, pz = p.pz;
+      if(px == null || pz == null){ const z = zonePos(p.zone); px = (px==null?z[0]:px); pz = (pz==null?z[1]:pz); }
+      const cx = toX(px), cy = toY(pz);
+      let cls = 'gc-pdot-ball';
+      if(p.isInPlay || p.call === 'X') cls = 'gc-pdot-inplay';
+      else if(p.isStrike || p.call === 'S') cls = 'gc-pdot-strike';
+      else if(p.isBall || p.call === 'B') cls = 'gc-pdot-ball';
+      return `<circle class="gc-pdot ${cls}" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="11"></circle><text class="gc-pdot-num" x="${cx.toFixed(1)}" y="${(cy+4).toFixed(1)}" text-anchor="middle">${p.index}</text>`;
+    }).join('');
+    if(this.pitchLegend){
+      this.pitchLegend.innerHTML = pitches.slice(-8).map(p => {
+        const res = p.isInPlay || p.call === 'X' ? 'in play' : (p.isStrike || p.call==='S' ? 'strike' : 'ball');
+        const cls = p.isInPlay || p.call==='X' ? 'inplay' : (p.isStrike || p.call==='S' ? 'strike' : 'ball');
+        return `<span class="gc-pl-item ${cls}"><b>${p.index}</b><i>${gcPitchName(p.code)}</i><i>${p.speed!=null?Math.round(p.speed)+' mph':'—'}</i><i>${res}</i></span>`;
+      }).join('') || '<span class="gc-pl-empty">No pitches yet</span>';
     }
+  }
+
+  // ---- batted-ball → 3D trajectory ----
+  _checkHit(ls){
+    const ps = ls && ls.pitchState; if(!ps) return;
+    // a brand-new pitch in the at-bat returns us to the strike-zone view
+    if(ps.currentPitchId && ps.currentPitchId !== this.prevPitchId){
+      this.prevPitchId = ps.currentPitchId;
+      if(this.mode === 'hit') this._setMode('zone');
+    }
+    // a new batted ball → fly the trajectory
+    if(ps.currentHitId && ps.currentHitId !== this.prevHitId){
+      this.prevHitId = ps.currentHitId;
+      if(ps.lastHit){ this._setMode('hit'); if(this.field) this.field.showHit(ps.lastHit); }
+    }
+  }
+  _setMode(m){ this.mode = m; if(this.root) this.root.classList.toggle('is-hit-mode', m === 'hit'); }
+  _renderHitReadout(s){
+    if(!this.hitOverlay) return;
+    const f = (v, d) => v == null ? '—' : (typeof v === 'number' ? v.toFixed(d) : escapeHTML(String(v)));
+    const ev = (s.event || 'Batted ball').replace(/_/g, ' ');
+    const clearanceTxt = s.clearance == null ? '' : (s.clearance > 0
+      ? `clears ${f(s.clearance, 1)} ft wall` : `short of wall`);
+    const verdict = s.isHR ? '<span class="gc-verdict hr">HOME RUN</span>'
+      : `<span class="gc-verdict out">${escapeHTML(ev)}</span>`;
+    this.hitOverlay.innerHTML = `
+      <div class="gc-hit-top">${verdict}</div>
+      <div class="gc-hit-stats">
+        <span><b>${f(s.dist, 0)}</b><i>ft</i></span>
+        <span><b>${f(s.launchSpeed, 1)}</b><i>ev mph</i></span>
+        <span><b>${f(s.launchAngle, 0)}°</b><i>launch</i></span>
+        <span><b>${f(s.apex, 0)}</b><i>apex ft</i></span>
+        <span><b>${f(s.wallDist, 0)}</b><i>wall ft</i></span>
+        <span><b>${f(s.clearance, 1)}</b><i>${s.isHR ? 'clear ft' : 'clear'}</i></span>
+      </div>
+      <div class="gc-hit-note">Trajectory vs ~${f(s.fenceH, 0)} ft fence · approx park dims</div>`;
   }
 
   _countHTML(ls){
@@ -6075,18 +6551,6 @@ class GamecastController {
     return `<span class="gc-base-flag ${on['1B']?'active':''}">1B</span><span class="gc-base-flag ${on['2B']?'active':''}">2B</span><span class="gc-base-flag ${on['3B']?'active':''}">3B</span>`;
   }
 
-  _pulse(x, y){ this.pulses.push({ x, y, t0: performance.now() }); }
-  _flashEvent(ev, scoring){
-    ev = (ev || '').toLowerCase();
-    let color = '#2d7fff';
-    if(/home_run|homer/.test(ev)) color = '#ff3b3b';
-    else if(/single|double|triple/.test(ev)) color = '#22c55e';
-    else if(/strikeout|strike_out/.test(ev)) color = '#ff3b3b';
-    else if(/walk|intent|hit_by/.test(ev)) color = '#2d7fff';
-    else if(scoring) color = '#22c55e';
-    this.pulseColor = color;
-    Object.values(this.runners).forEach(r => { if(!r.leaving) this._pulse(r.tx, r.ty); });
-  }
 
   _diffPlays(plays){
     if(!plays.length) return;
@@ -6185,64 +6649,12 @@ class GamecastController {
       ${h2h ? `<div class="gc-mu-h2h">vs this pitcher · ${h2h.ab} AB · AVG <b>${f(h2h.avg)}</b> · OPS <b>${f(h2h.ops)}</b> · K <b>${h2h.k}</b></div>` : '<div class="gc-mu-h2h muted">Season form shown · H2H unavailable</div>'}`;
   }
 
-  // ---- canvas draw loop ----
-  _startRAF(){ if(this.raf) return; const loop = () => { this._draw(); this.raf = requestAnimationFrame(loop); }; this.raf = requestAnimationFrame(loop); }
-  _stopRAF(){ if(this.raf){ cancelAnimationFrame(this.raf); this.raf = null; } }
-
-  _draw(){
-    const ctx = this.ctx; if(!ctx) return;
-    const now = performance.now();
-    ctx.clearRect(0, 0, 200, 200);
-    // outfield grass
-    ctx.fillStyle = '#1a3d1a'; ctx.beginPath(); ctx.arc(100, 100, 96, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#2d5a2d'; ctx.lineWidth = 1.5; ctx.stroke();
-    // infield dirt
-    ctx.fillStyle = '#3a2a1a'; ctx.beginPath(); ctx.moveTo(100, 160); ctx.lineTo(142, 118); ctx.lineTo(100, 76); ctx.lineTo(58, 118); ctx.closePath(); ctx.fill();
-    // basepaths
-    ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 2]);
-    ctx.beginPath(); ctx.moveTo(100, 160); ctx.lineTo(142, 118); ctx.lineTo(100, 76); ctx.lineTo(58, 118); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
-    // bases
-    const occ = {}; Object.values(this.runners).forEach(r => { if(!r.leaving) occ[r.base] = true; });
-    const drawBase = (x, y, on) => {
-      ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4);
-      ctx.fillStyle = on ? '#2d7fff' : '#f0ece8'; ctx.fillRect(-4, -4, 8, 8);
-      if(on){ ctx.shadowColor = '#2d7fff'; ctx.shadowBlur = 6; ctx.fillRect(-4, -4, 8, 8); }
-      ctx.restore();
-    };
-    drawBase(100, 76, !!occ['2B']); drawBase(142, 118, !!occ['1B']); drawBase(58, 118, !!occ['3B']);
-    // home plate
-    ctx.fillStyle = '#f0ece8'; ctx.beginPath(); ctx.moveTo(95, 160); ctx.lineTo(105, 160); ctx.lineTo(105, 164); ctx.lineTo(100, 167); ctx.lineTo(95, 164); ctx.closePath(); ctx.fill();
-    // mound
-    ctx.fillStyle = '#4a3226'; ctx.beginPath(); ctx.arc(GC_MOUND.x, GC_MOUND.y, 5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#f0ece8'; ctx.beginPath(); ctx.arc(GC_MOUND.x, GC_MOUND.y, 1.5, 0, Math.PI * 2); ctx.fill();
-    // pulse rings (steals/hits/scores)
-    if(this.pulses.length){
-      this.pulses = this.pulses.filter(pl => {
-        const age = now - pl.t0; if(age > 800) return false;
-        const a = 1 - age / 800, r = 4 + (age / 800) * 18;
-        ctx.strokeStyle = this.pulseColor; ctx.globalAlpha = a; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(pl.x, pl.y, r, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
-        return true;
-      });
-    }
-    // runners — interpolate sx,sy → tx,ty
-    Object.entries(this.runners).forEach(([id, r]) => {
-      const t = Math.min(1, (now - (r.t0 || now)) / GC_ANIM_MS);
-      const e = 1 - Math.pow(1 - t, 3);
-      const cx = r.sx + (r.tx - r.sx) * e;
-      const cy = r.sy + (r.ty - r.sy) * e;
-      r.x = cx; r.y = cy;
-      ctx.fillStyle = '#fff'; ctx.shadowColor = '#2d7fff'; ctx.shadowBlur = 5;
-      ctx.beginPath(); ctx.arc(cx, cy, 5.5, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
-      const init = (((r.name || '?').split(' ').pop() || '?')[0]) || '?';
-      ctx.fillStyle = '#0f1421'; ctx.font = '700 8px JetBrains Mono, monospace';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(init, cx, cy + 0.5);
-      if(r.leaving && t >= 1) delete this.runners[id];
-    });
+  destroy(){
+    this._stopFastPoll();
+    if(this.io){ this.io.disconnect(); this.io = null; }
+    if(this.field){ this.field.dispose(); this.field = null; }
+    delete _gcControllers[this.gid];
   }
-
-  destroy(){ this._stopRAF(); if(this.io){ this.io.disconnect(); this.io = null; } delete _gcControllers[this.gid]; }
 }
 // Public API (mountGamecasts is global too; expose the class for debugging/extension).
 window.GamecastController = GamecastController;
