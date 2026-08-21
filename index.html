@@ -6332,51 +6332,76 @@ class GamecastController {
   }
 
   mount(el){
+    const sameRoot = this.root === el;
+    const hasShell = !!el.querySelector('.gamecast-grid') && !!el.querySelector('.gc-3d-host');
     this.root = el;
-    el.innerHTML = this._buildHTML();
-    this.fieldHost = el.querySelector('.gc-3d-host');
-    this.zoneSvg = el.querySelector('.gc-zone');
-    this.hitOverlay = el.querySelector('.gc-hit-overlay');
-    this.pitchLegend = el.querySelector('.gc-pitch-legend');
-    this.countWrap = el.querySelector('.gc-count-row');
-    this.basesRow = el.querySelector('.gc-bases-row');
-    this.muWrap = el.querySelector('.gc-mu-body');
-    this.pbpScroll = el.querySelector('.gc-pbp-scroll');
-    this.pbpSpacer = el.querySelector('.gc-pbp-spacer');
-    this.pbpEmpty = el.querySelector('.gc-pbp-empty');
-    this.lastPlayEl = el.querySelector('.gc-last-play');
-    if(this.scrollTop && this.pbpScroll) this.pbpScroll.scrollTop = this.scrollTop;
-    el.querySelectorAll('.gc-filter-btn').forEach(b => {
-      if(b.dataset.f === this.filter) b.classList.add('active');
-      b.addEventListener('click', e => {
-        e.stopPropagation();
-        this.filter = b.dataset.f;
-        el.querySelectorAll('.gc-filter-btn').forEach(x => x.classList.toggle('active', x === b));
-        this.renderPBP();
+    // Idempotent mount: if we're already mounted into this exact element and the
+    // shell is still intact, do NOT rebuild innerHTML — rebuilding destroys the
+    // live WebGL canvas (and the whole gamecast DOM) on every 20s slate refresh,
+    // which is what left the 3D field stuck on "Loading…" and made it flash.
+    if(!(sameRoot && this._mounted && hasShell)){
+      if(this.io){ this.io.disconnect(); this.io = null; }   // never leave two observers
+      el.innerHTML = this._buildHTML();
+      this.fieldHost = el.querySelector('.gc-3d-host');
+      this.zoneSvg = el.querySelector('.gc-zone');
+      this.hitOverlay = el.querySelector('.gc-hit-overlay');
+      this.pitchLegend = el.querySelector('.gc-pitch-legend');
+      this.countWrap = el.querySelector('.gc-count-row');
+      this.basesRow = el.querySelector('.gc-bases-row');
+      this.muWrap = el.querySelector('.gc-mu-body');
+      this.pbpScroll = el.querySelector('.gc-pbp-scroll');
+      this.pbpSpacer = el.querySelector('.gc-pbp-spacer');
+      this.pbpEmpty = el.querySelector('.gc-pbp-empty');
+      this.lastPlayEl = el.querySelector('.gc-last-play');
+      if(this.scrollTop && this.pbpScroll) this.pbpScroll.scrollTop = this.scrollTop;
+      el.querySelectorAll('.gc-filter-btn').forEach(b => {
+        if(b.dataset.f === this.filter) b.classList.add('active');
+        b.addEventListener('click', e => {
+          e.stopPropagation();
+          this.filter = b.dataset.f;
+          el.querySelectorAll('.gc-filter-btn').forEach(x => x.classList.toggle('active', x === b));
+          this.renderPBP();
+        });
       });
-    });
-    if(this.pbpScroll){
-      this.pbpScroll.addEventListener('scroll', () => {
-        this.scrollTop = this.pbpScroll.scrollTop;
-        if(this._scrollRaf) return;
-        this._scrollRaf = requestAnimationFrame(() => { this._scrollRaf = null; this.renderPBP(); });
-      });
+      if(this.pbpScroll){
+        this.pbpScroll.addEventListener('scroll', () => {
+          this.scrollTop = this.pbpScroll.scrollTop;
+          if(this._scrollRaf) return;
+          this._scrollRaf = requestAnimationFrame(() => { this._scrollRaf = null; this.renderPBP(); });
+        });
+      }
+      // fresh shell → force a one-time re-render of the signature-guarded bits
+      this._countSig = this._basesSig = this._oddsSig = this._zoneSig = null;
+      this._mounted = true;
     }
-    // Lazy-load the 3D field. The strike-zone SVG overlay renders immediately
-    // (it's just SVG), so the gamecast never blocks on Three.js loading.
+    // (Re)attach the 3D canvas if the shell was rebuilt and lost it; no-op if intact.
     this._initField();
     if(this.g && this.g.liveScore) this._renderZoneFromLive(this.g.liveScore);
-    if('IntersectionObserver' in window){
-      this.io = new IntersectionObserver(es => {
-        this.visible = !!(es[0] && es[0].isIntersecting);
-        if(this.visible) this._onVisible(); else this._onHidden();
-      }, { threshold: 0.05 });
-      this.io.observe(el);
-    } else { this.visible = true; this._onVisible(); }
+    if(!this.io){
+      if('IntersectionObserver' in window){
+        this.io = new IntersectionObserver(es => {
+          this.visible = !!(es[0] && es[0].isIntersecting);
+          if(this.visible) this._onVisible(); else this._onHidden();
+        }, { threshold: 0.05 });
+        this.io.observe(el);
+      } else { this.visible = true; this._onVisible(); }
+    }
   }
 
   _initField(){
-    if(this.fieldInitStarted || !this.fieldHost) return;
+    if(!this.fieldHost) return;
+    // Field already exists (e.g. the shell was rebuilt on a fresh element):
+    // re-point it at the current host and re-attach its canvas if it's gone,
+    // without re-importing Three.js or recreating the WebGL context.
+    if(this.field){
+      this.field.host = this.fieldHost;
+      if(this.field.domElement && this.field.domElement.parentElement !== this.fieldHost){
+        this.fieldHost.appendChild(this.field.domElement);
+        if(this.field.ready) this.field.resize();
+      }
+      return;
+    }
+    if(this.fieldInitStarted) return;
     this.fieldInitStarted = true;
     if(!this.field) this.field = new GamecastField(this.fieldHost);
     this.field.onHitSummary = (s) => this._renderHitReadout(s);
@@ -6456,13 +6481,19 @@ class GamecastController {
   update(g){
     this.g = g;
     const ls = g.liveScore || {};
-    if(this.countWrap) this.countWrap.innerHTML = this._countHTML(ls);
-    if(this.basesRow) this.basesRow.innerHTML = this._basesHTML(ls.runners || []);
+    // Signature-guard the innerHTML writes so a 6s poll that returns the SAME
+    // count / bases / odds / pitches doesn't tear down and rebuild the DOM
+    // (that rebuild was the source of the per-pitch flash).
+    const csig = (ls.balls??0)+'/'+(ls.strikes??0)+'/'+(ls.outs??0);
+    if(this.countWrap && this._countSig !== csig){ this._countSig = csig; this.countWrap.innerHTML = this._countHTML(ls); }
+    const rs = ls.runners || [];
+    const bsig = rs.map(r => r.base).sort().join('|');
+    if(this.basesRow && this._basesSig !== bsig){ this._basesSig = bsig; this.basesRow.innerHTML = this._basesHTML(rs); }
     if(this.lastPlayEl){ this.lastPlayEl.textContent = ls.lastPlay || ''; this.lastPlayEl.classList.toggle('has', !!ls.lastPlay); }
     this._diffPlays(ls.plays || []);
     this._updateMatchup(ls.matchup);
     const ow = this.root && this.root.querySelector('.gc-odds-wrap');
-    if(ow) ow.innerHTML = gcOddsPropsHTML(g);
+    if(ow){ const osig = (g.awayOdds||'')+'-'+(g.homeOdds||'')+'-'+(g.totalOdds||'')+'-'+(ls.awayScore??g.awayScore??'')+'-'+(ls.homeScore??g.homeScore??''); if(this._oddsSig !== osig){ this._oddsSig = osig; ow.innerHTML = gcOddsPropsHTML(g); } }
     // 3D strike zone + batted-ball trajectory
     this._renderZoneFromLive(ls);
     this._checkHit(ls);
@@ -6477,8 +6508,14 @@ class GamecastController {
   _renderZone(pitches, sz){
     const svg = this.zoneSvg; if(!svg) return;
     const g = svg.querySelector('.gc-zone-dots'); if(!g) return;
-    if(!pitches || !pitches.length){ g.innerHTML = ''; return; }
     const top = sz ? sz.top : 3.5, bot = sz ? sz.bottom : 1.5;
+    // Only rebuild the SVG dots when the pitch set actually changed — re-plotting
+    // the same dots every 6s poll was what made the zone flicker.
+    const lp = (pitches && pitches.length) ? pitches[pitches.length-1] : {};
+    const zsig = (pitches?pitches.length:0)+'|'+(lp&&lp.index!=null?lp.index:'')+'|'+(lp&&lp.call||'')+'|'+(lp&&lp.code||'')+'|'+(lp&&lp.px!=null?lp.px:'')+'|'+(lp&&lp.pz!=null?lp.pz:'')+'|'+top+'|'+bot;
+    if(this._zoneSig === zsig) return;
+    this._zoneSig = zsig;
+    if(!pitches || !pitches.length){ g.innerHTML = ''; if(this.pitchLegend) this.pitchLegend.innerHTML = '<span class="gc-pl-empty">No pitches yet</span>'; return; }
     // plot range: a bit beyond the plate/zone so balls outside still show
     const xMin = -1.1, xMax = 1.1, yMin = Math.max(0.2, bot - 1.3), yMax = top + 1.3;
     const boxL = 44, boxR = 156, boxT = 66, boxB = 214;
@@ -6930,6 +6967,31 @@ function slateCardHTML(g){
     </div>`;
 }
 
+function refreshLiveCardHeaders(){
+  // Lightweight in-place refresh of the dynamic bits of each slate card
+  // (scores / inning / batting arrow). Used when the slate STRUCTURE is
+  // unchanged so we don't tear down + rebuild every card DOM (and every
+  // gamecast canvas) every 20s — that rebuild was the main source of lag + flash.
+  sortedGames().forEach(g => {
+    const card = pickList.querySelector(`.slate-card[data-gid="${g.id}"]`);
+    if(!card) return;
+    const ls = g.liveScore || {};
+    const isLive = slateBucket(g) === 'live';
+    const isFinal = slateBucket(g) === 'final';
+    const awayRuns = isLive || isFinal ? (ls.away!=null ? ls.away : '–') : '';
+    const homeRuns = isLive || isFinal ? (ls.home!=null ? ls.home : '–') : '';
+    const ar = card.querySelector(`#away-runs-${g.id}`); if(ar) ar.textContent = awayRuns;
+    const hr = card.querySelector(`#home-runs-${g.id}`); if(hr) hr.textContent = homeRuns;
+    const t = card.querySelector('.slate-time');
+    if(t) t.textContent = isLive ? (ls.inning ? `${ls.inningState==='Top'?'▲':'▼'} ${ls.inning===1?'1st':ls.inning===2?'2nd':ls.inning===3?'3rd':ls.inning+'th'}` : '') : (isFinal ? (g.parkShort || g.park.split(',')[0]) : gameTime(g));
+    const rows = card.querySelectorAll('.slate-team-row');
+    if(rows.length === 2 && isLive){
+      rows[0].classList.toggle('batting', ls.inningState === 'Top');
+      rows[1].classList.toggle('batting', ls.inningState === 'Bottom');
+    }
+  });
+}
+
 function renderSlate(){
   // Live games first, then games yet to start, then completed ones at the
   // bottom — each group still ordered by first pitch.
@@ -6937,6 +6999,18 @@ function renderSlate(){
   const live  = byTime.filter(g => slateBucket(g) === 'live');
   const pre   = byTime.filter(g => slateBucket(g) === 'pre');
   const final = byTime.filter(g => slateBucket(g) === 'final');
+
+  // If the set of games + their buckets/order hasn't changed since the last
+  // render, skip the full innerHTML rebuild — it would destroy every card
+  // (and every gamecast canvas) just to update scores that the 6s per-game
+  // poll already keeps live. Refresh the card headers in place instead.
+  const structSig = live.map(g=>g.id).join(',') + '|' + pre.map(g=>g.id).join(',') + '|' + final.map(g=>g.id).join(',');
+  if(pickList.dataset.structSig === structSig && pickList.querySelector('.slate-list')){
+    refreshLiveCardHeaders();
+    requestAnimationFrame(mountGamecasts);
+    return;
+  }
+  pickList.dataset.structSig = structSig;
 
   const heading = (label, count, cls) =>
     `<div class="slate-group-head ${cls}"><span>${label}</span><span class="sgh-count">${count}</span></div>`;
