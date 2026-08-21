@@ -887,6 +887,11 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .slate-card:hover{ border-color: var(--accent); }
 .slate-card.is-live{ border-color: var(--accent); box-shadow: 0 0 0 1px rgba(45,127,255,0.25); }
 .slate-status-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.slate-card-top{ display:flex; align-items:flex-start; gap:14px; }
+.slate-card-top .slate-teams{ flex:0 0 auto; min-width:140px; max-width:200px; }
+.slate-card-top .slate-team-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.slate-linescore-inline{ flex:1 1 auto; min-width:0; overflow-x:auto; }
+.slate-linescore-inline .linescore{ margin-top:0; padding-top:0; border-top:0; }
 .slate-badge{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:10px; letter-spacing:0.05em; padding:3px 9px; border-radius:20px; text-transform:uppercase; font-weight:700; }
 .slate-badge.live{ background:rgba(45,127,255,0.18); color:var(--accent-bright); border:1px solid rgba(45,127,255,0.4); animation: pulse 1.8s infinite; }
 .slate-badge.final{ background: var(--night2); color: var(--mute); border:1px solid var(--line); }
@@ -1269,7 +1274,7 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .gc-filter-btn{ background:transparent; border:1px solid var(--line); color:var(--mute); font-family:'JetBrains Mono','Space Mono',monospace; font-size:9px; text-transform:uppercase; letter-spacing:0.03em; padding:3px 8px; border-radius:12px; cursor:pointer; transition:all .15s ease; }
 .gc-filter-btn:hover{ border-color:var(--accent); color:var(--white); }
 .gc-filter-btn.active{ background:var(--accent); border-color:var(--accent); color:var(--night); font-weight:700; }
-.gc-pbp-viewport{ height:230px; overflow:hidden; position:relative; }
+.gc-pbp-viewport{ height:330px; overflow:hidden; position:relative; }
 .gc-pbp-scroll{ height:100%; overflow-y:auto; position:relative; overscroll-behavior:contain; }
 .gc-pbp-scroll::-webkit-scrollbar{ width:6px; }
 .gc-pbp-scroll::-webkit-scrollbar-thumb{ background:var(--line); border-radius:3px; }
@@ -1290,7 +1295,10 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .gc-odds-wrap{ margin-top:4px; }
 
 @media (max-width:520px){
-  .gc-pbp-viewport{ height:200px; }
+  .gc-pbp-viewport{ height:230px; }
+  .slate-card-top{ flex-direction:column; }
+  .slate-card-top .slate-teams{ flex-direction:row; justify-content:space-between; max-width:none; }
+  .slate-linescore-inline .linescore table{ font-size:10px; }
 }
 @media (prefers-reduced-motion: reduce){
   .pbp-row.in{ animation:none; }
@@ -6377,33 +6385,18 @@ class GamecastController {
       this.countWrap = el.querySelector('.gc-count-row');
       this.basesRow = el.querySelector('.gc-bases-row');
       this.muWrap = el.querySelector('.gc-mu-body');
-      this.pbpScroll = el.querySelector('.gc-pbp-scroll');
-      this.pbpSpacer = el.querySelector('.gc-pbp-spacer');
-      this.pbpEmpty = el.querySelector('.gc-pbp-empty');
       this.lastPlayEl = el.querySelector('.gc-last-play');
-      if(this.scrollTop && this.pbpScroll) this.pbpScroll.scrollTop = this.scrollTop;
-      el.querySelectorAll('.gc-filter-btn').forEach(b => {
-        if(b.dataset.f === this.filter) b.classList.add('active');
-        b.addEventListener('click', e => {
-          e.stopPropagation();
-          this.filter = b.dataset.f;
-          el.querySelectorAll('.gc-filter-btn').forEach(x => x.classList.toggle('active', x === b));
-          this.renderPBP();
-        });
-      });
-      if(this.pbpScroll){
-        this.pbpScroll.addEventListener('scroll', () => {
-          this.scrollTop = this.pbpScroll.scrollTop;
-          if(this._scrollRaf) return;
-          this._scrollRaf = requestAnimationFrame(() => { this._scrollRaf = null; this.renderPBP(); });
-        });
-      }
+      // PBP box now lives in its own tab pane (sibling of the gc-mount),
+      // bound separately in _bindPBP() — not scoped to this element.
+      this._pbpRoot = null;   // force re-bind on shell rebuild
       // fresh shell → force a one-time re-render of the signature-guarded bits
       this._countSig = this._basesSig = this._oddsSig = this._zoneSig = null;
       this._mounted = true;
     }
     // (Re)attach the 3D canvas if the shell was rebuilt and lost it; no-op if intact.
     this._initField();
+    // Bind (or re-bind) the Play by Play pane that lives outside the gc-mount.
+    this._bindPBP();
     if(this.g && this.g.liveScore) this._renderZoneFromLive(this.g.liveScore);
     if(!this.io){
       if('IntersectionObserver' in window){
@@ -6414,6 +6407,39 @@ class GamecastController {
         this.io.observe(el);
       } else { this.visible = true; this._onVisible(); }
     }
+  }
+
+  /** Bind the Play by Play pane. The PBP box lives in its own tab pane
+   *  (sibling of the gc-mount) rather than inside the gamecast, so it's bound
+   *  here via the card root. Idempotent: skips re-binding if the same pane node
+   *  is already wired (guarded by this._pbpRoot). */
+  _bindPBP(){
+    const card = this.root && this.root.closest('.slate-card');
+    const pbpRoot = card && card.querySelector('.gc-pane[data-gcpane="pbp"]');
+    if(!pbpRoot){ this.pbpScroll = this.pbpSpacer = this.pbpEmpty = null; return; }
+    if(this._pbpRoot === pbpRoot && this.pbpScroll && this.pbpSpacer) return;
+    this._pbpRoot = pbpRoot;
+    this.pbpScroll = pbpRoot.querySelector('.gc-pbp-scroll');
+    this.pbpSpacer = pbpRoot.querySelector('.gc-pbp-spacer');
+    this.pbpEmpty = pbpRoot.querySelector('.gc-pbp-empty');
+    if(this.scrollTop && this.pbpScroll) this.pbpScroll.scrollTop = this.scrollTop;
+    pbpRoot.querySelectorAll('.gc-filter-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.f === this.filter);
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        this.filter = b.dataset.f;
+        pbpRoot.querySelectorAll('.gc-filter-btn').forEach(x => x.classList.toggle('active', x === b));
+        this.renderPBP();
+      });
+    });
+    if(this.pbpScroll){
+      this.pbpScroll.addEventListener('scroll', () => {
+        this.scrollTop = this.pbpScroll.scrollTop;
+        if(this._scrollRaf) return;
+        this._scrollRaf = requestAnimationFrame(() => { this._scrollRaf = null; this.renderPBP(); });
+      });
+    }
+    this.renderPBP();
   }
 
   _initField(){
@@ -6492,17 +6518,6 @@ class GamecastController {
           </div>
         </div>
       <div class="gamecast-right">
-        <div class="gc-pbp-card">
-          <div class="gc-pbp-head">
-            <span class="gc-mu-title">Play by Play</span>
-            <div class="gc-filters">
-              <button class="gc-filter-btn active" data-f="all">All</button>
-              <button class="gc-filter-btn" data-f="scoring">Scoring</button>
-              <button class="gc-filter-btn" data-f="hi">High Lev</button>
-            </div>
-          </div>
-          <div class="gc-pbp-viewport"><div class="gc-pbp-scroll"><div class="gc-pbp-spacer"></div><div class="gc-pbp-empty">No plays yet.</div></div></div>
-        </div>
         <div class="gc-odds-wrap"></div>
       </div>
     </div>`;
@@ -6905,21 +6920,37 @@ const _gcView = {};
  * the inning-by-inning line score. Tabs only appear for the panes that have
  * data, so a game whose boxscore hasn't populated yet just shows the gamecast.
  */
+/** Shell for the Play by Play box. Lives in its own tab pane (outside the
+ *  gc-mount) so the GamecastController binds to it via _bindPBP() rather than
+ *  scoping queries to its mount element. Class names are preserved from the
+ *  original in-gamecast PBP card. */
+function pbpCardHTML(){
+  return `<div class="gc-pbp-card">
+    <div class="gc-pbp-head">
+      <span class="gc-mu-title">Play by Play</span>
+      <div class="gc-filters">
+        <button class="gc-filter-btn active" data-f="all">All</button>
+        <button class="gc-filter-btn" data-f="scoring">Scoring</button>
+        <button class="gc-filter-btn" data-f="hi">High Lev</button>
+      </div>
+    </div>
+    <div class="gc-pbp-viewport"><div class="gc-pbp-scroll"><div class="gc-pbp-spacer"></div><div class="gc-pbp-empty">No plays yet.</div></div></div>
+  </div>`;
+}
+
 function liveDetailHTML(g, opts){
   const withGamecast = !opts || opts.gamecast !== false;
   const box = boxScoreHTML(g);
-  const line = linescoreHTML(g);
+  // Line score now renders inline in the card header (see slateCardHTML);
+  // the detail panes are: the 3D gamecast, the box score, and the Play by Play
+  // log (which moved out of the gamecast into its own tab).
   const panes = [
     withGamecast ? { id: 'game', label: 'Game View', html: gamecastHTML(g) } : null,
     box  ? { id: 'box',  label: 'Box Score', html: box }  : null,
-    line ? { id: 'line', label: withGamecast ? 'Line Score' : 'Summary', html: `<div class="gc-line-pane">${line}</div>` } : null,
+    withGamecast ? { id: 'pbp', label: 'Play by Play', html: `<div class="gc-pbp-pane">${pbpCardHTML()}</div>` } : null,
   ].filter(Boolean);
 
-  // A completed game leads with its line score; a live one leads with the field.
-  if(!withGamecast) panes.reverse();
-
   if(!panes.length) return '';
-
   if(panes.length === 1) return panes[0].html;
 
   const active = panes.some(p => p.id === _gcView[g.id]) ? _gcView[g.id] : panes[0].id;
@@ -6945,6 +6976,13 @@ function wireGamecastTabs(root){
       _gcView[btn.dataset.gcgid] = view;
       wrap.querySelectorAll('.gc-tab').forEach(b => b.classList.toggle('active', b === btn));
       wrap.querySelectorAll('.gc-pane').forEach(p => p.classList.toggle('active', p.dataset.gcpane === view));
+      // The PBP pane is display:none until opened, so its viewport reports
+      // height 0 and renderPBP() falls back to a default. Re-render once it's
+      // visible so the virtualized rows lay out at the real height. Likewise
+      // resize the 3D canvas when returning to Game View (it was hidden).
+      const c = _gcControllers[btn.dataset.gcgid];
+      if(view === 'pbp' && c) requestAnimationFrame(() => c.renderPBP());
+      if(view === 'game' && c && c.field) requestAnimationFrame(() => c.field.resize());
     });
   });
 }
@@ -6981,23 +7019,30 @@ function slateCardHTML(g){
     : isFinal ? liveDetailHTML(g, { gamecast: false })
     : slateFieldHTML(g);
 
+  // Line score renders inline at the top, to the right of the team logos
+  // (it used to be its own tab). Empty for games that haven't started.
+  const line = linescoreHTML(g);
+
   return `
     <div class="slate-card ${isLive?'is-live':''} ${isFinal?'is-final':''}" data-gid="${g.id}">
       <div class="slate-status-row">
         ${badge}
         <span class="slate-time">${isLive ? inningTxt : (isFinal ? (g.parkShort || g.park.split(',')[0]) : gameTime(g))}</span>
       </div>
-      <div class="slate-teams">
-        <div class="slate-team-row ${battingAway?'batting':''} ${awayWon?'won':''}">
-          <img class="slate-logo" src="${teamLogoUrl(g.away)}" alt="${g.away}" onerror="this.style.visibility='hidden'">
-          <span class="slate-team-name">${g.awayName}</span>
-          <span class="slate-runs" id="away-runs-${g.id}">${awayRuns}</span>
+      <div class="slate-card-top">
+        <div class="slate-teams">
+          <div class="slate-team-row ${battingAway?'batting':''} ${awayWon?'won':''}">
+            <img class="slate-logo" src="${teamLogoUrl(g.away)}" alt="${g.away}" onerror="this.style.visibility='hidden'">
+            <span class="slate-team-name">${g.awayName}</span>
+            <span class="slate-runs" id="away-runs-${g.id}">${awayRuns}</span>
+          </div>
+          <div class="slate-team-row ${battingHome?'batting':''} ${homeWon?'won':''}">
+            <img class="slate-logo" src="${teamLogoUrl(g.home)}" alt="${g.home}" onerror="this.style.visibility='hidden'">
+            <span class="slate-team-name">${g.homeName}</span>
+            <span class="slate-runs" id="home-runs-${g.id}">${homeRuns}</span>
+          </div>
         </div>
-        <div class="slate-team-row ${battingHome?'batting':''} ${homeWon?'won':''}">
-          <img class="slate-logo" src="${teamLogoUrl(g.home)}" alt="${g.home}" onerror="this.style.visibility='hidden'">
-          <span class="slate-team-name">${g.homeName}</span>
-          <span class="slate-runs" id="home-runs-${g.id}">${homeRuns}</span>
-        </div>
+        ${line ? `<div class="slate-linescore-inline" id="ls-${g.id}">${line}</div>` : ''}
       </div>
       ${body}
     </div>`;
@@ -7024,6 +7069,16 @@ function refreshLiveCardHeaders(){
     if(rows.length === 2 && isLive){
       rows[0].classList.toggle('batting', ls.inningState === 'Top');
       rows[1].classList.toggle('batting', ls.inningState === 'Bottom');
+    }
+    // Inline line score (moved out of its own tab into the card header):
+    // re-render only when an inning / R-H-E / current-inning signature changes.
+    const lsSlot = card.querySelector(`#ls-${g.id}`);
+    if(lsSlot){
+      const inn = ls.innings || [];
+      const lsig = inn.map(i => i.num+':'+(i.away??'-')+(i.home??'-')).join('|')
+        +'|'+(ls.away??'')+'-'+(ls.home??'')+'-'+(ls.awayHits??'')+'-'+(ls.homeHits??'')
+        +'-'+(ls.awayErrors??'')+'-'+(ls.homeErrors??'')+'-'+(ls.inning??'')+'-'+(ls.inningState??'');
+      if(lsSlot._lsig !== lsig){ lsSlot._lsig = lsig; lsSlot.innerHTML = linescoreHTML(g); }
     }
   });
 }
