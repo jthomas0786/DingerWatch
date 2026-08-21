@@ -32,9 +32,9 @@ export const STATUS_MAP = {
 
 // ESPN's injuries feed reports ESPN team abbreviations (WSH, LAR); the stats cache is
 // keyed by nflverse abbreviations (WAS, LA). Canonicalize so the name+team fallback
-// key matches. Kept local to avoid a circular import with adapter.js.
-const TEAM_ALIASES = { WSH: 'WAS', LAR: 'LA', JAC: 'JAX', OAK: 'LV', SD: 'LAC', STL: 'LA', ARZ: 'ARI', BLT: 'BAL', CLV: 'CLE', HST: 'HOU' };
-const canonTeam = (a) => { const u = String(a || '').toUpperCase(); return TEAM_ALIASES[u] || u; };
+// key matches. The alias table is shared — see ./teams.js (teams.js imports nothing
+// from this module, so there is no circular import).
+import { canonTeam } from './teams.js';
 
 export function normName(name) {
   return String(name || '').toLowerCase()

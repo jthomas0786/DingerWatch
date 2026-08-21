@@ -7,6 +7,7 @@
   "model": {
     "method": "regressed-touchdown-rate",
     "sampleYear": 2025,
+    "rosterYear": 2026,
     "prior": { "QB": 0.15, "RB": 0.32, "WR": 0.22, "TE": 0.16 },
     "priorWeight": 8,
     "rzBoostPerPlay": 0.012,
@@ -14,6 +15,15 @@
     "lowRoleSnapThreshold": 0.3,
     "lowRoleGamesThreshold": 8,
     "lowRoleReduction": 0.5,
+    "depthRoleFactor": {
+      "QB": [1.0, 0.12, 0.05],
+      "RB": [1.0, 0.62, 0.3, 0.15],
+      "WR": [1.0, 0.9, 0.72, 0.42, 0.22],
+      "TE": [1.0, 0.45, 0.2]
+    },
+    "depthRoleFloor": 0.1,
+    "rookieDraftBoost": { "round1": 1.18, "round2": 1.08, "round3": 1.0, "later": 0.92 },
+    "noHistoryPenalty": 0.55,
     "rzDefWeight": 0.6,
     "rzDefMin": 0.85,
     "rzDefMax": 1.18,

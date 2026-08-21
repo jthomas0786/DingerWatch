@@ -21,10 +21,13 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname as pathDirname } from 'node:path';
 import { loadOrBuildStatsCache } from './stats.js';
+import { loadOrBuildRoster2026Cache, blendRosters } from './roster2026.js';
+import { canonTeam, TEAM_ALIASES, CANON_TEAMS } from './teams.js';
 import { fetchAvailability, lookupAvailability } from './availability.js';
 
 const UA = 'dinger-watch-slate-builder/1.0';
 const CACHE_PATH = '/tmp/nfl_stats_2025_v2.json';
+const ROSTER_CACHE_PATH = '/tmp/nfl_roster_2026.json';
 const HERE = fileURLToPath(new URL('./', import.meta.url));
 
 function arg(flag, fallback) {
@@ -84,9 +87,39 @@ export function scoreAtdPlayer(p, config, ctx = {}) {
   // regress observed TD/game toward the position prior
   let prob = (tdRate * gp + prior * m.priorWeight) / (gp + m.priorWeight);
 
-  // low-role discount: limited snaps + few games => likely backup
-  if (gp < m.lowRoleGamesThreshold && (p.snapShare || 0) < m.lowRoleSnapThreshold) {
-    prob *= m.lowRoleReduction;
+  // --- role: 2026 depth-chart rank, else the 2025 snap-share heuristic ---
+  // Depth rank is the better signal because it describes the player's role THIS
+  // season. A 2025 backup who is now the starter (or a rookie RB1) is invisible to
+  // snap share but obvious from depth rank, so rank wins whenever it is present.
+  let roleFactor = 1, roleSource = 'none';
+  if (p.depthRank != null) {
+    const ladder = m.depthRoleFactor[p.position];
+    roleFactor = ladder
+      ? (ladder[Math.min(p.depthRank, ladder.length) - 1] ?? m.depthRoleFloor)
+      : 1;
+    roleFactor = Math.max(m.depthRoleFloor, roleFactor);
+    roleSource = 'depth-2026';
+    prob *= roleFactor;
+  } else if (gp < m.lowRoleGamesThreshold && (p.snapShare || 0) < m.lowRoleSnapThreshold) {
+    // fallback: limited snaps + few games => likely backup
+    roleFactor = m.lowRoleReduction;
+    roleSource = 'snap-2025';
+    prob *= roleFactor;
+  }
+
+  // --- no 2025 production history ---
+  // Rookies get the position prior shaped by draft capital (early picks are drafted
+  // to be featured). Veterans with no history are likely fringe roster players, so
+  // they take a penalty instead. Neither gets a fabricated sample.
+  let historyFactor = 1;
+  if (p.dataConfidence === 'rookie') {
+    const d = p.draftNumber;
+    const b = m.rookieDraftBoost;
+    historyFactor = d == null ? b.later : d <= 32 ? b.round1 : d <= 64 ? b.round2 : d <= 105 ? b.round3 : b.later;
+    prob *= historyFactor;
+  } else if (p.dataConfidence === 'no-history') {
+    historyFactor = m.noHistoryPenalty;
+    prob *= historyFactor;
   }
 
   // red-zone involvement boost (heavy RZ usage raises future TD odds)
@@ -120,6 +153,8 @@ export function scoreAtdPlayer(p, config, ctx = {}) {
   return {
     probability: +prob.toFixed(4),
     grade, gradeLabel: label,
+    dataConfidence: p.dataConfidence || 'full',
+    isRookie: !!p.isRookie,
     availability: {
       status: availStatus,
       statusRaw: av?.statusRaw || null,
@@ -132,10 +167,15 @@ export function scoreAtdPlayer(p, config, ctx = {}) {
       rzPerGame: +rzPerGame.toFixed(2),
       snapShare: p.snapShare || 0,
       gamesPlayed: gp,
+      depthRank: p.depthRank ?? null,
+      roleFactor: +roleFactor.toFixed(3),
+      roleSource,
+      historyFactor: +historyFactor.toFixed(3),
       oppRzDefIndex: rzDefIndex,
       oppRzDefFactor: +rzDefFactor.toFixed(3),
       oppRzTdRateAllowed: d?.rzTdRateAllowed ?? null,
       sampleYear: m.sampleYear,
+      rosterYear: m.rosterYear,
     },
   };
 }
@@ -145,24 +185,10 @@ export function scoreAtdPlayer(p, config, ctx = {}) {
 // without this, Washington and the Rams silently produce ZERO players and a neutral
 // red-zone-defense factor. Legacy relocation codes are included so older ESPN
 // payloads and historical PBP seasons both land on the current franchise.
-export const TEAM_ALIASES = {
-  WSH: 'WAS',   // ESPN uses WSH, nflverse uses WAS
-  LAR: 'LA',    // ESPN uses LAR, nflverse uses LA
-  JAC: 'JAX',
-  OAK: 'LV',    // pre-2020 Raiders
-  SD:  'LAC',   // pre-2017 Chargers
-  STL: 'LA',    // pre-2016 Rams
-  ARZ: 'ARI',
-  BLT: 'BAL',
-  CLV: 'CLE',
-  HST: 'HOU',
-};
-
-/** Canonical (nflverse) team abbreviation for joins. */
-export function canonTeam(abbr) {
-  const a = String(abbr || '').toUpperCase();
-  return TEAM_ALIASES[a] || a;
-}
+// Team-abbreviation canonicalization lives in ./teams.js (single source of truth,
+// shared with availability.js and roster2026.js). Re-exported here because callers
+// and tests already import these names from the adapter.
+export { TEAM_ALIASES, canonTeam };
 
 function teamFromCompetitor(comp) {
   const espnAbbr = comp.team?.abbreviation;
@@ -219,9 +245,15 @@ function buildGame(event, playersByTeam, config, ctx) {
       players.push({
         gsisId: p.gsisId, espnId: p.espnId, name: p.name, team: p.team,
         position: p.position, depth: p.depth, jersey: p.jersey, headshot: p.headshot,
+        depthRank: p.depthRank,
+        yearsExp: p.yearsExp,
+        isRookie: p.isRookie,
+        prevTeam: p.prevTeam,
+        teamChanged: p.teamChanged,
         stats: {
           snapShare: p.snapShare, gamesPlayed: p.gamesPlayed,
           rzTargets: p.rzTargets, rzCarries: p.rzCarries, tds: p.tds,
+          statsSeason: p.gamesPlayed > 0 ? 2025 : null,
         },
         opponent: opp,
         props: { atd: { ...atd, oddsAvailable: config.availability.oddsAvailable } },
@@ -255,11 +287,35 @@ export async function build() {
   const config = JSON.parse(await readFile(new URL('./config.json', import.meta.url), 'utf8'));
   const { players, teamDefense, leagueRzTdRate, warnings: statWarnings } = await loadOrBuildStatsCache(CACHE_PATH);
 
+  // 2026 roster + depth chart is the source of truth for who exists and where they
+  // play; the 2025 stats above only supply production history. Fail-soft: if the
+  // 2026 layer is unavailable we fall back to the 2025 roster so the build still
+  // produces a slate, with a warning saying the rosters are stale.
+  let pool, blendStats = null, roster2026 = null, rosterWarnings = [];
+  try {
+    roster2026 = await loadOrBuildRoster2026Cache(ROSTER_CACHE_PATH, { force: process.argv.includes('--refresh-roster') });
+    rosterWarnings = roster2026.warnings || [];
+    const blended = blendRosters(players, roster2026);
+    pool = blended.pool;
+    blendStats = blended.stats;
+  } catch (e) {
+    rosterWarnings = [`roster2026: UNAVAILABLE (${String(e.message).slice(0, 90)}) — falling back to 2025 rosters; team assignments may be stale`];
+    pool = Object.values(players).map(p => ({ ...p, depthRank: null, isRookie: false, dataConfidence: 'full', teamChanged: false, prevTeam: null }));
+  }
+
   // index players by team abbr
   const playersByTeam = {};
-  for (const p of Object.values(players)) {
+  for (const p of pool) {
     (playersByTeam[p.team] = playersByTeam[p.team] || []).push(p);
   }
+
+  // Coverage guard: an abbreviation mismatch between feeds fails SILENTLY (the team
+  // just gets zero players). Assert every canonical team has a roster and surface any
+  // gap as a loud warning rather than letting it ship as a quietly empty team.
+  const emptyTeams = CANON_TEAMS.filter(t => !(playersByTeam[t]?.length));
+  const unknownTeams = Object.keys(playersByTeam).filter(t => !CANON_TEAMS.includes(t));
+  if (emptyTeams.length) rosterWarnings.push(`TEAM COVERAGE: ${emptyTeams.length} team(s) have NO players — ${emptyTeams.join(',')} (likely an abbreviation mismatch; check teams.js TEAM_ALIASES)`);
+  if (unknownTeams.length) rosterWarnings.push(`TEAM COVERAGE: unrecognized team abbr(s) ${unknownTeams.join(',')} — add to teams.js TEAM_ALIASES`);
 
   // live availability (fail-soft: a failure leaves every status 'unconfirmed'
   // and the model applies a neutral factor rather than assuming everyone is active)
@@ -273,9 +329,12 @@ export async function build() {
 
   const playerCount = games.reduce((n, g) => n + g.players.length, 0);
   const availCounts = {};
+  const confCounts = {};
   for (const g of games) for (const p of g.players) {
     const s = p.props.atd.availability.status;
     availCounts[s] = (availCounts[s] || 0) + 1;
+    const c = p.props.atd.dataConfidence;
+    confCounts[c] = (confCounts[c] || 0) + 1;
   }
   const payload = {
     sport: 'nfl',
@@ -292,24 +351,35 @@ export async function build() {
       counts: availCounts,
     },
     leagueRzTdRate,
+    rosters: {
+      rosterYear: 2026,
+      statsYear: 2025,
+      source: roster2026 ? 'nflverse roster_2026 + depth_charts_2026' : 'fallback: nflverse 2025',
+      depthSnapshot: roster2026?.latestDepthSnapshot || null,
+      dataConfidence: confCounts,
+      blend: blendStats,
+    },
     sources: {
       schedule: 'ESPN hidden API (CC-BY-NC 4.0, ESPN)',
+      rosters: 'nflverse 2026 (roster + depth_charts, CC-BY 4.0)',
       players: 'nflverse 2025 (roster + snap_counts + pbp, CC-BY 4.0)',
-      stats: 'nflverse 2025 regular season',
+      stats: 'nflverse 2025 regular season (production baseline)',
       injuries: 'ESPN injuries endpoint (live)',
-      model: 'regressed-touchdown-rate + opponent red-zone defense + availability (self-contained, v1.1)',
+      model: 'regressed-touchdown-rate + 2026 depth-chart role + opponent red-zone defense + availability (self-contained, v1.2)',
     },
     warnings: [
-      `sampleYear: 2025 (2026 regular-season games not yet available; baseline = last season)`,
-      `rosters: 2025 end-of-season; 2026 free-agency/draft moves not reflected`,
+      `production baseline: 2025 regular season (2026 games not yet played)`,
+      `rosters: nflverse 2026 — current teams, rookies and depth-chart role are reflected`,
+      `carryover: a traded player's 2025 rate travels with him; his 2026 opportunity is captured by depth rank, not by his old team's usage`,
       `rz-defense: opponent red-zone TD rate allowed is a 2025 signal, tempered by rzDefWeight=${config.model.rzDefWeight}`,
       `odds/inactives: ${config.availability.note}`,
+      ...rosterWarnings,
       ...(availability.warnings || []),
       ...statWarnings,
     ],
     games,
   };
-  if (VERBOSE) console.log(`  nfl ${payload.slateId}: ${games.length} games, ${playerCount} players graded, availability=${JSON.stringify(availCounts)}`);
+  if (VERBOSE) console.log(`  nfl ${payload.slateId}: ${games.length} games, ${playerCount} players graded, confidence=${JSON.stringify(confCounts)}, availability=${JSON.stringify(availCounts)}`);
   await writeOut(payload);
   return payload;
 }
