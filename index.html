@@ -1244,6 +1244,19 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .gc-ot-val.wp-win{ color: var(--live-green); }
 .gc-ot-val.wp-lose{ color: var(--hot); }
 .gc-ot-val.wp-proj{ color: var(--mute); font-size:11.5px; }
+/* Small LIVE label above the odds grid — tells readers these are modeled,
+   in-game probabilities rather than live sportsbook moneyline prices. */
+.gc-odds-live{
+  display:flex; align-items:center; gap:5px; margin-bottom:5px;
+  font-family:'JetBrains Mono','Space Mono',monospace; font-size:9px; font-weight:700;
+  color: var(--live-green); text-transform:uppercase; letter-spacing:0.06em;
+}
+.gc-odds-live-dot{
+  width:6px; height:6px; border-radius:50%; background: var(--live-green);
+  box-shadow: 0 0 6px var(--live-green); animation: gcLivePulse 1.6s ease-in-out infinite;
+}
+.gc-odds-live-sub{ color: var(--mute); font-weight:500; text-transform:none; letter-spacing:0; }
+@keyframes gcLivePulse{ 0%,100%{ opacity:1; } 50%{ opacity:0.35; } }
 
 .gc-props-list{ display:flex; flex-direction:column; gap:6px; }
 .gc-prop-row{
@@ -7330,7 +7343,11 @@ function gcOddsPropsHTML(g){
     ouCls = 'wp-proj';
   } else { ouVal = '—'; ouCls = ''; }
 
-  const grid = `<div class="gc-odds-grid">` +
+  // A small LIVE tag so readers understand these are modeled, in-game
+  // probabilities (not live sportsbook moneyline prices).
+  const liveTag = `<div class="gc-odds-live"><span class="gc-odds-live-dot"></span>LIVE<span class="gc-odds-live-sub"> · modeled win probability</span></div>`;
+
+  const grid = liveTag + `<div class="gc-odds-grid">` +
     `<div class="gc-odds-tile"><div class="gc-ot-label">${g.away} ML</div><div class="gc-ot-val ${awayCls}">${aPct}%</div></div>` +
     `<div class="gc-odds-tile"><div class="gc-ot-label">${g.home} ML</div><div class="gc-ot-val ${homeCls}">${hPct}%</div></div>` +
     `<div class="gc-odds-tile"><div class="gc-ot-label">O/U</div><div class="gc-ot-val ${ouCls}">${ouVal}</div></div>` +
