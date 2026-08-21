@@ -7001,6 +7001,10 @@ function pbpCardHTML(){
 
 function liveDetailHTML(g, opts){
   const withGamecast = !opts || opts.gamecast !== false;
+  // Final games (gamecast off): the box score lives only in the modal that
+  // opens when the game chip is clicked — the card itself shows just the line
+  // score summary in its header, so the card body stays empty.
+  if(!withGamecast) return '';
   const box = boxScoreHTML(g);
   // Line score now renders inline in the card header (see slateCardHTML);
   // the detail panes are: the 3D gamecast, the box score, and the Play by Play
@@ -7012,9 +7016,6 @@ function liveDetailHTML(g, opts){
   ].filter(Boolean);
 
   if(!panes.length) return '';
-  // A finished game only has the Box Score pane (no live gamecast), but it must
-  // still render inside the tab bar — never as bare content — so the card keeps
-  // a consistent "Box Score" tab the user can click.
   const active = panes.some(p => p.id === _gcView[g.id]) ? _gcView[g.id] : panes[0].id;
   const tabs = panes.map(p =>
     `<button type="button" class="gc-tab ${p.id === active ? 'active' : ''}" data-gcview="${p.id}" data-gcgid="${g.id}">${p.label}</button>`).join('');
