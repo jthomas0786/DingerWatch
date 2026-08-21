@@ -11,6 +11,8 @@
  * Data contract: ./slates/nfl.json, written by sports/nfl/adapter.js.
  */
 import { SPORTS, isPreview } from '../registry.js';
+import { startLivePolling, stopLivePolling } from './live.js';
+import { liveWinProb } from './winprob.js';
 
 const CFG = SPORTS.nfl;
 let slate = null;
@@ -132,6 +134,31 @@ function fieldSVG(game, mode = 'compact') {
         letter-spacing="1.5">${esc(game.home.abbr)}</text>
   <rect x="0" y="0" width="${W}" height="${h}" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="1"/>
 </svg>`;
+}
+
+// ---------------------------------------------------------------------------
+// live win-probability strip (moneyline tiles)
+// ---------------------------------------------------------------------------
+/**
+ * Modeled in-game win probability for the expanded gamecast — NOT a live
+ * sportsbook moneyline. The team more likely to win turns green, the other red;
+ * the O/U tile shows a projected final total (the NFL slate carries no total
+ * line). A small LIVE label makes the modeled nature explicit.
+ */
+function oddsHTML(game) {
+  const wp = liveWinProb(game);
+  const aPct = Math.round(wp.awayPct * 100);
+  const hPct = Math.round(wp.homePct * 100);
+  const aWin = wp.awayPct >= wp.homePct;
+  const awayCls = aWin ? 'wp-win' : 'wp-lose';
+  const homeCls = aWin ? 'wp-lose' : 'wp-win';
+  const ouVal = wp.projTotal != null ? `Proj ${wp.projTotal.toFixed(1)}` : '—';
+  return `<div class="nfl-gc-live"><span class="nfl-gc-live-dot"></span>LIVE<span class="nfl-gc-live-sub"> · modeled win probability</span></div>
+<div class="nfl-gc-odds">
+  <div class="nfl-gc-ot"><div class="nfl-gc-ot-label">${esc(game.away.abbr)} ML</div><div class="nfl-gc-ot-val ${awayCls}">${aPct}%</div></div>
+  <div class="nfl-gc-ot"><div class="nfl-gc-ot-label">${esc(game.home.abbr)} ML</div><div class="nfl-gc-ot-val ${homeCls}">${hPct}%</div></div>
+  <div class="nfl-gc-ot"><div class="nfl-gc-ot-label">O/U</div><div class="nfl-gc-ot-val wp-proj">${ouVal}</div></div>
+</div>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -355,6 +382,7 @@ ${g ? `
     <span>${esc(g.venue?.name || '')}${g.venue?.city ? ` · ${esc(g.venue.city)}` : ''}</span>
     ${(g.broadcast || []).map(b => `<span class="nfl-chip">${esc(b.names?.join('/') || '')}</span>`).join('')}
   </div>
+  ${oddsHTML(g)}
 </section>` : `<div class="nfl-games" id="nflGames"></div>`}
 
 <div class="nfl-picklist-head">
@@ -396,6 +424,9 @@ export async function mount() {
     slate = await r.json();
     if (!slate.games?.length) throw new Error('slate contains no games');
     render();
+    // Live score polling (ESPN scoreboard, CORS-enabled) keeps score/period/
+    // clock/possession current so the win-probability tiles stay live.
+    startLivePolling(slate, () => render());
   } catch (e) {
     root.innerHTML = `<div class="nfl-error">
       <div class="nfl-error-title">Couldn't load the NFL slate</div>
