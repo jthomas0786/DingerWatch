@@ -1172,6 +1172,72 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
   .gamecast-diamond{ width:160px; height:160px; margin:0 auto; }
   .gc-odds-grid{ grid-template-columns:1fr 1fr 1fr; }
 }
+/* ---- gamecast controller: canvas diamond ---- */
+.gc-canvas{ width:200px; height:200px; display:block; }
+.gamecast-diamond{ width:200px; height:200px; position:relative; }
+
+/* ---- batter vs pitcher matchup card ---- */
+.gc-mu-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.gc-mu-title{ font-family:'Oswald',sans-serif; font-size:12px; font-weight:600; color:var(--white); text-transform:uppercase; letter-spacing:0.04em; }
+.gc-mu-body{ display:flex; flex-direction:column; gap:6px; }
+.gc-mu-names{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.gc-mu-names b{ font-family:'Oswald',sans-serif; font-size:13px; color:var(--white); font-weight:600; }
+.gc-mu-vs{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:9px; color:var(--mute); text-transform:uppercase; }
+.gc-mu-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px; }
+.gc-mu-col{ background:var(--night2); border:1px solid var(--line); border-radius:8px; padding:8px; }
+.gc-mu-col-h{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:9px; color:var(--mute); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px; display:flex; align-items:center; gap:6px; }
+.gc-mu-cell{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:2px 0; }
+.gc-mu-cell span{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:10px; color:var(--mute); }
+.gc-mu-cell b{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:12px; color:var(--white); font-weight:700; }
+.gc-mu-cell.sub{ opacity:0.85; }
+.gc-trend{ font-size:10px; line-height:1; }
+.gc-trend.hot{ color:var(--live-green); }
+.gc-trend.cold{ color:var(--hr-red); }
+.gc-trend.neutral{ color:var(--mute); }
+.gc-mu-skel{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:10px; color:var(--mute); padding:6px 0; }
+.gc-mu-none{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:10px; color:var(--mute); padding:6px 0; }
+.gc-mu-h2h{ margin-top:8px; padding-top:8px; border-top:1px solid var(--line); font-family:'JetBrains Mono','Space Mono',monospace; font-size:10px; color:var(--mute); }
+.gc-mu-h2h b{ color:var(--white); font-weight:700; }
+.gc-mu-h2h.muted{ color:var(--mute); }
+.gc-last-play{ display:none; margin-top:8px; padding-top:8px; border-top:1px solid var(--line); font-family:'JetBrains Mono','Space Mono',monospace; font-size:10.5px; color:var(--white); line-height:1.4; }
+.gc-last-play.has{ display:block; }
+.gc-last-play::before{ content:'▸ '; color:var(--accent); }
+
+/* ---- play-by-play log (virtualized) ---- */
+.gc-pbp-card{ background:var(--night2); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+.gc-pbp-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:8px; }
+.gc-filters{ display:flex; gap:4px; }
+.gc-filter-btn{ background:transparent; border:1px solid var(--line); color:var(--mute); font-family:'JetBrains Mono','Space Mono',monospace; font-size:9px; text-transform:uppercase; letter-spacing:0.03em; padding:3px 8px; border-radius:12px; cursor:pointer; transition:all .15s ease; }
+.gc-filter-btn:hover{ border-color:var(--accent); color:var(--white); }
+.gc-filter-btn.active{ background:var(--accent); border-color:var(--accent); color:var(--night); font-weight:700; }
+.gc-pbp-viewport{ height:230px; overflow:hidden; position:relative; }
+.gc-pbp-scroll{ height:100%; overflow-y:auto; position:relative; overscroll-behavior:contain; }
+.gc-pbp-scroll::-webkit-scrollbar{ width:6px; }
+.gc-pbp-scroll::-webkit-scrollbar-thumb{ background:var(--line); border-radius:3px; }
+.gc-pbp-spacer{ position:relative; }
+.gc-pbp-empty{ position:absolute; top:0; left:0; right:0; text-align:center; font-family:'JetBrains Mono','Space Mono',monospace; font-size:10px; color:var(--mute); padding:18px 0; }
+.pbp-row{ position:absolute; left:0; right:0; height:30px; display:flex; align-items:center; gap:8px; padding:0 4px; border-bottom:1px solid rgba(255,255,255,0.04); box-sizing:border-box; }
+.pbp-inn{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:9px; color:var(--mute); flex-shrink:0; width:30px; }
+.pbp-desc{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:10px; color:var(--mute); line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+.pbp-row.pbp-hit .pbp-desc{ color:var(--live-green); }
+.pbp-row.pbp-hr .pbp-desc{ color:var(--hr-red); font-weight:700; }
+.pbp-row.pbp-so .pbp-desc{ color:var(--hr-red); opacity:0.85; }
+.pbp-row.pbp-bb .pbp-desc{ color:var(--accent-bright); }
+.pbp-row.pbp-run .pbp-desc{ color:var(--live-green); font-weight:700; }
+.pbp-row.pbp-out .pbp-desc{ color:var(--mute); }
+.pbp-row.pbp-hit .pbp-inn, .pbp-row.pbp-hr .pbp-inn, .pbp-row.pbp-run .pbp-inn{ color:var(--live-green); }
+.pbp-row.in{ animation:pbpSlide .45s cubic-bezier(0.22,1,0.36,1); }
+@keyframes pbpSlide{ from{ opacity:0; transform:translateY(-8px); } to{ opacity:1; transform:translateY(0); } }
+.gc-odds-wrap{ margin-top:4px; }
+
+@media (max-width:520px){
+  .gc-canvas, .gamecast-diamond{ width:160px; height:160px; }
+  .gc-pbp-viewport{ height:200px; }
+}
+@media (prefers-reduced-motion: reduce){
+  .pbp-row.in{ animation:none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -5698,6 +5764,63 @@ async function fetchLiveGameStates(){
             lastPlay: data.liveData && data.liveData.plays && data.liveData.plays.currentPlay
               ? data.liveData.plays.currentPlay.result && data.liveData.plays.currentPlay.result.description
               : null,
+            // Base runners WITH ids — the diamond interpolates the same runner's
+            // position across polls when they advance (1B→2B→3B→home). Booleans
+            // can only light up a base, not move a runner.
+            runners: [
+              off.first && { base:'1B', id:off.first.id, name:off.first.fullName },
+              off.second && { base:'2B', id:off.second.id, name:off.second.fullName },
+              off.third && { base:'3B', id:off.third.id, name:off.third.fullName },
+            ].filter(Boolean),
+            // Current batter-vs-pitcher matchup (ids feed the on-demand stat fetch).
+            matchup: (function(){
+              const cp = data.liveData && data.liveData.plays && data.liveData.plays.currentPlay;
+              const mu = cp && cp.matchup;
+              const bat = (mu && mu.batter) || off.batter;
+              const pch = (mu && mu.pitcher) || (line.defense && line.defense.pitcher);
+              if(!bat || !pch) return null;
+              return {
+                batter: { id: bat.id, name: bat.fullName, side: mu && mu.batterSide || null },
+                pitcher: { id: pch.id, name: pch.fullName, side: mu && mu.pitcherSide || null },
+              };
+            })(),
+            // Stable id + event class for the latest play — used to trigger
+            // base-pulse / score-flash animations exactly once per play.
+            currentPlayId: (function(){
+              const cp = data.liveData && data.liveData.plays && data.liveData.plays.currentPlay;
+              const a = cp && cp.about;
+              return a ? (a.atBatIndex!=null?a.atBatIndex:0) + '-' + (a.playIndex!=null?a.playIndex:0) : null;
+            })(),
+            lastEvent: (data.liveData && data.liveData.plays && data.liveData.plays.currentPlay
+              && data.liveData.plays.currentPlay.result && data.liveData.plays.currentPlay.result.event) || null,
+            isScoringPlay: !!(data.liveData && data.liveData.plays && data.liveData.plays.currentPlay
+              && data.liveData.plays.currentPlay.about && data.liveData.plays.currentPlay.about.isScoringPlay),
+            leverageIndex: (function(){
+              const cp = data.liveData && data.liveData.plays && data.liveData.plays.currentPlay;
+              const li = cp && cp.about && cp.about.leverageIndex;
+              return li!=null ? Number(li) : null;
+            })(),
+            // Compact mapped play-by-play (newest last). The virtualized log
+            // only renders the visible slice, so carrying the full array is cheap.
+            plays: (function(){
+              const all = data.liveData && data.liveData.plays && data.liveData.plays.allPlays;
+              if(!all || !all.length) return [];
+              return all.map(p => {
+                const a = p.about || {}, r = p.result || {}, m = p.matchup || {};
+                return {
+                  id: (a.atBatIndex!=null?a.atBatIndex:0) + '-' + (a.playIndex!=null?a.playIndex:0),
+                  inning: a.inning || 0, half: a.half || '',
+                  event: r.event || '', desc: r.description || '',
+                  scoring: !!a.isScoringPlay,
+                  leverage: a.leverageIndex!=null ? Number(a.leverageIndex) : null,
+                  rbi: r.rbi || 0,
+                  away: r.awayScore!=null ? r.awayScore : null,
+                  home: r.homeScore!=null ? r.homeScore : null,
+                  batterId: m.batter ? m.batter.id : null,
+                  pitcherId: m.pitcher ? m.pitcher.id : null,
+                };
+              });
+            })(),
             // Per-inning runs. The API omits the bottom half when the home team
             // hasn't batted yet (or doesn't need to), so `runs` can be undefined —
             // that's meaningfully different from 0 and is rendered as a blank cell.
@@ -5778,137 +5901,477 @@ function linescoreHTML(g){
 //  the previous render. The pitch ball animation fires on each re-render cycle
 //  to simulate the live feel FanDuel has.
 // ============================================================================
-const _gcPrevState = {};
 
+/** Shell only — the live gamecast is a mounted canvas controller (see below),
+ *  not a string template. liveDetailHTML drops this mount into the Game View
+ *  tab pane; mountGamecasts() (called after each slate render) attaches the
+ *  GamecastController, which owns durable animation/scroll/filter/cached-stats
+ *  state across the 20s full-innerHTML rebuild. */
 function gamecastHTML(g){
-  const ls = g.liveScore || {};
-  const balls = ls.balls||0, strikes = ls.strikes||0, outs = ls.outs||0;
-  const gid = g.id;
+  return `<div class="gamecast-wrap"><div class="gc-mount" data-gid="${escapeHTML(String(g.id))}"></div></div>`;
+}
 
-  // Detect score changes for flash animation
-  const prev = _gcPrevState[gid] || {};
-  const awayChanged = prev.away != null && ls.away != null && prev.away !== ls.away;
-  const homeChanged = prev.home != null && ls.home != null && prev.home !== ls.home;
-  _gcPrevState[gid] = { away: ls.away, home: ls.home, balls, strikes, outs };
+// ============================================================================
+//  LIVE GAMECAST CONTROLLER
+//  - Canvas diamond redrawn at 60fps via requestAnimationFrame; runner positions
+//    interpolate toward their target base over ~600ms (no abrupt state jumps).
+//  - Color-coded pulse rings fire on steals/hits/scores (once per play).
+//  - Batter-vs-pitcher stats fetched on demand and cached by matchup key.
+//  - Virtualized play-by-play log: only the visible rows are in the DOM, new
+//    events prepend with a CSS slide-in, entries are color-coded by event type,
+//    and a filter toggles all / scoring / high-leverage (leverageIndex).
+//  - The rAF loop runs only while the gamecast is on screen (IntersectionObserver)
+//    so a slate with several live games doesn't burn battery on mobile.
+//  DOM is disposable (rebuilt every slate render); controller state is durable.
+//  All data comes from fetchLiveGameStates() polling — no mock data in prod.
+// ----------------------------------------------------------------------------
+const _gcControllers = {};
+const _gcMatchupCache = {};      // "batterId:pitcherId" -> { data, fetchedAt }
+const _gcPlayerCache = {};        // playerId -> { season, fetchedAt }
 
-  // Base occupancy from MLB feed (offense.first, second, third)
-  const onFirst = ls.firstBase || false;
-  const onSecond = ls.secondBase || false;
-  const onThird = ls.thirdBase || false;
+// Base coordinates on the 200×200 overhead diamond.
+const GC_BASES = { home:{x:100,y:160}, '1B':{x:142,y:118}, '2B':{x:100,y:76}, '3B':{x:58,y:118} };
+const GC_MOUND = { x:100, y:118 };
+const GC_ANIM_MS = 600;
 
-  // Diamond SVG — overhead view with bases, mound, and pitch ball
-  const diamondSVG = `
-    <div class="gamecast-diamond" id="gc-diamond-${gid}">
-      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-        <!-- outfield grass -->
-        <circle cx="100" cy="100" r="95" fill="#1a3d1a"/>
-        <circle cx="100" cy="100" r="95" fill="none" stroke="#2d5a2d" stroke-width="1.5"/>
-        <!-- infield dirt -->
-        <path d="M100,160 L50,110 L100,60 L150,110 Z" fill="#3a2a1a"/>
-        <!-- basepath diamond -->
-        <path d="M100,155 L140,110 L100,65 L60,110 Z" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" stroke-dasharray="3 2"/>
-        <!-- bases (2B top, 1B right, 3B left, home bottom) -->
-        <rect class="gc-base ${onSecond?'occupied':''}" x="96" y="61" width="8" height="8" fill="#f0ece8" rx="1" transform="rotate(45 100 65)"/>
-        <rect class="gc-base ${onFirst?'occupied':''}" x="136" y="106" width="8" height="8" fill="#f0ece8" rx="1" transform="rotate(45 140 110)"/>
-        <rect class="gc-base ${onThird?'occupied':''}" x="56" y="106" width="8" height="8" fill="#f0ece8" rx="1" transform="rotate(45 60 110)"/>
-        <!-- home plate -->
-        <path d="M95,155 L105,155 L105,160 L100,163 L95,160 Z" fill="#f0ece8"/>
-        <!-- pitcher's mound -->
-        <circle cx="100" cy="110" r="5" fill="#4a3226"/>
-        <circle cx="100" cy="110" r="1.5" fill="#f0ece8"/>
-        <!-- batter silhouette -->
-        <circle cx="100" cy="170" r="3" fill="rgba(255,255,255,0.4)"/>
-        <rect x="98" y="173" width="4" height="6" rx="1" fill="rgba(255,255,255,0.3)"/>
-        <!-- pitch ball (animated on re-render) -->
-        <circle class="gc-pitch-ball throwing" cx="100" cy="110" r="3" fill="#fff"/>
-        <!-- trajectory line for hits -->
-        <line class="gc-trajectory" x1="100" y1="110" x2="100" y2="40"/>
-      </svg>
-      <div class="gc-exit-velo" id="gc-velo-${gid}"></div>
-    </div>`;
+class GamecastController {
+  constructor(gid){
+    this.gid = gid;
+    this.runners = {};        // id -> { base, x, y, sx, sy, tx, ty, t0, name, leaving }
+    this.prevPlayId = null;
+    this.pulses = [];
+    this.pulseColor = '#2d7fff';
+    this.pbp = [];           // newest first (display order)
+    this.seenPlayIds = new Set();
+    this.filter = 'all';
+    this.scrollTop = 0;
+    this.matchupKey = null;
+    this.raf = null;
+    this.io = null;
+    this.visible = false;
+    this.g = null;
+  }
 
-  // Count circles (B/S/O)
-  const gcDots = (n, max, cls) => Array.from({length:max}, (_,i)=>`<span class="gc-dot ${i<n?cls:''}"></span>`).join('');
+  mount(el){
+    this.root = el;
+    el.innerHTML = this._buildHTML();
+    this.canvas = el.querySelector('.gc-canvas');
+    this.ctx = this.canvas && this.canvas.getContext('2d');
+    this.countWrap = el.querySelector('.gc-count-row');
+    this.basesRow = el.querySelector('.gc-bases-row');
+    this.muWrap = el.querySelector('.gc-mu-body');
+    this.pbpScroll = el.querySelector('.gc-pbp-scroll');
+    this.pbpSpacer = el.querySelector('.gc-pbp-spacer');
+    this.pbpEmpty = el.querySelector('.gc-pbp-empty');
+    this.lastPlayEl = el.querySelector('.gc-last-play');
+    if(this.scrollTop && this.pbpScroll) this.pbpScroll.scrollTop = this.scrollTop;
+    el.querySelectorAll('.gc-filter-btn').forEach(b => {
+      if(b.dataset.f === this.filter) b.classList.add('active');
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        this.filter = b.dataset.f;
+        el.querySelectorAll('.gc-filter-btn').forEach(x => x.classList.toggle('active', x === b));
+        this.renderPBP();
+      });
+    });
+    if(this.pbpScroll){
+      this.pbpScroll.addEventListener('scroll', () => {
+        this.scrollTop = this.pbpScroll.scrollTop;
+        if(this._scrollRaf) return;
+        this._scrollRaf = requestAnimationFrame(() => { this._scrollRaf = null; this.renderPBP(); });
+      });
+    }
+    if('IntersectionObserver' in window){
+      this.io = new IntersectionObserver(es => {
+        this.visible = !!(es[0] && es[0].isIntersecting);
+        if(this.visible) this._startRAF(); else this._stopRAF();
+      }, { threshold: 0.05 });
+      this.io.observe(el);
+    } else { this.visible = true; this._startRAF(); }
+  }
 
-  // Base status flags
-  const baseFlag = (label, active) => `<span class="gc-base-flag ${active?'active':''}">${label}</span>`;
-
-  // At-bat matchup card
-  const batterName = ls.batter || '—';
-  const pitcherName = ls.pitcher || '—';
-  const lastPitch = ls.lastPlay || '';
-
-  // Live odds (from slate.json odds data if available, otherwise show model projections)
-  const awayOdds = g.awayOdds != null ? fmtOdds(g.awayOdds) : '—';
-  const homeOdds = g.homeOdds != null ? fmtOdds(g.homeOdds) : '—';
-  const totalOdds = g.totalOdds != null ? g.totalOdds : '—';
-
-  // HR props — top 3 batters from this game in our model
-  const gameBatters = allBatters.filter(p => p.game && p.game.id === g.id)
-    .sort((a,b) => simulatePlayer(b).hr.exact - simulatePlayer(a).hr.exact).slice(0,3);
-  const propsHTML = gameBatters.length ? gameBatters.map(p => {
-    // Show the letter grade rather than the old index. "A- or better" is a
-    // ranking on tonight's slate, which is what a chip this small can convey.
-    const gr = gradeFor('hr', simulatePlayer(p).hr.exact);
-    const edge = ['A+','A','B+'].includes(gr.letter) ? 'good' : '';
-    const odds = p.odds ? fmtOdds(p.odds) : '—';
-    return `<div class="gc-prop-row">
-      <span class="gc-prop-name">${p.name}</span>
-      <span class="gc-prop-edge ${edge}">${gr.g}</span>
-      <span class="gc-prop-odds">${odds}</span>
-    </div>`;
-  }).join('') : '';
-
-  return `
-  <div class="gamecast-wrap">
+  _buildHTML(){
+    return `
     <div class="gamecast-grid">
       <div class="gamecast-diamond-wrap">
-        ${diamondSVG}
-        <div class="gc-count-row">
-          <div class="gc-count-item"><div class="gc-count-dots">${gcDots(balls,4,'ball-on')}</div><div class="gc-count-label">B</div></div>
-          <div class="gc-count-item"><div class="gc-count-dots">${gcDots(strikes,3,'strike-on')}</div><div class="gc-count-label">S</div></div>
-          <div class="gc-count-item"><div class="gc-count-dots">${gcDots(outs,3,'out-on')}</div><div class="gc-count-label">O</div></div>
-        </div>
-        <div class="gc-bases-row">
-          ${baseFlag('1B', onFirst)}
-          ${baseFlag('2B', onSecond)}
-          ${baseFlag('3B', onThird)}
-        </div>
+        <div class="gamecast-diamond"><canvas class="gc-canvas" width="200" height="200" aria-label="Live field"></canvas></div>
+        <div class="gc-count-row"></div>
+        <div class="gc-bases-row"></div>
       </div>
       <div class="gamecast-right">
         <div class="gc-matchup-card">
-          <div class="gc-matchup-row">
-            <span class="gc-mu-label">AT BAT</span>
-            <span class="gc-mu-name">${batterName}</span>
-          </div>
-          <div class="gc-matchup-row">
-            <span class="gc-mu-label">PITCHING</span>
-            <span class="gc-mu-name">${pitcherName}</span>
-          </div>
-          ${lastPitch ? `<div class="gc-last-pitch">${lastPitch}</div>` : ''}
+          <div class="gc-mu-head"><span class="gc-mu-title">Batter vs Pitcher</span></div>
+          <div class="gc-mu-body"><div class="gc-mu-skel">Loading matchup…</div></div>
+          <div class="gc-last-play"></div>
         </div>
-        ${propsHTML ? `
-        <div>
-          <div class="gc-odds-grid">
-            <div class="gc-odds-tile" id="gc-odds-away-${gid}"><div class="gc-ot-label">${g.away} ML</div><div class="gc-ot-val">${awayOdds}</div></div>
-            <div class="gc-odds-tile" id="gc-odds-home-${gid}"><div class="gc-ot-label">${g.home} ML</div><div class="gc-ot-val">${homeOdds}</div></div>
-            <div class="gc-odds-tile"><div class="gc-ot-label">O/U</div><div class="gc-ot-val">${totalOdds}</div></div>
+        <div class="gc-pbp-card">
+          <div class="gc-pbp-head">
+            <span class="gc-mu-title">Play by Play</span>
+            <div class="gc-filters">
+              <button class="gc-filter-btn active" data-f="all">All</button>
+              <button class="gc-filter-btn" data-f="scoring">Scoring</button>
+              <button class="gc-filter-btn" data-f="hi">High Lev</button>
+            </div>
           </div>
-        </div>` : ''}
-        ${propsHTML ? `
-        <div>
-          <div class="gc-props-list">${propsHTML}</div>
-        </div>` : ''}
+          <div class="gc-pbp-viewport"><div class="gc-pbp-scroll"><div class="gc-pbp-spacer"></div><div class="gc-pbp-empty">No plays yet.</div></div></div>
+        </div>
+        <div class="gc-odds-wrap"></div>
       </div>
-    </div>
-  </div>`;
+    </div>`;
+  }
+
+  update(g){
+    this.g = g;
+    const ls = g.liveScore || {};
+    const live = {};
+    (ls.runners || []).forEach(r => { live[r.id] = r; this._setRunner(r); });
+    // runners no longer on base → animate home, then drop
+    Object.keys(this.runners).forEach(id => {
+      if(!live[id]){
+        const r = this.runners[id];
+        if(!r.leaving){
+          r.sx = r.x; r.sy = r.y; r.tx = GC_BASES.home.x; r.ty = GC_BASES.home.y;
+          r.t0 = performance.now(); r.leaving = true;
+        }
+      }
+    });
+    if(this.countWrap) this.countWrap.innerHTML = this._countHTML(ls);
+    if(this.basesRow) this.basesRow.innerHTML = this._basesHTML(ls.runners || []);
+    if(this.lastPlayEl){ this.lastPlayEl.textContent = ls.lastPlay || ''; this.lastPlayEl.classList.toggle('has', !!ls.lastPlay); }
+    // new play → pulse occupied bases + flash, color-coded by event
+    if(ls.currentPlayId && ls.currentPlayId !== this.prevPlayId){
+      this.prevPlayId = ls.currentPlayId;
+      this._flashEvent(ls.lastEvent || '', !!ls.isScoringPlay);
+    }
+    this._diffPlays(ls.plays || []);
+    this._updateMatchup(ls.matchup);
+    const ow = this.root && this.root.querySelector('.gc-odds-wrap');
+    if(ow) ow.innerHTML = gcOddsPropsHTML(g);
+  }
+
+  _setRunner(r){
+    const base = GC_BASES[r.base] || GC_BASES.home;
+    const cur = this.runners[r.id];
+    if(!cur){
+      // first appearance → snap to base, pulse once (no fly-in)
+      this.runners[r.id] = { base:r.base, x:base.x, y:base.y, sx:base.x, sy:base.y, tx:base.x, ty:base.y, t0:performance.now(), name:r.name };
+      this._pulse(base.x, base.y);
+    } else if(cur.base !== r.base){
+      // advanced → interpolate from current animated pos to the new base
+      cur.sx = cur.x; cur.sy = cur.y; cur.tx = base.x; cur.ty = base.y;
+      cur.base = r.base; cur.t0 = performance.now(); cur.leaving = false; cur.name = r.name;
+      this._pulse(base.x, base.y);
+    }
+  }
+
+  _countHTML(ls){
+    const dots = (n, max, cls) => Array.from({length:max}, (_,i) => `<span class="gc-dot ${i < (n||0) ? cls : ''}"></span>`).join('');
+    return `<div class="gc-count-item"><div class="gc-count-dots">${dots(ls.balls,4,'ball-on')}</div><div class="gc-count-label">B</div></div>`
+      + `<div class="gc-count-item"><div class="gc-count-dots">${dots(ls.strikes,3,'strike-on')}</div><div class="gc-count-label">S</div></div>`
+      + `<div class="gc-count-item"><div class="gc-count-dots">${dots(ls.outs,3,'out-on')}</div><div class="gc-count-label">O</div></div>`;
+  }
+  _basesHTML(runners){
+    const on = {}; runners.forEach(r => { on[r.base] = true; });
+    return `<span class="gc-base-flag ${on['1B']?'active':''}">1B</span><span class="gc-base-flag ${on['2B']?'active':''}">2B</span><span class="gc-base-flag ${on['3B']?'active':''}">3B</span>`;
+  }
+
+  _pulse(x, y){ this.pulses.push({ x, y, t0: performance.now() }); }
+  _flashEvent(ev, scoring){
+    ev = (ev || '').toLowerCase();
+    let color = '#2d7fff';
+    if(/home_run|homer/.test(ev)) color = '#ff3b3b';
+    else if(/single|double|triple/.test(ev)) color = '#22c55e';
+    else if(/strikeout|strike_out/.test(ev)) color = '#ff3b3b';
+    else if(/walk|intent|hit_by/.test(ev)) color = '#2d7fff';
+    else if(scoring) color = '#22c55e';
+    this.pulseColor = color;
+    Object.values(this.runners).forEach(r => { if(!r.leaving) this._pulse(r.tx, r.ty); });
+  }
+
+  _diffPlays(plays){
+    if(!plays.length) return;
+    const lastId = this.pbp.length ? this.pbp[0].id : null;
+    let newOnes;
+    if(lastId){
+      const idx = plays.findIndex(p => p.id === lastId);
+      newOnes = idx >= 0 ? plays.slice(idx + 1) : plays;
+    } else { newOnes = plays; }
+    if(!newOnes.length) return;
+    // prepend newest-first
+    this.pbp = newOnes.slice().reverse().concat(this.pbp);
+    if(this.pbp.length > 250) this.pbp.length = 250;
+    if(this.scrollTop < 30 && this.pbpScroll){ this.scrollTop = 0; this.pbpScroll.scrollTop = 0; }
+    this.renderPBP();
+  }
+
+  filteredPBP(){
+    if(this.filter === 'all') return this.pbp;
+    if(this.filter === 'scoring') return this.pbp.filter(p => p.scoring);
+    return this.pbp.filter(p => (p.leverage != null && p.leverage >= 1.5) || p.scoring || p.rbi > 0);
+  }
+
+  renderPBP(){
+    if(!this.pbpScroll || !this.pbpSpacer) return;
+    const list = this.filteredPBP();
+    const rowH = 30;
+    const viewH = this.pbpScroll.clientHeight || 220;
+    const scrollTop = this.pbpScroll.scrollTop;
+    if(!list.length){
+      this.pbpSpacer.style.height = viewH + 'px';
+      this.pbpSpacer.innerHTML = '';
+      if(this.pbpEmpty) this.pbpEmpty.style.display = 'block';
+      return;
+    }
+    if(this.pbpEmpty) this.pbpEmpty.style.display = 'none';
+    this.pbpSpacer.style.height = Math.max(list.length * rowH, viewH) + 'px';
+    let start = Math.max(0, Math.floor(scrollTop / rowH) - 2);
+    const end = Math.min(list.length, start + Math.ceil(viewH / rowH) + 4);
+    let html = '';
+    for(let i = 0; i < end - start; i++){
+      const p = list[start + i];
+      if(!p) break;
+      const isNew = !this.seenPlayIds.has(p.id);
+      html += `<div class="pbp-row ${pbpEventClass(p)} ${isNew ? 'in' : ''}" style="top:${(start + i) * rowH}px"><span class="pbp-inn">${pbpInnLabel(p)}</span><span class="pbp-desc">${escapeHTML(p.desc || p.event || '')}</span></div>`;
+    }
+    this.pbpSpacer.innerHTML = html;
+    for(let i = 0; i < end - start; i++){ const p = list[start + i]; if(p) this.seenPlayIds.add(p.id); }
+  }
+
+  // ---- batter-vs-pitcher matchup: on-demand fetch, cached ----
+  async _updateMatchup(mu){
+    if(!mu || !mu.batter || !mu.pitcher){
+      if(this.muWrap) this.muWrap.innerHTML = '<div class="gc-mu-none">At-bat pending</div>';
+      this.matchupKey = null; return;
+    }
+    const key = mu.batter.id + ':' + mu.pitcher.id;
+    if(key === this.matchupKey){
+      // same matchup — DOM was rebuilt on remount, re-render from cache
+      if(this._muCache) this._renderMatchup(this._muCacheMu, this._muCache); else this._renderMatchupNames(mu);
+      return;
+    }
+    this.matchupKey = key; this._muCacheMu = mu;
+    this._renderMatchupNames(mu);
+    const res = await gcFetchMatchup(mu.batter.id, mu.pitcher.id);
+    if(this.matchupKey !== key) return;             // matchup changed mid-fetch
+    this._muCache = res;
+    this._renderMatchup(mu, res);
+  }
+  _renderMatchupNames(mu){
+    if(!this.muWrap) return;
+    this.muWrap.innerHTML = `<div class="gc-mu-names"><span><b>${escapeHTML(mu.batter.name)}</b></span><span class="gc-mu-vs">vs</span><span><b>${escapeHTML(mu.pitcher.name)}</b></span></div><div class="gc-mu-skel">Loading stats…</div>`;
+  }
+  _renderMatchup(mu, res){
+    if(!this.muWrap) return;
+    const b = res && res.batter, p = res && res.pitcher, h2h = res && res.h2h;
+    const trend = (hot) => hot == null ? '<span class="gc-trend neutral">•</span>' : (hot ? '<span class="gc-trend hot" title="Hot">▲</span>' : '<span class="gc-trend cold" title="Cold">▼</span>');
+    const f = (v, d) => v == null ? '—' : (typeof v === 'number' ? v.toFixed(d == null ? 3 : d) : escapeHTML(String(v)));
+    this.muWrap.innerHTML = `
+      <div class="gc-mu-names"><span><b>${escapeHTML(mu.batter.name)}</b></span><span class="gc-mu-vs">vs</span><span><b>${escapeHTML(mu.pitcher.name)}</b></span></div>
+      <div class="gc-mu-grid">
+        <div class="gc-mu-col">
+          <div class="gc-mu-col-h">Batter ${trend(b && b.hot)}</div>
+          <div class="gc-mu-cell"><span>AVG</span><b>${b ? f(b.avg) : '—'}</b></div>
+          <div class="gc-mu-cell"><span>OPS</span><b>${b ? f(b.ops) : '—'}</b></div>
+          <div class="gc-mu-cell"><span>K%</span><b>${b ? f(b.kPct * 100, 1) : '—'}</b></div>
+          ${b && b.last7 != null ? `<div class="gc-mu-cell sub"><span>Last 7 AVG</span><b>${f(b.last7)}</b></div>` : ''}
+        </div>
+        <div class="gc-mu-col">
+          <div class="gc-mu-col-h">Pitcher ${trend(p && p.hot)}</div>
+          <div class="gc-mu-cell"><span>ERA</span><b>${p ? f(p.era, 2) : '—'}</b></div>
+          <div class="gc-mu-cell"><span>K/9</span><b>${p ? f(p.k9, 1) : '—'}</b></div>
+          <div class="gc-mu-cell"><span>K%</span><b>${p ? f(p.kPct * 100, 1) : '—'}</b></div>
+        </div>
+      </div>
+      ${h2h ? `<div class="gc-mu-h2h">vs this pitcher · ${h2h.ab} AB · AVG <b>${f(h2h.avg)}</b> · OPS <b>${f(h2h.ops)}</b> · K <b>${h2h.k}</b></div>` : '<div class="gc-mu-h2h muted">Season form shown · H2H unavailable</div>'}`;
+  }
+
+  // ---- canvas draw loop ----
+  _startRAF(){ if(this.raf) return; const loop = () => { this._draw(); this.raf = requestAnimationFrame(loop); }; this.raf = requestAnimationFrame(loop); }
+  _stopRAF(){ if(this.raf){ cancelAnimationFrame(this.raf); this.raf = null; } }
+
+  _draw(){
+    const ctx = this.ctx; if(!ctx) return;
+    const now = performance.now();
+    ctx.clearRect(0, 0, 200, 200);
+    // outfield grass
+    ctx.fillStyle = '#1a3d1a'; ctx.beginPath(); ctx.arc(100, 100, 96, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#2d5a2d'; ctx.lineWidth = 1.5; ctx.stroke();
+    // infield dirt
+    ctx.fillStyle = '#3a2a1a'; ctx.beginPath(); ctx.moveTo(100, 160); ctx.lineTo(142, 118); ctx.lineTo(100, 76); ctx.lineTo(58, 118); ctx.closePath(); ctx.fill();
+    // basepaths
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 2]);
+    ctx.beginPath(); ctx.moveTo(100, 160); ctx.lineTo(142, 118); ctx.lineTo(100, 76); ctx.lineTo(58, 118); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+    // bases
+    const occ = {}; Object.values(this.runners).forEach(r => { if(!r.leaving) occ[r.base] = true; });
+    const drawBase = (x, y, on) => {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = on ? '#2d7fff' : '#f0ece8'; ctx.fillRect(-4, -4, 8, 8);
+      if(on){ ctx.shadowColor = '#2d7fff'; ctx.shadowBlur = 6; ctx.fillRect(-4, -4, 8, 8); }
+      ctx.restore();
+    };
+    drawBase(100, 76, !!occ['2B']); drawBase(142, 118, !!occ['1B']); drawBase(58, 118, !!occ['3B']);
+    // home plate
+    ctx.fillStyle = '#f0ece8'; ctx.beginPath(); ctx.moveTo(95, 160); ctx.lineTo(105, 160); ctx.lineTo(105, 164); ctx.lineTo(100, 167); ctx.lineTo(95, 164); ctx.closePath(); ctx.fill();
+    // mound
+    ctx.fillStyle = '#4a3226'; ctx.beginPath(); ctx.arc(GC_MOUND.x, GC_MOUND.y, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#f0ece8'; ctx.beginPath(); ctx.arc(GC_MOUND.x, GC_MOUND.y, 1.5, 0, Math.PI * 2); ctx.fill();
+    // pulse rings (steals/hits/scores)
+    if(this.pulses.length){
+      this.pulses = this.pulses.filter(pl => {
+        const age = now - pl.t0; if(age > 800) return false;
+        const a = 1 - age / 800, r = 4 + (age / 800) * 18;
+        ctx.strokeStyle = this.pulseColor; ctx.globalAlpha = a; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(pl.x, pl.y, r, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
+        return true;
+      });
+    }
+    // runners — interpolate sx,sy → tx,ty
+    Object.entries(this.runners).forEach(([id, r]) => {
+      const t = Math.min(1, (now - (r.t0 || now)) / GC_ANIM_MS);
+      const e = 1 - Math.pow(1 - t, 3);
+      const cx = r.sx + (r.tx - r.sx) * e;
+      const cy = r.sy + (r.ty - r.sy) * e;
+      r.x = cx; r.y = cy;
+      ctx.fillStyle = '#fff'; ctx.shadowColor = '#2d7fff'; ctx.shadowBlur = 5;
+      ctx.beginPath(); ctx.arc(cx, cy, 5.5, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+      const init = (((r.name || '?').split(' ').pop() || '?')[0]) || '?';
+      ctx.fillStyle = '#0f1421'; ctx.font = '700 8px JetBrains Mono, monospace';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(init, cx, cy + 0.5);
+      if(r.leaving && t >= 1) delete this.runners[id];
+    });
+  }
+
+  destroy(){ this._stopRAF(); if(this.io){ this.io.disconnect(); this.io = null; } delete _gcControllers[this.gid]; }
+}
+// Public API (mountGamecasts is global too; expose the class for debugging/extension).
+window.GamecastController = GamecastController;
+
+/** Event-type → CSS class for color-coded PBP rows. */
+function pbpEventClass(p){
+  const ev = (p.event || '').toLowerCase();
+  if(/home_run|homer/.test(ev)) return 'pbp-hr';
+  if(/single|double|triple/.test(ev)) return 'pbp-hit';
+  if(/strikeout|strike_out/.test(ev)) return 'pbp-so';
+  if(/walk|intent|hit_by/.test(ev)) return 'pbp-bb';
+  if(p.scoring) return 'pbp-run';
+  if(/out|groundout|flyout|lineout|force|fielders_choice/.test(ev)) return 'pbp-out';
+  return '';
+}
+function pbpInnLabel(p){
+  if(!p.inning) return '';
+  const half = p.half === 'top' ? '▲' : (p.half === 'bottom' ? '▼' : '');
+  const ord = p.inning === 1 ? '1st' : p.inning === 2 ? '2nd' : p.inning === 3 ? '3rd' : p.inning + 'th';
+  return `${half}${ord}`;
 }
 
-/**
- * Broadcast-style box score. Batting lines then pitching lines for each side,
- * away first. Returns '' when the feed hasn't produced a boxscore yet so the
- * caller can fall back to the line score.
- */
+/** Attach/refresh controllers into every .gc-mount on the slate. Called from
+ *  renderList (slate tab) via requestAnimationFrame, after the innerHTML is
+ *  committed. Controllers persist across renders; only the DOM is rebuilt. */
+function mountGamecasts(){
+  const mounts = document.querySelectorAll('.gc-mount');
+  const seen = new Set();
+  mounts.forEach(el => {
+    const gid = String(el.dataset.gid);
+    seen.add(gid);
+    if(!_gcControllers[gid]) _gcControllers[gid] = new GamecastController(gid);
+    const c = _gcControllers[gid];
+    c.mount(el);
+    const g = (typeof games !== 'undefined' ? games : []).find(x => String(x.id) === gid) || c.g;
+    if(g) c.update(g); else if(c.g) c.update(c.g);
+  });
+  Object.keys(_gcControllers).forEach(gid => { if(!seen.has(gid)) _gcControllers[gid].destroy(); });
+}
+
+/** Preserved live-odds + HR-props strip (was part of the old gamecast). */
+function gcOddsPropsHTML(g){
+  const awayOdds = g.awayOdds != null ? fmtOdds(g.awayOdds) : '—';
+  const homeOdds = g.homeOdds != null ? fmtOdds(g.homeOdds) : '—';
+  const totalOdds = g.totalOdds != null ? g.totalOdds : '—';
+  const gameBatters = (typeof allBatters !== 'undefined' ? allBatters : []).filter(p => p.game && p.game.id === g.id)
+    .sort((a, b) => simulatePlayer(b).hr.exact - simulatePlayer(a).hr.exact).slice(0, 3);
+  const propsHTML = gameBatters.length ? gameBatters.map(p => {
+    const gr = gradeFor('hr', simulatePlayer(p).hr.exact);
+    const edge = ['A+', 'A', 'B+'].includes(gr.letter) ? 'good' : '';
+    const odds = p.odds ? fmtOdds(p.odds) : '—';
+    return `<div class="gc-prop-row"><span class="gc-prop-name">${p.name}</span><span class="gc-prop-edge ${edge}">${gr.g}</span><span class="gc-prop-odds">${odds}</span></div>`;
+  }).join('') : '';
+  if(!propsHTML) return `<div class="gc-odds-grid"><div class="gc-odds-tile"><div class="gc-ot-label">${g.away} ML</div><div class="gc-ot-val">${awayOdds}</div></div><div class="gc-odds-tile"><div class="gc-ot-label">${g.home} ML</div><div class="gc-ot-val">${homeOdds}</div></div><div class="gc-odds-tile"><div class="gc-ot-label">O/U</div><div class="gc-ot-val">${totalOdds}</div></div></div>`;
+  return `<div class="gc-odds-grid"><div class="gc-odds-tile"><div class="gc-ot-label">${g.away} ML</div><div class="gc-ot-val">${awayOdds}</div></div><div class="gc-odds-tile"><div class="gc-ot-label">${g.home} ML</div><div class="gc-ot-val">${homeOdds}</div></div><div class="gc-odds-tile"><div class="gc-ot-label">O/U</div><div class="gc-ot-val">${totalOdds}</div></div></div><div class="gc-props-list">${propsHTML}</div>`;
+}
+
+// ---- on-demand stats fetch + cache (statsapi, client-side, CORS-allowed) ----
+async function gcFetchMatchup(batterId, pitcherId){
+  const key = batterId + ':' + pitcherId;
+  const c = _gcMatchupCache[key];
+  if(c && Date.now() - c.fetchedAt < 5 * 60 * 1000) return c.data;
+  const [batter, pitcher, h2h] = await Promise.all([
+    gcFetchBatter(batterId), gcFetchPitcher(pitcherId), gcFetchH2H(batterId, pitcherId)
+  ]);
+  const data = { batter, pitcher, h2h };
+  _gcMatchupCache[key] = { data, fetchedAt: Date.now() };
+  return data;
+}
+async function _gcSeasonStat(id, group){
+  const key = id + ':' + group;
+  const c = _gcPlayerCache[key];
+  if(c && Date.now() - c.fetchedAt < 5 * 60 * 1000) return c.season;
+  try{
+    const r = await fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=season&group=${group}`);
+    if(!r.ok) return null;
+    const j = await r.json();
+    const s = j.stats && j.stats[0] && j.stats[0].splits && j.stats[0].splits[0] && j.stats[0].splits[0].stat;
+    _gcPlayerCache[key] = { season: s || null, fetchedAt: Date.now() };
+    return s || null;
+  } catch(e){ return null; }
+}
+async function _gcLastGamesAvg(id){
+  // best-effort last-7 AVG for hot/cold trend. Returns null on any failure.
+  try{
+    const r = await fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=lastXGames&group=hitting`);
+    if(!r.ok) return null;
+    const j = await r.json();
+    const splits = j.stats && j.stats[0] && j.stats[0].splits || [];
+    if(!splits.length) return null;
+    if(splits.length === 1 && splits[0].stat && splits[0].stat.avg != null) return Number(splits[0].stat.avg);
+    let h = 0, ab = 0;
+    splits.slice(0, 7).forEach(s => { const st = s.stat || {}; h += Number(st.hits || 0); ab += Number(st.atBats || 0); });
+    return ab > 0 ? h / ab : null;
+  } catch(e){ return null; }
+}
+async function gcFetchBatter(id){
+  const s = await _gcSeasonStat(id, 'hitting');
+  if(!s) return null;
+  const avg = s.avg != null ? Number(s.avg) : null;
+  const ops = s.ops != null ? Number(s.ops) : null;
+  const ab = Number(s.atBats || 0), so = Number(s.strikeOuts || 0);
+  const kPct = ab > 0 ? so / ab : null;
+  const last7 = await _gcLastGamesAvg(id);
+  let hot = null;
+  if(last7 != null && avg != null && avg > 0) hot = last7 >= avg * 1.12;
+  return { avg, ops, kPct, last7, hot };
+}
+async function gcFetchPitcher(id){
+  const s = await _gcSeasonStat(id, 'pitching');
+  if(!s) return null;
+  const era = s.era != null ? Number(s.era) : null;
+  const k9 = s.strikeoutsPer9Inn != null ? Number(s.strikeoutsPer9Inn) : null;
+  const ip = Number(s.inningsPitched || 0), so = Number(s.strikeOuts || 0);
+  const kPct = ip > 0 ? so / (ip * 3) : null;
+  return { era, k9, kPct, hot: null };
+}
+async function gcFetchH2H(batterId, pitcherId){
+  try{
+    const r = await fetch(`https://statsapi.mlb.com/api/v1/people/${batterId}/stats?stats=vsPlayer&group=hitting&opposingPlayer=${pitcherId}`);
+    if(!r.ok) return null;
+    const j = await r.json();
+    const s = j.stats && j.stats[0] && j.stats[0].splits && j.stats[0].splits[0] && j.stats[0].splits[0].stat;
+    if(!s) return null;
+    return { ab: Number(s.atBats || 0), avg: s.avg != null ? Number(s.avg) : null, ops: s.ops != null ? Number(s.ops) : null, k: Number(s.strikeOuts || 0) };
+  } catch(e){ return null; }
+}
+
+
 function boxScoreHTML(g){
   const bx = g.boxScore;
   if(!bx || (!bx.away.batters.length && !bx.home.batters.length)) return '';
@@ -6102,6 +6565,10 @@ function renderSlate(){
       }
     });
   });
+  // The live gamecast is a mounted canvas controller, not a string template —
+  // attach/refresh the controllers into their .gc-mount shells now that the
+  // slate innerHTML is committed. Deferred to next frame so the DOM is painted.
+  requestAnimationFrame(mountGamecasts);
 }
 
 // ---- 1st Inning Over/Under model ----
