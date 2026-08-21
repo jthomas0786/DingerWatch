@@ -323,6 +323,13 @@ ${isPreview('nfl') ? `<div class="nfl-preview-banner" role="status">
   ${activeGameId ? `<button type="button" class="nfl-clear" id="nflClearGame">← All ${slate.gameCount} games</button>` : ''}
 </div>
 
+${slate.seasonType === 'pre' ? `<div class="nfl-preseason-banner" role="status">
+  <span class="nfl-preseason-icon" aria-hidden="true">!</span>
+  <p><b>Preseason mode.</b> Starters rarely play the full game — and many don't play at all —
+  so ATD probabilities here are projections of the regular-season role, not live reps.
+  Expect sizable misses; treat the numbers as a directional preview, not a prediction.</p>
+</div>` : ''}
+
 ${g ? `
 <section class="nfl-gamecast">
   <div class="nfl-gc-field">
