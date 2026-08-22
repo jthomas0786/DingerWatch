@@ -15,7 +15,7 @@
 // and the adapter falls back to availabilityStatus 'unconfirmed' rather than
 // silently treating injured players as active.
 
-const UA = 'dinger-watch-slate-builder/1.0';
+const UA = 'okhttp/4.12.0'; // ESPN allowlists known HTTP-library UAs (curl, okhttp, Python-urllib) and 403s browser/custom UAs.
 const INJURIES_URL = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/injuries';
 
 // ESPN status string -> our normalized availability

@@ -25,7 +25,7 @@ import { loadOrBuildRoster2026Cache, blendRosters } from './roster2026.js';
 import { canonTeam, TEAM_ALIASES, CANON_TEAMS } from './teams.js';
 import { fetchAvailability, lookupAvailability } from './availability.js';
 
-const UA = 'dinger-watch-slate-builder/1.0';
+const UA = 'okhttp/4.12.0'; // ESPN allowlists known HTTP-library UAs (curl, okhttp, Python-urllib) and 403s browser/custom UAs.
 const CACHE_PATH = '/tmp/nfl_stats_2025_v2.json';
 const ROSTER_CACHE_PATH = '/tmp/nfl_roster_2026.json';
 const HERE = fileURLToPath(new URL('./', import.meta.url));
