@@ -9805,7 +9805,7 @@ function dismissGate(){
   document.body.classList.remove('gated');
   renderAuthButton();
   refreshExportVisibility();
-  refreshTuneVisibility();
+  window.refreshTuneVisibility?.();
   window.refreshAdminVisibility?.();
   refreshSocialUI();
   _gateDismissed = true;
@@ -12325,7 +12325,7 @@ function initOnlinePresence(){
     await s.initSocial();
     renderAuthButton();
     refreshExportVisibility();
-    refreshTuneVisibility();
+    window.refreshTuneVisibility?.();
     window.refreshAdminVisibility?.();
     evaluateGate();
     // Whop OAuth redirect callback
