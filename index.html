@@ -8636,7 +8636,22 @@ async function renderContactQuality(p){
     const proj = (fx,fy,fz=0) => ({ sx:HX+fx*KX, sy:HY-fy*KY-fz*KZ });
     const rf=proj(233,233), lf=proj(-233,233), cf=proj(0,400), hp=proj(0,0);
     const b1=proj(63.6,63.6), b2=proj(0,127.3), b3=proj(-63.6,63.6), mound=proj(0,60.5);
-    const wall = `M ${rf.sx} ${rf.sy} Q ${cf.sx} ${cf.sy-14} ${lf.sx} ${lf.sy}`;
+    const wall = `M 0 ${lf.sy} Q ${cf.sx} ${cf.sy-14} ${VW} ${rf.sy}`;
+    // stands: a stadium bowl behind the outfield wall (band from wall up to a back curve).
+    const STAND_H = 72;                       // band thickness
+    const yFront = x => { const t=x/VW; return (1-t)*(1-t)*lf.sy + 2*(1-t)*t*(cf.sy-14) + t*t*rf.sy; };
+    const yBack  = x => { const t=x/VW; return (1-t)*(1-t)*(lf.sy-STAND_H) + 2*(1-t)*t*(cf.sy-14-STAND_H) + t*t*(rf.sy-STAND_H); };
+    const standsFill = `M 0 ${lf.sy} Q ${cf.sx} ${cf.sy-14} ${VW} ${rf.sy} L ${VW} ${rf.sy-STAND_H} Q ${cf.sx} ${cf.sy-14-STAND_H} 0 ${lf.sy-STAND_H} Z`;
+    const tier = h => `M 0 ${(lf.sy-h).toFixed(1)} Q ${cf.sx} ${(cf.sy-14-h).toFixed(1)} ${VW} ${(rf.sy-h).toFixed(1)}`;
+    // crowd dots scattered across the bowl
+    const CROWD = ['#c9c2b6','#8a8276','#b8a99a','#6f7480','#9a8f7e','#5a5f66','#a89c8c','#7d7a88','#b0a696','#665c52'];
+    let standsCrowd = '';
+    for(let i=0;i<150;i++){
+      const x=Math.random()*VW, f=0.08+Math.random()*0.84;
+      const y=yFront(x)+f*(yBack(x)-yFront(x));
+      standsCrowd += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${Math.random()<0.18?1.1:0.7}" fill="${CROWD[i%CROWD.length]}" opacity="${(0.45+Math.random()*0.45).toFixed(2)}"/>`;
+    }
+    const sbX=VW/2-32, sbY=yBack(VW/2)-14;
     // arcs: parabola home→landing, apex from dist & launch angle.
     const arcs = [];
     rows.forEach((b,i)=>{
@@ -8661,9 +8676,15 @@ async function renderContactQuality(p){
       <div class="live-note">● Live from MLB Stats API · ${data.games||0} games</div>
       <div class="cq-filters"><span class="cq-flabel">Pitcher</span>${handBtn('L','LHP'+(cnt.L?` ${cnt.L}`:''))}${handBtn('R','RHP'+(cnt.R?` ${cnt.R}`:''))}${handBtn('ALL','All')}</div>
       <div class="cq-field-wrap"><svg class="cq-field" viewBox="0 0 ${VW} ${VH}" preserveAspectRatio="xMidYMid meet">
-        <defs><linearGradient id="cq-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9d4ee"/><stop offset="1" stop-color="#dceaf3"/></linearGradient><linearGradient id="cq-grass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f6b34"/><stop offset="1" stop-color="#1c4a23"/></linearGradient></defs>
+        <defs><linearGradient id="cq-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9d4ee"/><stop offset="1" stop-color="#dceaf3"/></linearGradient><linearGradient id="cq-grass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f6b34"/><stop offset="1" stop-color="#1c4a23"/></linearGradient><linearGradient id="cq-stands" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b4049"/><stop offset="1" stop-color="#1f232a"/></linearGradient></defs>
         <rect x="0" y="0" width="${VW}" height="${VH}" fill="url(#cq-sky)"/>
-        <path d="M 0 ${lf.sy} L 0 ${VH} L ${VW} ${VH} L ${VW} ${rf.sy} L ${rf.sx} ${rf.sy} Q ${cf.sx} ${cf.sy-14} ${lf.sx} ${lf.sy} Z" fill="url(#cq-grass)"/>
+        <path d="${standsFill}" fill="url(#cq-stands)"/>
+        ${standsCrowd}
+        <path d="${tier(24)}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1"/>
+        <path d="${tier(48)}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1"/>
+        <rect x="${sbX}" y="${sbY}" width="64" height="16" rx="3" fill="#15191f" stroke="#0b0d10" stroke-width="1"/>
+        <rect x="${sbX+4}" y="${sbY+3}" width="56" height="10" rx="2" fill="#0a0d11"/>
+        <path d="M 0 ${lf.sy} L 0 ${VH} L ${VW} ${VH} L ${VW} ${rf.sy} Q ${cf.sx} ${cf.sy-14} 0 ${lf.sy} Z" fill="url(#cq-grass)"/>
         <path d="${wall}" fill="none" stroke="#0c2a14" stroke-width="2"/>
         <path d="M ${hp.sx} ${hp.sy} L ${lf.sx} ${lf.sy}" stroke="#fff" stroke-width="1.5" fill="none" opacity="0.8"/>
         <path d="M ${hp.sx} ${hp.sy} L ${rf.sx} ${rf.sy}" stroke="#fff" stroke-width="1.5" fill="none" opacity="0.8"/>
