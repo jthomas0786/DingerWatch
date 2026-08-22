@@ -8632,26 +8632,38 @@ async function renderContactQuality(p){
     if(st.hand!=='ALL') rows = rows.filter(b=>b.pHand===st.hand);
     if(st.pitch) rows = rows.filter(b=>pitchGroupOf(b.pitchCode)===st.pitch);
     // 2.5D projection: behind home plate, depth recedes upward.
-    const VW=400, VH=300, HX=200, HY=270, KX=0.6, KY=0.42, KZ=0.6;
+    const VW=400, VH=300, HX=200, HY=308, KX=0.78, KY=0.66, KZ=0.7;
     const proj = (fx,fy,fz=0) => ({ sx:HX+fx*KX, sy:HY-fy*KY-fz*KZ });
     const rf=proj(233,233), lf=proj(-233,233), cf=proj(0,400), hp=proj(0,0);
     const b1=proj(63.6,63.6), b2=proj(0,127.3), b3=proj(-63.6,63.6), mound=proj(0,60.5);
     const wall = `M 0 ${lf.sy} Q ${cf.sx} ${cf.sy-14} ${VW} ${rf.sy}`;
     // stands: a stadium bowl behind the outfield wall (band from wall up to a back curve).
-    const STAND_H = 72;                       // band thickness
+    const STAND_H = 74;
     const yFront = x => { const t=x/VW; return (1-t)*(1-t)*lf.sy + 2*(1-t)*t*(cf.sy-14) + t*t*rf.sy; };
     const yBack  = x => { const t=x/VW; return (1-t)*(1-t)*(lf.sy-STAND_H) + 2*(1-t)*t*(cf.sy-14-STAND_H) + t*t*(rf.sy-STAND_H); };
     const standsFill = `M 0 ${lf.sy} Q ${cf.sx} ${cf.sy-14} ${VW} ${rf.sy} L ${VW} ${rf.sy-STAND_H} Q ${cf.sx} ${cf.sy-14-STAND_H} 0 ${lf.sy-STAND_H} Z`;
     const tier = h => `M 0 ${(lf.sy-h).toFixed(1)} Q ${cf.sx} ${(cf.sy-14-h).toFixed(1)} ${VW} ${(rf.sy-h).toFixed(1)}`;
-    // crowd dots scattered across the bowl
-    const CROWD = ['#c9c2b6','#8a8276','#b8a99a','#6f7480','#9a8f7e','#5a5f66','#a89c8c','#7d7a88','#b0a696','#665c52'];
-    let standsCrowd = '';
-    for(let i=0;i<150;i++){
-      const x=Math.random()*VW, f=0.08+Math.random()*0.84;
-      const y=yFront(x)+f*(yBack(x)-yFront(x));
-      standsCrowd += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${Math.random()<0.18?1.1:0.7}" fill="${CROWD[i%CROWD.length]}" opacity="${(0.45+Math.random()*0.45).toFixed(2)}"/>`;
+    // deterministic crowd (seeded + cached) so it never reshuffles when filters re-draw
+    const seeded = n => { const v=Math.sin(n*12.9898)*43758.5453; return v-Math.floor(v); };
+    if(!host._stadiumCrowd){
+      const CROWD = ['#c9c2b6','#8a8276','#b8a99a','#6f7480','#9a8f7e','#5a5f66','#a89c8c','#7d7a88','#b0a696','#665c52'];
+      const ACC = ['#c8443a','#3a6fd6','#e0b13a','#d6d2c4'];   // muted accents (sparse)
+      let s='';
+      for(let i=0;i<300;i++){
+        const x=seeded(i*3+1)*VW, f=0.06+seeded(i*3+2)*0.9;
+        const y=yFront(x)+f*(yBack(x)-yFront(x));
+        const accent = seeded(i*3+3)<0.15;
+        const pal = accent?ACC:CROWD;
+        const r = (0.5 + (1-f)*0.7 + (accent?0.25:0)).toFixed(2);
+        s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${pal[i%pal.length]}" opacity="${(0.4+seeded(i*5+4)*0.5).toFixed(2)}"/>`;
+      }
+      for(let x=18; x<=VW-8; x+=34){ s += `<line x1="${x}" y1="${yFront(x).toFixed(1)}" x2="${x}" y2="${yBack(x).toFixed(1)}" stroke="rgba(0,0,0,.14)" stroke-width="0.8"/>`; }
+      host._stadiumCrowd = s;
     }
-    const sbX=VW/2-32, sbY=yBack(VW/2)-14;
+    const standsCrowd = host._stadiumCrowd;
+    const sbW=94, sbH=24, sbX=VW/2-sbW/2, sbY=Math.max(2, yBack(VW/2)-sbH-3);
+    // warning track: a tan band just inside the wall, on the grass.
+    const track = `M 0 ${lf.sy} Q ${cf.sx} ${cf.sy-14} ${VW} ${rf.sy} L ${VW} ${(rf.sy+9).toFixed(1)} Q ${cf.sx} ${(cf.sy-14+9).toFixed(1)} 0 ${(lf.sy+9).toFixed(1)} Z`;
     // arcs: parabola home→landing, apex from dist & launch angle.
     const arcs = [];
     rows.forEach((b,i)=>{
@@ -8676,16 +8688,28 @@ async function renderContactQuality(p){
       <div class="live-note">● Live from MLB Stats API · ${data.games||0} games</div>
       <div class="cq-filters"><span class="cq-flabel">Pitcher</span>${handBtn('L','LHP'+(cnt.L?` ${cnt.L}`:''))}${handBtn('R','RHP'+(cnt.R?` ${cnt.R}`:''))}${handBtn('ALL','All')}</div>
       <div class="cq-field-wrap"><svg class="cq-field" viewBox="0 0 ${VW} ${VH}" preserveAspectRatio="xMidYMid meet">
-        <defs><linearGradient id="cq-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9d4ee"/><stop offset="1" stop-color="#dceaf3"/></linearGradient><linearGradient id="cq-grass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f6b34"/><stop offset="1" stop-color="#1c4a23"/></linearGradient><linearGradient id="cq-stands" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b4049"/><stop offset="1" stop-color="#1f232a"/></linearGradient></defs>
+        <defs><linearGradient id="cq-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9d4ee"/><stop offset="1" stop-color="#dceaf3"/></linearGradient><linearGradient id="cq-grass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f6b34"/><stop offset="1" stop-color="#1c4a23"/></linearGradient><linearGradient id="cq-stands" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b4049"/><stop offset="1" stop-color="#1f232a"/></linearGradient><linearGradient id="cq-board" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a2f37"/><stop offset="1" stop-color="#161a20"/></linearGradient><linearGradient id="cq-track" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#caa46a"/><stop offset="1" stop-color="#a07c4a"/></linearGradient></defs>
         <rect x="0" y="0" width="${VW}" height="${VH}" fill="url(#cq-sky)"/>
         <path d="${standsFill}" fill="url(#cq-stands)"/>
         ${standsCrowd}
-        <path d="${tier(24)}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1"/>
-        <path d="${tier(48)}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1"/>
-        <rect x="${sbX}" y="${sbY}" width="64" height="16" rx="3" fill="#15191f" stroke="#0b0d10" stroke-width="1"/>
-        <rect x="${sbX+4}" y="${sbY+3}" width="56" height="10" rx="2" fill="#0a0d11"/>
+        <path d="${tier(16)}" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="1"/>
+        <path d="${tier(30)}" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="1"/>
+        <path d="${tier(44)}" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="1"/>
+        <path d="${tier(58)}" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="1"/>
+        <rect x="${sbX}" y="${sbY}" width="${sbW}" height="${sbH}" rx="4" fill="url(#cq-board)" stroke="#070a0e" stroke-width="1.5"/>
+        <rect x="${sbX+4}" y="${sbY+4}" width="${sbW-8}" height="${sbH-8}" rx="2" fill="#05080c"/>
+        <rect x="${sbX+8}" y="${sbY+7}" width="17" height="3" rx="1" fill="#3aff8e" opacity=".85"/>
+        <rect x="${sbX+28}" y="${sbY+7}" width="11" height="3" rx="1" fill="#3aff8e" opacity=".5"/>
+        <rect x="${sbX+8}" y="${sbY+12}" width="23" height="3" rx="1" fill="#5b9dff" opacity=".6"/>
+        <rect x="${sbX+34}" y="${sbY+12}" width="9" height="3" rx="1" fill="#5b9dff" opacity=".4"/>
+        <rect x="${sbX+8}" y="${sbY+17}" width="19" height="2.5" rx="1" fill="#9aa3b2" opacity=".35"/>
+        <rect x="${sbX+31}" y="${sbY+17}" width="14" height="2.5" rx="1" fill="#9aa3b2" opacity=".22"/>
+        <rect x="${sbX+7}" y="${sbY+sbH}" width="3" height="9" fill="#1a1e25"/>
+        <rect x="${sbX+sbW-10}" y="${sbY+sbH}" width="3" height="9" fill="#1a1e25"/>
         <path d="M 0 ${lf.sy} L 0 ${VH} L ${VW} ${VH} L ${VW} ${rf.sy} Q ${cf.sx} ${cf.sy-14} 0 ${lf.sy} Z" fill="url(#cq-grass)"/>
-        <path d="${wall}" fill="none" stroke="#0c2a14" stroke-width="2"/>
+        <path d="${track}" fill="url(#cq-track)"/>
+        <path d="${wall}" fill="none" stroke="#3a4048" stroke-width="3.5"/>
+        <path d="${wall}" fill="none" stroke="#0c2a14" stroke-width="1.5"/>
         <path d="M ${hp.sx} ${hp.sy} L ${lf.sx} ${lf.sy}" stroke="#fff" stroke-width="1.5" fill="none" opacity="0.8"/>
         <path d="M ${hp.sx} ${hp.sy} L ${rf.sx} ${rf.sy}" stroke="#fff" stroke-width="1.5" fill="none" opacity="0.8"/>
         <path d="M ${hp.sx} ${hp.sy} L ${b1.sx} ${b1.sy} L ${b2.sx} ${b2.sy} L ${b3.sx} ${b3.sy} Z" fill="#c8a96a" stroke="#9a7a44" stroke-width="1"/>
