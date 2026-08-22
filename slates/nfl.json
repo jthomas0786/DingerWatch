@@ -1,23 +1,23 @@
 {
   "sport": "nfl",
   "slateId": "2026-pre-w01",
-  "date": "2026-08-21",
+  "date": "2026-08-22",
   "season": 2026,
   "seasonType": "pre",
   "week": 1,
-  "generatedAt": "2026-08-21T12:43:30.368Z",
-  "buildDurationMs": 4964,
+  "generatedAt": "2026-08-22T00:21:56.602Z",
+  "buildDurationMs": 5908,
   "gameCount": 16,
   "availability": {
     "source": "espn-injuries",
     "ok": true,
-    "fetchedAt": "2026-08-21T12:43:29Z",
+    "fetchedAt": "2026-08-22T00:21:55Z",
     "counts": {
-      "active": 277,
-      "questionable": 89,
-      "unconfirmed": 511,
+      "active": 279,
+      "questionable": 91,
+      "unconfirmed": 508,
       "out": 29,
-      "doubtful": 2
+      "doubtful": 1
     }
   },
   "leagueRzTdRate": 0.1924,
@@ -56,7 +56,7 @@
     "odds/inactives: Live injury/inactive status comes from the ESPN league-wide injuries endpoint (nflverse's injury feed has no data after 2024). OUT/IR/suspended players are zeroed and flagged; questionable/doubtful are discounted. Per-game official inactives (T-90) and OpticOdds ATD markets are still a follow-up.",
     "roster2026: 2931 rows, 908 skill players on 32 teams (7 RET/CUT dropped)",
     "depth2026: 455942 rows, 868 players ranked, latest snapshot 2026-08-21T07:40:57Z",
-    "availability: 800 ESPN injury entries (800 with ids), as of 2026-08-21T12:43:29Z",
+    "availability: 800 ESPN injury entries (800 with ids), as of 2026-08-22T00:21:55Z",
     "roster: 3138 rows, 732 skill players",
     "snap_counts: 26613 rows, 5946 matched",
     "pbp: 48772 rows, 1235 TDs + 4579 RZ plays matched",
@@ -66,8 +66,8 @@
     {
       "gameId": "401873288",
       "startTimeUTC": "2026-08-21T23:00Z",
-      "status": "pre",
-      "statusDetail": "8/21 - 7:00 PM EDT",
+      "status": "in",
+      "statusDetail": "Halftime",
       "doubleHeader": false,
       "venue": {
         "name": "Acrisure Stadium",
@@ -96,7 +96,7 @@
         "shortName": "Jets",
         "logo": "https://a.espncdn.com/i/teamlogos/nfl/500/scoreboard/nyj.png",
         "teamId": "20",
-        "score": "0",
+        "score": "7",
         "records": [
           {
             "type": "total",
@@ -180,7 +180,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Warren did not play in the Steelers' 28-9 preseason win over the Packers on Thursday, Chris Harlan of Triblive.com reports.",
+                "note": "Warren is in uniform for Friday's preseason game against the Jets, Brian Batko of the Pittsburgh Post-Gazette reports.",
                 "factor": 1
               },
               "inputs": {
@@ -404,7 +404,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Dowdle did not play in Thursday's 28-9 preseason win over the Packers, Chris Harlan of Triblive.com reports.",
+                "note": "Dowdle is suited up for Friday's preseason game versus the Jets, Brian Batko of the Pittsburgh Post-Gazette reports.",
                 "factor": 1
               },
               "inputs": {
@@ -793,10 +793,10 @@
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Jets receivers coach Shawn Jefferson implied Tuesday that Mitchell is seen as the team's No. 2 wideout heading into the upcoming season, Antwan V. Staley of the New York Daily News reports. \"If he continues on this trajectory, he will be a really good Robin to our Batman [Garrett Wilson],\" Jefferson said of Mitchell.",
                 "factor": 1
               },
               "inputs": {
@@ -1589,6 +1589,62 @@
                 "snapShare": 0,
                 "gamesPlayed": 0,
                 "depthRank": 8,
+                "roleFactor": 0.22,
+                "roleSource": "depth-2026",
+                "historyFactor": 0.92,
+                "oppRzDefIndex": 0.861,
+                "oppRzDefFactor": 0.917,
+                "oppRzTdRateAllowed": 0.1657,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0041201",
+          "espnId": null,
+          "name": "D.T. Sheffield",
+          "team": "NYJ",
+          "position": "WR",
+          "depth": "WR",
+          "jersey": "38",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/bcrmd5yscouo3ygnoogr",
+          "depthRank": 13,
+          "yearsExp": 0,
+          "isRookie": true,
+          "prevTeam": null,
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0,
+            "gamesPlayed": 0,
+            "rzTargets": 0,
+            "rzCarries": 0,
+            "tds": 0,
+            "statsSeason": null
+          },
+          "opponent": "PIT",
+          "props": {
+            "atd": {
+              "probability": 0.0408,
+              "grade": "F",
+              "gradeLabel": "Avoid",
+              "dataConfidence": "rookie",
+              "isRookie": true,
+              "availability": {
+                "status": "unconfirmed",
+                "statusRaw": null,
+                "detail": null,
+                "note": null,
+                "factor": 1
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0,
+                "snapShare": 0,
+                "gamesPlayed": 0,
+                "depthRank": 13,
                 "roleFactor": 0.22,
                 "roleSource": "depth-2026",
                 "historyFactor": 0.92,
@@ -3225,70 +3281,14 @@
               "oddsAvailable": false
             }
           }
-        },
-        {
-          "gsisId": "00-0041201",
-          "espnId": null,
-          "name": "D.T. Sheffield",
-          "team": "NYJ",
-          "position": "WR",
-          "depth": "WR",
-          "jersey": "38",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/bcrmd5yscouo3ygnoogr",
-          "depthRank": 13,
-          "yearsExp": 0,
-          "isRookie": true,
-          "prevTeam": null,
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0,
-            "gamesPlayed": 0,
-            "rzTargets": 0,
-            "rzCarries": 0,
-            "tds": 0,
-            "statsSeason": null
-          },
-          "opponent": "PIT",
-          "props": {
-            "atd": {
-              "probability": 0,
-              "grade": "F",
-              "gradeLabel": "Out",
-              "dataConfidence": "rookie",
-              "isRookie": true,
-              "availability": {
-                "status": "out",
-                "statusRaw": "Injured Reserve",
-                "detail": "Undisclosed",
-                "note": "Sheffield (undisclosed) reverted to the Jets' injured-reserve list Thursday, per the NFL's transaction log.",
-                "factor": 0
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0,
-                "snapShare": 0,
-                "gamesPlayed": 0,
-                "depthRank": 13,
-                "roleFactor": 0.22,
-                "roleSource": "depth-2026",
-                "historyFactor": 0.92,
-                "oppRzDefIndex": 0.861,
-                "oppRzDefFactor": 0.917,
-                "oppRzTdRateAllowed": 0.1657,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
         }
       ]
     },
     {
       "gameId": "401873287",
       "startTimeUTC": "2026-08-21T23:30Z",
-      "status": "pre",
-      "statusDetail": "8/21 - 7:30 PM EDT",
+      "status": "in",
+      "statusDetail": "13:06 - 2nd",
       "doubleHeader": false,
       "venue": {
         "name": "EverBank Stadium",
@@ -3316,7 +3316,7 @@
         "shortName": "Panthers",
         "logo": "https://a.espncdn.com/i/teamlogos/nfl/500/scoreboard/car.png",
         "teamId": "29",
-        "score": "0",
+        "score": "7",
         "records": [
           {
             "type": "total",
@@ -3344,7 +3344,7 @@
         "shortName": "Jaguars",
         "logo": "https://a.espncdn.com/i/teamlogos/nfl/500/scoreboard/jax.png",
         "teamId": "30",
-        "score": "0",
+        "score": "3",
         "records": [
           {
             "type": "total",
@@ -3456,7 +3456,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Coach Liam Coen is considering playing starters, a group that would include Lawrence, in Friday's preseason game against the Panthers, Michael DiRocco of ESPN.com reports.",
+                "note": "Lawrence won't play in Friday's preseason game against the Panthers, John Shipley of SI.com reports.",
                 "factor": 1
               },
               "inputs": {
@@ -3568,7 +3568,7 @@
                 "status": "questionable",
                 "statusRaw": "Questionable",
                 "detail": "Undisclosed",
-                "note": "questionable",
+                "note": "Washington (undisclosed) is expected to return to practice next week, ESPN's Adam Schefter reports.",
                 "factor": 0.85
               },
               "inputs": {
@@ -3871,62 +3871,6 @@
           }
         },
         {
-          "gsisId": "00-0039342",
-          "espnId": "4430034",
-          "name": "Xavier Legette",
-          "team": "CAR",
-          "position": "WR",
-          "depth": "WR",
-          "jersey": "17",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/j4jj8rvgzji7zut86ux7",
-          "depthRank": 3,
-          "yearsExp": 2,
-          "isRookie": false,
-          "prevTeam": "CAR",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0.679,
-            "gamesPlayed": 15,
-            "rzTargets": 12,
-            "rzCarries": 0,
-            "tds": 3,
-            "statsSeason": 2025
-          },
-          "opponent": "JAX",
-          "props": {
-            "atd": {
-              "probability": 0.1496,
-              "grade": "D",
-              "gradeLabel": "Fade",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "active",
-                "statusRaw": "Active",
-                "detail": "active",
-                "note": "Coach Dave Canales highlighted Legette on Wednesday for having a strong training camp, Darin Gantt of the Panthers' official site reports.",
-                "factor": 1
-              },
-              "inputs": {
-                "tdRate": 0.2,
-                "rzPerGame": 0.8,
-                "snapShare": 0.679,
-                "gamesPlayed": 15,
-                "depthRank": 3,
-                "roleFactor": 0.72,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
-                "oppRzDefIndex": 0.991,
-                "oppRzDefFactor": 0.995,
-                "oppRzTdRateAllowed": 0.1908,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
           "gsisId": "00-0034960",
           "espnId": "3916433",
           "name": "Jakobi Meyers",
@@ -4082,6 +4026,62 @@
                 "gamesPlayed": 17,
                 "depthRank": 1,
                 "roleFactor": 1,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 0.991,
+                "oppRzDefFactor": 0.995,
+                "oppRzTdRateAllowed": 0.1908,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0039342",
+          "espnId": "4430034",
+          "name": "Xavier Legette",
+          "team": "CAR",
+          "position": "WR",
+          "depth": "WR",
+          "jersey": "17",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/j4jj8rvgzji7zut86ux7",
+          "depthRank": 3,
+          "yearsExp": 2,
+          "isRookie": false,
+          "prevTeam": "CAR",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0.679,
+            "gamesPlayed": 15,
+            "rzTargets": 12,
+            "rzCarries": 0,
+            "tds": 3,
+            "statsSeason": 2025
+          },
+          "opponent": "JAX",
+          "props": {
+            "atd": {
+              "probability": 0.1272,
+              "grade": "D",
+              "gradeLabel": "Fade",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "questionable",
+                "statusRaw": "Questionable",
+                "detail": "Lower Body",
+                "note": "Legette (lower body) will not participate in Friday night's preseason game against the Jaguars, Darin Gantt of the Panthers' official site reports.",
+                "factor": 0.85
+              },
+              "inputs": {
+                "tdRate": 0.2,
+                "rzPerGame": 0.8,
+                "snapShare": 0.679,
+                "gamesPlayed": 15,
+                "depthRank": 3,
+                "roleFactor": 0.72,
                 "roleSource": "depth-2026",
                 "historyFactor": 1,
                 "oppRzDefIndex": 0.991,
@@ -5805,10 +5805,10 @@
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "active",
-                "statusRaw": "Active",
-                "detail": "active",
-                "note": "Evans (ankle) participated in the Panthers' training camp activities Monday, Alex Zietlow of The Charlotte Observer reports.",
+                "status": "unconfirmed",
+                "statusRaw": null,
+                "detail": null,
+                "note": null,
                 "factor": 1
               },
               "inputs": {
@@ -9959,7 +9959,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Jeanty rushed three times for 16 yards and failed to bring in his only target in the Raiders' 27-14 preseason loss to the Cardinals on Thursday.",
+                "note": "Jeanty was among the Raiders starters who rested in Thursday's 22-20 preseason win over Houston, according to The Associated Press.",
                 "factor": 1
               },
               "inputs": {
@@ -10071,7 +10071,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Montgomery caught an 80-yard touchdown on a wheel route in Tuesday's practice, DJ Bien-Aime of ESPN.com reports.",
+                "note": "Montgomery did not play in Houston's preseason game against Las Vegas on Thursday, according to Texans Wire.",
                 "factor": 1
               },
               "inputs": {
@@ -10348,10 +10348,10 @@
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "active",
-                "statusRaw": "Active",
-                "detail": "active",
-                "note": "Schultz did not play in Thursday's 27-7 preseason loss to the Chargers.",
+                "status": "unconfirmed",
+                "statusRaw": null,
+                "detail": null,
+                "note": null,
                 "factor": 1
               },
               "inputs": {
@@ -10575,7 +10575,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Collins has been in top form at practice ahead of the 2026 campaign, John Harris of the Texans' official website reports.",
+                "note": "Collins didn't play in Thursday's preseason game against the Raiders.",
                 "factor": 1
               },
               "inputs": {
@@ -10766,62 +10766,6 @@
           }
         },
         {
-          "gsisId": "00-0040130",
-          "espnId": "4877706",
-          "name": "Jayden Higgins",
-          "team": "HOU",
-          "position": "WR",
-          "depth": "WR",
-          "jersey": "81",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/wrdw1u4onrmfuuluuipk",
-          "depthRank": 2,
-          "yearsExp": 1,
-          "isRookie": false,
-          "prevTeam": "HOU",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0.572,
-            "gamesPlayed": 17,
-            "rzTargets": 9,
-            "rzCarries": 0,
-            "tds": 6,
-            "statsSeason": 2025
-          },
-          "opponent": "LV",
-          "props": {
-            "atd": {
-              "probability": 0.0662,
-              "grade": "F",
-              "gradeLabel": "Avoid",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "doubtful",
-                "statusRaw": "Doubtful",
-                "detail": "Knee - ACL",
-                "note": "Higgins was diagnosed Wednesday with an ACL tear, which would rule him out for the 2026 season, Jonathan M. Alexander of the Houston Chronicle reports.",
-                "factor": 0.25
-              },
-              "inputs": {
-                "tdRate": 0.353,
-                "rzPerGame": 0.53,
-                "snapShare": 0.572,
-                "gamesPlayed": 17,
-                "depthRank": 2,
-                "roleFactor": 0.9,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
-                "oppRzDefIndex": 0.903,
-                "oppRzDefFactor": 0.942,
-                "oppRzTdRateAllowed": 0.1737,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
           "gsisId": "00-0039407",
           "espnId": "4366963",
           "name": "Dylan Laube",
@@ -10967,7 +10911,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Mayer (nose) returned to practice Thursday, Sam Warren of The Athletic reports.",
+                "note": "Mayer did not play in Thursday's 22-20 preseason loss to the Texans.",
                 "factor": 1
               },
               "inputs": {
@@ -11524,10 +11468,10 @@
               "dataConfidence": "rookie",
               "isRookie": true,
               "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Bond caught two of his three targets for 12 yards in Thursday night's 22-20 preseason loss to the Raiders.",
                 "factor": 1
               },
               "inputs": {
@@ -11537,62 +11481,6 @@
                 "gamesPlayed": 0,
                 "depthRank": 7,
                 "roleFactor": 0.22,
-                "roleSource": "depth-2026",
-                "historyFactor": 0.92,
-                "oppRzDefIndex": 0.903,
-                "oppRzDefFactor": 0.942,
-                "oppRzTdRateAllowed": 0.1737,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
-          "gsisId": "00-0041312",
-          "espnId": "4432631",
-          "name": "Noah Whittington",
-          "team": "HOU",
-          "position": "RB",
-          "depth": "RB",
-          "jersey": "26",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/ofifs3fbgpnv6qtcjain",
-          "depthRank": 5,
-          "yearsExp": 0,
-          "isRookie": true,
-          "prevTeam": null,
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0,
-            "gamesPlayed": 0,
-            "rzTargets": 0,
-            "rzCarries": 0,
-            "tds": 0,
-            "statsSeason": null
-          },
-          "opponent": "LV",
-          "props": {
-            "atd": {
-              "probability": 0.0416,
-              "grade": "F",
-              "gradeLabel": "Avoid",
-              "dataConfidence": "rookie",
-              "isRookie": true,
-              "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
-                "factor": 1
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0,
-                "snapShare": 0,
-                "gamesPlayed": 0,
-                "depthRank": 5,
-                "roleFactor": 0.15,
                 "roleSource": "depth-2026",
                 "historyFactor": 0.92,
                 "oppRzDefIndex": 0.903,
@@ -11774,6 +11662,62 @@
           }
         },
         {
+          "gsisId": "00-0041312",
+          "espnId": "4432631",
+          "name": "Noah Whittington",
+          "team": "HOU",
+          "position": "RB",
+          "depth": "RB",
+          "jersey": "26",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/ofifs3fbgpnv6qtcjain",
+          "depthRank": 5,
+          "yearsExp": 0,
+          "isRookie": true,
+          "prevTeam": null,
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0,
+            "gamesPlayed": 0,
+            "rzTargets": 0,
+            "rzCarries": 0,
+            "tds": 0,
+            "statsSeason": null
+          },
+          "opponent": "LV",
+          "props": {
+            "atd": {
+              "probability": 0.0354,
+              "grade": "F",
+              "gradeLabel": "Avoid",
+              "dataConfidence": "rookie",
+              "isRookie": true,
+              "availability": {
+                "status": "questionable",
+                "statusRaw": "Questionable",
+                "detail": "Ankle",
+                "note": "Whittington (calf) is regarded as day-to-day, Aaron Wilson of KPRC 2 Houston reports.",
+                "factor": 0.85
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0,
+                "snapShare": 0,
+                "gamesPlayed": 0,
+                "depthRank": 5,
+                "roleFactor": 0.15,
+                "roleSource": "depth-2026",
+                "historyFactor": 0.92,
+                "oppRzDefIndex": 0.903,
+                "oppRzDefFactor": 0.942,
+                "oppRzTdRateAllowed": 0.1737,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
           "gsisId": "00-0041472",
           "espnId": "4695705",
           "name": "Marlin Klein",
@@ -11807,7 +11751,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Klein caught his only target for 31 yards in Thursday's 27-7 preseason loss to the Chargers.",
+                "note": "Klein caught three of four targets for 31 yards in Thursday night's 22-20 preseason loss to the Raiders.",
                 "factor": 1
               },
               "inputs": {
@@ -12479,7 +12423,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Mendoza completed eight of 15 passes for 86 yards, no touchdowns and one interception in Thursday's 22-20 preseason win over the Texans.",
+                "note": "Raiders coach Klint Kubiak indicated Thursday that he is not yet ready to name a starting quarterback (between Kirk Cousins and Mendoza) ahead of Week 1, Ryan McFadden of ESPN reports.",
                 "factor": 1
               },
               "inputs": {
@@ -13062,6 +13006,62 @@
           }
         },
         {
+          "gsisId": "00-0040130",
+          "espnId": "4877706",
+          "name": "Jayden Higgins",
+          "team": "HOU",
+          "position": "WR",
+          "depth": "WR",
+          "jersey": "81",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/wrdw1u4onrmfuuluuipk",
+          "depthRank": 2,
+          "yearsExp": 1,
+          "isRookie": false,
+          "prevTeam": "HOU",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0.572,
+            "gamesPlayed": 17,
+            "rzTargets": 9,
+            "rzCarries": 0,
+            "tds": 6,
+            "statsSeason": 2025
+          },
+          "opponent": "LV",
+          "props": {
+            "atd": {
+              "probability": 0,
+              "grade": "F",
+              "gradeLabel": "Out",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "out",
+                "statusRaw": "Injured Reserve",
+                "detail": "Knee - ACL",
+                "note": "The Texans placed Higgins (knee) on injured reserve Friday, Adam Schefter of ESPN reports.",
+                "factor": 0
+              },
+              "inputs": {
+                "tdRate": 0.353,
+                "rzPerGame": 0.53,
+                "snapShare": 0.572,
+                "gamesPlayed": 17,
+                "depthRank": 2,
+                "roleFactor": 0.9,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 0.903,
+                "oppRzDefFactor": 0.942,
+                "oppRzTdRateAllowed": 0.1737,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
           "gsisId": "00-0040211",
           "espnId": "4426335",
           "name": "Graham Mertz",
@@ -13568,17 +13568,17 @@
           "opponent": "LAC",
           "props": {
             "atd": {
-              "probability": 0.2258,
+              "probability": 0.2657,
               "grade": "C",
               "gradeLabel": "Lean",
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Quadriceps",
-                "note": "Kyle Shanahan said after Tuesday's joint practice with the Chargers that Evans experienced some quadriceps tightness, and the coach doesn't believe the issue is a serious one, Matt Maiocco of NBC Sports Bay Area reports.",
-                "factor": 0.85
+                "status": "unconfirmed",
+                "statusRaw": null,
+                "detail": null,
+                "note": null,
+                "factor": 1
               },
               "inputs": {
                 "tdRate": 0.375,
@@ -14305,7 +14305,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Thompson caught two of six targets for 30 yards in Thursday's 27-7 preseason win over the Texans.",
+                "note": "Thompson caught one of two targets for nine yards in Thursday night's 41-17 preseason loss to the 49ers.",
                 "factor": 1
               },
               "inputs": {
@@ -14440,62 +14440,6 @@
           }
         },
         {
-          "gsisId": "00-0040727",
-          "espnId": "4686612",
-          "name": "Tre Harris",
-          "team": "LAC",
-          "position": "WR",
-          "depth": "WR",
-          "jersey": "9",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/vfjekjvrfpbmskmuwoz9",
-          "depthRank": 3,
-          "yearsExp": 1,
-          "isRookie": false,
-          "prevTeam": "LAC",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0.485,
-            "gamesPlayed": 17,
-            "rzTargets": 5,
-            "rzCarries": 1,
-            "tds": 1,
-            "statsSeason": 2025
-          },
-          "opponent": "SF",
-          "props": {
-            "atd": {
-              "probability": 0.0824,
-              "grade": "D",
-              "gradeLabel": "Fade",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "active",
-                "statusRaw": "Active",
-                "detail": "active",
-                "note": "Chargers coach Jim Harbaugh said Wednesday that Harris is \"clearly\" part of the team's top three wide receivers alongside Ladd McConkey and Quentin Johnston at OTAs, Kris Rhim of ESPN.com reports.",
-                "factor": 1
-              },
-              "inputs": {
-                "tdRate": 0.059,
-                "rzPerGame": 0.35,
-                "snapShare": 0.485,
-                "gamesPlayed": 17,
-                "depthRank": 3,
-                "roleFactor": 0.72,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
-                "oppRzDefIndex": 1.054,
-                "oppRzDefFactor": 1.032,
-                "oppRzTdRateAllowed": 0.2028,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
           "gsisId": "00-0040177",
           "espnId": "4685397",
           "name": "Jordan James",
@@ -14544,6 +14488,62 @@
                 "oppRzDefIndex": 0.802,
                 "oppRzDefFactor": 0.881,
                 "oppRzTdRateAllowed": 0.1544,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0040727",
+          "espnId": "4686612",
+          "name": "Tre Harris",
+          "team": "LAC",
+          "position": "WR",
+          "depth": "WR",
+          "jersey": "9",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/vfjekjvrfpbmskmuwoz9",
+          "depthRank": 3,
+          "yearsExp": 1,
+          "isRookie": false,
+          "prevTeam": "LAC",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0.485,
+            "gamesPlayed": 17,
+            "rzTargets": 5,
+            "rzCarries": 1,
+            "tds": 1,
+            "statsSeason": 2025
+          },
+          "opponent": "SF",
+          "props": {
+            "atd": {
+              "probability": 0.07,
+              "grade": "F",
+              "gradeLabel": "Avoid",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "questionable",
+                "statusRaw": "Questionable",
+                "detail": "Undisclosed",
+                "note": "Harris (undisclosed) didn't play in Thursday's preseason game against San Francisco, but coach Jim Harbaugh said afterward that the wideout should practice this weekend, Kris Rhim of ESPN.com reports.",
+                "factor": 0.85
+              },
+              "inputs": {
+                "tdRate": 0.059,
+                "rzPerGame": 0.35,
+                "snapShare": 0.485,
+                "gamesPlayed": 17,
+                "depthRank": 3,
+                "roleFactor": 0.72,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 1.054,
+                "oppRzDefFactor": 1.032,
+                "oppRzTdRateAllowed": 0.2028,
                 "sampleYear": 2025,
                 "rosterYear": 2026
               },
@@ -14862,10 +14862,10 @@
               "dataConfidence": "no-history",
               "isRookie": false,
               "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Njoku and Charlie Kolar both started Thursday's preseason game against San Francisco. Njoku finished with no targets on five snaps.",
                 "factor": 1
               },
               "inputs": {
@@ -15089,7 +15089,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Lambert-Smith (hamstring) is participating during the Chargers' OTAs, Eric Smith of the team's official site reports.",
+                "note": "Lambert-Smith caught two of four targets for 14 yards in Thursday night's 41-17 preseason loss to the 49ers.",
                 "factor": 1
               },
               "inputs": {
@@ -15422,10 +15422,10 @@
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Kolar and David Njoku both started Thursday's preseason game against San Francisco. Kolar finished with one catch for nine yards on eight snaps.",
                 "factor": 1
               },
               "inputs": {
@@ -15478,10 +15478,10 @@
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Robinson did not receive any targets in Thursday night's 41-17 preseason win over the Chargers.",
                 "factor": 1
               },
               "inputs": {
@@ -15758,10 +15758,10 @@
               "dataConfidence": "no-history",
               "isRookie": false,
               "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "McCormick rushed six times for 53 yards and a touchdown in Thursday night's 41-17 preseason win over the Chargers.",
                 "factor": 1
               },
               "inputs": {
@@ -16153,7 +16153,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Lance completed 12 of 20 passes for 164 yards, no touchdowns and one interception while rushing three times for 27 yards in Thursday's 27-7 preseason win over the Texans.",
+                "note": "Lance completed 10 of 16 passes for 73 yards while rushing twice for 42 yards in Thursday's 41-17 preseason loss to the 49ers.",
                 "factor": 1
               },
               "inputs": {
@@ -27056,7 +27056,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Bateman is in full uniform for Thursday's practice.",
+                "note": "Bateman is facing three charges stemming from a domestic incident in June, Jamison Hensley of ESPN.com reports.",
                 "factor": 1
               },
               "inputs": {
@@ -30618,7 +30618,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Ferguson was a standout performer during the Rams' joint practice with the Cowboys on Tuesday, Cameron DaSilva of USA Today reports.",
+                "note": "The Rams have expanded Ferguson's route tree this summer now that he's more comfortable with the playbook in his second season, Nate Atkins of The Athletic reports.",
                 "factor": 1
               },
               "inputs": {
@@ -33835,10 +33835,10 @@
               "dataConfidence": "no-history",
               "isRookie": false,
               "availability": {
-                "status": "active",
-                "statusRaw": "Active",
-                "detail": "active",
-                "note": "Atwell is listed with the second-team offense on the Dolphins' first unofficial depth chart of training camp, David Furones of the South Florida Sun Sentinel reports.",
+                "status": "unconfirmed",
+                "statusRaw": null,
+                "detail": null,
+                "note": null,
                 "factor": 1
               },
               "inputs": {
@@ -41198,6 +41198,62 @@
           }
         },
         {
+          "gsisId": "00-0039236",
+          "espnId": "4686104",
+          "name": "Johnny Wilson",
+          "team": "PHI",
+          "position": "WR",
+          "depth": "WR",
+          "jersey": "89",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/azz7slr16byvcvbnaifa",
+          "depthRank": 6,
+          "yearsExp": 2,
+          "isRookie": false,
+          "prevTeam": "PHI",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0,
+            "gamesPlayed": 0,
+            "rzTargets": 0,
+            "rzCarries": 0,
+            "tds": 0,
+            "statsSeason": null
+          },
+          "opponent": "NE",
+          "props": {
+            "atd": {
+              "probability": 0.0296,
+              "grade": "F",
+              "gradeLabel": "Avoid",
+              "dataConfidence": "no-history",
+              "isRookie": false,
+              "availability": {
+                "status": "unconfirmed",
+                "statusRaw": null,
+                "detail": null,
+                "note": null,
+                "factor": 1
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0,
+                "snapShare": 0,
+                "gamesPlayed": 0,
+                "depthRank": 6,
+                "roleFactor": 0.22,
+                "roleSource": "depth-2026",
+                "historyFactor": 0.55,
+                "oppRzDefIndex": 1.189,
+                "oppRzDefFactor": 1.113,
+                "oppRzTdRateAllowed": 0.2288,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
           "gsisId": "00-0036567",
           "espnId": "4241555",
           "name": "Elijah Mitchell",
@@ -41464,62 +41520,6 @@
                 "snapShare": 0,
                 "gamesPlayed": 0,
                 "depthRank": 11,
-                "roleFactor": 0.22,
-                "roleSource": "depth-2026",
-                "historyFactor": 0.55,
-                "oppRzDefIndex": 1.189,
-                "oppRzDefFactor": 1.113,
-                "oppRzTdRateAllowed": 0.2288,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
-          "gsisId": "00-0039236",
-          "espnId": "4686104",
-          "name": "Johnny Wilson",
-          "team": "PHI",
-          "position": "WR",
-          "depth": "WR",
-          "jersey": "89",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/azz7slr16byvcvbnaifa",
-          "depthRank": 6,
-          "yearsExp": 2,
-          "isRookie": false,
-          "prevTeam": "PHI",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0,
-            "gamesPlayed": 0,
-            "rzTargets": 0,
-            "rzCarries": 0,
-            "tds": 0,
-            "statsSeason": null
-          },
-          "opponent": "NE",
-          "props": {
-            "atd": {
-              "probability": 0.0252,
-              "grade": "F",
-              "gradeLabel": "Avoid",
-              "dataConfidence": "no-history",
-              "isRookie": false,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Knee",
-                "note": "Wilson (knee) did not participate in Wednesday's practice, Dave Zangaro of NBC Sports Philadelphia reports.",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0,
-                "snapShare": 0,
-                "gamesPlayed": 0,
-                "depthRank": 6,
                 "roleFactor": 0.22,
                 "roleSource": "depth-2026",
                 "historyFactor": 0.55,
@@ -49311,7 +49311,7 @@
                 "status": "questionable",
                 "statusRaw": "Questionable",
                 "detail": "Undisclosed",
-                "note": "Coach Robert Saleh said Tate's absence from Wednesday's practice was due to stiffness and not the hard hit he took at Monday's session, Terry McCormick of TitanInsider.com reports.",
+                "note": "Tate (undisclosed) is in uniform for Friday's joint practice with the Seahawks, Jim Wyatt of the Titans' official site reports.",
                 "factor": 0.85
               },
               "inputs": {
@@ -49644,10 +49644,10 @@
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "As the coming season approaches, Nick Suss of the Nashville Tennessean projects that Dike is in line to compete for a rotational role in the Titans' re-tooled WR corps.",
                 "factor": 1
               },
               "inputs": {
@@ -51238,62 +51238,6 @@
           }
         },
         {
-          "gsisId": "00-0038752",
-          "espnId": "4360405",
-          "name": "Jake Bobo",
-          "team": "SEA",
-          "position": "WR",
-          "depth": "WR",
-          "jersey": "19",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/xkwlqqmn2dcjlyeywpw5",
-          "depthRank": 5,
-          "yearsExp": 3,
-          "isRookie": false,
-          "prevTeam": "SEA",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0.17,
-            "gamesPlayed": 11,
-            "rzTargets": 0,
-            "rzCarries": 0,
-            "tds": 0,
-            "statsSeason": 2025
-          },
-          "opponent": "TEN",
-          "props": {
-            "atd": {
-              "probability": 0.024,
-              "grade": "F",
-              "gradeLabel": "Avoid",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "active",
-                "statusRaw": "Active",
-                "detail": "active",
-                "note": null,
-                "factor": 1
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0,
-                "snapShare": 0.17,
-                "gamesPlayed": 11,
-                "depthRank": 5,
-                "roleFactor": 0.22,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
-                "oppRzDefIndex": 1.307,
-                "oppRzDefFactor": 1.18,
-                "oppRzTdRateAllowed": 0.2516,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
           "gsisId": "00-0036924",
           "espnId": "4240657",
           "name": "Michael Carter",
@@ -51324,10 +51268,10 @@
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Carter will enter training camp competing for a depth role in Tennessee's backfield, Mark Mihalko of USA Today reports.",
                 "factor": 1
               },
               "inputs": {
@@ -51395,6 +51339,62 @@
                 "roleFactor": 0.2,
                 "roleSource": "depth-2026",
                 "historyFactor": 0.55,
+                "oppRzDefIndex": 1.307,
+                "oppRzDefFactor": 1.18,
+                "oppRzTdRateAllowed": 0.2516,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0038752",
+          "espnId": "4360405",
+          "name": "Jake Bobo",
+          "team": "SEA",
+          "position": "WR",
+          "depth": "WR",
+          "jersey": "19",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/xkwlqqmn2dcjlyeywpw5",
+          "depthRank": 5,
+          "yearsExp": 3,
+          "isRookie": false,
+          "prevTeam": "SEA",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0.17,
+            "gamesPlayed": 11,
+            "rzTargets": 0,
+            "rzCarries": 0,
+            "tds": 0,
+            "statsSeason": 2025
+          },
+          "opponent": "TEN",
+          "props": {
+            "atd": {
+              "probability": 0.0204,
+              "grade": "F",
+              "gradeLabel": "Avoid",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "questionable",
+                "statusRaw": "Questionable",
+                "detail": "Knee",
+                "note": "Coach Mike Macdonald said Bobo sustained a \"serious\" knee injury in Friday's joint practice with the Titans, Adam Schefter of ESPN reports.",
+                "factor": 0.85
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0,
+                "snapShare": 0.17,
+                "gamesPlayed": 11,
+                "depthRank": 5,
+                "roleFactor": 0.22,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
                 "oppRzDefIndex": 1.307,
                 "oppRzDefFactor": 1.18,
                 "oppRzTdRateAllowed": 0.2516,
