@@ -1,0 +1,55 @@
+name: NFL Live
+
+# Long-lived job that polls ESPN's scoreboard server-side every 30s during NFL
+# game windows and writes slates/nfl-live.json (the same-origin file the browser
+# gamecast polls for live scores + win probability). The browser never hits
+# ESPN directly — ESPN 403s any browser User-Agent, so this job does the fetch
+# with an allowlisted library UA (okhttp) and serves the result as a static
+# JSON file via GitHub Pages.
+#
+# Free for public repos — Actions minutes are unlimited. Smart-exits once every
+# game on the slate is final, so it doesn't burn minutes on an empty scoreboard.
+on:
+  schedule:
+    # All times UTC. NFL game windows (ET, regular season):
+    #   Sunday 1pm ET games   → ~17:00–18:00 UTC kickoff (varies with DST)
+    #   Sunday 4pm/4:25pm ET  → ~20:25–21:25 UTC kickoff
+    #   Monday 8:15pm ET (MNF)→ ~00:15 UTC Tue (DST) / 01:15 UTC Tue (EST)
+    #   Thursday 8:15pm (TNF) → same as MNF
+    # GitHub cron does NOT shift with daylight saving, so each start is placed
+    # to cover kickoff in both DST and standard time; the 6h timeout + smart
+    # exit cover the tail of late games.
+    - cron: '0 16 * * 0'   # Sunday 1pm ET slate
+    - cron: '0 20 * * 0'   # Sunday 4pm ET slate (through end of SNF)
+    - cron: '0 23 * * 1'   # Monday night (MNF)
+    - cron: '0 23 * * 4'   # Thursday night (TNF)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Tick count cap (dry-run test). Leave blank to run until the slate wraps up.'
+        required: false
+        default: ''
+
+# One job at a time. A new start cancels the prior run — both poll the same
+# ESPN scoreboard, so the new run picks up every live game with no gap.
+concurrency:
+  group: nfl-live
+  cancel-in-progress: true
+
+permissions:
+  contents: write  # to push slates/nfl-live.json
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Poll ESPN scoreboard → slates/nfl-live.json
+        env:
+          POLL_MS: '30000'
+          MAX_TICKS: ${{ github.event.inputs.dry_run }}
+        run: node nfl-live-poll.js

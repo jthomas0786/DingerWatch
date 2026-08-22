@@ -46,10 +46,19 @@ export function pregameAwayProb(game) {
     const h = ho > 0 ? 100 / (ho + 100) : (-ho) / (-ho + 100);
     if (a + h > 0) return clamp(a / (a + h), 0.30, 0.70);
   }
-  // 2. Records, shrunk heavily (Add 2 wins + a tie's worth, 4 games of prior).
+  // 2. Records, shrunk heavily. For small samples (preseason — a 1-game record
+  // shouldn't make anyone look like a 33%/67% favorite), shrink even harder
+  // toward .500 with extra pseudo-games so the prior stays mild until real
+  // evidence accumulates.
   const recAway = parseRecord((game.away?.records || []).find(r => r.type === 'total')?.summary);
   const recHome = parseRecord((game.home?.records || []).find(r => r.type === 'total')?.summary);
-  const wp = (r) => r ? (r.w + 0.5 * r.t + 2) / (r.w + r.l + r.t + 4) : 0.5;
+  const wp = (r) => {
+    if (!r) return 0.5;
+    const games = r.w + r.l + r.t;
+    const pseudo = games < 4 ? 8 : 2;     // extra shrinkage for tiny samples
+    const pseudoW = pseudo / 2;
+    return (r.w + 0.5 * r.t + pseudoW) / (games + pseudo);
+  };
   const awayWP = wp(recAway), homeWP = wp(recHome);
   // Logit-difference with a small home-field edge (~0.12 in logit space).
   const p = sigmoid(0.75 * (logit(awayWP) - logit(homeWP)) - 0.12);
