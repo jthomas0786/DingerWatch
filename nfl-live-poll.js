@@ -98,6 +98,7 @@ async function tick() {
 
   const games = {};
   let live = 0, post = 0;
+  const now = Date.now();
   for (const ev of events) {
     const l = extractLive(ev);
     if (!l) continue;
@@ -110,10 +111,22 @@ async function tick() {
     const summary = Object.values(games).map(g => g.awayScore != null ? `${g.awayScore}-${g.homeScore}` : '?').join(' ');
     console.log(`committed: ${live} live / ${post} final — ${summary}`);
   }
-  // Smart exit: once every game is final (no live, some final), the slate is
-  // done — stop burning Actions minutes. A couple idle ticks guards against a
-  // transient ESPN gap right at kickoff.
-  if (live === 0 && post > 0) { idleTicks++; if (idleTicks >= 2) { console.log('slate wrapped up — exiting'); return false; } }
+  // Smart exit: once every game is final (no live, some final) AND no game is
+  // about to kick off within 3h, the slate is done — stop burning Actions
+  // minutes. The pre-soon guard is the important part: on Sunday the early
+  // 1pm games can finish while 4:25pm games are still 'pre' — without it the
+  // 20:00 UTC run would exit before late kickoffs. ESPN exposes kickoff time
+  // as ev.date (ISO); a missing/parseable date counts as "soon" (conservative).
+  let preSoon = 0;
+  for (const ev of events) {
+    const l = games[String(ev.id)];
+    if (l && l.status === 'pre') {
+      const kickoff = Date.parse(ev.date || ev.competitions?.[0]?.date || '');
+      const msUntil = kickoff - now;
+      if (!Number.isFinite(msUntil) || msUntil <= 3 * 60 * 60 * 1000) preSoon++;
+    }
+  }
+  if (live === 0 && post > 0 && preSoon === 0) { idleTicks++; if (idleTicks >= 2) { console.log('slate wrapped up — exiting'); return false; } }
   else idleTicks = 0;
   return true;
 }

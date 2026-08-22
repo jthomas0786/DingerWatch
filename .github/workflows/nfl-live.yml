@@ -20,7 +20,8 @@ on:
     # to cover kickoff in both DST and standard time; the 6h timeout + smart
     # exit cover the tail of late games.
     - cron: '0 16 * * 0'   # Sunday 1pm ET slate
-    - cron: '0 20 * * 0'   # Sunday 4pm ET slate (through end of SNF)
+    - cron: '0 20 * * 0'   # Sunday 4pm ET slate (through end of late games)
+    - cron: '0 0 * * 1'    # Sunday Night Football (Mon 00:00 UTC = ~8pm ET DST / 7pm EST; covers kickoff + tail to ~04:30 UTC)
     - cron: '0 23 * * 1'   # Monday night (MNF)
     - cron: '0 23 * * 4'   # Thursday night (TNF)
   workflow_dispatch:
