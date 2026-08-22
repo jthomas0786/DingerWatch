@@ -336,6 +336,30 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 .tab-content.active::-webkit-scrollbar-track{ background: transparent; }
 .tab-content.active::-webkit-scrollbar-thumb{ background: var(--border-light); border-radius:6px; border:2px solid var(--surface); }
 .tab-content.active::-webkit-scrollbar-thumb:hover{ background: var(--border-bright); }
+/* Contact Quality: 14-day batted-ball spray chart */
+.cq-filters{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:8px 0 6px; }
+.cq-flabel{ font-size:10px; color:var(--mute); text-transform:uppercase; letter-spacing:.06em; margin-right:2px; }
+.cq-hbtn{ font-size:12px; font-weight:600; padding:5px 11px; border-radius:999px; border:1px solid var(--line); background:var(--surface-alt); color:var(--text); cursor:pointer; transition:background .12s; }
+.cq-hbtn.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
+.cq-field-wrap{ width:100%; aspect-ratio:4/3; max-height:330px; border-radius:12px; overflow:hidden; border:1px solid var(--line); background:#b9d4ee; }
+.cq-field{ width:100%; height:100%; display:block; }
+.cq-arc{ transition:opacity .15s; }
+.cq-arc.hl{ stroke-width:3.2; opacity:1; filter:drop-shadow(0 0 4px currentColor); }
+.cq-land{ transition:r .15s; }
+.cq-land.hl{ r:4.5; }
+.cq-pitch-row{ display:flex; gap:6px; flex-wrap:wrap; margin:8px 0 4px; }
+.cq-pbtn{ font-size:11px; padding:4px 9px; border-radius:7px; border:1px solid var(--line); background:var(--surface-alt); color:var(--mute); cursor:pointer; transition:background .12s; }
+.cq-pbtn.active{ background:var(--accent-bright); color:#0c1b14; border-color:var(--accent-bright); font-weight:700; }
+.cq-list-wrap{ margin-top:8px; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.cq-list{ width:100%; border-collapse:collapse; font-size:12px; }
+.cq-list th{ text-align:left; font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--mute); padding:4px 6px; border-bottom:1px solid var(--line); }
+.cq-list td{ padding:5px 6px; border-bottom:1px solid var(--line); white-space:nowrap; }
+.cq-list td i{ font-style:normal; color:var(--mute); font-size:9.5px; margin-left:2px; }
+.cq-row{ cursor:pointer; }
+.cq-row:hover{ background:var(--surface-alt); }
+.cq-dot{ display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+.cq-barrel{ font-size:9.5px; font-weight:700; color:var(--accent-bright); background:rgba(120,220,160,.14); padding:1px 6px; border-radius:5px; }
+.cq-empty{ text-align:center; color:var(--mute); padding:14px; }
 .chart-wrap{ background: var(--bg-2); border:1px solid var(--border); border-radius:12px; padding:15px 17px 10px; margin-bottom:13px; }
 .chart-title{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:10.5px; color: var(--mute); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:12px; }
 .bar-chart{ display:flex; align-items:flex-end; gap:6px; height:110px; }
@@ -8540,6 +8564,128 @@ function stabilizeModalHeight(){
   const cap = window.innerHeight - 48; // matches .modal max-height (100dvh - 48px)
   modalBody.style.height = Math.min(maxH, cap) + 'px';
 }
+// === Contact Quality: 14-day batted-ball spray chart (MLB Stats API) ===
+// Fetches the batter's last 14 days of batted balls (gameLog → per-game feed/live),
+// extracts hitData with spray coordinates, pitch type, pitcher hand, and outcome,
+// then renders a behind-home-plate 2.5D field with parabolic flight-path arcs.
+const CONTACT_DAYS = 14;
+const _contactCache = {};
+const _feedCache = {};
+const SAVANT_HOME_X = 125, SAVANT_HOME_Y = 199;
+// Statcast barrel: only EV>=98 qualifies; the LA window widens as EV climbs.
+function contactBarrel(ev, la){
+  if(ev==null || la==null || ev<98) return false;
+  const d = ev-98, lo = Math.max(-9, 26-d), hi = Math.min(40, 30+d);
+  return la>=lo && la<=hi;
+}
+function contactPower(ev){ if(ev==null) return 0; return Math.max(1, Math.min(99, Math.round((ev-80)/(115-80)*100))); }
+const PITCH_GROUP = { Fastball:['FF','FT','SI','FC','FA'], Breaking:['SL','CU','KC','ST','CS','SC','SV'], Offspeed:['CH','FS','FO','KN','EP','PO','AB'] };
+function pitchGroupOf(code){ if(!code) return null; for(const k in PITCH_GROUP) if(PITCH_GROUP[k].includes(code)) return k; return null; }
+function contactKind(o){ o=(o||'').toLowerCase(); if(o.includes('home run'))return 'hr'; if(['single','double','triple'].some(k=>o.includes(k)))return 'hit'; if(o.includes('error'))return 'err'; return 'out'; }
+function contactColor(b){ const k=contactKind(b.outcome); return k==='hr'?'var(--accent-bright)':k==='hit'?'var(--cool)':k==='err'?'var(--warm)':'var(--mute)'; }
+async function fetchContactBalls(player){
+  const id = player?.id;
+  if(!id) return { balls:[], error:'no id' };
+  if(_contactCache[id] && (Date.now()-_contactCache[id].fetchedAt) < 5*60*1000) return _contactCache[id];
+  const glRes = await fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=gameLog&group=hitting&season=2026&gameType=R`);
+  if(!glRes.ok) throw new Error('gameLog fetch failed');
+  const gl = await glRes.json();
+  let splits = (gl.stats && gl.stats[0] && gl.stats[0].splits) || [];
+  const cutoff = Date.now() - CONTACT_DAYS*864e5;
+  const games = [];
+  for(const s of splits.slice(-CONTACT_DAYS).reverse()){
+    const t = s.date ? Date.parse(s.date) : NaN;
+    if(!isNaN(t) && t>=cutoff) games.push({ gamePk: s.game && s.game.gamePk, date: s.date, opp: s.opponent && s.opponent.abbreviation });
+  }
+  if(!games.length){ _contactCache[id] = { balls:[], fetchedAt:Date.now(), note:'none' }; return _contactCache[id]; }
+  const balls = [];
+  await Promise.all(games.map(async g => {
+    if(!g.gamePk) return;
+    let feed = _feedCache[g.gamePk];
+    if(!feed){ try{ const r = await fetch(`https://statsapi.mlb.com/api/v1.1/game/${g.gamePk}/feed/live`); if(!r.ok) return; feed = await r.json(); _feedCache[g.gamePk] = feed; }catch(e){ return; } }
+    const plays = (feed.liveData && feed.liveData.plays && feed.liveData.plays.allPlays) || [];
+    for(const play of plays){
+      const mu = play.matchup || {}; if(!mu.batter || mu.batter.id !== id) continue;
+      for(const pe of (play.playEvents || [])){
+        if(!pe.hitData) continue;
+        const hd = pe.hitData, dt = pe.details||{}, ty = dt.type||{}, c = hd.coordinates||{}, ab = play.about||{};
+        balls.push({ ev:hd.launchSpeed!=null?Number(hd.launchSpeed):null, la:hd.launchAngle!=null?Number(hd.launchAngle):null, dist:hd.totalDistance!=null?Number(hd.totalDistance):null, cx:c.coordX, cy:c.coordY, traj:hd.trajectory, hard:hd.hardness, pitchCode:ty.code, pitchName:ty.description, pHand:mu.pitchHand&&mu.pitchHand.code, outcome:play.result&&play.result.event, date:g.date, opp:g.opp, inning:ab.inning });
+      }
+    }
+  }));
+  balls.sort((a,b)=> (a.date<b.date?1:a.date>b.date?-1:0) || ((b.inning||0)-(a.inning||0)));
+  _contactCache[id] = { balls, fetchedAt:Date.now(), games:games.length };
+  return _contactCache[id];
+}
+async function renderContactQuality(p){
+  const host = document.getElementById('contactHost');
+  if(!host) return;
+  const st = host._state = host._state || { hand:null, pitch:null };
+  if(st.hand===null){ const t = p.oppPitcher && p.oppPitcher.throws; st.hand = (t==='L'||t==='R') ? t : 'ALL'; }
+  let data;
+  try{ data = await fetchContactBalls(p); }
+  catch(e){ host.innerHTML = `<div class="live-note err">Couldn't load contact data: ${e.message}</div>`; return; }
+  const balls = data.balls || [];
+  const draw = () => {
+    let rows = balls;
+    if(st.hand!=='ALL') rows = rows.filter(b=>b.pHand===st.hand);
+    if(st.pitch) rows = rows.filter(b=>pitchGroupOf(b.pitchCode)===st.pitch);
+    // 2.5D projection: behind home plate, depth recedes upward.
+    const VW=400, VH=300, HX=200, HY=270, KX=0.6, KY=0.42, KZ=0.6;
+    const proj = (fx,fy,fz=0) => ({ sx:HX+fx*KX, sy:HY-fy*KY-fz*KZ });
+    const rf=proj(233,233), lf=proj(-233,233), cf=proj(0,400), hp=proj(0,0);
+    const b1=proj(63.6,63.6), b2=proj(0,127.3), b3=proj(-63.6,63.6), mound=proj(0,60.5);
+    const wall = `M ${rf.sx} ${rf.sy} Q ${cf.sx} ${cf.sy-14} ${lf.sx} ${lf.sy}`;
+    // arcs: parabola home→landing, apex from dist & launch angle.
+    const arcs = [];
+    rows.forEach((b,i)=>{
+      if(b.cx==null||b.cy==null||!(b.dist>0)) return;
+      const theta = Math.atan2(b.cx-SAVANT_HOME_X, SAVANT_HOME_Y-b.cy);
+      const d = b.dist, lx = d*Math.sin(theta), ly = d*Math.cos(theta);
+      const la = (b.la==null?15:b.la)*Math.PI/180;
+      const apex = Math.max(2, Math.min(95, d*Math.tan(la)/4));
+      const N=14; let pts='';
+      for(let k=0;k<=N;k++){ const t=k/N, px=lx*t, py=ly*t, pz=apex*4*t*(1-t); const s=proj(px,py,pz); pts+=(k?' L ':'M ')+s.sx.toFixed(1)+' '+s.sy.toFixed(1); }
+      arcs.push({ i, pts, land:proj(lx,ly,0), col:contactColor(b), kind:contactKind(b.outcome), b });
+    });
+    const handBtn = (v,lbl)=>`<button class="cq-hbtn ${st.hand===v?'active':''}" data-hand="${v}">${lbl}</button>`;
+    const pitchBtn = (v,lbl)=>`<button class="cq-pbtn ${st.pitch===v?'active':''}" data-pitch="${v||''}">${lbl}</button>`;
+    const cnt = { L:balls.filter(b=>b.pHand==='L').length, R:balls.filter(b=>b.pHand==='R').length };
+    const listRows = rows.map((b,i)=>{
+      const o=b.outcome||'—', col=contactColor(b), barrel=contactBarrel(b.ev,b.la), pow=contactPower(b.ev);
+      return `<tr class="cq-row" data-i="${i}"><td class="cq-d">${b.date?b.date.slice(5):'—'}</td><td class="cq-o"><span class="cq-dot" style="background:${col};"></span>${o}</td><td>${b.ev!=null?b.ev.toFixed(1):'—'}<i>mph</i></td><td>${b.la!=null?Math.round(b.la)+'°':'—'}</td><td>${b.dist!=null?Math.round(b.dist):'—'}<i>ft</i></td><td>${pow}</td><td>${barrel?'<span class="cq-barrel">Barrel</span>':'—'}</td><td class="cq-p">${b.pitchCode||'—'}</td><td>${b.pHand||'—'}</td></tr>`;
+    }).join('');
+    host.innerHTML = `
+      <div class="section-mini">Contact Quality · last ${CONTACT_DAYS} days · ${balls.length} balls in play</div>
+      <div class="live-note">● Live from MLB Stats API · ${data.games||0} games</div>
+      <div class="cq-filters"><span class="cq-flabel">Pitcher</span>${handBtn('L','LHP'+(cnt.L?` ${cnt.L}`:''))}${handBtn('R','RHP'+(cnt.R?` ${cnt.R}`:''))}${handBtn('ALL','All')}</div>
+      <div class="cq-field-wrap"><svg class="cq-field" viewBox="0 0 ${VW} ${VH}" preserveAspectRatio="xMidYMid meet">
+        <defs><linearGradient id="cq-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9d4ee"/><stop offset="1" stop-color="#dceaf3"/></linearGradient><linearGradient id="cq-grass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f6b34"/><stop offset="1" stop-color="#1c4a23"/></linearGradient></defs>
+        <rect x="0" y="0" width="${VW}" height="${VH}" fill="url(#cq-sky)"/>
+        <path d="${wall} L ${rf.sx} ${VH} L 0 ${VH} L 0 ${lf.sy} Z" fill="url(#cq-grass)"/>
+        <path d="${wall}" fill="none" stroke="#0c2a14" stroke-width="2"/>
+        <path d="M ${hp.sx} ${hp.sy} L ${lf.sx} ${lf.sy}" stroke="#fff" stroke-width="1.5" fill="none" opacity="0.8"/>
+        <path d="M ${hp.sx} ${hp.sy} L ${rf.sx} ${rf.sy}" stroke="#fff" stroke-width="1.5" fill="none" opacity="0.8"/>
+        <path d="M ${hp.sx} ${hp.sy} L ${b1.sx} ${b1.sy} L ${b2.sx} ${b2.sy} L ${b3.sx} ${b3.sy} Z" fill="#c8a96a" stroke="#9a7a44" stroke-width="1"/>
+        <circle cx="${mound.sx}" cy="${mound.sy}" r="5" fill="#c8a96a" stroke="#9a7a44"/>
+        <circle cx="${hp.sx}" cy="${hp.sy}" r="3" fill="#1b2a3a"/>
+        <line x1="${rf.sx}" y1="${rf.sy}" x2="${rf.sx}" y2="${rf.sy-26}" stroke="#fff" stroke-width="2" opacity="0.7"/>
+        <line x1="${lf.sx}" y1="${lf.sy}" x2="${lf.sx}" y2="${lf.sy-26}" stroke="#fff" stroke-width="2" opacity="0.7"/>
+        ${arcs.map(a=>`<path class="cq-arc" data-i="${a.i}" d="${a.pts}" stroke="${a.col}" stroke-width="${a.kind==='hr'?2.4:1.6}" fill="none" opacity="${a.kind==='out'?0.5:0.9}"/>`).join('')}
+        ${arcs.map(a=>`<circle class="cq-land" data-i="${a.i}" cx="${a.land.sx}" cy="${a.land.sy}" r="${a.kind==='hr'?3.5:2.4}" fill="${a.col}" opacity="${a.kind==='out'?0.6:1}"/>`).join('')}
+      </svg></div>
+      <div class="cq-pitch-row">${pitchBtn(null,'All')}${pitchBtn('Fastball','Fastball')}${pitchBtn('Breaking','Breaking')}${pitchBtn('Offspeed','Offspeed')}</div>
+      <div class="cq-list-wrap"><table class="cq-list"><thead><tr><th>Date</th><th>Result</th><th>EV</th><th>LA</th><th>Dist</th><th>Pwr</th><th>Barrel</th><th>Pitch</th><th>Hand</th></tr></thead><tbody>${listRows||`<tr><td colspan="9" class="cq-empty">No balls match this filter.</td></tr>`}</tbody></table></div>`;
+    host.querySelectorAll('.cq-hbtn').forEach(btn=>btn.addEventListener('click',()=>{ st.hand=btn.dataset.hand; draw(); }));
+    host.querySelectorAll('.cq-pbtn').forEach(btn=>btn.addEventListener('click',()=>{ st.pitch=btn.dataset.pitch||null; draw(); }));
+    host.querySelectorAll('.cq-row').forEach(r=>r.addEventListener('mouseenter',()=>{
+      host.querySelectorAll('.cq-arc,.cq-land').forEach(x=>x.classList.remove('hl'));
+      const i=r.dataset.i; const a=host.querySelector(`.cq-arc[data-i="${i}"]`), l=host.querySelector(`.cq-land[data-i="${i}"]`);
+      if(a){ a.classList.add('hl'); l&&l.classList.add('hl'); }
+    }));
+  };
+  draw();
+}
 async function loadLast10(name, p){
   const container = document.getElementById('last10Container');
   if(!container || container.dataset.loaded==='1') return;
@@ -10494,7 +10640,7 @@ function openBatterModal(p){
     <div class="tabs">
       <div class="tab active" data-tab="overview">Overview</div>
       <div class="tab" data-tab="last10">Last 10 Games</div>
-      <div class="tab" data-tab="statcast">Statcast Profile</div>
+      <div class="tab" data-tab="statcast">Contact Quality</div>
       <div class="tab" data-tab="arsenal">Arsenal &amp; Zone</div>
       <div class="tab" data-tab="matchup">Matchup</div>
       <div class="tab" data-tab="breakdown">Why</div>
@@ -10541,7 +10687,8 @@ function openBatterModal(p){
       </div>
     </div>
     <div class="tab-content" data-panel="statcast">
-      <div class="section-mini">Contact quality · percentile vs tonight's slate</div>
+      <div id="contactHost"><div class="live-note pending"><span class="dot pending" style="width:6px;height:6px;"></span> Loading contact data from MLB Stats API…</div></div>
+      <div class="section-mini" style="margin-top:18px;">Contact quality · percentile vs tonight's slate</div>
       <div class="pctl-table">
         ${pctlBarHTML('Barrel %',     p.statcast.barrel,  slatePercentile(p.statcast.barrel,  x=>x.statcast.barrel), '%')}
         ${pctlBarHTML('Exit Velo',    p.statcast.ev,      slatePercentile(p.statcast.ev,      x=>x.statcast.ev), ' mph')}
@@ -10611,6 +10758,7 @@ function openBatterModal(p){
   document.getElementById('modalClose').onclick = closeModal;
   wireTabs(p.name, p);
   stabilizeModalHeight();
+  renderContactQuality(p);
 
   // Prop switcher inside the Why tab — re-renders the grade + factors in place.
   modalBody.querySelectorAll('#propSwitch .ps-btn').forEach(btn => {
