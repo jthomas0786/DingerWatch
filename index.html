@@ -9943,7 +9943,7 @@ body.dwpreview-active #modalOverlay.open{ z-index:4000; }
     live:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>',
     park:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h18M5 17V9l7-4 7 4v8M9 17v-5h6v5"/></svg>',
     social:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.2 7.6L3 21l2-5.7A8.5 8.5 0 1 1 21 11.5z"/></svg>',
-    export:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3h7v7M21 3l-9 9M10 21H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h6"/></svg>'
+    export:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6a1 1 0 0 1 1 1v1h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2V5a1 1 0 0 1 1-1z"/><path d="M9 13h6M9 17h4"/></svg>'
   };
 
   function previewFeatureCards(){
@@ -9953,7 +9953,7 @@ body.dwpreview-active #modalOverlay.open{ z-index:4000; }
       {ico:'live',   t:'Live Gamecast',      d:'Live linescores and in-game state update as games unfold, with home-run alerts the moment they happen.'},
       {ico:'park',   t:'Park & Weather',     d:'Coors, Fenway, the wind at Wrigley \u2014 park factors and weather are baked into every projection.'},
       {ico:'social', t:'Social Picks',       d:'React to props, post your own picks, and chat the game live with other fans.'},
-      {ico:'export', t:'Betslip & Export',   d:'Build a betslip and export the full board to Excel for your own modeling.'}
+      {ico:'export', t:'Betslip',           d:'Stack your leans into a betslip, text picks to the group, and track how they grade out.'}
     ];
     return f.map(x => `<div class="dwpreview-card"><div class="dwpreview-card-ico">${PREVIEW_ICONS[x.ico]}</div><h3>${x.t}</h3><p>${x.d}</p></div>`).join('');
   }
