@@ -8593,10 +8593,11 @@ async function fetchContactBalls(player){
   let splits = (gl.stats && gl.stats[0] && gl.stats[0].splits) || [];
   const cutoff = Date.now() - CONTACT_DAYS*864e5;
   const games = [];
-  for(const s of splits.slice(-CONTACT_DAYS).reverse()){
+  for(const s of splits){          // filter the whole game log by calendar date, not just the last 14 entries
     const t = s.date ? Date.parse(s.date) : NaN;
     if(!isNaN(t) && t>=cutoff) games.push({ gamePk: s.game && s.game.gamePk, date: s.date, opp: s.opponent && s.opponent.abbreviation });
   }
+  games.reverse();                // most recent first
   if(!games.length){ _contactCache[id] = { balls:[], fetchedAt:Date.now(), note:'none' }; return _contactCache[id]; }
   const balls = [];
   await Promise.all(games.map(async g => {
@@ -8675,7 +8676,7 @@ async function renderContactQuality(p){
         ${arcs.map(a=>`<circle class="cq-land" data-i="${a.i}" cx="${a.land.sx}" cy="${a.land.sy}" r="${a.kind==='hr'?3.5:2.4}" fill="${a.col}" opacity="${a.kind==='out'?0.6:1}"/>`).join('')}
       </svg></div>
       <div class="cq-pitch-row">${pitchBtn(null,'All')}${pitchBtn('Fastball','Fastball')}${pitchBtn('Breaking','Breaking')}${pitchBtn('Offspeed','Offspeed')}</div>
-      <div class="cq-list-wrap"><table class="cq-list"><thead><tr><th>Date</th><th>Result</th><th>EV</th><th>LA</th><th>Dist</th><th>Pwr</th><th>Barrel</th><th>Pitch</th><th>Hand</th></tr></thead><tbody>${listRows||`<tr><td colspan="9" class="cq-empty">No balls match this filter.</td></tr>`}</tbody></table></div>`;
+      <div class="cq-list-wrap"><table class="cq-list"><thead><tr><th>Date</th><th>Result</th><th>EV</th><th>LA</th><th>Dist</th><th>Pwr</th><th title="Estimated from exit velocity &amp; launch angle (Statcast barrel definition)">Barrel</th><th>Pitch</th><th>Hand</th></tr></thead><tbody>${listRows||`<tr><td colspan="9" class="cq-empty">No balls match this filter.</td></tr>`}</tbody></table></div>`;
     host.querySelectorAll('.cq-hbtn').forEach(btn=>btn.addEventListener('click',()=>{ st.hand=btn.dataset.hand; draw(); }));
     host.querySelectorAll('.cq-pbtn').forEach(btn=>btn.addEventListener('click',()=>{ st.pitch=btn.dataset.pitch||null; draw(); }));
     host.querySelectorAll('.cq-row').forEach(r=>r.addEventListener('mouseenter',()=>{
