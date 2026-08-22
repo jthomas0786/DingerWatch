@@ -10482,12 +10482,6 @@ function openBatterModal(p){
     <div class="tab-content active" data-panel="overview">
       ${matchupVerdictHTML(p)}
 
-      <div class="section-mini">Tonight's props · graded</div>
-      ${propsGridHTML(p)}
-
-      <div class="section-mini">Full probabilities</div>
-      ${propProbabilitiesHTML(p)}
-
       <div class="section-mini">Season</div>
       <div class="stat-grid">
         <div class="stat-box"><div class="sv">${p.hr}</div><div class="sl">HR</div><div class="sc">${p.pace}</div></div>
@@ -10517,6 +10511,9 @@ function openBatterModal(p){
       </div>
 
       <div class="narrative" style="margin-top:14px;">${p.narrative}</div>
+
+      <div class="section-mini">Full probabilities</div>
+      ${propProbabilitiesHTML(p)}
     </div>
     <div class="tab-content" data-panel="last10">
       <div id="last10Container">
