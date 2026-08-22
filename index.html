@@ -9995,12 +9995,14 @@ body.dwpreview-active #modalOverlay.open{ z-index:4000; }
     };
     if(_slateLoaded){ render(); return; }
     if(_slateFailed){ host.innerHTML = '<div class="dwpreview-loading">Slate unavailable right now \u2014 sign in to see the full board.</div>'; return; }
-    let done = false;
+    // Keep polling until boot finishes the slate (or fails). On a slow connection
+    // the slate can take well over 25s; we must not give up on the free Top 3.
     const start = Date.now();
+    let warned = false;
     const iv = setInterval(() => {
-      if(done) return;
-      if(_slateLoaded){ done = true; clearInterval(iv); render(); }
-      else if(_slateFailed || Date.now() - start > 25000){ done = true; clearInterval(iv); host.innerHTML = '<div class="dwpreview-loading">Still loading tonight\u2019s slate \u2014 sign in to see the full board.</div>'; }
+      if(_slateLoaded){ clearInterval(iv); render(); }
+      else if(_slateFailed){ clearInterval(iv); host.innerHTML = '<div class="dwpreview-loading">Slate unavailable right now \u2014 sign in to see the full board.</div>'; }
+      else if(!warned && Date.now() - start > 25000){ warned = true; host.innerHTML = '<div class="dwpreview-loading">Still loading tonight\u2019s top batters\u2026</div>'; }
     }, 200);
   }
 
