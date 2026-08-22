@@ -13345,7 +13345,7 @@ document.addEventListener('visibilitychange', ()=>{
   .dwadmin-head{display:flex;align-items:center;gap:8px;padding:12px 14px;
     border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0}
   .dwadmin-head h2{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin:0;flex:1}
-  .dwadmin-body{flex:1;overflow-y:auto;padding:0 14px 24px}
+  .dwadmin-body{flex:1;min-height:0;overflow-y:auto;padding:0 14px 24px}
   .dwadmin-btn{background:rgba(255,255,255,.07);color:inherit;border:1px solid rgba(255,255,255,.14);
     border-radius:6px;padding:5px 10px;font-size:11px;font-weight:600;cursor:pointer;
     font-family:inherit;transition:background .15s;text-decoration:none;display:inline-block}
@@ -13531,7 +13531,7 @@ document.addEventListener('visibilitychange', ()=>{
       <div id=dwadminFileView></div>
     </details>`;
 
-    panel.innerHTML = `<div class=dwadmin-head><h2>Admin Tools</h2><button class=dwadmin-btn id=dwadminClose>Close</button></div><div class=dwadmin-body">${body}</div>`;
+    panel.innerHTML = `<div class=dwadmin-head><h2>Admin Tools</h2><button class=dwadmin-btn id=dwadminClose>Close</button></div><div class=dwadmin-body>${body}</div>`;
     document.body.appendChild(panel);
 
     const closePanel = () => panel.classList.add('dwadmin-hidden');
