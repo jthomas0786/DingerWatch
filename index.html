@@ -341,8 +341,8 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 .cq-flabel{ font-size:10px; color:var(--mute); text-transform:uppercase; letter-spacing:.06em; margin-right:2px; }
 .cq-hbtn{ font-size:12px; font-weight:600; padding:5px 11px; border-radius:999px; border:1px solid var(--line); background:var(--surface-alt); color:var(--text); cursor:pointer; transition:background .12s; }
 .cq-hbtn.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
-.cq-field-wrap{ width:100%; aspect-ratio:4/3; max-height:330px; border-radius:12px; overflow:hidden; border:1px solid var(--line); background:linear-gradient(180deg,#b9d4ee,#dceaf3); }
-.cq-field{ width:100%; height:100%; display:block; }
+.cq-field-wrap{ width:100%; max-width:440px; margin:0 auto; border-radius:12px; overflow:hidden; border:1px solid var(--line); background:linear-gradient(180deg,#b9d4ee,#dceaf3); }
+.cq-field{ width:100%; height:auto; aspect-ratio:4/3; display:block; }
 .cq-arc{ transition:opacity .15s; }
 .cq-arc.hl{ stroke-width:3.2; opacity:1; filter:drop-shadow(0 0 4px currentColor); }
 .cq-land{ transition:r .15s; }
@@ -8632,7 +8632,7 @@ async function renderContactQuality(p){
     if(st.hand!=='ALL') rows = rows.filter(b=>b.pHand===st.hand);
     if(st.pitch) rows = rows.filter(b=>pitchGroupOf(b.pitchCode)===st.pitch);
     // 2.5D projection: behind home plate, depth recedes upward.
-    const VW=400, VH=300, HX=200, HY=308, KX=0.78, KY=0.66, KZ=0.7;
+    const VW=400, VH=300, HX=200, HY=270, KX=0.70, KY=0.46, KZ=0.82;
     const proj = (fx,fy,fz=0) => ({ sx:HX+fx*KX, sy:HY-fy*KY-fz*KZ });
     const rf=proj(233,233), lf=proj(-233,233), cf=proj(0,400), hp=proj(0,0);
     const b1=proj(63.6,63.6), b2=proj(0,127.3), b3=proj(-63.6,63.6), mound=proj(0,60.5);
@@ -8714,7 +8714,8 @@ async function renderContactQuality(p){
         <path d="M ${hp.sx} ${hp.sy} L ${rf.sx} ${rf.sy}" stroke="#fff" stroke-width="1.5" fill="none" opacity="0.8"/>
         <path d="M ${hp.sx} ${hp.sy} L ${b1.sx} ${b1.sy} L ${b2.sx} ${b2.sy} L ${b3.sx} ${b3.sy} Z" fill="#c8a96a" stroke="#9a7a44" stroke-width="1"/>
         <circle cx="${mound.sx}" cy="${mound.sy}" r="5" fill="#c8a96a" stroke="#9a7a44"/>
-        <circle cx="${hp.sx}" cy="${hp.sy}" r="3" fill="#1b2a3a"/>
+        <circle cx="${hp.sx}" cy="${hp.sy}" r="16" fill="#c8a96a" stroke="#9a7a44" stroke-width="0.8"/>
+        <path d="M ${hp.sx-4.5} ${hp.sy+3} L ${hp.sx+4.5} ${hp.sy+3} L ${hp.sx+4.5} ${hp.sy-2} L ${hp.sx} ${hp.sy-6.5} L ${hp.sx-4.5} ${hp.sy-2} Z" fill="#f5f3ee" stroke="#8a6f44" stroke-width="0.8"/>
         <line x1="${rf.sx}" y1="${rf.sy}" x2="${rf.sx}" y2="${rf.sy-26}" stroke="#fff" stroke-width="2" opacity="0.7"/>
         <line x1="${lf.sx}" y1="${lf.sy}" x2="${lf.sx}" y2="${lf.sy-26}" stroke="#fff" stroke-width="2" opacity="0.7"/>
         ${arcs.map(a=>`<path class="cq-arc" data-i="${a.i}" d="${a.pts}" stroke="${a.col}" stroke-width="${a.kind==='hr'?2.4:1.6}" fill="none" opacity="${a.kind==='out'?0.5:0.9}"/>`).join('')}
