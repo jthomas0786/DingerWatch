@@ -44,18 +44,18 @@ async function fetchScoreboard() {
 }
 
 /**
- * Signature over ONLY the fields the gamecast renders — status, scores, period,
- * clock, possession, field position, red-zone. Excludes lastFetchedAt (which
- * changes every tick and would force a commit every 30s). This is what keeps a
- * game at ~10–20 commits instead of ~700.
+ * Signature over the DISCRETE state that drives the gamecast — status, scores,
+ * period, possession, red-zone. Excludes clockMin and yardFromOwn (which drift
+ * on every play and would force a commit every 30s → ~720/game). Those fields
+ * are still written to the file (so the tiles can use them), they just don't
+ * trigger a commit by themselves. This is what keeps a game at ~20–40 commits.
  */
 function signature(games) {
   const parts = [];
   for (const id of Object.keys(games).sort()) {
     const g = games[id];
     parts.push(id + ':' + [g.status, g.awayScore, g.homeScore, g.period,
-      g.clockMin != null ? g.clockMin.toFixed(2) : '', g.possession,
-      g.yardFromOwn != null ? Math.round(g.yardFromOwn) : '', g.isRedZone ? 1 : 0].join('|'));
+      g.possession || '', g.isRedZone ? 1 : 0].join('|'));
   }
   return parts.join('::');
 }
