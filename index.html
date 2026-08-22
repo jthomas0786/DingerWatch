@@ -8505,7 +8505,7 @@ document.getElementById('dayToggle').addEventListener('click', (e)=>{
 const overlay = document.getElementById('modalOverlay');
 const modalBody = document.getElementById('modalBody');
 function pctl(val, max){ return Math.min(100, Math.round((val/max)*100)); }
-function closeModal(){ overlay.classList.remove('open'); }
+function closeModal(){ overlay.classList.remove('open'); modalBody.style.height = ''; }
 overlay.addEventListener('click', (e)=>{ if(e.target===overlay) closeModal(); });
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeModal(); });
 function wireTabs(playerName, player){
@@ -8519,6 +8519,26 @@ function wireTabs(playerName, player){
       if(t.dataset.tab==='last10' && playerName) loadLast10(playerName, wireTabs._player);
     });
   });
+}
+// Lock the modal to the tallest tab's height so switching tabs doesn't resize
+// (and re-center) the modal. Measures each panel with the modal at natural
+// height, then sets a fixed height; the existing flex/overflow on .tab-content
+// makes taller tabs scroll internally instead of growing the modal.
+function stabilizeModalHeight(){
+  const panels = [...modalBody.querySelectorAll('.tab-content')];
+  if(panels.length < 2) return;
+  const activePanel = modalBody.querySelector('.tab-content.active');
+  modalBody.style.height = 'auto';
+  let maxH = 0;
+  panels.forEach(p => {
+    panels.forEach(x => x.classList.remove('active'));
+    p.classList.add('active');
+    maxH = Math.max(maxH, modalBody.scrollHeight);
+  });
+  panels.forEach(x => x.classList.remove('active'));
+  if(activePanel) activePanel.classList.add('active');
+  const cap = window.innerHeight - 48; // matches .modal max-height (100dvh - 48px)
+  modalBody.style.height = Math.min(maxH, cap) + 'px';
 }
 async function loadLast10(name, p){
   const container = document.getElementById('last10Container');
@@ -10590,6 +10610,7 @@ function openBatterModal(p){
   overlay.classList.add('open');
   document.getElementById('modalClose').onclick = closeModal;
   wireTabs(p.name, p);
+  stabilizeModalHeight();
 
   // Prop switcher inside the Why tab — re-renders the grade + factors in place.
   modalBody.querySelectorAll('#propSwitch .ps-btn').forEach(btn => {
