@@ -9806,6 +9806,7 @@ function dismissGate(){
   renderAuthButton();
   refreshExportVisibility();
   refreshTuneVisibility();
+  window.refreshAdminVisibility?.();
   refreshSocialUI();
   _gateDismissed = true;
   maybeRunSims();
@@ -12325,6 +12326,7 @@ function initOnlinePresence(){
     renderAuthButton();
     refreshExportVisibility();
     refreshTuneVisibility();
+    window.refreshAdminVisibility?.();
     evaluateGate();
     // Whop OAuth redirect callback
     try{
@@ -13091,12 +13093,9 @@ document.addEventListener('visibilitychange', ()=>{
     document.getElementById('dwtuneClose').addEventListener('click', closePanel);
     toggle.addEventListener('click', () => {
       const hidden = panel.classList.toggle('dwtune-hidden');
-      if(!hidden){
-        SIM_RUNS = PREVIEW_RUNS;
-        runRescore();
-      } else {
-        closePanel();
-      }
+      // opening the Tuner closes the Admin panel so the two right-side panels don't overlap
+      if(!hidden){ document.querySelector('.dwadmin-panel')?.classList.add('dwadmin-hidden'); SIM_RUNS = PREVIEW_RUNS; runRescore(); }
+      else { closePanel(); }
     });
 
     document.getElementById('dwtuneGen').addEventListener('click', () => {
@@ -13309,6 +13308,328 @@ document.addEventListener('visibilitychange', ()=>{
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);
   else mount();
+})();
+
+// ============================================================================
+//  ADMIN TOOLS — owner-only side panel (mounted above the TUNE tab).
+//  Presentation only, not access control — same posture as the Excel export
+//  and the Tuner. No public backdoor: it mounts only for the owner profile
+//  (EXPORT_OWNER). QA uses the owner stub, not a URL flag.
+// ============================================================================
+(function initAdminPanel(){
+  const isOwner = () => { const u = social()?.getUser?.(); return !!(u && String(u.username).toLowerCase() === EXPORT_OWNER); };
+
+  const REPO = 'jthomas0786/DingerWatch';
+  const ghAPI = folder => `https://api.github.com/repos/${REPO}/contents/model-logs/${folder}?ref=public`;
+  const filePath = (folder, name) => `model-logs/${folder}/${name}`;
+  const LIVE = 'https://dingerwatch.app';
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const fmt = (v,d=3) => v==null?'—':(typeof v==='number'?v.toFixed(d):esc(v));
+  const pct = v => v==null?'—':(v*100).toFixed(1)+'%';
+  const PROP_LABEL = {hr:'HR',hits:'H',tb:'TB',rbi:'RBI',hrr:'H+R+RBI',sb:'SB'};
+  const calibClass = (mp,hr) => { if(mp==null||hr==null)return''; const g=Math.abs(mp-hr); if(g<=.02)return'dwadmin-good';if(g<=.05)return'dwadmin-warn';return'dwadmin-bad'; };
+  const brierClass = b => b==null?'':(b<=.12?'dwadmin-good':b<=.2?'dwadmin-warn':'dwadmin-bad');
+
+  const CSS = `
+  .dwadmin-toggle{position:fixed;right:0;top:calc(50% - 52px);transform:translateY(-50%);z-index:99998;
+    background:linear-gradient(180deg,#2d7fff,#1e6fff);color:#fff;border:0;border-radius:6px 0 0 6px;
+    padding:12px 6px;font-size:10px;font-weight:700;letter-spacing:.1em;cursor:pointer;
+    writing-mode:vertical-rl;font-family:'Satoshi',system-ui,sans-serif;box-shadow:-4px 0 12px rgba(0,0,0,.4)}
+  .dwadmin-toggle:hover{filter:brightness(1.1)}
+  .dwadmin-panel{position:fixed;top:0;right:0;bottom:0;width:min(680px,96vw);
+    background:var(--surface,#0f1421);border-left:1px solid rgba(255,255,255,.12);
+    z-index:99999;display:flex;flex-direction:column;
+    font-family:'Satoshi',system-ui,sans-serif;color:var(--text,#e2e8f0);
+    box-shadow:-8px 0 32px rgba(0,0,0,.5);transform:translateX(0);transition:transform .22s cubic-bezier(.4,0,.2,1)}
+  .dwadmin-panel.dwadmin-hidden{transform:translateX(100%)}
+  .dwadmin-head{display:flex;align-items:center;gap:8px;padding:12px 14px;
+    border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0}
+  .dwadmin-head h2{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin:0;flex:1}
+  .dwadmin-body{flex:1;overflow-y:auto;padding:0 14px 24px}
+  .dwadmin-btn{background:rgba(255,255,255,.07);color:inherit;border:1px solid rgba(255,255,255,.14);
+    border-radius:6px;padding:5px 10px;font-size:11px;font-weight:600;cursor:pointer;
+    font-family:inherit;transition:background .15s;text-decoration:none;display:inline-block}
+  .dwadmin-btn:hover{background:rgba(255,255,255,.14)}
+  .dwadmin-btn.dwadmin-primary{background:var(--accent,#2d7fff);border-color:transparent;color:#fff}
+  .dwadmin-sec{margin-top:16px}
+  .dwadmin-sec>summary{cursor:pointer;font-size:12px;font-weight:700;padding:8px 0;
+    letter-spacing:.04em;text-transform:uppercase;list-style:none;
+    border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:6px}
+  .dwadmin-sec>summary::-webkit-details-marker{display:none}
+  .dwadmin-sec>summary::before{content:'▸';font-size:9px;transition:transform .15s}
+  .dwadmin-sec[open]>summary::before{transform:rotate(90deg)}
+  .dwadmin-grp{font-size:10px;font-weight:700;color:var(--mute,#8b95a8);letter-spacing:.08em;
+    text-transform:uppercase;margin:12px 0 4px}
+  .dwadmin-chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+  .dwadmin-chip{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:5px 11px;font-size:11px;font-weight:600;cursor:pointer;color:inherit;font-family:inherit}
+  .dwadmin-chip:hover{background:rgba(255,255,255,.12)}
+  .dwadmin-chip.active{background:var(--accent,#2d7fff);border-color:transparent;color:#fff}
+  .dwadmin-date{display:inline-block;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+    border-radius:6px;padding:4px 9px;font-size:11px;font-family:'JetBrains Mono',monospace;cursor:pointer;color:inherit;margin:2px}
+  .dwadmin-date:hover{background:var(--accent,#2d7fff);border-color:transparent;color:#fff}
+  .dwadmin-date.active{background:var(--accent,#2d7fff);border-color:transparent;color:#fff}
+  .dwadmin-tbl-wrap{overflow-x:auto;margin-top:8px}
+  .dwadmin-tbl{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:11.5px}
+  .dwadmin-tbl th,.dwadmin-tbl td{padding:5px 8px;text-align:right;border-bottom:1px solid rgba(255,255,255,.07);white-space:nowrap}
+  .dwadmin-tbl th:first-child,.dwadmin-tbl td:first-child{text-align:left}
+  .dwadmin-tbl th{font-size:10px;font-weight:600;color:var(--mute,#8b95a8);text-transform:uppercase;letter-spacing:.04em}
+  .dwadmin-mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+  .dwadmin-good{color:var(--success,#22c55e)}.dwadmin-warn{color:#f0a83a}.dwadmin-bad{color:var(--hr-red,#ff3b3b)}
+  .dwadmin-search{width:100%;background:rgba(0,0,0,.35);color:inherit;border:1px solid rgba(255,255,255,.14);
+    border-radius:6px;padding:6px 9px;font-size:11px;font-family:inherit;margin:8px 0}
+  .dwadmin-status{font-size:11px;color:var(--mute,#8b95a8);padding:8px 0;font-family:'JetBrains Mono',monospace}
+  .dwadmin-status.err{color:var(--hr-red,#ff3b3b)}
+  .dwadmin-cards{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+  .dwadmin-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:8px 12px;min-width:84px}
+  .dwadmin-card b{display:block;font-size:16px;font-weight:700}
+  .dwadmin-card span{font-size:9.5px;color:var(--mute,#8b95a8);text-transform:uppercase;letter-spacing:.04em}
+  .dwadmin-meta{font-size:10.5px;color:var(--mute,#8b95a8);line-height:1.5;margin:4px 0}
+  .dwadmin-links{display:flex;flex-direction:column;gap:5px;margin-top:6px}
+  .dwadmin-links a{font-size:11.5px;color:#7eb4ff;text-decoration:none}
+  .dwadmin-links a:hover{text-decoration:underline}
+  .dwadmin-game{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;margin:6px 0;padding:8px 10px}
+  .dwadmin-game summary{cursor:pointer;font-size:11px;font-weight:600;color:#cdd6e4}
+  .dwadmin-void{color:var(--mute,#8b95a8)}.dwadmin-hit{color:var(--success,#22c55e);font-weight:700}.dwadmin-miss{color:var(--hr-red,#ff3b3b)}
+  @media(max-width:520px){.dwadmin-panel{width:100vw}}
+  `;
+
+  function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;return e;}
+
+  // Folder manifest cache (sessionStorage, 8 min) to respect the unauthenticated
+  // GitHub API rate limit (60 req/hr/IP).
+  async function listFolder(folder){
+    const key = 'dwadmin-files-' + folder;
+    try{ const c = JSON.parse(sessionStorage.getItem(key)||'null'); if(c && Date.now()-c.t < 8*60*1000) return c.files; }catch(e){}
+    const res = await fetch(ghAPI(folder), {headers:{'Accept':'application/vnd.github+json'}});
+    if(!res.ok) throw new Error('GitHub API '+res.status);
+    const arr = await res.json();
+    const files = (Array.isArray(arr)?arr:[]).filter(x=>x.name&&x.name.endsWith('.json')).map(x=>x.name).sort().reverse();
+    try{ sessionStorage.setItem(key, JSON.stringify({t:Date.now(),files})); }catch(e){}
+    return files;
+  }
+
+  // ---- per-file renderers ----
+  function renderScored(d, host){
+    const s = d.summary||{}, rows = d.rows||[], model = d.model||{};
+    host.innerHTML = '';
+    host.appendChild(el('div','dwadmin-meta', `Date <b class=dwadmin-mono>${esc(d.date)}</b> · model <span class=dwadmin-mono>${esc(model.modelHash||'—')}</span> · ${esc(model.simRuns||'—')} sims · git <span class=dwadmin-mono>${esc((model.gitSha||'—').slice(0,7))}</span>`));
+    const valid = (s.totalRows||0) - (s.voids||0);
+    host.appendChild(el('div','dwadmin-cards',
+      `<div class=dwadmin-card><b>${s.totalRows||0}</b><span>Rows</span></div>` +
+      `<div class=dwadmin-card><b>${s.voids||0}</b><span>Voids</span></div>` +
+      `<div class=dwadmin-card><b>${valid}</b><span>Valid</span></div>` +
+      `<div class=dwadmin-card><b>${rows.length}</b><span>Records</span></div>`));
+    // per-prop metrics
+    const pp = s.perProp||{};
+    const tbl = el('table','dwadmin-tbl');
+    tbl.innerHTML = `<thead><tr><th>Prop</th><th>n</th><th>Voids</th><th>Hits</th><th>Hit rate</th><th>Mean p</th><th>Brier</th><th>Log loss</th></tr></thead><tbody></tbody>`;
+    const tb = tbl.tBodies[0];
+    ['hr','hits','tb','rbi','hrr','sb'].forEach(p=>{ const m=pp[p]||{}; const tr=tb.insertRow();
+      tr.innerHTML = `<td>${PROP_LABEL[p]||p}</td><td>${m.n??0}</td><td>${m.voids??0}</td><td>${m.hits??0}</td>` +
+        `<td class="dwadmin-mono ${calibClass(m.meanProb,m.hitRate)}">${fmt(m.hitRate)}</td>` +
+        `<td class="dwadmin-mono ${calibClass(m.meanProb,m.hitRate)}">${fmt(m.meanProb)}</td>` +
+        `<td class="dwadmin-mono ${brierClass(m.brier)}">${fmt(m.brier,4)}</td>` +
+        `<td class=dwadmin-mono>${fmt(m.logLoss,4)}</td>`; });
+    const wrap = el('div','dwadmin-tbl-wrap'); wrap.appendChild(tbl);
+    host.appendChild(el('div','dwadmin-grp','Calibration by prop')); host.appendChild(wrap);
+    // searchable rows table
+    host.appendChild(el('div','dwadmin-grp','Records'));
+    const search = el('input','dwadmin-search'); search.placeholder='Filter by player, team, prop, grade…'; host.appendChild(search);
+    const rWrap = el('div','dwadmin-tbl-wrap'); const rt = el('table','dwadmin-tbl');
+    rt.innerHTML = `<thead><tr><th>Player</th><th>Team</th><th>Prop</th><th>p</th><th>Grade</th><th>Result</th></tr></thead><tbody></tbody>`;
+    rWrap.appendChild(rt); host.appendChild(rWrap);
+    const rb = rt.tBodies[0];
+    const draw = () => { rb.innerHTML=''; const q=search.value.trim().toLowerCase(); let shown=0;
+      for(const r of rows){ if(shown>=400) break; if(q){ const hay=(r.name+' '+r.team+' '+r.prop+' '+r.grade).toLowerCase(); if(!hay.includes(q)) continue; }
+        const res = r.void ? `<span class=dwadmin-void>void</span>` : (r.outcome?`<span class=dwadmin-hit>hit</span>`:`<span class=dwadmin-miss>miss</span>`);
+        const tr=rb.insertRow(); tr.innerHTML=`<td>${esc(r.name)}</td><td>${esc(r.team)}</td><td>${PROP_LABEL[r.prop]||r.prop}</td><td class=dwadmin-mono>${fmt(r.p)}</td><td>${esc(r.grade)}</td><td>${res}</td>`; shown++; }
+      if(!shown) rb.insertRow().innerHTML=`<td colspan=6 style=text-align:center;color:var(--mute,#8b95a8)>No matching records</td>`;
+    };
+    search.addEventListener('input', draw); draw();
+  }
+
+  function renderPredictions(d, host){
+    const players = d.players||[];
+    host.innerHTML = '';
+    host.appendChild(el('div','dwadmin-meta', `Date <b class=dwadmin-mono>${esc(d.date)}</b> · ${players.length} players · generated ${esc((d.generatedAt||'').slice(0,10))}`));
+    const search = el('input','dwadmin-search'); search.placeholder='Filter players…'; host.appendChild(search);
+    const wrap = el('div','dwadmin-tbl-wrap'); const tbl = el('table','dwadmin-tbl');
+    tbl.innerHTML = `<thead><tr><th>Player</th><th>TM</th><th>Opp</th><th>Pos</th><th>HR</th><th>H</th><th>TB</th><th>RBI</th><th>HRR</th><th>SB</th></tr></thead><tbody></tbody>`;
+    wrap.appendChild(tbl); host.appendChild(wrap); const tb=tbl.tBodies[0];
+    const draw = () => { tb.innerHTML=''; const q=search.value.trim().toLowerCase(); let shown=0;
+      for(const pl of players){ if(shown>=400) break; if(q && !(pl.name+' '+pl.team+' '+pl.opponent).toLowerCase().includes(q)) continue;
+        const cell = p => { const pr=(pl.props||{})[p]; if(!pr) return '<td class=dwadmin-void>—</td>'; return `<td class=dwadmin-mono>${fmt(pr.pct??(pr.p&&pr.p*100),1)}<span class=dwadmin-void> ${esc(pr.grade||'')}</span></td>`; };
+        const tr=tb.insertRow(); tr.innerHTML=`<td>${esc(pl.name)}</td><td>${esc(pl.team)}</td><td>${esc(pl.opponent)}</td><td>${esc(pl.pos||'—')}</td>`+['hr','hits','tb','rbi','hrr','sb'].map(cell).join(''); shown++; }
+      if(!shown) tb.insertRow().innerHTML=`<td colspan=10 style=text-align:center;color:var(--mute,#8b95a8)>No matching players</td>`;
+    };
+    search.addEventListener('input', draw); draw();
+  }
+
+  function renderOutcomes(d, host){
+    const games = d.games||[];
+    host.innerHTML = '';
+    host.appendChild(el('div','dwadmin-meta', `Date <b class=dwadmin-mono>${esc(d.date)}</b> · ${games.length} games · resolved ${esc((d.resolvedAt||'').slice(0,10))}`));
+    games.forEach(g=>{ const det=el('details','dwadmin-game'); det.innerHTML=`<summary>Game ${esc(g.gamePk)} — ${g.players.length} players</summary>`; const tbHost=el('div'); det.appendChild(tbHost); host.appendChild(det);
+      const tbl=el('table','dwadmin-tbl'); tbl.innerHTML=`<thead><tr><th>Player</th><th>TM</th><th>PA</th><th>HR</th><th>H</th><th>TB</th><th>RBI</th><th>HRR</th><th>SB</th></tr></thead><tbody></tbody>`;
+      tbHost.appendChild(tbl); const tb=tbl.tBodies[0];
+      (g.players||[]).forEach(pl=>{ const cell=p=>{ const r=(pl.props||{})[p]||{}; if(r.void) return `<td class=dwadmin-void>${esc(r.voidReason||'void')}</td>`; if(r.value!=null) return `<td class=dwadmin-mono>${fmt(r.value,0)}</td>`; return `<td class=dwadmin-void>—</td>`; };
+        const tr=tb.insertRow(); tr.innerHTML=`<td>${esc(pl.name)}</td><td>${esc(pl.team)}</td><td class=dwadmin-mono>${pl.plateAppearances??0}</td>`+['hr','hits','tb','rbi','hrr','sb'].map(cell).join(''); });
+    });
+  }
+
+  function renderCalibration(d, host){
+    host.innerHTML='';
+    const days = d.days||[];
+    host.appendChild(el('div','dwadmin-meta', `${d.daysScored||0} days · ${d.totalRows||0} rows · generated ${esc((d.generatedAt||'').slice(0,10))}`));
+    const pp=d.perProp||{}; const tbl=el('table','dwadmin-tbl');
+    tbl.innerHTML=`<thead><tr><th>Prop</th><th>n</th><th>Hits</th><th>Hit rate</th><th>Mean p</th><th>Brier</th><th>Log loss</th></tr></thead><tbody></tbody>`;
+    const tb=tbl.tBodies[0];
+    ['hr','hits','tb','rbi','hrr','sb'].forEach(p=>{ const m=pp[p]||{}; const tr=tb.insertRow();
+      tr.innerHTML=`<td>${PROP_LABEL[p]||p}</td><td>${m.n??0}</td><td>${m.hits??0}</td><td class="dwadmin-mono ${calibClass(m.meanProb,m.hitRate)}">${fmt(m.hitRate)}</td><td class="dwadmin-mono ${calibClass(m.meanProb,m.hitRate)}">${fmt(m.meanProb)}</td><td class=dwadmin-mono>${fmt(m.brier,4)}</td><td class=dwadmin-mono>${fmt(m.logLoss,4)}</td>`; });
+    host.appendChild(el('div','dwadmin-grp','Calibration by prop')); const w=el('div','dwadmin-tbl-wrap'); w.appendChild(tbl); host.appendChild(w);
+    host.appendChild(el('div','dwadmin-grp','Scored days')); const dl=el('div'); dl.innerHTML=days.map(x=>`<span class='dwadmin-date'>${esc(x.date||x.day)}</span>`).join(' ');
+    host.appendChild(dl);
+  }
+
+  const FOLDERS = [
+    {key:'scored', label:'Scored', render:renderScored},
+    {key:'predictions', label:'Predictions', render:renderPredictions},
+    {key:'outcomes', label:'Outcomes', render:renderOutcomes},
+    {key:'calibration', label:'Calibration', render:renderCalibration},
+  ];
+
+  function build(){
+    const style = el('style'); style.textContent = CSS; document.head.appendChild(style);
+    const toggle = el('button','dwadmin-toggle'); toggle.textContent='ADMIN'; document.body.appendChild(toggle);
+    const panel = el('div','dwadmin-panel dwadmin-hidden');
+
+    // ---- Quick links + safe local actions ----
+    let body = `<details class="dwadmin-sec" open><summary>Quick links</summary>
+      <div class=dwadmin-links>
+        <a href="${LIVE}" target=_blank>↗ Live site (dingerwatch.app)</a>
+        <a href="https://github.com/${REPO}" target=_blank>↗ GitHub repo</a>
+        <a href="https://github.com/${REPO}/actions" target=_blank>↗ GitHub Actions</a>
+        <a href="https://github.com/${REPO}/settings/pages" target=_blank>↗ GitHub Pages settings</a>
+        <a href="model-config.json" target=_blank>↗ model-config.json</a>
+        <a href="model-logs/" target=_blank>↗ model-logs/ folder</a>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
+        <button class=dwadmin-btn id=dwadminOpenTune>Open Tuner</button>
+        <button class=dwadmin-btn id=dwadminOpenPerf>Performance</button>
+        <button class=dwadmin-btn id=dwadminReload>Reload slate</button>
+      </div>
+    </details>`;
+
+    // ---- Model logs browser ----
+    body += `<details class="dwadmin-sec" open><summary>Model logs</summary>
+      <div class=dwadmin-grp>Folders</div>
+      <div class=dwadmin-chips id=dwadminChips></div>
+      <div class=dwadmin-status id=dwadminLogStatus>Pick a folder to list its daily files.</div>
+      <div id=dwadminDates></div>
+      <div class=dwadmin-grp id=dwadminFileTitle style=display:none></div>
+      <div id=dwadminFileView></div>
+    </details>`;
+
+    panel.innerHTML = `<div class=dwadmin-head><h2>Admin Tools</h2><button class=dwadmin-btn id=dwadminClose>Close</button></div><div class=dwadmin-body">${body}</div>`;
+    document.body.appendChild(panel);
+
+    const closePanel = () => panel.classList.add('dwadmin-hidden');
+    document.getElementById('dwadminClose').addEventListener('click', closePanel);
+    toggle.addEventListener('click', () => {
+      const hidden = panel.classList.toggle('dwadmin-hidden');
+      if(!hidden){
+        // opening Admin closes the Tuner so the two right-side panels don't overlap
+        document.querySelector('.dwtune-panel')?.classList.add('dwtune-hidden');
+      }
+    });
+
+    // Quick-link actions
+    document.getElementById('dwadminOpenTune').addEventListener('click', () => {
+      const t = document.querySelector('.dwtune-toggle');
+      if(t){ t.click(); closePanel(); }
+      else location.href = location.pathname + '?tune=1';
+    });
+    document.getElementById('dwadminOpenPerf').addEventListener('click', () => {
+      const u = new URL(location.href); u.searchParams.set('perf','1'); location.href = u.toString();
+    });
+    document.getElementById('dwadminReload').addEventListener('click', () => {
+      if(typeof fullLiveRefresh === 'function') fullLiveRefresh();
+      else location.reload();
+    });
+
+    // ---- Model logs browser wiring ----
+    const chips = document.getElementById('dwadminChips');
+    const status = document.getElementById('dwadminLogStatus');
+    const datesHost = document.getElementById('dwadminDates');
+    const fileTitle = document.getElementById('dwadminFileTitle');
+    const fileView = document.getElementById('dwadminFileView');
+    let activeFolder = null;
+
+    FOLDERS.forEach(f=>{ const b=el('button','dwadmin-chip'); b.textContent=f.label; b.dataset.key=f.key;
+      b.addEventListener('click', () => selectFolder(f, b)); chips.appendChild(b); });
+
+    async function selectFolder(f, chipBtn){
+      activeFolder = f.key;
+      chips.querySelectorAll('.dwadmin-chip').forEach(c=>c.classList.toggle('active', c===chipBtn));
+      datesHost.innerHTML=''; fileView.innerHTML=''; fileTitle.style.display='none';
+      // calibration is a single aggregate file, not a folder of dates
+      if(f.key==='calibration'){ await loadFile('calibration-history.json', f, null); return; }
+      status.className='dwadmin-status'; status.textContent='Loading file list…';
+      try{
+        const files = await listFolder(f.key);
+        if(!files.length){ status.className='dwadmin-status err'; status.textContent='No files in model-logs/'+f.key+'/ yet.'; return; }
+        status.className='dwadmin-status'; status.textContent=`${files.length} file${files.length>1?'s':''} in model-logs/${f.key}/`;
+        files.forEach(name=>{ const d=el('button','dwadmin-date'); d.textContent=name.replace('.json',''); d.dataset.name=name;
+          d.addEventListener('click', () => loadFile(name, f, d)); datesHost.appendChild(d); });
+      }catch(e){
+        // Fallback when the unauthenticated GitHub Contents API is rate-limited
+        // (60 req/hr/IP) or offline: derive candidate dates from the same-origin
+        // calibration-history.json (which lists every scored day). Clicking a date
+        // then tries a same-origin fetch — if that folder has no file for the day,
+        // the load step shows its own error, so this degrades gracefully.
+        status.className='dwadmin-status'; status.textContent='GitHub API unavailable — using scored-day list as fallback.';
+        try{
+          const res = await fetch('model-logs/calibration-history.json', {cache:'no-cache'});
+          if(!res.ok) throw new Error('HTTP '+res.status);
+          const cal = await res.json();
+          const dates = (cal.days||[]).map(x=>x.date||x.day).filter(Boolean).sort().reverse();
+          if(!dates.length){ status.className='dwadmin-status err'; status.textContent='Could not list files and no scored days found.'; return; }
+          status.className='dwadmin-status'; status.textContent=`GitHub API limit reached — showing ${dates.length} scored day${dates.length>1?'s':''} (fallback).`;
+          dates.forEach(date=>{ const d=el('button','dwadmin-date'); d.textContent=date; d.dataset.name=date+'.json';
+            d.addEventListener('click', () => loadFile(date+'.json', f, d)); datesHost.appendChild(d); });
+        }catch(e2){ status.className='dwadmin-status err'; status.textContent='Could not list files: '+e.message+' — and fallback failed.'; }
+      }
+    }
+
+    async function loadFile(name, f, dateBtn){
+      datesHost.querySelectorAll('.dwadmin-date').forEach(d=>d.classList.remove('active')); if(dateBtn) dateBtn.classList.add('active');
+      fileTitle.style.display='block'; fileTitle.textContent = (f.key==='calibration'?'calibration-history':name.replace('.json','')) + ' · loading…';
+      fileView.innerHTML='<div class=dwadmin-status>Loading…</div>';
+      try{
+        const path = f.key==='calibration' ? 'model-logs/calibration-history.json' : filePath(f.key, name);
+        const res = await fetch(path, {cache:'no-cache'});
+        if(!res.ok) throw new Error('HTTP '+res.status);
+        const data = await res.json();
+        fileTitle.textContent = (f.key==='calibration'?'calibration-history':name.replace('.json',''));
+        f.render(data, fileView);
+      }catch(e){ fileView.innerHTML='<div class=dwadmin-status err>Could not load '+esc(name)+': '+esc(e.message)+'</div>'; }
+    }
+
+    console.info('[admin] side tab mounted for owner profile');
+  }
+
+  const mounted = () => !!document.querySelector('.dwadmin-toggle');
+  function tryBuild(){
+    if(mounted()) return true;
+    if(!isOwner()) return false;
+    try{ build(); }catch(e){ console.error('[admin] failed to build panel', e); }
+    return true;
+  }
+  const interval = setInterval(() => { if(tryBuild()) clearInterval(interval); }, 500);
+  setTimeout(() => clearInterval(interval), 60000);
+  // Fallback if the owner signs in after the 60s window closed.
+  window.refreshAdminVisibility = () => { tryBuild(); };
 })();
 
 </script>
