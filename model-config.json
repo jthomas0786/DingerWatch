@@ -333,20 +333,20 @@
       "clamp": { "min": 0.35, "max": 2.20 },
       "weights": {
         "contact": {
-          "barrel":      0.40,   // still the strongest single HR signal, but trimmed
+          "barrel":      0.35,   // still the strongest single HR signal, but trimmed
                                   //   so the same 6 elite sluggers no longer pin the
                                   //   top every night regardless of matchup/park
           "xSLG":        0.32,   // power output, park-neutral
-          "airRate":     0.25,   // must get it airborne (correlated with barrel)
-          "hardHit":     0.00,   // off by default — correlated with barrel
-          "exitVelo":    0.00,   // off by default — correlated with barrel
+          "airRate":     0.35,   // must get it airborne (correlated with barrel)
+          "hardHit":     -0.4,   // off by default — correlated with barrel
+          "exitVelo":    0.2,   // off by default — correlated with barrel
         },
         "pitcher": {
           "hr9":         0.34,   // opponent HR allowed — the core matchup lever,
                                   //   lifted so a favorable starter can move a
                                   //   good-but-not-elite bat up the board
           "gbFb":       -0.14,   // NEGATIVE: sinkerballers suppress HR
-          "hand":        0.36,   // platoon edge, slugging split — kept modest;
+          "hand":        0.5,   // platoon edge, slugging split — kept modest;
                                   //   platoon splits are noisy
         },
         "park": {
@@ -355,7 +355,7 @@
           "temperature": 0.10,
         },
         "form": {
-          "powerTrend":  -0.04,   // small on purpose — 10 games is noise
+          "powerTrend":  0.6,   // small on purpose — 10 games is noise
         },
       },
     },
