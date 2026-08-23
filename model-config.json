@@ -144,12 +144,12 @@
   //     A+ ~15   A ~38   B+ ~61   B ~68   C+ ~68   C ~68   D ~61
   "grading": {
     "percentiles": {
-      "aPlus": 98,         // top 4%
-      "a": 87,             // next 10%
-      "bPlus": 71,         // next 16%
-      "b": 53,             // next 18%
-      "cPlus": 35,         // next 18%
-      "c": 17,             // next 18%
+      "aPlus": 96,         // top 4%
+      "a": 86,             // next 10%
+      "bPlus": 70,         // next 16%
+      "b": 52,             // next 18%
+      "cPlus": 34,         // next 18%
+      "c": 16,             // next 18%
                            // everything below 16 is D
     },
 
@@ -208,9 +208,9 @@
     "contact": {
       // Barrel rate: the single best public HR predictor. Floor 3% is a
       // no-power hitter, 18% is elite. Widen to (2, 22) to soften it.
-      "barrel":    { "type": "curve", "floor": 3,    "scale": 18   },
+      "barrel":    { "type": "curve", "floor": 2,    "scale": 22   },
       // Hard-hit %. Correlated with barrel — see the note in props.hr.
-      "hardHit":   { "type": "curve", "floor": 25,   "scale": 50   },
+      "hardHit":   { "type": "curve", "floor": 23,   "scale": 53   },
       // Average exit velocity. Also correlated with barrel.
       "exitVelo":  { "type": "curve", "floor": 85,   "scale": 93   },
       // Air-ball rate vs league. Ground balls cannot leave the yard.
@@ -262,8 +262,8 @@
     //  deliberately tight because 10 games is a tiny sample — a wider range
     //  would let one hot week outrank a season of evidence.
     "form": {
-      "avgTrend":   { "type": "curve", "floor": -0.06, "scale": 0.06 },  // ±60 pts of AVG
-      "powerTrend": { "type": "curve", "floor": -0.02, "scale": 0.02 },  // ±20 pts of HR/AB
+      "avgTrend":   { "type": "curve", "floor": -0.08, "scale": 0.08 },  // ±60 pts of AVG
+      "powerTrend": { "type": "curve", "floor": -0.04, "scale": 0.04 },  // ±20 pts of HR/AB
     },
 
     // ---- LINEUP ROLE AND TEAM CONTEXT ------------------------------------
@@ -330,10 +330,10 @@
     //  xSLG already carry it. If you turn them up, turn barrel down.
     "hr": {
       "enabled": true,
-      "clamp": { "min": 0.45, "max": 2.10 },
+      "clamp": { "min": 0.35, "max": 2.20 },
       "weights": {
         "contact": {
-          "barrel":      0.50,   // still the strongest single HR signal, but trimmed
+          "barrel":      0.40,   // still the strongest single HR signal, but trimmed
                                   //   so the same 6 elite sluggers no longer pin the
                                   //   top every night regardless of matchup/park
           "xSLG":        0.32,   // power output, park-neutral
