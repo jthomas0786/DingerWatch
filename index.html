@@ -1041,7 +1041,10 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .filter-clear{ background:none; border:1px solid var(--line); color:var(--mute); font-family:'JetBrains Mono','Space Mono',monospace; font-size:10px; padding:3px 9px; border-radius:10px; cursor:pointer; }
 .filter-clear:hover{ border-color:var(--hot); color:var(--hot); }
 .filter-body{ max-height:0; overflow:hidden; transition:max-height .25s ease; border-top:0 solid var(--line); }
-.filter-body.open{ max-height:900px; border-top:1px solid var(--line); }
+/* Cap must exceed the tallest expanded panel (10 filter items stacked on iOS,
+   plus Range/Min grade/Sort by rows). Anything below the cap gets clipped by
+   overflow:hidden — that's what was hiding "Sort by" on narrow screens. */
+.filter-body.open{ max-height:2400px; border-top:1px solid var(--line); }
 .filter-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); gap:12px; padding:14px 16px; }
 .filter-item{ background:var(--night2); border:1px solid var(--line); border-radius:9px; padding:10px 12px; }
 .filter-item.active{ border-color:var(--accent); }
