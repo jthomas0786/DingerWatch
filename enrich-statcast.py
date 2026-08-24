@@ -255,6 +255,102 @@ def _validate(board):
             "Check the source leaderboard columns before publishing.")
 
 
+# wOBA linear weights for non-batted-ball PA outcomes. Statcast's own xwOBA uses
+# fixed linear weights for walks / HBP / Ks, so a windowed xwOBA computed the
+# same way stays on the same scale as the season leaderboard value (which is
+# PA-weighted) rather than drifting high like a batted-ball-only mean would.
+_WOBA_BB = 0.69
+_WOBA_HBP = 0.72
+
+# PA outcomes that do NOT count as an at-bat. xSLG is per-AB, so these are excluded
+# from its denominator entirely (not counted as 0) — matching the season est_slg.
+_NON_AB_EVENTS = {
+    "walk", "intent_walk", "hit_by_pitch", "sac_bunt",
+    "batter_interference", "catcher_interf", "balk",
+}
+
+
+def compute_windowed_statcast(df, n_games, min_bbe, min_pa, min_ab):
+    """
+    Aggregate Statcast over a hitter's last n game-dates from a raw
+    statcast_batter dataframe (the same 45-day pull fetch_batter_detail already
+    makes, so this adds no extra API calls).
+
+    Windows are defined by the last n unique game-dates where the hitter had a
+    plate appearance (not only dates with a batted ball), so a hot streak is
+    not missed because its batted balls happened to fall on fewer dates.
+
+    Barrel %, Exit Velo, Hard-Hit % and Launch Angle are batted-ball aggregates
+    gated by a minimum BBE so tiny windows don't surface as nonsense. xwOBA is
+    PA-weighted (batted balls use estimated_woba_using_speed_angle; walks/HBP/Ks
+    use fixed linear weights) and xSLG is AB-weighted — both matching how Savant
+    computes the season values, so the season tier thresholds stay valid.
+
+    Returns None when there is no usable recent sample; the frontend then falls
+    back to the season value for that metric.
+    """
+    import pandas as pd
+
+    pa_rows = df[df["events"].notna()].copy()
+    if pa_rows.empty:
+        return None
+    pa_rows["game_date"] = pd.to_datetime(pa_rows["game_date"], errors="coerce").dt.date
+    pa_rows = pa_rows[pa_rows["game_date"].notna()]
+    dates = sorted(pa_rows["game_date"].unique(), reverse=True)[:n_games]
+    if not dates:
+        return None
+    w = pa_rows[pa_rows["game_date"].isin(dates)]
+    pa = int(len(w))
+    bbe_df = w[w["launch_speed"].notna()]
+    bbe = int(len(bbe_df))
+
+    out = {"pa": pa, "bbe": bbe}
+
+    # --- batted-ball rate metrics (require a minimum sample of batted balls) ---
+    if bbe >= min_bbe:
+        if "barrel" in bbe_df.columns:
+            barrels = int((bbe_df["barrel"] == 1).sum())
+            out["barrelPct"] = round(100 * barrels / bbe, 1)
+        out["exitVelo"] = round(float(bbe_df["launch_speed"].mean()), 1)
+        out["hardHitPct"] = round(100 * int((bbe_df["launch_speed"] >= 95).sum()) / bbe, 1)
+        if "launch_angle" in bbe_df.columns:
+            la = bbe_df[bbe_df["launch_angle"].notna()]
+            if len(la) >= min_bbe:
+                out["launchAngle"] = round(float(la["launch_angle"].mean()), 1)
+
+    # --- PA-weighted xwOBA (consistent with the season leaderboard value) ---
+    if pa >= min_pa:
+        has_est = "estimated_woba_using_speed_angle" in w.columns
+        num = 0.0
+        for _, r in w.iterrows():
+            ev = r.get("events")
+            if pd.notna(r.get("launch_speed")):
+                # Batted ball: use Savant's speed/angle estimate when present.
+                est = r.get("estimated_woba_using_speed_angle") if has_est else None
+                num += float(est) if pd.notna(est) else 0.0
+            elif ev in ("walk", "intent_walk"):
+                num += _WOBA_BB
+            elif ev == "hit_by_pitch":
+                num += _WOBA_HBP
+            # strikeouts and other outs contribute 0
+        out["xwoba"] = round(num / pa, 3)
+
+    # --- AB-weighted xSLG (consistent with the season est_slg) ---
+    ab_rows = w[~w["events"].isin(_NON_AB_EVENTS)]
+    ab = int(len(ab_rows))
+    if ab >= min_ab:
+        num = 0.0
+        has_slg = "estimated_slg_using_speed_angle" in ab_rows.columns
+        bip = ab_rows[ab_rows["launch_speed"].notna()]
+        if has_slg and not bip.empty:
+            ests = bip["estimated_slg_using_speed_angle"]
+            num = float(ests[ests.notna()].sum())
+        # non-BIP AB outcomes (strikeouts, field outs) contribute 0.
+        out["xslg"] = round(num / ab, 3)
+
+    return out
+
+
 def fetch_batter_detail(player_ids, season, days=45):
     """
     Per-hitter Statcast detail that only exists in the raw pitch-level data:
@@ -340,6 +436,8 @@ def fetch_batter_detail(player_ids, season, days=45):
             "zones": zones,
             "pitchTypes": pitches,
             "battedBalls": points,
+            "statcastL5": compute_windowed_statcast(df, 5,  min_bbe=3, min_pa=8,  min_ab=6),
+            "statcastL10": compute_windowed_statcast(df, 10, min_bbe=5, min_pa=15, min_ab=12),
         }
     return out
 
@@ -411,6 +509,10 @@ def main():
                 d = detail.get(str(hitter["id"]))
                 if d:
                     hitter["detail"] = d
+                    if d.get("statcastL5"):
+                        hitter["statcastL5"] = d["statcastL5"]
+                    if d.get("statcastL10"):
+                        hitter["statcastL10"] = d["statcastL10"]
 
     slate["sources"]["statcast"] = f"Baseball Savant via pybaseball ({season})"
     slate["statcastEnrichedAt"] = datetime.utcnow().isoformat() + "Z"

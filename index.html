@@ -3269,6 +3269,22 @@ function toStatcastShape(season, statcast) {
   };
 }
 
+/** Shape a per-window Statcast object (last 5 / last 10 games) the same way
+ *  the season one is shaped, but WITHOUT derived fallbacks — a missing recent
+ *  metric must read as null so rangeStat() falls back to the season value rather
+ *  than inventing a number from ISO. Returns null when no recent sample exists. */
+function statcastWindow(s) {
+  if (!s) return null;
+  const barrel      = plausible(s?.barrelPct,   0,  35, 'barrelPct');
+  const ev          = plausible(s?.exitVelo,   60, 100, 'exitVelo');
+  const hardHit     = plausible(s?.hardHitPct,   0,  80, 'hardHitPct');
+  const xwoba       = plausible(s?.xwoba,       0, 0.7, 'xwoba');
+  const xslg        = plausible(s?.xslg,        0, 1.2, 'xslg');
+  const launchAngle = plausible(s?.launchAngle, -40, 40, 'launchAngle');
+  const any = [barrel, ev, hardHit, xwoba, xslg, launchAngle].some(v => v != null);
+  return any ? { barrel, ev, hardHit, xwoba, xslg, launchAngle, bbe: s?.bbe ?? null } : null;
+}
+
 /** Speed score proxy — SB rate relative to opportunities, scaled by position.
  *  All constants live in MODEL.sb so they're tunable via model-config.json. */
 function speedScore(season, pos) {
@@ -3354,6 +3370,8 @@ function adaptHitter(h, teamAbbr, game, side) {
     speed: speedScore(s, h.pos),
     tier,
     statcast,
+    statcastL5: statcastWindow(h.statcastL5),
+    statcastL10: statcastWindow(h.statcastL10),
     recentForm: {
       last15: l10.hr != null ? `${l10.hr} HR / ${l10.ab} AB` : '—',
       last30: l10.hr != null ? `${l10.hr} HR / ${l10.ab} AB (L10 G)` : '—',
@@ -4826,21 +4844,24 @@ function scoreExactFor(tabId, p){
 // Each filter is an independent range. Active filters combine with AND, so
 // "barrel ≥ 10 AND exit velo ≥ 91" narrows to players clearing both bars.
 const FILTER_DEFS = [
-  { id:'barrel',   label:'Barrel %',      get:p=>p.statcast.barrel,      min:0,  max:25,  step:0.5, unit:'%',  tiers:[{label:'Elite',min:15},{label:'Good',min:10},{label:'Weak',max:6}] },
-  { id:'ev',       label:'Exit Velo',     get:p=>p.statcast.ev,          min:80, max:98,  step:0.5, unit:' mph',tiers:[{label:'Elite',min:93},{label:'Good',min:90},{label:'Weak',max:88}] },
-  { id:'hardHit',  label:'Hard-Hit %',    get:p=>p.statcast.hardHit,     min:0,  max:70,  step:1,   unit:'%',  tiers:[{label:'Elite',min:50},{label:'Good',min:42},{label:'Weak',max:38}] },
-  { id:'xwoba',    label:'xwOBA',         get:p=>p.statcast.xwoba,       min:0.2,max:0.5, step:0.005,unit:'',  tiers:[{label:'Elite',min:0.360},{label:'Good',min:0.320},{label:'Weak',max:0.300}] },
-  { id:'xslg',     label:'xSLG',          get:p=>p.statcast.xslg,        min:0.2,max:0.8, step:0.01, unit:'',  tiers:[{label:'Elite',min:0.500},{label:'Good',min:0.430},{label:'Weak',max:0.400}] },
-  { id:'launchAngle',label:'Launch Angle',get:p=>p.statcast.launchAngle, min:0,  max:25,  step:0.5, unit:'°',  tiers:[{label:'Elite',min:10,max:30},{label:'Good',min:5,max:10},{label:'Weak',max:5}] },
+  { id:'barrel',   label:'Barrel %',      get:p=>rangeStat(p,'barrel'),      min:0,  max:25,  step:0.5, unit:'%',  tiers:[{label:'Elite',min:15},{label:'Good',min:10},{label:'Weak',max:6}] },
+  { id:'ev',       label:'Exit Velo',     get:p=>rangeStat(p,'ev'),          min:80, max:98,  step:0.5, unit:' mph',tiers:[{label:'Elite',min:93},{label:'Good',min:90},{label:'Weak',max:88}] },
+  { id:'hardHit',  label:'Hard-Hit %',    get:p=>rangeStat(p,'hardHit'),     min:0,  max:70,  step:1,   unit:'%',  tiers:[{label:'Elite',min:50},{label:'Good',min:42},{label:'Weak',max:38}] },
+  { id:'xwoba',    label:'xwOBA',         get:p=>rangeStat(p,'xwoba'),       min:0.2,max:0.5, step:0.005,unit:'',  tiers:[{label:'Elite',min:0.360},{label:'Good',min:0.320},{label:'Weak',max:0.300}] },
+  { id:'xslg',     label:'xSLG',          get:p=>rangeStat(p,'xslg'),        min:0.2,max:0.8, step:0.01, unit:'',  tiers:[{label:'Elite',min:0.500},{label:'Good',min:0.430},{label:'Weak',max:0.400}] },
+  { id:'launchAngle',label:'Launch Angle',get:p=>rangeStat(p,'launchAngle'), min:0,  max:25,  step:0.5, unit:'°',  tiers:[{label:'Elite',min:10,max:30},{label:'Good',min:5,max:10},{label:'Weak',max:5}] },
   { id:'avg',      label:'AVG',           get:p=>rangeAvg(p),                  min:0.1,max:0.4, step:0.005,unit:'',  tiers:[{label:'Elite',min:0.300},{label:'Good',min:0.270},{label:'Weak',max:0.250}] },
   { id:'hr',       label:'HR',            get:p=>rangeHR(p),                   min:0,  max:50,  step:1,   unit:'',  tiers:hrTiers },
   { id:'hrProb',   label:'HR Probability',get:p=>simulatePlayer(p).hr.pct,min:0,  max:60,  step:1,   unit:'%',  tiers:[{label:'Elite',min:30},{label:'Good',min:18},{label:'Weak',max:10}] },
   { id:'speed',    label:'Speed',         get:p=>p.speed,                min:0,  max:100, step:1,   unit:'',  tiers:[{label:'Elite',min:85},{label:'Good',min:70},{label:'Weak',max:55}] },
 ];
 
-// Recent-window selector for the All Players tab. Applies only to the categories
-// that carry recent splits (AVG, Season HR) — Statcast fields are season-only in
-// the slate, so they stay on season and the panel labels them as such.
+// Recent-window selector for the All Players tab. Applies to AVG, HR, and every
+// Statcast category (Barrel %, Exit Velo, Hard-Hit %, xwOBA, xSLG, Launch Angle):
+// the slate builder computes per-window Statcast from the raw pitch-level pull,
+// falling back to the season value when the recent batted-ball sample is too
+// thin to trust. HR is a counting stat so its tier bands rescale with the window;
+// the Statcast rate categories stay on the same scale, so their tiers do not.
 let rangeFilter = '';  // '', 'last10', 'last5'
 const RANGE_OPTIONS = [ {id:'',label:'Season'}, {id:'last10',label:'Last 10'}, {id:'last5',label:'Last 5'} ];
 function rangeAvg(p){
@@ -4852,6 +4873,13 @@ function rangeHR(p){
   if(rangeFilter==='last10') return p.l10?.hr ?? p.hr;
   if(rangeFilter==='last5') return p.l5?.hr ?? p.hr;
   return p.hr;
+}
+// Statcast category under the active range window. Falls back to the season value
+// when the windowed sample is missing or below the builder's trust threshold.
+function rangeStat(p, key){
+  if(rangeFilter==='last5')  return p.statcastL5?.[key]  ?? p.statcast?.[key];
+  if(rangeFilter==='last10') return p.statcastL10?.[key] ?? p.statcast?.[key];
+  return p.statcast?.[key];
 }
 // Season HR is a 0-50 count; a 5- or 10-game window is 0-5, so the bands rescale.
 function hrTiers(){
@@ -5286,7 +5314,7 @@ function filterBarHTML(shown, total){
           ${RANGE_OPTIONS.map(r=>`<button type="button" class="tier-chip ${rangeFilter===r.id?'active':''}" data-range="${r.id}">${r.label}</button>`).join('')}
         </div>
       </div>
-      ${rangeFilter ? '<div class="filter-note">AVG &amp; HR use the selected window; Statcast filters use season data.</div>' : ''}
+      ${rangeFilter ? '<div class="filter-note">AVG, HR &amp; Statcast use the selected window; falls back to season when recent samples are thin.</div>' : ''}
       <div class="filter-grid">${items}</div>
       <div class="filter-sort">
         <span>Min grade</span>
@@ -5320,7 +5348,7 @@ function renderAllPlayers(){
   const sortDef = FILTER_DEFS.find(d=>d.id===allPlayersSort);
   const sortLabel = simCfg
     ? ALL_SORTS.find(o=>o.id===allPlayersSort).label
-    : (sortDef ? sortDef.label + (['avg','hr'].includes(sortDef.id) && rangeFilter ? ` (${rangeFilter==='last10'?'L10':'L5'})` : '') : 'HR Probability');
+    : (sortDef ? sortDef.label + (['avg','hr','barrel','ev','hardHit','xwoba','xslg','launchAngle'].includes(sortDef.id) && rangeFilter ? ` (${rangeFilter==='last10'?'L10':'L5'})` : '') : 'HR Probability');
 
   // Same compact card template as the Top 20 tabs, so scanning feels identical.
   const propTab = simCfg ? ALL_SORTS.find(o=>o.id===allPlayersSort).sim : 'hr';
