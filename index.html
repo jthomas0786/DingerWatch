@@ -1051,6 +1051,13 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .filter-inputs{ display:flex; align-items:center; gap:6px; }
 .filter-inputs input{ width:100%; background:var(--night); border:1px solid var(--line); color:var(--white); font-family:'JetBrains Mono','Space Mono',monospace; font-size:11px; padding:4px 6px; border-radius:5px; }
 .filter-inputs input:focus{ outline:none; border-color:var(--accent); }
+.tier-chips{ display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
+.tier-chip{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:10px; padding:3px 9px; border-radius:5px; border:1px solid var(--line); background:var(--night); color:var(--mute); cursor:pointer; transition:var(--transition); }
+.tier-chip:hover{ border-color:var(--border-light); color:var(--white); }
+.tier-chip.active{ color:#fff; }
+.tier-chip.active[data-tier="Elite"]{ background:var(--success); border-color:var(--success); }
+.tier-chip.active[data-tier="Good"]{ background:#f4c430; border-color:#f4c430; color:#1a1a1a; }
+.tier-chip.active[data-tier="Weak"]{ background:var(--warm); border-color:var(--warm); }
 .filter-inputs span{ color:var(--mute); font-size:10px; font-family:'JetBrains Mono','Space Mono',monospace; }
 .filter-sort{ display:flex; align-items:center; gap:8px; padding:0 16px 14px; font-family:'JetBrains Mono','Space Mono',monospace; font-size:10.5px; color:var(--mute); flex-wrap:wrap; }
 .filter-sort select{ background:var(--night2); border:1px solid var(--line); color:var(--white); font-family:'JetBrains Mono','Space Mono',monospace; font-size:11px; padding:4px 8px; border-radius:6px; cursor:pointer; }
@@ -2294,6 +2301,9 @@ footer{ margin-left:0; }
 /* Solid multi-HR pill — only shown when a player hits 2+ tonight. */
 .hr-multi-pill{ position:absolute; top:6px; right:8px; z-index:6; display:inline-flex; align-items:center; justify-content:center; min-width:34px; height:24px; padding:0 8px; border-radius:12px; font-family:'Cabinet Grotesk','Archivo Black',sans-serif; font-weight:800; font-size:13px; letter-spacing:0.3px; color:#fff; background:var(--grass-bright); box-shadow: 0 2px 8px rgba(34,197,94,0.55), 0 0 0 2px var(--surface); }
 .pick-card.is-compact{ position:relative; }
+
+/* All Players lists 100+ hitters, so widen the rank column for 3-digit numbers. */
+.pick-card.is-compact.pick-card--all .pick-rank{ width:30px; font-size:19px; }
 
 .pick-card.is-compact .pick-rank{
   padding-top: 0; font-size: 21px; width: 24px;
@@ -4807,19 +4817,16 @@ function scoreExactFor(tabId, p){
 // Each filter is an independent range. Active filters combine with AND, so
 // "barrel ≥ 10 AND exit velo ≥ 91" narrows to players clearing both bars.
 const FILTER_DEFS = [
-  { id:'barrel',   label:'Barrel %',      get:p=>p.statcast.barrel,      min:0,  max:25,  step:0.5, unit:'%'  },
-  { id:'ev',       label:'Exit Velo',     get:p=>p.statcast.ev,          min:80, max:98,  step:0.5, unit:' mph'},
-  { id:'hardHit',  label:'Hard-Hit %',    get:p=>p.statcast.hardHit,     min:0,  max:70,  step:1,   unit:'%'  },
-  { id:'xwoba',    label:'xwOBA',         get:p=>p.statcast.xwoba,       min:0.2,max:0.5, step:0.005,unit:''   },
-  { id:'xslg',     label:'xSLG',          get:p=>p.statcast.xslg,        min:0.2,max:0.8, step:0.01, unit:''   },
-  { id:'launchAngle',label:'Launch Angle',get:p=>p.statcast.launchAngle, min:0,  max:25,  step:0.5, unit:'°'  },
-  { id:'avg',      label:'AVG',           get:p=>p.avg,                  min:0.1,max:0.4, step:0.005,unit:''   },
-  { id:'hr',       label:'Season HR',     get:p=>p.hr,                   min:0,  max:50,  step:1,   unit:''   },
-  // Was 'HR Index' — the old 0-100 composite score. It is now the simulated
-  // probability he goes over 0.5 home runs, which is a real quantity you can
-  // compare against a sportsbook price instead of an internal number.
-  { id:'hrProb',   label:'HR Probability',get:p=>simulatePlayer(p).hr.pct,min:0,  max:60,  step:1,   unit:'%'  },
-  { id:'speed',    label:'Speed',         get:p=>p.speed,                min:0,  max:100, step:1,   unit:''   },
+  { id:'barrel',   label:'Barrel %',      get:p=>p.statcast.barrel,      min:0,  max:25,  step:0.5, unit:'%',  tiers:[{label:'Elite',min:15},{label:'Good',min:10},{label:'Weak',max:6}] },
+  { id:'ev',       label:'Exit Velo',     get:p=>p.statcast.ev,          min:80, max:98,  step:0.5, unit:' mph',tiers:[{label:'Elite',min:93},{label:'Good',min:90},{label:'Weak',max:88}] },
+  { id:'hardHit',  label:'Hard-Hit %',    get:p=>p.statcast.hardHit,     min:0,  max:70,  step:1,   unit:'%',  tiers:[{label:'Elite',min:50},{label:'Good',min:42},{label:'Weak',max:38}] },
+  { id:'xwoba',    label:'xwOBA',         get:p=>p.statcast.xwoba,       min:0.2,max:0.5, step:0.005,unit:'',  tiers:[{label:'Elite',min:0.360},{label:'Good',min:0.320},{label:'Weak',max:0.300}] },
+  { id:'xslg',     label:'xSLG',          get:p=>p.statcast.xslg,        min:0.2,max:0.8, step:0.01, unit:'',  tiers:[{label:'Elite',min:0.500},{label:'Good',min:0.430},{label:'Weak',max:0.400}] },
+  { id:'launchAngle',label:'Launch Angle',get:p=>p.statcast.launchAngle, min:0,  max:25,  step:0.5, unit:'°',  tiers:[{label:'Elite',min:10,max:30},{label:'Good',min:5,max:10},{label:'Weak',max:5}] },
+  { id:'avg',      label:'AVG',           get:p=>p.avg,                  min:0.1,max:0.4, step:0.005,unit:'',  tiers:[{label:'Elite',min:0.300},{label:'Good',min:0.270},{label:'Weak',max:0.250}] },
+  { id:'hr',       label:'Season HR',     get:p=>p.hr,                   min:0,  max:50,  step:1,   unit:'',  tiers:[{label:'Elite',min:25},{label:'Good',min:15},{label:'Weak',max:8}] },
+  { id:'hrProb',   label:'HR Probability',get:p=>simulatePlayer(p).hr.pct,min:0,  max:60,  step:1,   unit:'%',  tiers:[{label:'Elite',min:30},{label:'Good',min:18},{label:'Weak',max:10}] },
+  { id:'speed',    label:'Speed',         get:p=>p.speed,                min:0,  max:100, step:1,   unit:'',  tiers:[{label:'Elite',min:85},{label:'Good',min:70},{label:'Weak',max:55}] },
 ];
 
 // { barrel:{min:10}, ev:{max:95}, ... } — only keys the user has touched.
@@ -5218,15 +5225,15 @@ function filterBarHTML(shown, total){
     const f = activeFilters[d.id] || {};
     const isOn = f.min != null || f.max != null;
     const summary = isOn
-      ? `${f.min != null ? '≥'+f.min : ''}${f.min != null && f.max != null ? ' ' : ''}${f.max != null ? '≤'+f.max : ''}${d.unit}`
+      ? `${f.tier ? f.tier+' · ' : ''}${f.min != null ? '≥'+f.min : ''}${f.min != null && f.max != null ? ' ' : ''}${f.max != null ? '≤'+f.max : ''}${d.unit}`
       : 'any';
+    const chips = (d.tiers||[]).map(t=>{
+      const active = isOn && f.tier === t.label;
+      return `<button type="button" class="tier-chip ${active?'active':''}" data-fid="${d.id}" data-tier="${t.label}">${t.label}</button>`;
+    }).join('');
     return `<div class="filter-item ${isOn?'active':''}">
       <div class="filter-item-head"><span class="filter-item-label">${d.label}</span><span class="filter-item-val">${summary}</span></div>
-      <div class="filter-inputs">
-        <input type="number" data-fid="${d.id}" data-bound="min" placeholder="min" step="${d.step}" value="${f.min ?? ''}">
-        <span>to</span>
-        <input type="number" data-fid="${d.id}" data-bound="max" placeholder="max" step="${d.step}" value="${f.max ?? ''}">
-      </div>
+      <div class="tier-chips">${chips}</div>
     </div>`;
   }).join('');
 
@@ -5275,7 +5282,8 @@ function renderAllPlayers(){
     ? ALL_SORTS.find(o=>o.id===allPlayersSort).label
     : (sortDef ? sortDef.label : 'HR Probability');
 
-  // Same card format as the Home Runs tab, so scanning feels identical.
+  // Same compact card template as the Top 20 tabs, so scanning feels identical.
+  const propTab = simCfg ? ALL_SORTS.find(o=>o.id===allPlayersSort).sim : 'hr';
   const cards = list.map((p,i)=>{
     const g = p.game;
     // When sorting by a prop, the headline is that prop's graded probability;
@@ -5288,27 +5296,21 @@ function renderAllPlayers(){
     const windTemp = g.roof==='open-air'
       ? `${g.tempF!=null ? g.tempF+'°F' : ''} ${g.windMph!=null ? 'wind '+windDirLabel(g.windDeg)+' '+g.windMph+'mph' : ''}`.trim()
       : 'Indoor / roof closed';
+    const rk = i===0?'':(i===1?'r2':(i===2?'r3':'r5'));
     return `
-      <div class="pick-card" data-team="${p.team}" data-pname="${p.name}">
-        <div class="pick-rank ${i===0?'':(i===1?'r2':(i===2?'r3':'r5'))}">${i+1}</div>
+      <div class="pick-card is-compact pick-card--all" data-tab="${propTab}" data-idx="${i}" data-team="${p.team}" data-pname="${p.name}">
+        <div class="pick-rank ${rk}">${i+1}</div>
         ${headshotImgTag(p.name, 'pick-headshot', p.team, p.id)}
         <div class="pick-body">
-          <div class="pick-name-row"><span class="pick-name">${p.name}</span><span class="pick-team">${p.team} · ${p.pos||''}</span>${watchStarHTML(p)}</div>
-          <div class="pick-matchup">${g.awayName} @ ${g.homeName} · ${gameTime(g)}</div>
-          <div class="pick-summary">${p.narrative}</div>
-          <div class="pick-chips">
-            ${simData ? `<span class="chip">Median <b>${simData.p50}</b></span>
-            <span class="chip">Ceiling <b>${simData.ceiling}</b></span>` : ''}
-            <span class="chip">Barrel% <b>${p.statcast.barrel}%</b></span>
-            <span class="chip">EV <b>${p.statcast.ev}</b></span>
-            <span class="chip">HR <b>${p.hr}</b></span>
-            ${p.statcast._regressed?`<span class="chip" style="color:var(--warm);">small sample · ${p.statcast._pa} PA</span>`
-              : p.statcast._derived?'<span class="chip" style="color:var(--warm);">est. Statcast</span>':''}
+          <div class="pick-name-row"><span class="pick-name">${p.name}</span><span class="pick-team">${p.team} · ${p.pos||''}</span><span class="pick-matchup">${g.awayName} @ ${g.homeName} · ${gameTime(g)}</span>${watchStarHTML(p)}</div>
+          <div class="pick-metrics">
+            <div class="pick-chips">${chipsFor(propTab, p).join('')}</div>
+            <div class="pick-env">
+              <div class="env-item">${ballparkIconSVG(g.roof)}<b>${g.parkShort||g.park}</b> · idx ${g.parkFactor}</div>
+              <div class="env-item">${windArrowSVG(g.roof==='open-air'?g.windDeg:null)}<b>${windTemp}</b></div>
+            </div>
           </div>
-          <div class="pick-env">
-            <div class="env-item">${ballparkIconSVG(g.roof)}<b>${g.parkShort||g.park}</b> · idx ${g.parkFactor}</div>
-            <div class="env-item">${windArrowSVG(g.roof==='open-air'?g.windDeg:null)}<b>${windTemp}</b></div>
-          </div>
+          ${platoonRowHTML(propTab, p)}
         </div>
         <div class="pick-score">
           ${gr ? `<div class="pick-grade ${gr.cls}">${gr.g}</div>` : ''}
@@ -5374,21 +5376,19 @@ function wireFilterBar(){
     renderAllPlayers();
   });
 
-  pickList.querySelectorAll('.filter-inputs input').forEach(input=>{
-    // 'change' rather than 'input' so the list doesn't re-render (and steal
-    // focus) on every keystroke while a number is still being typed.
-    input.addEventListener('change', e=>{
-      const {fid, bound} = e.target.dataset;
-      const raw = e.target.value.trim();
-      if(raw === ''){
-        if(activeFilters[fid]){
-          delete activeFilters[fid][bound];
-          if(activeFilters[fid].min == null && activeFilters[fid].max == null) delete activeFilters[fid];
-        }
+  pickList.querySelectorAll('.tier-chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      const fid = chip.dataset.fid;
+      const tlabel = chip.dataset.tier;
+      const def = FILTER_DEFS.find(d=>d.id===fid);
+      if(!def) return;
+      const tier = (def.tiers||[]).find(t=>t.label===tlabel);
+      if(!tier) return;
+      const cur = activeFilters[fid];
+      if(cur && cur.tier === tlabel){
+        delete activeFilters[fid];            // clicking the active tier clears it
       } else {
-        const v = parseFloat(raw);
-        if(Number.isNaN(v)) return;
-        (activeFilters[fid] ??= {})[bound] = v;
+        activeFilters[fid] = { min: tier.min ?? null, max: tier.max ?? null, tier: tier.label };
       }
       filterPanelOpen = true;    // keep the panel open across the re-render
       renderAllPlayers();
