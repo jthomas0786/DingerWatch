@@ -285,7 +285,7 @@ def compute_windowed_statcast(df, n_games, min_bbe, min_pa, min_ab):
 
     Barrel %, Exit Velo, Hard-Hit % and Launch Angle are batted-ball aggregates
     gated by a minimum BBE so tiny windows don't surface as nonsense. xwOBA is
-    PA-weighted (batted balls use estimated_woba_using_speed_angle; walks/HBP/Ks
+    PA-weighted (batted balls use estimated_woba_using_speedangle; walks/HBP/Ks
     use fixed linear weights) and xSLG is AB-weighted — both matching how Savant
     computes the season values, so the season tier thresholds stay valid.
 
@@ -311,7 +311,13 @@ def compute_windowed_statcast(df, n_games, min_bbe, min_pa, min_ab):
 
     # --- batted-ball rate metrics (require a minimum sample of batted balls) ---
     if bbe >= min_bbe:
-        if "barrel" in bbe_df.columns:
+        # The raw Statcast CSV has no `barrel` column; a batted ball is a barrel
+        # when its launch_speed_angle bucket == 6 (the "ideal contact" zone).
+        if "launch_speed_angle" in bbe_df.columns:
+            lsa = pd.to_numeric(bbe_df["launch_speed_angle"], errors="coerce")
+            barrels = int((lsa == 6).sum())
+            out["barrelPct"] = round(100 * barrels / bbe, 1)
+        elif "barrel" in bbe_df.columns:  # fallback for exports that include it
             barrels = int((bbe_df["barrel"] == 1).sum())
             out["barrelPct"] = round(100 * barrels / bbe, 1)
         out["exitVelo"] = round(float(bbe_df["launch_speed"].mean()), 1)
@@ -322,20 +328,20 @@ def compute_windowed_statcast(df, n_games, min_bbe, min_pa, min_ab):
                 out["launchAngle"] = round(float(la["launch_angle"].mean()), 1)
 
     # --- PA-weighted xwOBA (consistent with the season leaderboard value) ---
-    # Batted balls use Savant's estimated_woba_using_speed_angle; walks/HBP use
+    # Batted balls use Savant's estimated_woba_using_speedangle; walks/HBP use
     # fixed linear weights; strikeouts and other outs contribute 0. If the est
     # column is absent, or too many BIP lack an estimate, omit the metric so the
     # frontend falls back to season rather than understating with silent zeros.
-    if pa >= min_pa and "estimated_woba_using_speed_angle" in w.columns:
+    if pa >= min_pa and "estimated_woba_using_speedangle" in w.columns:
         bip = w[w["launch_speed"].notna()]
-        missing_est = int((bip["estimated_woba_using_speed_angle"].isna()).sum())
+        missing_est = int((bip["estimated_woba_using_speedangle"].isna()).sum())
         tol = max(1, int(0.25 * len(bip))) if len(bip) else 0
         if missing_est <= tol:
             num = 0.0
             for _, r in w.iterrows():
                 ev = r.get("events")
                 if pd.notna(r.get("launch_speed")):
-                    est = r.get("estimated_woba_using_speed_angle")
+                    est = r.get("estimated_woba_using_speedangle")
                     num += float(est) if pd.notna(est) else 0.0
                 elif ev in ("walk", "intent_walk"):
                     num += _WOBA_BB
@@ -346,13 +352,13 @@ def compute_windowed_statcast(df, n_games, min_bbe, min_pa, min_ab):
 
     # --- AB-weighted xSLG (consistent with the season est_slg) ---
     # AB excludes walks/HBP/sacrifices/interference. BIP use
-    # estimated_slg_using_speed_angle; non-BIP AB outcomes (strikeouts, field
+    # estimated_slg_using_speedangle; non-BIP AB outcomes (strikeouts, field
     # outs) contribute 0. Omit if the est column is absent or too many BIP lack one.
     ab_rows = w[~w["events"].isin(_NON_AB_EVENTS)]
     ab = int(len(ab_rows))
-    if ab >= min_ab and "estimated_slg_using_speed_angle" in ab_rows.columns:
+    if ab >= min_ab and "estimated_slg_using_speedangle" in ab_rows.columns:
         bip = ab_rows[ab_rows["launch_speed"].notna()]
-        ests = bip["estimated_slg_using_speed_angle"]
+        ests = bip["estimated_slg_using_speedangle"]
         missing_est = int((ests.isna()).sum())
         tol = max(1, int(0.25 * len(bip))) if len(bip) else 0
         if missing_est <= tol:
