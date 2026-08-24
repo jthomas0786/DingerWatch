@@ -3275,12 +3275,16 @@ function toStatcastShape(season, statcast) {
  *  than inventing a number from ISO. Returns null when no recent sample exists. */
 function statcastWindow(s) {
   if (!s) return null;
-  const barrel      = plausible(s?.barrelPct,   0,  35, 'barrelPct');
-  const ev          = plausible(s?.exitVelo,   60, 100, 'exitVelo');
-  const hardHit     = plausible(s?.hardHitPct,   0,  80, 'hardHitPct');
-  const xwoba       = plausible(s?.xwoba,       0, 0.7, 'xwoba');
-  const xslg        = plausible(s?.xslg,        0, 1.2, 'xslg');
-  const launchAngle = plausible(s?.launchAngle, -40, 40, 'launchAngle');
+  // Recent windows are small samples — a hot 5-game streak can produce barrel%
+  // >35 or xSLG >1.2, which the season bounds in toStatcastShape would reject.
+  // Use wide bounds here so legitimate recent extremes survive; season values
+  // keep their tight toStatcastShape bounds.
+  const barrel      = plausible(s?.barrelPct,   0, 100, 'barrelPct');
+  const ev          = plausible(s?.exitVelo,   40, 120, 'exitVelo');
+  const hardHit     = plausible(s?.hardHitPct,   0, 100, 'hardHitPct');
+  const xwoba       = plausible(s?.xwoba,       0, 2.5, 'xwoba');
+  const xslg        = plausible(s?.xslg,        0,   4, 'xslg');
+  const launchAngle = plausible(s?.launchAngle, -90, 90, 'launchAngle');
   const any = [barrel, ev, hardHit, xwoba, xslg, launchAngle].some(v => v != null);
   return any ? { barrel, ev, hardHit, xwoba, xslg, launchAngle, bbe: s?.bbe ?? null } : null;
 }

@@ -264,8 +264,11 @@ _WOBA_HBP = 0.72
 
 # PA outcomes that do NOT count as an at-bat. xSLG is per-AB, so these are excluded
 # from its denominator entirely (not counted as 0) — matching the season est_slg.
+# sac_fly is a batted ball but does NOT count as an at-bat, so it is excluded from
+# both the xSLG numerator and denominator, just as Savant's season est_slg is.
 _NON_AB_EVENTS = {
-    "walk", "intent_walk", "hit_by_pitch", "sac_bunt",
+    "walk", "intent_walk", "hit_by_pitch", "sac_bunt", "sac_fly",
+    "sac_fly_double_play", "sac_bunt_double_play",
     "batter_interference", "catcher_interf", "balk",
 }
 
@@ -319,34 +322,42 @@ def compute_windowed_statcast(df, n_games, min_bbe, min_pa, min_ab):
                 out["launchAngle"] = round(float(la["launch_angle"].mean()), 1)
 
     # --- PA-weighted xwOBA (consistent with the season leaderboard value) ---
-    if pa >= min_pa:
-        has_est = "estimated_woba_using_speed_angle" in w.columns
-        num = 0.0
-        for _, r in w.iterrows():
-            ev = r.get("events")
-            if pd.notna(r.get("launch_speed")):
-                # Batted ball: use Savant's speed/angle estimate when present.
-                est = r.get("estimated_woba_using_speed_angle") if has_est else None
-                num += float(est) if pd.notna(est) else 0.0
-            elif ev in ("walk", "intent_walk"):
-                num += _WOBA_BB
-            elif ev == "hit_by_pitch":
-                num += _WOBA_HBP
-            # strikeouts and other outs contribute 0
-        out["xwoba"] = round(num / pa, 3)
+    # Batted balls use Savant's estimated_woba_using_speed_angle; walks/HBP use
+    # fixed linear weights; strikeouts and other outs contribute 0. If the est
+    # column is absent, or too many BIP lack an estimate, omit the metric so the
+    # frontend falls back to season rather than understating with silent zeros.
+    if pa >= min_pa and "estimated_woba_using_speed_angle" in w.columns:
+        bip = w[w["launch_speed"].notna()]
+        missing_est = int((bip["estimated_woba_using_speed_angle"].isna()).sum())
+        tol = max(1, int(0.25 * len(bip))) if len(bip) else 0
+        if missing_est <= tol:
+            num = 0.0
+            for _, r in w.iterrows():
+                ev = r.get("events")
+                if pd.notna(r.get("launch_speed")):
+                    est = r.get("estimated_woba_using_speed_angle")
+                    num += float(est) if pd.notna(est) else 0.0
+                elif ev in ("walk", "intent_walk"):
+                    num += _WOBA_BB
+                elif ev == "hit_by_pitch":
+                    num += _WOBA_HBP
+                # strikeouts and other outs contribute 0
+            out["xwoba"] = round(num / pa, 3)
 
     # --- AB-weighted xSLG (consistent with the season est_slg) ---
+    # AB excludes walks/HBP/sacrifices/interference. BIP use
+    # estimated_slg_using_speed_angle; non-BIP AB outcomes (strikeouts, field
+    # outs) contribute 0. Omit if the est column is absent or too many BIP lack one.
     ab_rows = w[~w["events"].isin(_NON_AB_EVENTS)]
     ab = int(len(ab_rows))
-    if ab >= min_ab:
-        num = 0.0
-        has_slg = "estimated_slg_using_speed_angle" in ab_rows.columns
+    if ab >= min_ab and "estimated_slg_using_speed_angle" in ab_rows.columns:
         bip = ab_rows[ab_rows["launch_speed"].notna()]
-        if has_slg and not bip.empty:
-            ests = bip["estimated_slg_using_speed_angle"]
+        ests = bip["estimated_slg_using_speed_angle"]
+        missing_est = int((ests.isna()).sum())
+        tol = max(1, int(0.25 * len(bip))) if len(bip) else 0
+        if missing_est <= tol:
             num = float(ests[ests.notna()].sum())
-        # non-BIP AB outcomes (strikeouts, field outs) contribute 0.
-        out["xslg"] = round(num / ab, 3)
+            out["xslg"] = round(num / ab, 3)
 
     return out
 
@@ -508,11 +519,16 @@ def main():
                     missing += 1
                 d = detail.get(str(hitter["id"]))
                 if d:
+                    # Windowed Statcast lives as a top-level sibling, not nested
+                    # inside `detail`, so the frontend reads h.statcastL5/L10
+                    # directly and the detail payload stays lean.
+                    sl5 = d.pop("statcastL5", None)
+                    sl10 = d.pop("statcastL10", None)
                     hitter["detail"] = d
-                    if d.get("statcastL5"):
-                        hitter["statcastL5"] = d["statcastL5"]
-                    if d.get("statcastL10"):
-                        hitter["statcastL10"] = d["statcastL10"]
+                    if sl5:
+                        hitter["statcastL5"] = sl5
+                    if sl10:
+                        hitter["statcastL10"] = sl10
 
     slate["sources"]["statcast"] = f"Baseball Savant via pybaseball ({season})"
     slate["statcastEnrichedAt"] = datetime.utcnow().isoformat() + "Z"
