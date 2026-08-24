@@ -342,7 +342,7 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 .cq-hbtn{ font-size:12px; font-weight:600; padding:5px 11px; border-radius:999px; border:1px solid var(--line); background:var(--surface-alt); color:var(--text); cursor:pointer; transition:background .12s; }
 .cq-hbtn.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
 .cq-field-wrap{ width:100%; max-width:440px; margin:0 auto; border-radius:12px; overflow:hidden; border:1px solid var(--line); background:linear-gradient(180deg,#b9d4ee,#dceaf3); }
-.cq-field{ width:100%; height:auto; aspect-ratio:4/3; display:block; }
+.cq-field{ width:100%; height:auto; aspect-ratio:16/9; display:block; }
 .cq-arc{ transition:opacity .15s; }
 .cq-arc.hl{ stroke-width:3.2; opacity:1; filter:drop-shadow(0 0 4px currentColor); }
 .cq-land{ transition:r .15s; }
@@ -8631,9 +8631,12 @@ async function renderContactQuality(p){
     let rows = balls;
     if(st.hand!=='ALL') rows = rows.filter(b=>b.pHand===st.hand);
     if(st.pitch) rows = rows.filter(b=>pitchGroupOf(b.pitchCode)===st.pitch);
-    // 2.5D projection: behind home plate, depth recedes upward.
-    const VW=400, VH=300, HX=200, HY=270, KX=0.70, KY=0.46, KZ=0.82;
-    const proj = (fx,fy,fz=0) => ({ sx:HX+fx*KX, sy:HY-fy*KY-fz*KZ });
+    // Perspective projection calibrated to the stadium photo's field landmarks
+    // (home plate, mound, foul poles, outfield wall). Behind-home-plate pinhole:
+    // depth foreshortens toward a vanishing point just above the wall, so the
+    // spray arcs originate at the photo's home plate and land on its field.
+    const VW=400, VH=225, CQ_CX=200, CQ_HY=203, CQ_VP=128, CQ_CAMD=60, CQ_FOCAL=239;
+    const proj = (fx,fy,fz=0) => { const d=fy+CQ_CAMD; const gy=CQ_VP+(CQ_HY-CQ_VP)*CQ_CAMD/d; return { sx:CQ_CX+CQ_FOCAL*fx/d, sy:gy-CQ_FOCAL*fz/d }; };
     const rf=proj(233,233), lf=proj(-233,233), cf=proj(0,400), hp=proj(0,0);
     const b1=proj(63.6,63.6), b2=proj(0,127.3), b3=proj(-63.6,63.6), mound=proj(0,60.5);
     const wall = `M 0 ${lf.sy} Q ${cf.sx} ${cf.sy-14} ${VW} ${rf.sy}`;
@@ -8688,20 +8691,12 @@ async function renderContactQuality(p){
       <div class="live-note">● Live from MLB Stats API · ${data.games||0} games</div>
       <div class="cq-filters"><span class="cq-flabel">Pitcher</span>${handBtn('L','LHP'+(cnt.L?` ${cnt.L}`:''))}${handBtn('R','RHP'+(cnt.R?` ${cnt.R}`:''))}${handBtn('ALL','All')}</div>
       <div class="cq-field-wrap"><svg class="cq-field" viewBox="0 0 ${VW} ${VH}" preserveAspectRatio="xMidYMid meet">
-        <defs><linearGradient id="cq-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9d4ee"/><stop offset="1" stop-color="#dceaf3"/></linearGradient><linearGradient id="cq-grass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f6b34"/><stop offset="1" stop-color="#1c4a23"/></linearGradient><linearGradient id="cq-stands" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b4049"/><stop offset="1" stop-color="#1f232a"/></linearGradient><linearGradient id="cq-board" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a2f37"/><stop offset="1" stop-color="#161a20"/></linearGradient><linearGradient id="cq-track" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#caa46a"/><stop offset="1" stop-color="#a07c4a"/></linearGradient></defs>
+        <defs><linearGradient id="cq-vign" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(6,10,15,0.55)"/><stop offset="0.5" stop-color="rgba(6,10,15,0.30)"/><stop offset="1" stop-color="rgba(6,10,15,0.18)"/></linearGradient></defs>
         <image href="preview-hero.jpg" x="0" y="0" width="${VW}" height="${VH}" preserveAspectRatio="xMidYMid slice"/>
-        <rect x="0" y="0" width="${VW}" height="${VH}" fill="rgba(6,10,15,0.55)"/>
-        <path d="M 0 ${lf.sy} L 0 ${VH} L ${VW} ${VH} L ${VW} ${rf.sy} Q ${cf.sx} ${cf.sy-14} 0 ${lf.sy} Z" fill="url(#cq-grass)" opacity="0.35"/>
-        <path d="M ${hp.sx} ${hp.sy} L ${lf.sx} ${lf.sy}" stroke="#fff" stroke-width="1.5" fill="none" opacity="0.8"/>
-        <path d="M ${hp.sx} ${hp.sy} L ${rf.sx} ${rf.sy}" stroke="#fff" stroke-width="1.5" fill="none" opacity="0.8"/>
-        <path d="M ${hp.sx} ${hp.sy} L ${b1.sx} ${b1.sy} L ${b2.sx} ${b2.sy} L ${b3.sx} ${b3.sy} Z" fill="#c8a96a" stroke="#9a7a44" stroke-width="1"/>
-        <circle cx="${mound.sx}" cy="${mound.sy}" r="5" fill="#c8a96a" stroke="#9a7a44"/>
-        <circle cx="${hp.sx}" cy="${hp.sy}" r="16" fill="#c8a96a" stroke="#9a7a44" stroke-width="0.8"/>
-        <path d="M ${hp.sx-4.5} ${hp.sy+3} L ${hp.sx+4.5} ${hp.sy+3} L ${hp.sx+4.5} ${hp.sy-2} L ${hp.sx} ${hp.sy-6.5} L ${hp.sx-4.5} ${hp.sy-2} Z" fill="#f5f3ee" stroke="#8a6f44" stroke-width="0.8"/>
-        <line x1="${rf.sx}" y1="${rf.sy}" x2="${rf.sx}" y2="${rf.sy-26}" stroke="#fff" stroke-width="2" opacity="0.7"/>
-        <line x1="${lf.sx}" y1="${lf.sy}" x2="${lf.sx}" y2="${lf.sy-26}" stroke="#fff" stroke-width="2" opacity="0.7"/>
-        ${arcs.map(a=>`<path class="cq-arc" data-i="${a.i}" d="${a.pts}" stroke="${a.col}" stroke-width="${a.kind==='hr'?2.4:1.6}" fill="none" opacity="${a.kind==='out'?0.5:0.9}"/>`).join('')}
-        ${arcs.map(a=>`<circle class="cq-land" data-i="${a.i}" cx="${a.land.sx}" cy="${a.land.sy}" r="${a.kind==='hr'?3.5:2.4}" fill="${a.col}" opacity="${a.kind==='out'?0.6:1}"/>`).join('')}
+        <rect x="0" y="0" width="${VW}" height="${VH}" fill="url(#cq-vign)"/>
+        <circle cx="${hp.sx}" cy="${hp.sy}" r="3" fill="#fff" opacity="0.5"/>
+        ${arcs.map(a=>`<path class="cq-arc" data-i="${a.i}" d="${a.pts}" stroke="${a.col}" stroke-width="${a.kind==='hr'?2.6:1.7}" fill="none" opacity="${a.kind==='out'?0.55:0.92}"/>`).join('')}
+        ${arcs.map(a=>`<circle class="cq-land" data-i="${a.i}" cx="${a.land.sx}" cy="${a.land.sy}" r="${a.kind==='hr'?3.8:2.6}" fill="${a.col}" opacity="${a.kind==='out'?0.65:1}"/>`).join('')}
       </svg></div>
       <div class="cq-pitch-row">${pitchBtn(null,'All')}${pitchBtn('Fastball','Fastball')}${pitchBtn('Breaking','Breaking')}${pitchBtn('Offspeed','Offspeed')}</div>
       <div class="cq-list-wrap"><table class="cq-list"><thead><tr><th>Date</th><th>Result</th><th>EV</th><th>LA</th><th>Dist</th><th>Pwr</th><th title="Estimated from exit velocity &amp; launch angle (Statcast barrel definition)">Barrel</th><th>Pitch</th><th>Hand</th></tr></thead><tbody>${listRows||`<tr><td colspan="9" class="cq-empty">No balls match this filter.</td></tr>`}</tbody></table></div>`;
