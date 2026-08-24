@@ -1058,6 +1058,9 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .tier-chip.active[data-tier="Elite"]{ background:var(--success); border-color:var(--success); }
 .tier-chip.active[data-tier="Good"]{ background:#f4c430; border-color:#f4c430; color:#1a1a1a; }
 .tier-chip.active[data-tier="Weak"]{ background:var(--warm); border-color:var(--warm); }
+.filter-range{ display:flex; align-items:center; gap:8px; padding:12px 16px 6px; flex-wrap:wrap; }
+.filter-range > span{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:10.5px; color:var(--mute); }
+.filter-note{ padding:0 16px 10px; font-family:'JetBrains Mono','Space Mono',monospace; font-size:10px; color:var(--warm); }
 .filter-inputs span{ color:var(--mute); font-size:10px; font-family:'JetBrains Mono','Space Mono',monospace; }
 .filter-sort{ display:flex; align-items:center; gap:8px; padding:0 16px 14px; font-family:'JetBrains Mono','Space Mono',monospace; font-size:10.5px; color:var(--mute); flex-wrap:wrap; }
 .filter-sort select{ background:var(--night2); border:1px solid var(--line); color:var(--white); font-family:'JetBrains Mono','Space Mono',monospace; font-size:11px; padding:4px 8px; border-radius:6px; cursor:pointer; }
@@ -3298,6 +3301,11 @@ function adaptHitter(h, teamAbbr, game, side) {
   const s = h.season || {};
   const statcast = toStatcastShape(s, h.statcast);
   const l10 = h.last10 || {};
+  // Last-5-games split, derived from the game log (most recent 5 entries).
+  const _gl = (h.gameLog || []).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+  const _r5 = _gl.slice(-5).reduce((a,g)=>{ a.ab += g.ab||0; a.h += g.h||0; a.hr += g.hr||0; return a; }, {ab:0,h:0,hr:0});
+  _r5.avg = _r5.ab ? _r5.h / _r5.ab : null;
+  const l5 = _r5;
   const trend = formTrend(l10, s);
   const tier = tierFromStats(s);
   const hr = s.hr ?? 0;
@@ -3354,6 +3362,7 @@ function adaptHitter(h, teamAbbr, game, side) {
     // Numeric last-10 line. The display strings above are not parseable, and the
     // form factors need the actual numbers to compare against his season marks.
     l10: { ab: l10.ab ?? null, avg: l10.avg ?? null, hr: l10.hr ?? null, h: l10.h ?? null },
+    l5: { ab: l5.ab, h: l5.h, hr: l5.hr, avg: l5.avg },
     gameLog: h.gameLog || [],
     odds: h.odds || null,          // real prices + one-tap betslip deep links
     splits: h.splits || null,      // season vs LHP / vs RHP
@@ -4823,11 +4832,34 @@ const FILTER_DEFS = [
   { id:'xwoba',    label:'xwOBA',         get:p=>p.statcast.xwoba,       min:0.2,max:0.5, step:0.005,unit:'',  tiers:[{label:'Elite',min:0.360},{label:'Good',min:0.320},{label:'Weak',max:0.300}] },
   { id:'xslg',     label:'xSLG',          get:p=>p.statcast.xslg,        min:0.2,max:0.8, step:0.01, unit:'',  tiers:[{label:'Elite',min:0.500},{label:'Good',min:0.430},{label:'Weak',max:0.400}] },
   { id:'launchAngle',label:'Launch Angle',get:p=>p.statcast.launchAngle, min:0,  max:25,  step:0.5, unit:'°',  tiers:[{label:'Elite',min:10,max:30},{label:'Good',min:5,max:10},{label:'Weak',max:5}] },
-  { id:'avg',      label:'AVG',           get:p=>p.avg,                  min:0.1,max:0.4, step:0.005,unit:'',  tiers:[{label:'Elite',min:0.300},{label:'Good',min:0.270},{label:'Weak',max:0.250}] },
-  { id:'hr',       label:'Season HR',     get:p=>p.hr,                   min:0,  max:50,  step:1,   unit:'',  tiers:[{label:'Elite',min:25},{label:'Good',min:15},{label:'Weak',max:8}] },
+  { id:'avg',      label:'AVG',           get:p=>rangeAvg(p),                  min:0.1,max:0.4, step:0.005,unit:'',  tiers:[{label:'Elite',min:0.300},{label:'Good',min:0.270},{label:'Weak',max:0.250}] },
+  { id:'hr',       label:'HR',            get:p=>rangeHR(p),                   min:0,  max:50,  step:1,   unit:'',  tiers:hrTiers },
   { id:'hrProb',   label:'HR Probability',get:p=>simulatePlayer(p).hr.pct,min:0,  max:60,  step:1,   unit:'%',  tiers:[{label:'Elite',min:30},{label:'Good',min:18},{label:'Weak',max:10}] },
   { id:'speed',    label:'Speed',         get:p=>p.speed,                min:0,  max:100, step:1,   unit:'',  tiers:[{label:'Elite',min:85},{label:'Good',min:70},{label:'Weak',max:55}] },
 ];
+
+// Recent-window selector for the All Players tab. Applies only to the categories
+// that carry recent splits (AVG, Season HR) — Statcast fields are season-only in
+// the slate, so they stay on season and the panel labels them as such.
+let rangeFilter = '';  // '', 'last10', 'last5'
+const RANGE_OPTIONS = [ {id:'',label:'Season'}, {id:'last10',label:'Last 10'}, {id:'last5',label:'Last 5'} ];
+function rangeAvg(p){
+  if(rangeFilter==='last10') return p.l10?.avg ?? p.avg;
+  if(rangeFilter==='last5') return p.l5?.avg ?? p.avg;
+  return p.avg;
+}
+function rangeHR(p){
+  if(rangeFilter==='last10') return p.l10?.hr ?? p.hr;
+  if(rangeFilter==='last5') return p.l5?.hr ?? p.hr;
+  return p.hr;
+}
+// Season HR is a 0-50 count; a 5- or 10-game window is 0-5, so the bands rescale.
+function hrTiers(){
+  return rangeFilter
+    ? [{label:'Elite',min:2},{label:'Good',min:1},{label:'Weak',max:0.5}]
+    : [{label:'Elite',min:25},{label:'Good',min:15},{label:'Weak',max:8}];
+}
+function resolveTiers(d){ return typeof d.tiers === 'function' ? d.tiers() : d.tiers; }
 
 // { barrel:{min:10}, ev:{max:95}, ... } — only keys the user has touched.
 let activeFilters = {};
@@ -5227,7 +5259,8 @@ function filterBarHTML(shown, total){
     const summary = isOn
       ? `${f.tier ? f.tier+' · ' : ''}${f.min != null ? '≥'+f.min : ''}${f.min != null && f.max != null ? ' ' : ''}${f.max != null ? '≤'+f.max : ''}${d.unit}`
       : 'any';
-    const chips = (d.tiers||[]).map(t=>{
+    const tiers = resolveTiers(d) || [];
+    const chips = tiers.map(t=>{
       const active = isOn && f.tier === t.label;
       return `<button type="button" class="tier-chip ${active?'active':''}" data-fid="${d.id}" data-tier="${t.label}">${t.label}</button>`;
     }).join('');
@@ -5247,6 +5280,13 @@ function filterBarHTML(shown, total){
       </span>
     </div>
     <div class="filter-body ${filterPanelOpen?'open':''}" id="filterBody">
+      <div class="filter-range">
+        <span>Range</span>
+        <div class="tier-chips">
+          ${RANGE_OPTIONS.map(r=>`<button type="button" class="tier-chip ${rangeFilter===r.id?'active':''}" data-range="${r.id}">${r.label}</button>`).join('')}
+        </div>
+      </div>
+      ${rangeFilter ? '<div class="filter-note">AVG &amp; HR use the selected window; Statcast filters use season data.</div>' : ''}
       <div class="filter-grid">${items}</div>
       <div class="filter-sort">
         <span>Min grade</span>
@@ -5280,7 +5320,7 @@ function renderAllPlayers(){
   const sortDef = FILTER_DEFS.find(d=>d.id===allPlayersSort);
   const sortLabel = simCfg
     ? ALL_SORTS.find(o=>o.id===allPlayersSort).label
-    : (sortDef ? sortDef.label : 'HR Probability');
+    : (sortDef ? sortDef.label + (['avg','hr'].includes(sortDef.id) && rangeFilter ? ` (${rangeFilter==='last10'?'L10':'L5'})` : '') : 'HR Probability');
 
   // Same compact card template as the Top 20 tabs, so scanning feels identical.
   const propTab = simCfg ? ALL_SORTS.find(o=>o.id===allPlayersSort).sim : 'hr';
@@ -5382,7 +5422,7 @@ function wireFilterBar(){
       const tlabel = chip.dataset.tier;
       const def = FILTER_DEFS.find(d=>d.id===fid);
       if(!def) return;
-      const tier = (def.tiers||[]).find(t=>t.label===tlabel);
+      const tier = (resolveTiers(def)||[]).find(t=>t.label===tlabel);
       if(!tier) return;
       const cur = activeFilters[fid];
       if(cur && cur.tier === tlabel){
@@ -5391,6 +5431,24 @@ function wireFilterBar(){
         activeFilters[fid] = { min: tier.min ?? null, max: tier.max ?? null, tier: tier.label };
       }
       filterPanelOpen = true;    // keep the panel open across the re-render
+      renderAllPlayers();
+    });
+  });
+
+  // Range window (Season / Last 10 / Last 5) — applies to AVG & HR only.
+  pickList.querySelectorAll('.tier-chip[data-range]').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      rangeFilter = chip.dataset.range;
+      // Re-apply AVG/HR tier thresholds under the new window (their bands rescale).
+      for(const id of ['avg','hr']){
+        const f = activeFilters[id];
+        if(!f || !f.tier) continue;
+        const def = FILTER_DEFS.find(d=>d.id===id);
+        const tier = (resolveTiers(def)||[]).find(t=>t.label===f.tier);
+        if(tier){ f.min = tier.min ?? null; f.max = tier.max ?? null; }
+        else delete activeFilters[id];
+      }
+      filterPanelOpen = true;
       renderAllPlayers();
     });
   });
