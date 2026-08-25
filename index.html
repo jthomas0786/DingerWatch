@@ -9889,10 +9889,16 @@ function dismissGate(){
   maybeRunSims();
 }
 
+// TEMPORARY: Whop subscribe gate disabled at owner request. Flip this back to
+// `false` to re-enable the subscription gate. Signed-in users still see the
+// standard sign-in gate; this only skips the Whop access check afterward.
+const DW_DISABLE_WHOP_GATE = true;
+
 /** After sign-in, check Whop access before fully dismissing.
  *  If the user has an active subscription → dismiss and start sims.
  *  If not → show the Whop subscribe gate instead. */
 async function checkWhopAndDismiss(){
+  if(DW_DISABLE_WHOP_GATE){ dismissGate(); return; }
   const s = social();
   if(!s?.whopOAuthConfigured?.()){ dismissGate(); return; }
   try{
