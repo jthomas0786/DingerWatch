@@ -25,36 +25,76 @@ function activeSport() {
   return isViewable(requested) ? requested : DEFAULT_SPORT;
 }
 
+let sportDropdownOpen = false;
+
 function comingSoonNote(sport) {
   const s = SPORTS[sport];
   return s.seasonStart ? `Launches ${s.seasonStart}` : 'Coming soon';
 }
 
+/**
+ * Dropdown, not a bar — same underlying data and the same adapterReady/
+ * uiReady gating as before, just presented as a trigger + menu instead of
+ * a row of pills, to leave more header room. The trigger shows the
+ * CURRENT sport's own brand + accent color, same as the pill it replaces
+ * used to look once active.
+ */
 function renderPills(active) {
   const host = document.getElementById('sportSwitch');
   if (!host) return;
-  host.innerHTML = SPORT_ORDER.map(key => {
-    const s = SPORTS[key];
-    const isActive = key === active;
-    const enabled = s.adapterReady;              // only blessed sports are clickable
-    const cls = ['sport-pill', isActive ? 'active' : '', enabled ? '' : 'soon']
-      .filter(Boolean).join(' ');
-    const style = isActive ? ` style="--sport-accent:${s.accent}"` : '';
-    const label = enabled ? s.brand : comingSoonNote(key);
-    return `<button type="button" class="${cls}" data-sport="${key}"${style}` +
-      ` title="${label}"${enabled ? '' : ' disabled'}>` +
-      `<span class="sport-pill-name">${s.short}</span>` +
-      `<span class="sport-pill-code">${key.toUpperCase()}</span>` +
-      `${enabled ? '' : '<span class="sport-pill-soon">soon</span>'}` +
-      `</button>`;
-  }).join('');
-  host.querySelectorAll('.sport-pill').forEach(btn => {
-    btn.addEventListener('click', () => {
+  const activeInfo = SPORTS[active];
+
+  host.innerHTML =
+    `<button type="button" class="sport-dd-trigger" id="sportDdTrigger" style="--sport-accent:${activeInfo.accent}">` +
+      `<span class="sport-dd-trigger-name">${activeInfo.brand}</span>` +
+      `<span class="sport-dd-chevron">▾</span>` +
+    `</button>` +
+    `<div class="sport-dd-menu" id="sportDdMenu">` +
+      SPORT_ORDER.map(key => {
+        const s = SPORTS[key];
+        const isActive = key === active;
+        const enabled = s.adapterReady;
+        const cls = ['sport-dd-item', isActive ? 'active' : '', enabled ? '' : 'soon']
+          .filter(Boolean).join(' ');
+        return `<button type="button" class="${cls}" data-sport="${key}"${enabled ? '' : ' disabled'}>` +
+          `<span class="sport-dd-item-name">${s.brand}</span>` +
+          `${enabled ? '' : `<span class="sport-pill-soon">${comingSoonNote(key)}</span>`}` +
+          `</button>`;
+      }).join('') +
+    `</div>`;
+
+  const trigger = document.getElementById('sportDdTrigger');
+  const menu = document.getElementById('sportDdMenu');
+  trigger.addEventListener('click', e => {
+    e.stopPropagation();
+    sportDropdownOpen ? closeSportDropdown() : openSportDropdown();
+  });
+  menu.querySelectorAll('.sport-dd-item').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
       const key = btn.dataset.sport;
-      if (!SPORTS[key] || !SPORTS[key].adapterReady) return; // coming-soon: no-op
+      if (!SPORTS[key] || !SPORTS[key].adapterReady) return; // coming-soon: no-op, matches the old pill behavior
+      closeSportDropdown();
       location.hash = key;
     });
   });
+}
+
+function openSportDropdown() {
+  sportDropdownOpen = true;
+  document.getElementById('sportDdMenu')?.classList.add('open');
+  document.getElementById('sportDdTrigger')?.classList.add('open');
+  // Closing on an outside click is the one piece of interaction a dropdown
+  // needs that a static bar never did — added once per open, removed on
+  // close, rather than a permanent document-level listener running at all
+  // times.
+  document.addEventListener('click', closeSportDropdown, { once: true });
+}
+
+function closeSportDropdown() {
+  sportDropdownOpen = false;
+  document.getElementById('sportDdMenu')?.classList.remove('open');
+  document.getElementById('sportDdTrigger')?.classList.remove('open');
 }
 
 function setVisible(el, visible) {
