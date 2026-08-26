@@ -16,7 +16,7 @@
  */
 export const SPORTS = {
   mlb: {
-    brand: 'Dinger Watch',     short: 'Dinger',     accent: '#22c55e',
+    brand: 'MLB',     short: 'MLB',     accent: '#22c55e',
     slateUnit: 'day',          primaryProp: 'hr',
     eventNoun: 'home run',     eventVerb: 'went deep',
     matchupLabel: 'vs SP',     lineupSource: 'api',
@@ -26,7 +26,7 @@ export const SPORTS = {
     props: ['hr', 'hits', 'tb', 'rbi', 'hrr', 'sb'],
   },
   nfl: {
-    brand: 'Touchdown Watch', short: 'Touchdown',  accent: '#f59e0b',
+    brand: 'NFL', short: 'NFL',  accent: '#f59e0b',
     slateUnit: 'week',         primaryProp: 'atd',
     eventNoun: 'touchdown',    eventVerb: 'found the end zone',
     matchupLabel: 'vs Defense',lineupSource: 'inactives',
@@ -36,7 +36,7 @@ export const SPORTS = {
     props: ['atd', 'rushYds', 'recYds', 'receptions', 'passTds'],
   },
   nhl: {
-    brand: 'Goal Watch',      short: 'Goal',        accent: '#38bdf8',
+    brand: 'NHL',      short: 'NHL',        accent: '#38bdf8',
     slateUnit: 'day',          primaryProp: 'atg',
     eventNoun: 'goal',         eventVerb: 'lit the lamp',
     matchupLabel: 'vs Goalie', lineupSource: 'goalie',
@@ -46,7 +46,7 @@ export const SPORTS = {
     props: ['atg', 'sog', 'points', 'assists', 'blocks'],
   },
   nba: {
-    brand: 'Bucket Watch',    short: 'Bucket',      accent: '#a855f7',
+    brand: 'NBA',    short: 'NBA',      accent: '#a855f7',
     slateUnit: 'day',          primaryProp: 'pts',
     eventNoun: 'bucket',       eventVerb: 'got buckets',
     matchupLabel: 'vs Opponent', lineupSource: 'injury_report',
