@@ -975,6 +975,41 @@ async function loadWagerConfig(){
   return Object.fromEntries(data.map(r => [r.key, r.value]));
 }
 
+// ---------------------------------------------------------------- admin: points + wager reports
+/**
+ * All four of these are thin wrappers around SECURITY DEFINER RPC
+ * functions that re-check ownership from inside the database — the
+ * client-side owner gating (EXPORT_OWNER, isOwner()) that decides whether
+ * to even show this UI is cosmetic on its own, same as the existing
+ * export-to-Excel check already acknowledges. The real enforcement lives
+ * server-side; calling these as a non-owner just gets a 'not authorized'
+ * error back, not an actual balance change.
+ */
+async function adminLookupUser(username){
+  const { data, error } = await sb.rpc('admin_lookup_user', { p_username: username });
+  return error ? { error: error.message } : { ok: true, ...data };
+}
+
+async function adminAdjustPoints(username, amount, note){
+  const { data, error } = await sb.rpc('admin_adjust_points', {
+    p_username: username, p_amount: amount, p_note: note || null,
+  });
+  return error ? { error: error.message } : { ok: true, ...data };
+}
+
+async function adminAdjustPointsAll(amount, note){
+  const { data, error } = await sb.rpc('admin_adjust_points_all', {
+    p_amount: amount, p_note: note || null,
+  });
+  return error ? { error: error.message } : { ok: true, ...data };
+}
+
+async function adminWagerReport(){
+  const { data, error } = await sb.rpc('admin_wager_report');
+  if(error) return { error: error.message };
+  return { ok: true, rows: data || [] };
+}
+
 async function loadBalance(){
   if(!currentUser) return 0;
   const { data, error } = await sb.from('point_balances')
@@ -1081,6 +1116,7 @@ export {
   getWatchlist, addToWatchlist, removeFromWatchlist,
   savePushSubscription, removePushSubscription,
   loadBalance, placeWager, loadWagers, checkIn, loadWagerConfig,
+  adminLookupUser, adminAdjustPoints, adminAdjustPointsAll, adminWagerReport,
   joinPresence, getOnlineUsers,
   getProfile, updateProfile, isFollowing,
   postStatus, deleteStatus, loadStatuses, loadFollowingStatuses,
