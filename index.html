@@ -12408,6 +12408,48 @@ function updateSlateFooter(){
   note.title = (slateMeta.warnings || []).join('\n');
 }
 
+let chatPanelOpen = false;
+let chatPanelMinimized = false;
+let chatPanelUnsub = null;
+let chatPanelPresenceUnsub = null;
+let chatPanelSeen = new Set();
+
+/**
+ * Two physical trigger buttons now share one chat panel: the original
+ * desktop header icon, and a second one rendered as a genuine 5th item in
+ * the mobile bottom tab row (added inside renderTabs(), not a reparented
+ * copy of the same node — that container's innerHTML gets fully
+ * overwritten on every tab change, which would silently destroy anything
+ * manually inserted there). CSS shows exactly one of the two at any given
+ * viewport width, but both need their .active state and unread dot kept
+ * in sync regardless of which one someone actually clicks.
+ */
+function getChatTriggers(){
+  return [document.getElementById('chatBtnTb'), document.getElementById('chatBtnMobile')].filter(Boolean);
+}
+function setChatTriggersActive(isActive){
+  getChatTriggers().forEach(btn => btn.classList.toggle('active', isActive));
+}
+function setChatUnreadDot(show){
+  getChatTriggers().forEach(btn => btn.querySelector('.chat-unread-dot')?.classList.toggle('show', show));
+}
+
+function toggleChatPanel(){
+  const panel = document.getElementById('chatPanel');
+  if(!panel) return;
+  chatPanelOpen = !chatPanelOpen;
+  panel.classList.toggle('open', chatPanelOpen);
+  setChatTriggersActive(chatPanelOpen);
+  if(chatPanelOpen){
+    chatPanelMinimized = false;
+    panel.classList.remove('minimized');
+    loadChatPanelMessages();
+    document.getElementById('chatPanelInput')?.focus();
+    setChatUnreadDot(false);
+  }
+}
+
+
 async function boot(){
   renderTabs();
   renderList();                       // paint the shell immediately
@@ -12456,47 +12498,6 @@ async function boot(){
   // Social is optional: if the module didn't load, everything above still works.
 
 // ---------------------------------------------------------------- floating chat panel
-let chatPanelOpen = false;
-let chatPanelMinimized = false;
-let chatPanelUnsub = null;
-let chatPanelPresenceUnsub = null;
-let chatPanelSeen = new Set();
-
-/**
- * Two physical trigger buttons now share one chat panel: the original
- * desktop header icon, and a second one rendered as a genuine 5th item in
- * the mobile bottom tab row (added inside renderTabs(), not a reparented
- * copy of the same node — that container's innerHTML gets fully
- * overwritten on every tab change, which would silently destroy anything
- * manually inserted there). CSS shows exactly one of the two at any given
- * viewport width, but both need their .active state and unread dot kept
- * in sync regardless of which one someone actually clicks.
- */
-function getChatTriggers(){
-  return [document.getElementById('chatBtnTb'), document.getElementById('chatBtnMobile')].filter(Boolean);
-}
-function setChatTriggersActive(isActive){
-  getChatTriggers().forEach(btn => btn.classList.toggle('active', isActive));
-}
-function setChatUnreadDot(show){
-  getChatTriggers().forEach(btn => btn.querySelector('.chat-unread-dot')?.classList.toggle('show', show));
-}
-
-function toggleChatPanel(){
-  const panel = document.getElementById('chatPanel');
-  if(!panel) return;
-  chatPanelOpen = !chatPanelOpen;
-  panel.classList.toggle('open', chatPanelOpen);
-  setChatTriggersActive(chatPanelOpen);
-  if(chatPanelOpen){
-    chatPanelMinimized = false;
-    panel.classList.remove('minimized');
-    loadChatPanelMessages();
-    document.getElementById('chatPanelInput')?.focus();
-    setChatUnreadDot(false);
-  }
-}
-
 function initChatPanel(){
   const panel = document.getElementById('chatPanel');
   const closeBtn = document.getElementById('chatPanelClose');
