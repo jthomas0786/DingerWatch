@@ -789,6 +789,10 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .sl-leg{ display:flex; justify-content:space-between; gap:10px; background:var(--night);
   border:1px solid var(--line); border-radius:7px; padding:7px 10px; font-size:11.5px; }
 .sl-leg b{ color:var(--grass-bright); font-family:'JetBrains Mono','Space Mono',monospace; }
+.status-add-slip{ display:block; width:100%; margin-top:8px; background:none;
+  border:1px solid var(--accent); color:var(--accent-bright); font-family:'Oswald',sans-serif;
+  font-size:12px; font-weight:600; padding:8px; border-radius:8px; cursor:pointer; }
+.status-add-slip:hover{ background:var(--accent-glow); }
 .status-foot{ display:flex; align-items:center; justify-content:space-between; margin-top:10px; gap:10px; }
 .status-rx{ margin-top:0 !important; justify-content:flex-start; }
 .status-comments{ background:none; border:1px solid var(--line); color:var(--mute);
@@ -9511,6 +9515,16 @@ async function postWagerToFeed(wageredLegs, houseEdge, maxMult){
 
   const statusLegs = wageredLegs.map(l => ({
     text: `${l.player} ${l.market} ${l.line}+`,
+    price: l.price ?? null,
+    // Everything below is extra, beyond what statusHTML() itself reads for
+    // display — carried along specifically so other users can rebuild a
+    // real, addable betslip leg from this status later ("Add to Betslip").
+    // The other two postStatus() call sites (manual status posts with an
+    // attached slip) don't include these, since those are casual shares,
+    // not necessarily a wager anyone actually placed.
+    player: l.player, market: l.market, line: l.line,
+    pct: l.pct, player_id: l.player_id, game_pk: l.game_pk,
+    slate_date: l.slate_date, game: l.game,
   }));
 
   const res = await s.postStatus(body, statusLegs, wageredLegs[0]?.slate_date || null);
@@ -10600,6 +10614,9 @@ function statusHTML(st, canDelete){
     ${legs.length ? `<div class="status-legs">${legs.map(l => `
       <div class="sl-leg"><span>${escapeHTML(l.text || '')}</span>
       ${l.price != null ? `<b>${fmtAmerican(l.price)}</b>` : ''}</div>`).join('')}</div>` : ''}
+    ${legs.length && legs.every(l => l.player_id != null && l.game_pk != null && l.market != null && l.line != null && l.pct != null)
+      ? `<button class="status-add-slip" data-legs="${encodeURIComponent(JSON.stringify(legs))}">+ Add to Betslip</button>`
+      : ''}
     <div class="status-foot">
       <div class="rx-strip status-rx" data-sid="${st.id}">
         ${STATUS_EMOJI.map(e => {
@@ -10783,6 +10800,33 @@ function wireStatusInteractions(root, canDelete){
     e.stopPropagation();
     const res = await s.deleteStatus(+b.dataset.del);
     if(!res.error) b.closest('.status')?.remove();
+  });
+
+  root.querySelectorAll('.status-add-slip').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    let legs;
+    try{ legs = JSON.parse(decodeURIComponent(b.dataset.legs)); }
+    catch{ return; }
+
+    let added = 0;
+    legs.forEach(l => {
+      const id = legId(l.player, l.market, l.line);
+      if(inSlip(id)) return;   // already in the viewer's own slip — skip, don't duplicate
+      betslip.push({
+        id, kind:'prop', player:l.player, market:l.market, line:l.line,
+        pct:l.pct, game:l.game, player_id:l.player_id, game_pk:l.game_pk,
+        slate_date:l.slate_date,
+      });
+      added++;
+    });
+
+    if(added){
+      saveBetslip(); renderBetslipBar(); syncAddButtons();
+      betslipOpen = true; renderBetslipBar();
+    }
+    const original = b.textContent;
+    b.textContent = added ? `Added ${added} to slip` : 'Already in your slip';
+    setTimeout(() => { b.textContent = original; }, 1800);
   });
 }
 
