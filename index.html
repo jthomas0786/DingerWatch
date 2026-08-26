@@ -128,6 +128,10 @@ main{ max-width:1280px; margin:0 auto; padding:0 24px 100px; }
 .prop-tabs{ display:flex; gap:8px; overflow-x:auto; padding:16px 0 6px; scrollbar-width:none; position: sticky; top:0; background: var(--night); z-index:40; margin: 0 -24px; padding-left:24px; padding-right:24px; border-bottom: 1px solid var(--line); -webkit-overflow-scrolling: touch; }
 .prop-tabs::-webkit-scrollbar{ display:none; }
 .prop-tab{ flex:0 0 auto; background: var(--panel); border:1px solid var(--line); color: var(--mute); font-family:'Satoshi','Inter',sans-serif; font-size:13px; padding:8px 18px; border-radius:9999px; cursor:pointer; white-space:nowrap; transition: var(--transition); margin-bottom:14px; font-weight:500; }
+/* Desktop default: hidden. The mobile media query below is what actually
+   shows and styles this — desktop keeps the separate chat icon already in
+   the header instead. */
+.chat-btn-mobile-tab{ display:none; }
 .prop-tab:hover{ border-color: var(--border-light); color: var(--white); }
 .prop-tab.active{ background: var(--accent); color:#fff; border-color: var(--accent); font-weight:700; box-shadow: 0 2px 12px var(--accent-glow); }
 
@@ -1900,35 +1904,36 @@ main{ max-width:none; margin:0; padding: 20px 28px 120px; flex:1; }
   }
   .app-sidebar .prop-tab{ position:relative; }
 
-  /* Chat button becomes a floating action button on mobile — same element,
-     same click handler and unread-dot logic as the desktop header icon,
-     just repositioned via fixed coordinates. position:fixed takes it out
-     of normal flow entirely, so it renders ONLY here on mobile, never
-     inside the header too. Centered between HR Feed and For You: with 4
-     equal-flex tabs in the bottom bar (Slate/HR Feed/For You/Player
-     Props), that boundary lands exactly at the 50% horizontal mark.
-     Sized larger than the 60px bar (--mobile-nav-h) and lifted so roughly
-     half of it protrudes above the bar's top edge, matching a standard
-     floating-action-button treatment. */
-  .chat-btn-tb{
-    position: fixed !important;
-    left: 50%; bottom: calc(var(--mobile-nav-h) - 30px + env(safe-area-inset-bottom, 0px));
-    transform: translateX(-50%);
-    width: 68px; height: 68px; border-radius: 20px;
+  /* Chat is now a genuine 5th item in the SAME flex row as the other 4
+     tabs (Slate/HR Feed/Chat/For You/Player Props), not a floating
+     overlay positioned by manually computing where a 4-item midpoint
+     would land. With flex:1 1 0 inherited from .prop-tab on all 5,
+     even spacing across all of them is guaranteed by flexbox itself —
+     the browser does that math, not a hardcoded percentage that would
+     need updating if the tab count ever changes again. The larger size
+     and lift are pure paint effects (transform doesn't affect layout),
+     so its flex slot stays normal while it visually pokes up above the
+     bar — the bar already has overflow:visible, so nothing clips it. */
+  .chat-btn-mobile-tab{
+    display: flex; align-items:center; justify-content:center;
+    width: 80px; height: 80px; border-radius: 22px;
     background: linear-gradient(145deg, var(--accent-bright), var(--accent) 55%, #1a5fd9);
-    border: none;
+    border: none; flex-grow: 0; flex-shrink: 0;
+    transform: translateY(-32px);
     box-shadow: 0 6px 20px rgba(45,127,255,0.45), inset 0 1px 0 rgba(255,255,255,0.35);
-    z-index: 900;   /* above the bar (850), below modals */
+    z-index: 5; position: relative;
     color: #fff;
   }
-  .chat-btn-tb:hover{ background: linear-gradient(145deg, var(--accent-bright), var(--accent) 55%, #1a5fd9); }
-  .chat-btn-tb svg{ width: 30px; height: 30px; }
-  .chat-btn-tb.active{
-    border: none; color: #fff;
+  .chat-btn-mobile-tab svg{ width: 34px; height: 34px; }
+  .chat-btn-mobile-tab.active{
     background: linear-gradient(145deg, #fff, var(--accent-bright) 55%, var(--accent));
     box-shadow: 0 6px 20px rgba(45,127,255,0.6), inset 0 1px 0 rgba(255,255,255,0.5);
   }
-  .chat-btn-tb .chat-unread-dot{ top: 8px; right: 8px; width: 11px; height: 11px; }
+  .chat-btn-mobile-tab .chat-unread-dot{
+    position:absolute; top: 9px; right: 9px; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--hr-red); border: 2px solid var(--bg); display:none;
+  }
+  .chat-btn-mobile-tab .chat-unread-dot.show{ display:block; }
 
   /* Icons for each bottom-nav item */
   .app-sidebar .prop-tab[data-tab="slate"]::before{ -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='16' rx='2'/%3E%3Cline x1='3' y1='10' x2='21' y2='10'/%3E%3Cline x1='12' y1='10' x2='12' y2='20'/%3E%3C/svg%3E"); mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='16' rx='2'/%3E%3Cline x1='3' y1='10' x2='21' y2='10'/%3E%3Cline x1='12' y1='10' x2='12' y2='20'/%3E%3C/svg%3E"); }
@@ -5077,7 +5082,19 @@ function renderTabs(){
       ? `<span class="tab-badge">${feedUnread>99?'99+':feedUnread}</span>`
       : (t.id==='foryou' && foryouUnread>0 && activeTab!=='foryou')
       ? `<span class="tab-badge">${foryouUnread>99?'99+':foryouUnread}</span>` : '';
-    return `<button class="prop-tab ${t.id===activeTab?'active':''}" data-tab="${t.id}">${t.label}${badge}</button>`;
+    const tabHtml = `<button class="prop-tab ${t.id===activeTab?'active':''}" data-tab="${t.id}">${t.label}${badge}</button>`;
+    // Chat sits between HR Feed and For You as a genuine 5th tab-row item —
+    // not a floating overlay — specifically so it shares the row's real
+    // flexbox spacing instead of a manually-computed midpoint that would
+    // need recalculating every time the tab count changes. Mobile-only via
+    // CSS; the desktop header keeps its own separate chat icon.
+    if(t.id === 'feed'){
+      return tabHtml + `<button class="prop-tab chat-btn-mobile-tab" id="chatBtnMobile" aria-label="Chat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 8.4-8.5 8.38 8.38 0 0 1 8.6 8.5z"/></svg>
+        <span class="chat-unread-dot"></span>
+      </button>`;
+    }
+    return tabHtml;
   }).join('');
 
   const selectTab = id => {
@@ -5096,6 +5113,10 @@ function renderTabs(){
   propTabsEl.querySelectorAll('.prop-menu-item').forEach(btn=>{
     btn.addEventListener('click', e=>{ e.stopPropagation(); selectTab(btn.dataset.tab); });
   });
+  // Re-bound every render, same as the tab buttons above — this element is
+  // recreated fresh each time via the innerHTML assignment, so any listener
+  // from the previous render is already gone with the old node.
+  document.getElementById('chatBtnMobile')?.addEventListener('click', toggleChatPanel);
 
   renderInlinePropMenu();
 
@@ -12442,68 +12463,62 @@ let chatPanelPresenceUnsub = null;
 let chatPanelSeen = new Set();
 
 /**
- * On mobile, #chatBtnTb needs true fixed-to-viewport positioning to float
- * above the bottom bar — but .topbar has backdrop-filter set for its
- * frosted-glass look, and per spec, backdrop-filter (like transform or
- * filter) creates a new containing block for any position:fixed
- * descendant. That silently redirects "fixed" to be relative to .topbar
- * itself instead of the real viewport, which is why the button was
- * staying stuck near the top instead of floating at the bottom. Same
- * class of clipping problem the existing #propMenu dropdown already
- * solves by moving itself to <body> — applying that same technique here.
+ * Two physical trigger buttons now share one chat panel: the original
+ * desktop header icon, and a second one rendered as a genuine 5th item in
+ * the mobile bottom tab row (added inside renderTabs(), not a reparented
+ * copy of the same node — that container's innerHTML gets fully
+ * overwritten on every tab change, which would silently destroy anything
+ * manually inserted there). CSS shows exactly one of the two at any given
+ * viewport width, but both need their .active state and unread dot kept
+ * in sync regardless of which one someone actually clicks.
  */
-let chatBtnHomeParent = null, chatBtnHomeNextSibling = null;
-function updateChatBtnParent(){
-  const btn = document.getElementById('chatBtnTb');
-  if(!btn) return;
-  if(!chatBtnHomeParent){
-    // Captured once, the first time this runs — its real home in the
-    // header, so it can be restored exactly if the viewport widens back
-    // past the mobile breakpoint.
-    chatBtnHomeParent = btn.parentElement;
-    chatBtnHomeNextSibling = btn.nextElementSibling;
-  }
-  const isMobile = window.innerWidth <= 1023;
-  const isDetached = btn.parentElement === document.body;
-  if(isMobile && !isDetached){
-    document.body.appendChild(btn);
-  } else if(!isMobile && isDetached){
-    if(chatBtnHomeNextSibling) chatBtnHomeParent.insertBefore(btn, chatBtnHomeNextSibling);
-    else chatBtnHomeParent.appendChild(btn);
+function getChatTriggers(){
+  return [document.getElementById('chatBtnTb'), document.getElementById('chatBtnMobile')].filter(Boolean);
+}
+function setChatTriggersActive(isActive){
+  getChatTriggers().forEach(btn => btn.classList.toggle('active', isActive));
+}
+function setChatUnreadDot(show){
+  getChatTriggers().forEach(btn => btn.querySelector('.chat-unread-dot')?.classList.toggle('show', show));
+}
+
+function toggleChatPanel(){
+  const panel = document.getElementById('chatPanel');
+  if(!panel) return;
+  chatPanelOpen = !chatPanelOpen;
+  panel.classList.toggle('open', chatPanelOpen);
+  setChatTriggersActive(chatPanelOpen);
+  if(chatPanelOpen){
+    chatPanelMinimized = false;
+    panel.classList.remove('minimized');
+    loadChatPanelMessages();
+    document.getElementById('chatPanelInput')?.focus();
+    setChatUnreadDot(false);
   }
 }
-window.addEventListener('resize', () => { clearTimeout(window._chatBtnResizeT); window._chatBtnResizeT = setTimeout(updateChatBtnParent, 150); });
 
 function initChatPanel(){
   const panel = document.getElementById('chatPanel');
-  const toggleBtn = document.getElementById('chatBtnTb');
   const closeBtn = document.getElementById('chatPanelClose');
   const minBtn = document.getElementById('chatPanelMin');
   const head = panel?.querySelector('.chat-panel-head');
-  if(!panel || !toggleBtn) return;
-  updateChatBtnParent();
+  if(!panel) return;
 
-  toggleBtn.addEventListener('click', () => {
-    chatPanelOpen = !chatPanelOpen;
-    panel.classList.toggle('open', chatPanelOpen);
-    toggleBtn.classList.toggle('active', chatPanelOpen);
-    if(chatPanelOpen){
-      chatPanelMinimized = false;
-      panel.classList.remove('minimized');
-      loadChatPanelMessages();
-      document.getElementById('chatPanelInput')?.focus();
-      // Clear unread dot
-      const dot = toggleBtn.querySelector('.chat-unread-dot');
-      if(dot) dot.classList.remove('show');
-    }
-  });
+  // Wired once here, at boot — unlike #chatBtnMobile, this button is
+  // static and never gets recreated, so a one-time listener is correct.
+  // The mobile version is deliberately NOT wired here: renderTabs()
+  // rebuilds it from scratch on every tab change, which would silently
+  // orphan any listener attached before that; it re-binds its own click
+  // handler every time it renders instead.
+  document.getElementById('chatBtnTb')?.addEventListener('click', toggleChatPanel);
 
   if(closeBtn) closeBtn.addEventListener('click', () => {
     chatPanelOpen = false;
     panel.classList.remove('open');
-    toggleBtn.classList.remove('active');
+    setChatTriggersActive(false);
     if(chatPanelUnsub){ chatPanelUnsub(); chatPanelUnsub = null; }
   });
+
 
   if(minBtn) minBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -12605,11 +12620,9 @@ async function loadChatPanelMessages(){
     if(list.querySelector('[data-empty]')) list.innerHTML = '';
     list.insertAdjacentHTML('beforeend', chatMsgHTML(m));
     list.scrollTop = list.scrollHeight;
-    // Unread dot if panel is closed
-    if(!chatPanelOpen){
-      const dot = document.getElementById('chatBtnTb')?.querySelector('.chat-unread-dot');
-      if(dot) dot.classList.add('show');
-    }
+    // Unread dot if panel is closed — on both trigger buttons, whichever
+    // one is actually visible at the current viewport width.
+    if(!chatPanelOpen) setChatUnreadDot(true);
     wireChatPanelProfileClicks(list);
   });
 }
