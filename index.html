@@ -12441,6 +12441,39 @@ let chatPanelUnsub = null;
 let chatPanelPresenceUnsub = null;
 let chatPanelSeen = new Set();
 
+/**
+ * On mobile, #chatBtnTb needs true fixed-to-viewport positioning to float
+ * above the bottom bar — but .topbar has backdrop-filter set for its
+ * frosted-glass look, and per spec, backdrop-filter (like transform or
+ * filter) creates a new containing block for any position:fixed
+ * descendant. That silently redirects "fixed" to be relative to .topbar
+ * itself instead of the real viewport, which is why the button was
+ * staying stuck near the top instead of floating at the bottom. Same
+ * class of clipping problem the existing #propMenu dropdown already
+ * solves by moving itself to <body> — applying that same technique here.
+ */
+let chatBtnHomeParent = null, chatBtnHomeNextSibling = null;
+function updateChatBtnParent(){
+  const btn = document.getElementById('chatBtnTb');
+  if(!btn) return;
+  if(!chatBtnHomeParent){
+    // Captured once, the first time this runs — its real home in the
+    // header, so it can be restored exactly if the viewport widens back
+    // past the mobile breakpoint.
+    chatBtnHomeParent = btn.parentElement;
+    chatBtnHomeNextSibling = btn.nextElementSibling;
+  }
+  const isMobile = window.innerWidth <= 1023;
+  const isDetached = btn.parentElement === document.body;
+  if(isMobile && !isDetached){
+    document.body.appendChild(btn);
+  } else if(!isMobile && isDetached){
+    if(chatBtnHomeNextSibling) chatBtnHomeParent.insertBefore(btn, chatBtnHomeNextSibling);
+    else chatBtnHomeParent.appendChild(btn);
+  }
+}
+window.addEventListener('resize', () => { clearTimeout(window._chatBtnResizeT); window._chatBtnResizeT = setTimeout(updateChatBtnParent, 150); });
+     
 function initChatPanel(){
   const panel = document.getElementById('chatPanel');
   const toggleBtn = document.getElementById('chatBtnTb');
