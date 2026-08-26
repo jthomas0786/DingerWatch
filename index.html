@@ -13272,6 +13272,15 @@ function exportToExcel(){
  * if the data ever genuinely needs protecting, that has to happen server-side.
  */
 const EXPORT_OWNER = 'dingerwatch';   // compared lower-case
+/** Moderator profile — Tuner tab access only, nothing else. Deliberately
+ *  separate from EXPORT_OWNER: the Admin panel (Points/Wagers, Export,
+ *  Model logs) stays owner-only and does NOT check this list. Usernames
+ *  compared lower-case, matching the EXPORT_OWNER convention. */
+const MODERATORS = ['goosebetsftw', 'justcallme_jt'];
+function isModerator(){
+  const u = social()?.getUser?.();
+  return !!(u && MODERATORS.includes(String(u.username).toLowerCase()));
+}
 
 /** Shows/hides and updates the header balance chip. Called on sign-in,
  *  sign-out, and after a wager is placed — the only three moments a
@@ -13812,14 +13821,14 @@ document.addEventListener('visibilitychange', ()=>{
   }
 
   // The panel reads MODEL.props and needs players to score, so it waits for the
-  // slate rather than racing it. It also only mounts for the owner profile (or
-  // the ?tune=1 dev backdoor), so the side tab stays out of everyone else's way.
+  // slate rather than racing it. Mounts for the owner profile, a moderator, or
+  // the ?tune=1 dev backdoor, so the side tab stays out of everyone else's way.
   const tuneReady = () => typeof allBatters !== 'undefined' && allBatters && allBatters.length &&
     typeof MODEL !== 'undefined' && MODEL.props;
   const tuneMounted = () => !!document.querySelector('.dwtune-toggle');
   function tryBuildTune(){
     if(tuneMounted()) return true;
-    if(!devBackdoor && !isOwner()) return false;
+    if(!devBackdoor && !isOwner() && !isModerator()) return false;
     if(!tuneReady()) return false;
     try{ build(); }catch(e){ console.error('[tune] failed to build panel', e); }
     return true;
