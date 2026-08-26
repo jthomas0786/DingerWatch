@@ -1058,6 +1058,16 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .wx-wind-label{ font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; margin-top:4px; }
 .wx-wind-sub{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:11px; color: var(--mute); margin-top:2px; }
 .wx-diamond-note{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:12px; color: var(--mute); padding:10px 0; }
+.search-bar{ position:relative; display:flex; align-items:center; background:var(--panel);
+  border:1px solid var(--line); border-radius:12px; margin-top:14px; padding:0 14px; }
+.search-bar:focus-within{ border-color:var(--accent); }
+.search-icon{ color:var(--mute); flex-shrink:0; }
+.search-bar input{ flex:1; background:none; border:none; outline:none; color:var(--white);
+  font-family:'Satoshi','Inter',sans-serif; font-size:14px; padding:12px 10px; min-width:0; }
+.search-bar input::placeholder{ color:var(--mute); }
+.search-clear{ background:none; border:none; color:var(--mute); font-size:20px; line-height:1;
+  cursor:pointer; padding:4px 2px; flex-shrink:0; }
+.search-clear:hover{ color:var(--white); }
 .filter-bar{ background:var(--panel); border:1px solid var(--line); border-radius:12px; margin-top:14px; overflow:hidden; }
 .filter-head{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; cursor:pointer; gap:10px; }
 .filter-head:hover{ background:rgba(45,127,255,0.05); }
@@ -1872,7 +1882,17 @@ main{ max-width:none; margin:0; padding: 20px 28px 120px; flex:1; }
     border-right:none; border-top:1px solid var(--line);
     background: rgba(12,16,32,0.96);
     backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-    overflow: visible; z-index:850;
+    overflow: visible; z-index:950;
+    /* Higher than .betslip-bar's z-index:900 — deliberately. .app-sidebar
+       is position:fixed with its own z-index, which makes it a stacking
+       context: everything nested inside it (including #propMenu, which
+       stays nested here on mobile rather than reparenting to <body> the
+       way the desktop popover does) is bounded by THIS z-index when
+       competing against siblings like the bet slip bar, regardless of
+       that dropdown's own, higher local z-index:1000. Without this, the
+       bet slip bar would win that stacking fight and cover the bottom of
+       the open dropdown — exactly where "All Players" sits, being last
+       in the list. */
   }
   .sb-brand, .sb-foot{ display:none; }
 
@@ -4965,6 +4985,7 @@ function resolveTiers(d){ return typeof d.tiers === 'function' ? d.tiers() : d.t
 // { barrel:{min:10}, ev:{max:95}, ... } — only keys the user has touched.
 let activeFilters = {};
 let allPlayersSort = 'sim_hr';
+let allPlayersSearch = '';
 // Minimum letter grade to show. Applies to whichever graded prop is being
 // sorted on, so "A- or better" means A- or better AT THAT PROP. Empty = no
 // grade filter. Note this behaves differently from the old HR Index slider:
@@ -4988,6 +5009,21 @@ const simSortCfg = id => {
 
 function filteredPlayers(){
   let list = allBatters.filter(isPlayable);
+  const q = allPlayersSearch.trim().toLowerCase();
+  if(q){
+    list = list.filter(p => {
+      // Match against the player's own team specifically, not whoever
+      // they're playing that night — away/home nicknames both show up in
+      // the game object, so a naive match against either would surface
+      // the opponent's roster too (searching "Yankees" showing Red Sox
+      // players when they're playing each other).
+      const ownTeamName = p.game
+        ? (p.game.away === p.team ? p.game.awayName : p.game.homeName)
+        : '';
+      const haystack = `${p.name} ${p.team} ${ownTeamName}`.toLowerCase();
+      return haystack.includes(q);
+    });
+  }
   for(const [id, range] of Object.entries(activeFilters)){
     const def = FILTER_DEFS.find(d=>d.id===id);
     if(!def) continue;
@@ -5485,13 +5521,14 @@ function renderAllPlayers(){
       </div>`;
   }).join('');
 
-  pickList.innerHTML = filterBarHTML(list.length, total) +
+  pickList.innerHTML = searchBarHTML() + filterBarHTML(list.length, total) +
     (list.length ? `<div class="pick-list" style="margin-top:14px;">${cards}</div>`
                  : `<div style="text-align:center;padding:40px 20px;color:var(--mute);font-family:'Oswald',sans-serif;font-size:14px;">
                       No hitters match all ${activeFilterCount()} filters. Try widening a range or clearing one.
                     </div>`);
 
   wireFilterBar();
+  wireSearchBar();
   pickList.querySelectorAll('.pick-card').forEach(card=>{
     card.addEventListener('click', (e)=>{
       if(isInteractiveClick(e)) return;
@@ -12209,6 +12246,37 @@ function searchBarHTML(){
       value="${escapeHTML(allPlayersSearch)}" autocomplete="off">
     ${allPlayersSearch ? '<button class="search-clear" id="searchClear" title="Clear">&times;</button>' : ''}
   </div>`;
+}
+
+/**
+ * renderAllPlayers() rebuilds the whole list — including this input — via
+ * innerHTML on every keystroke, since search results need to update live.
+ * Without explicit focus/cursor restoration here, that would silently drop
+ * focus after the very first character typed, making the box unusable.
+ */
+function wireSearchBar(){
+  const input = document.getElementById('playerSearch');
+  if(!input) return;
+
+  input.addEventListener('input', () => {
+    allPlayersSearch = input.value;
+    const cursorPos = input.selectionStart;
+    renderAllPlayers();
+    const freshInput = document.getElementById('playerSearch');
+    if(freshInput){
+      freshInput.focus();
+      freshInput.setSelectionRange(cursorPos, cursorPos);
+    }
+  });
+
+  const clearBtn = document.getElementById('searchClear');
+  if(clearBtn){
+    clearBtn.addEventListener('click', () => {
+      allPlayersSearch = '';
+      renderAllPlayers();
+      document.getElementById('playerSearch')?.focus();
+    });
+  }
 }
 
 // === PORTED FROM GITHUB: showSubscribeGate ===
