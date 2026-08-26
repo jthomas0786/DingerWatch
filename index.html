@@ -14030,6 +14030,35 @@ document.addEventListener('visibilitychange', ()=>{
       <div id=dwadminFileView></div>
     </details>`;
 
+    // ---- Points & Wagers ----
+    body += `<details class="dwadmin-sec"><summary>Points & Wagers</summary>
+      <div class=dwadmin-grp>Adjust one user</div>
+      <input class=dwadmin-search id=dwadminPtsUser placeholder="username">
+      <div style="display:flex;gap:6px;margin:8px 0">
+        <input class=dwadmin-search id=dwadminPtsAmt type=number step=1 placeholder="amount (+/-)" style="flex:1;margin:0">
+        <input class=dwadmin-search id=dwadminPtsNote placeholder="note (optional)" style="flex:2;margin:0">
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <button class=dwadmin-btn id=dwadminPtsLookup>Look up</button>
+        <button class="dwadmin-btn dwadmin-primary" id=dwadminPtsApply>Apply</button>
+      </div>
+      <div class=dwadmin-status id=dwadminPtsStatus></div>
+
+      <div class=dwadmin-grp>Adjust ALL users</div>
+      <div class=dwadmin-meta>Applies to every account, including anyone who has never placed a wager.</div>
+      <div style="display:flex;gap:6px;margin:8px 0">
+        <input class=dwadmin-search id=dwadminPtsAllAmt type=number step=1 placeholder="amount (+/-)" style="flex:1;margin:0">
+        <input class=dwadmin-search id=dwadminPtsAllNote placeholder="note (optional)" style="flex:2;margin:0">
+      </div>
+      <button class="dwadmin-btn dwadmin-primary" id=dwadminPtsAllApply>Apply to ALL users</button>
+      <div class=dwadmin-status id=dwadminPtsAllStatus></div>
+
+      <div class=dwadmin-grp>Wager report</div>
+      <button class=dwadmin-btn id=dwadminReportLoad>Load report</button>
+      <div class=dwadmin-status id=dwadminReportStatus>Not loaded yet.</div>
+      <div id=dwadminReportHost></div>
+    </details>`;
+
     panel.innerHTML = `<div class=dwadmin-head><h2>Admin Tools</h2><button class=dwadmin-btn id=dwadminClose>Close</button></div><div class=dwadmin-body>${body}</div>`;
     document.body.appendChild(panel);
 
@@ -14059,6 +14088,93 @@ document.addEventListener('visibilitychange', ()=>{
     document.getElementById('dwadminExport').addEventListener('click', () => {
       if(typeof exportToExcel === 'function') exportToExcel();
     });
+
+    // ---- Points & Wagers wiring ----
+    // social() may not be ready yet if the admin panel mounts before the
+    // module finishes loading — every handler below checks for it rather
+    // than assuming, matching how the rest of the app treats social as
+    // optional.
+    (function wirePointsAndWagers(){
+      const ptsUser = document.getElementById('dwadminPtsUser');
+      const ptsAmt = document.getElementById('dwadminPtsAmt');
+      const ptsNote = document.getElementById('dwadminPtsNote');
+      const ptsStatus = document.getElementById('dwadminPtsStatus');
+      const ptsAllAmt = document.getElementById('dwadminPtsAllAmt');
+      const ptsAllNote = document.getElementById('dwadminPtsAllNote');
+      const ptsAllStatus = document.getElementById('dwadminPtsAllStatus');
+      const reportStatus = document.getElementById('dwadminReportStatus');
+      const reportHost = document.getElementById('dwadminReportHost');
+
+      const setStatus = (elm, msg, isErr) => { elm.textContent = msg; elm.className = 'dwadmin-status' + (isErr ? ' err' : ''); };
+
+      document.getElementById('dwadminPtsLookup').addEventListener('click', async () => {
+        const s = social();
+        if(!s?.adminLookupUser){ setStatus(ptsStatus, 'Social module not ready yet — try again in a moment.', true); return; }
+        const username = ptsUser.value.trim();
+        if(!username){ setStatus(ptsStatus, 'Enter a username first.', true); return; }
+        setStatus(ptsStatus, 'Looking up…');
+        const res = await s.adminLookupUser(username);
+        if(res.error){ setStatus(ptsStatus, res.error, true); return; }
+        ptsStatus.className = 'dwadmin-status';
+        ptsStatus.innerHTML = `<b>${esc(res.username)}</b> — balance: <span class=dwadmin-mono>${res.balance}</span>` +
+          ` · wagers: ${res.total_wagers} (${res.wins}W-${res.losses}L-${res.pending}P)`;
+      });
+
+      document.getElementById('dwadminPtsApply').addEventListener('click', async () => {
+        const s = social();
+        if(!s?.adminAdjustPoints){ setStatus(ptsStatus, 'Social module not ready yet — try again in a moment.', true); return; }
+        const username = ptsUser.value.trim();
+        const amt = parseInt(ptsAmt.value, 10);
+        if(!username){ setStatus(ptsStatus, 'Enter a username first.', true); return; }
+        if(!amt){ setStatus(ptsStatus, 'Enter a nonzero amount.', true); return; }
+        if(!confirm(`${amt > 0 ? 'Add' : 'Remove'} ${Math.abs(amt)} points ${amt > 0 ? 'to' : 'from'} ${username}?`)) return;
+        setStatus(ptsStatus, 'Applying…');
+        const res = await s.adminAdjustPoints(username, amt, ptsNote.value.trim());
+        if(res.error){ setStatus(ptsStatus, res.error, true); return; }
+        ptsStatus.className = 'dwadmin-status';
+        ptsStatus.innerHTML = `Done — <b>${esc(res.username)}</b> new balance: <span class=dwadmin-mono>${res.new_balance}</span>`;
+        ptsAmt.value = ''; ptsNote.value = '';
+      });
+
+      document.getElementById('dwadminPtsAllApply').addEventListener('click', async () => {
+        const s = social();
+        if(!s?.adminAdjustPointsAll){ setStatus(ptsAllStatus, 'Social module not ready yet — try again in a moment.', true); return; }
+        const amt = parseInt(ptsAllAmt.value, 10);
+        if(!amt){ setStatus(ptsAllStatus, 'Enter a nonzero amount.', true); return; }
+        if(!confirm(`${amt > 0 ? 'Add' : 'Remove'} ${Math.abs(amt)} points ${amt > 0 ? 'to' : 'from'} EVERY user? This can't be undone from this panel.`)) return;
+        setStatus(ptsAllStatus, 'Applying to all users…');
+        const res = await s.adminAdjustPointsAll(amt, ptsAllNote.value.trim());
+        if(res.error){ setStatus(ptsAllStatus, res.error, true); return; }
+        setStatus(ptsAllStatus, `Done — ${res.accounts_affected} accounts affected.`);
+        ptsAllAmt.value = ''; ptsAllNote.value = '';
+      });
+
+      document.getElementById('dwadminReportLoad').addEventListener('click', async () => {
+        const s = social();
+        if(!s?.adminWagerReport){ setStatus(reportStatus, 'Social module not ready yet — try again in a moment.', true); return; }
+        setStatus(reportStatus, 'Loading…');
+        const res = await s.adminWagerReport();
+        if(res.error){ setStatus(reportStatus, res.error, true); return; }
+        if(!res.rows.length){ setStatus(reportStatus, 'No wagers placed yet.'); reportHost.innerHTML = ''; return; }
+        setStatus(reportStatus, `${res.rows.length} user(s) with wager activity.`);
+        const wrap = el('div', 'dwadmin-tbl-wrap');
+        const tbl = el('table', 'dwadmin-tbl');
+        tbl.innerHTML = `<thead><tr><th>User</th><th>Bets</th><th>W</th><th>L</th><th>Pend</th><th>Win%</th><th>Staked</th><th>Won</th><th>Balance</th></tr></thead><tbody></tbody>`;
+        const tb = tbl.tBodies[0];
+        res.rows.forEach(r => {
+          const settled = r.wins + r.losses;
+          const winClass = settled === 0 ? '' : r.win_pct >= 55 ? 'dwadmin-good' : r.win_pct <= 45 ? 'dwadmin-bad' : '';
+          const tr = tb.insertRow();
+          tr.innerHTML = `<td>${esc(r.username)}</td><td class=dwadmin-mono>${r.total_wagers}</td>` +
+            `<td class=dwadmin-mono>${r.wins}</td><td class=dwadmin-mono>${r.losses}</td><td class=dwadmin-mono>${r.pending}</td>` +
+            `<td class="dwadmin-mono ${winClass}">${r.win_pct}%</td><td class=dwadmin-mono>${r.total_staked}</td>` +
+            `<td class=dwadmin-mono>${r.total_won}</td><td class=dwadmin-mono>${r.current_balance}</td>`;
+        });
+        wrap.appendChild(tbl);
+        reportHost.innerHTML = '';
+        reportHost.appendChild(wrap);
+      });
+    })();
 
     // ---- Model logs browser wiring ----
     const chips = document.getElementById('dwadminChips');
