@@ -9486,6 +9486,34 @@ function previewOdds(pct, houseEdge){
   return shaded > 0 ? 1 / shaded : 0;
 }
 
+/**
+ * Auto-posts a placed wager to the status feed — legs and the combined
+ * multiplier shown, stake amount deliberately never included. Failures
+ * here are logged, not surfaced: the wager itself already succeeded by
+ * the time this runs, and a failed feed post shouldn't read as a failed
+ * wager to the person who just placed it.
+ */
+async function postWagerToFeed(wageredLegs, houseEdge, maxMult){
+  const s = social();
+  if(!s?.postStatus || !wageredLegs.length) return;
+
+  const combined = Math.min(
+    wageredLegs.reduce((acc, l) => acc * previewOdds(l.pct, houseEdge), 1),
+    maxMult
+  );
+
+  const body = wageredLegs.length === 1
+    ? `🎰 Locked in a ${combined.toFixed(2)}x bet slip`
+    : `🎰 Locked in a ${wageredLegs.length}-leg parlay — ${combined.toFixed(2)}x`;
+
+  const statusLegs = wageredLegs.map(l => ({
+    text: `${l.player} ${l.market} ${l.line}+`,
+  }));
+
+  const res = await s.postStatus(body, statusLegs, wageredLegs[0]?.slate_date || null);
+  if(res.error) console.warn('[wager] auto-post to feed failed:', res.error);
+}
+
 async function openWagerPanel(){
   const panel = document.getElementById('bsWagerPanel');
   if(!panel) return;
@@ -9547,6 +9575,11 @@ async function openWagerPanel(){
     if(stake <= 0){ err.textContent = 'Enter a stake first.'; return; }
     if(stake > balance){ err.textContent = `You only have ${balance} points.`; return; }
 
+    // Captured before the betslip gets cleared below — needed to build the
+    // auto-post afterward, since betslip's display fields (player/market/
+    // line) aren't part of what place_wager() itself returns.
+    const wageredLegs = betslip.slice();
+
     const legs = betslip.map(l => ({
       player_id: l.player_id, player_name: l.player,
       game_pk: l.game_pk, slate_date: l.slate_date,
@@ -9557,6 +9590,13 @@ async function openWagerPanel(){
     const res = await s.placeWager(stake, legs);
     confirmBtn.disabled = false;
     if(res.error){ err.textContent = res.error; return; }
+
+    // Auto-post the slip to the status feed — multiplier shown, stake
+    // deliberately left out. Same combined-odds formula already verified
+    // against the server's own calculation for the pre-confirm preview
+    // above, so this number matches what actually got wagered rather than
+    // needing a second round-trip just to read it back.
+    postWagerToFeed(wageredLegs, houseEdge, maxMult);
 
     betslip = []; saveBetslip(); renderBetslipBar(); syncAddButtons();
     refreshBalanceChip();
