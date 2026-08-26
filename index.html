@@ -12448,6 +12448,7 @@ function initChatPanel(){
   const minBtn = document.getElementById('chatPanelMin');
   const head = panel?.querySelector('.chat-panel-head');
   if(!panel || !toggleBtn) return;
+  updateChatBtnParent();
 
   toggleBtn.addEventListener('click', () => {
     chatPanelOpen = !chatPanelOpen;
