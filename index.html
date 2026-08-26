@@ -12473,7 +12473,7 @@ function updateChatBtnParent(){
   }
 }
 window.addEventListener('resize', () => { clearTimeout(window._chatBtnResizeT); window._chatBtnResizeT = setTimeout(updateChatBtnParent, 150); });
-     
+
 function initChatPanel(){
   const panel = document.getElementById('chatPanel');
   const toggleBtn = document.getElementById('chatBtnTb');
@@ -12481,6 +12481,7 @@ function initChatPanel(){
   const minBtn = document.getElementById('chatPanelMin');
   const head = panel?.querySelector('.chat-panel-head');
   if(!panel || !toggleBtn) return;
+  updateChatBtnParent();
 
   toggleBtn.addEventListener('click', () => {
     chatPanelOpen = !chatPanelOpen;
