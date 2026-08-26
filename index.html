@@ -11166,7 +11166,14 @@ function propProbabilitiesHTML(p){
   return `<div class="prob-list">` + rows.map(([name, line, d, key]) => {
     const gr = gradeFor(key, d.exact ?? d.pct);
     const leg = { id: legId(p.name, name, line.replace('over ','')), kind:'prop',
-                  player:p.name, market:name, line:line.replace('over ',''),
+                  player:p.name,
+                  // Normalized specifically for HR — that's the one market
+                  // string the wager-eligibility check looks for exactly.
+                  // Every other market keeps its existing raw label as-is;
+                  // wagering is intentionally HR-only for v1, so nothing
+                  // else needs to match anything in particular.
+                  market: name === 'HOME RUN' ? 'HR' : name,
+                  line:line.replace('over ',''),
                   pct:d.pct, grade:gr.g, game:`${p.game.awayName} @ ${p.game.homeName}`,
                   player_id:p.id, game_pk:p.game.gamePk, slate_date:slateDate() };
     return `<div class="prob-row">
