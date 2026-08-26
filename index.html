@@ -128,17 +128,12 @@ main{ max-width:1280px; margin:0 auto; padding:0 24px 100px; }
 .prop-tabs{ display:flex; gap:8px; overflow-x:auto; padding:16px 0 6px; scrollbar-width:none; position: sticky; top:0; background: var(--night); z-index:40; margin: 0 -24px; padding-left:24px; padding-right:24px; border-bottom: 1px solid var(--line); -webkit-overflow-scrolling: touch; }
 .prop-tabs::-webkit-scrollbar{ display:none; }
 .prop-tab{ flex:0 0 auto; background: var(--panel); border:1px solid var(--line); color: var(--mute); font-family:'Satoshi','Inter',sans-serif; font-size:13px; padding:8px 18px; border-radius:9999px; cursor:pointer; white-space:nowrap; transition: var(--transition); margin-bottom:14px; font-weight:500; }
-/* Desktop default: hidden. The mobile media query below is what actually
-   shows and styles this — desktop keeps the separate chat icon already in
-   the header instead. */
-/* .app-sidebar .prop-tab (used for the desktop sidebar layout) is a
-   2-class selector, always active at every width — higher specificity
-   than a plain single-class .chat-btn-mobile-tab, so it was winning the
-   display property outright regardless of source order, including on
-   desktop where this needs to stay hidden. Matching that same 3-class
-   specificity here guarantees these rules win unconditionally instead of
-   depending on a source-order tiebreak. */
-.app-sidebar .prop-tab.chat-btn-mobile-tab{ display:none; }
+/* Desktop default: hidden — desktop keeps the separate chat icon already
+   in the header. #chatBtnMobile is an ID selector, which always outranks
+   any number of classes in specificity, so this reliably wins regardless
+   of what other .prop-tab rules exist, without needing to hand-match
+   another selector's exact class count. */
+#chatBtnMobile{ display:none; }
 .prop-tab:hover{ border-color: var(--border-light); color: var(--white); }
 .prop-tab.active{ background: var(--accent); color:#fff; border-color: var(--accent); font-weight:700; box-shadow: 0 2px 12px var(--accent-glow); }
 
@@ -1911,45 +1906,36 @@ main{ max-width:none; margin:0; padding: 20px 28px 120px; flex:1; }
   }
   .app-sidebar .prop-tab{ position:relative; }
 
-  /* Chat is now a genuine 5th item in the SAME flex row as the other 4
-     tabs (Slate/HR Feed/Chat/For You/Player Props), not a floating
-     overlay positioned by manually computing where a 4-item midpoint
-     would land. With flex:1 1 0 inherited from .prop-tab on all 5,
-     even spacing across all of them is guaranteed by flexbox itself —
-     the browser does that math, not a hardcoded percentage that would
-     need updating if the tab count ever changes again. The larger size
-     and lift are pure paint effects (transform doesn't affect layout),
-     so its flex slot stays normal while it visually pokes up above the
-     bar — the bar already has overflow:visible, so nothing clips it. */
-  .app-sidebar .prop-tab.chat-btn-mobile-tab{
-    display: flex; align-items:center; justify-content:center;
-    width: 80px; height: 80px; border-radius: 22px;
-    background: linear-gradient(145deg, var(--accent-bright), var(--accent) 55%, #1a5fd9);
-    border: none; flex-grow: 0; flex-shrink: 0;
-    transform: translateY(-32px);
-    box-shadow: 0 6px 20px rgba(45,127,255,0.45), inset 0 1px 0 rgba(255,255,255,0.35);
-    z-index: 5; position: relative;
-    color: #fff;
+  /* Chat is a genuine 5th item in the SAME flex row as the other 4 tabs
+     (Slate/HR Feed/Chat/For You/Player Props) — flex:1 1 0 inherited from
+     the base .prop-tab rule guarantees even spacing across all five the
+     same way it already does for the other four. Styled with the exact
+     same icon-mask + ::after-label technique the other four already use,
+     rather than a one-off custom look — same size, same theme, nothing
+     bespoke to go wrong independently of the pattern that already works. */
+  .app-sidebar .prop-tab#chatBtnMobile .chat-unread-dot{
+    position:absolute; top:14px; right:22%; width:9px; height:9px; border-radius:50%;
+    background: var(--hr-red); border:2px solid var(--bg); display:none;
   }
-  .app-sidebar .prop-tab.chat-btn-mobile-tab svg{ width: 30px; height: 30px; }
-  .app-sidebar .prop-tab.chat-btn-mobile-tab .chat-mobile-label{
-    font-size: 9.5px; font-weight: 700; letter-spacing: 0.02em; margin-top: 3px; color: #fff;
-  }
-  .app-sidebar .prop-tab.chat-btn-mobile-tab.active{
-    background: linear-gradient(145deg, #fff, var(--accent-bright) 55%, var(--accent));
-    box-shadow: 0 6px 20px rgba(45,127,255,0.6), inset 0 1px 0 rgba(255,255,255,0.5);
-  }
-  .app-sidebar .prop-tab.chat-btn-mobile-tab .chat-unread-dot{
-    position:absolute; top: 9px; right: 9px; width: 12px; height: 12px; border-radius: 50%;
-    background: var(--hr-red); border: 2px solid var(--bg); display:none;
-  }
-  .app-sidebar .prop-tab.chat-btn-mobile-tab .chat-unread-dot.show{ display:block; }
+  .app-sidebar .prop-tab#chatBtnMobile .chat-unread-dot.show{ display:block; }
 
   /* Icons for each bottom-nav item */
   .app-sidebar .prop-tab[data-tab="slate"]::before{ -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='16' rx='2'/%3E%3Cline x1='3' y1='10' x2='21' y2='10'/%3E%3Cline x1='12' y1='10' x2='12' y2='20'/%3E%3C/svg%3E"); mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='16' rx='2'/%3E%3Cline x1='3' y1='10' x2='21' y2='10'/%3E%3Cline x1='12' y1='10' x2='12' y2='20'/%3E%3C/svg%3E"); }
   .app-sidebar .prop-tab[data-tab="feed"]::before{ -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 11a9 9 0 0 1 9 9'/%3E%3Cpath d='M4 4a16 16 0 0 1 16 16'/%3E%3Ccircle cx='5' cy='19' r='1.5'/%3E%3C/svg%3E"); mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 11a9 9 0 0 1 9 9'/%3E%3Cpath d='M4 4a16 16 0 0 1 16 16'/%3E%3Ccircle cx='5' cy='19' r='1.5'/%3E%3C/svg%3E"); }
   .app-sidebar .prop-tab[data-tab="foryou"]::before{ -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='9.5' cy='7' r='4'/%3E%3Cpath d='M22 21v-2a4 4 0 0 0-3-3.87'/%3E%3Cpath d='M16 3.13a4 4 0 0 1 0 7.75'/%3E%3C/svg%3E"); mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='9.5' cy='7' r='4'/%3E%3Cpath d='M22 21v-2a4 4 0 0 0-3-3.87'/%3E%3Cpath d='M16 3.13a4 4 0 0 1 0 7.75'/%3E%3C/svg%3E"); }
   .app-sidebar #propMenuBtn::before{ -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='4' y1='21' x2='4' y2='14'/%3E%3Cline x1='4' y1='10' x2='4' y2='3'/%3E%3Cline x1='12' y1='21' x2='12' y2='12'/%3E%3Cline x1='12' y1='8' x2='12' y2='3'/%3E%3Cline x1='20' y1='21' x2='20' y2='16'/%3E%3Cline x1='20' y1='12' x2='20' y2='3'/%3E%3Cline x1='1' y1='14' x2='7' y2='14'/%3E%3Cline x1='9' y1='8' x2='15' y2='8'/%3E%3Cline x1='17' y1='16' x2='23' y2='16'/%3E%3C/svg%3E"); mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='4' y1='21' x2='4' y2='14'/%3E%3Cline x1='4' y1='10' x2='4' y2='3'/%3E%3Cline x1='12' y1='21' x2='12' y2='12'/%3E%3Cline x1='12' y1='8' x2='12' y2='3'/%3E%3Cline x1='20' y1='21' x2='20' y2='16'/%3E%3Cline x1='20' y1='12' x2='20' y2='3'/%3E%3Cline x1='1' y1='14' x2='7' y2='14'/%3E%3Cline x1='9' y1='8' x2='15' y2='8'/%3E%3Cline x1='17' y1='16' x2='23' y2='16'/%3E%3C/svg%3E"); }
+  /* Chat — same icon-mask technique as its siblings above, just scoped by
+     ID since it isn't part of the data-tab set. Shown here (overriding
+     the desktop-hide rule) since this block is the mobile bottom bar. */
+  .app-sidebar #chatBtnMobile{ display:flex; }
+  .app-sidebar .prop-tab.chat-tab::before{ -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 11.5a8.38 8.38 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 8.4-8.5 8.38 8.38 0 0 1 8.6 8.5z'/%3E%3C/svg%3E"); mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 11.5a8.38 8.38 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 8.4-8.5 8.38 8.38 0 0 1 8.6 8.5z'/%3E%3C/svg%3E"); }
+  .app-sidebar .prop-tab.chat-tab::after{ content:"Chat"; }
+  /* Confirmed directly against the live site: an active tab's label
+     genuinely disappears (content:none) rather than staying visible —
+     this makes chat match that behavior explicitly and reliably, rather
+     than depending on where this rule happens to fall relative to other,
+     unrelated rules elsewhere in the file. */
+  .app-sidebar .prop-tab.chat-tab.active::after{ content:none; }
 
   /* Mobile props menu is a popover again, anchored above the bar */
   .app-sidebar .prop-dropdown{ flex:1 1 0; display:flex; min-width:0; position:relative; }
@@ -5097,13 +5083,13 @@ function renderTabs(){
     // not a floating overlay — specifically so it shares the row's real
     // flexbox spacing instead of a manually-computed midpoint that would
     // need recalculating every time the tab count changes. Mobile-only via
-    // CSS; the desktop header keeps its own separate chat icon.
+    // CSS; the desktop header keeps its own separate chat icon. Structured
+    // exactly like its siblings — real (visually-hidden-on-mobile) text
+    // content plus an icon-mask + ::after label, not a one-off custom
+    // element — so it renders through the same already-working mechanism
+    // instead of its own bespoke styling.
     if(t.id === 'feed'){
-      return tabHtml + `<button class="prop-tab chat-btn-mobile-tab" id="chatBtnMobile" aria-label="Chat">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 8.4-8.5 8.38 8.38 0 0 1 8.6 8.5z"/></svg>
-        <span class="chat-mobile-label">Chat</span>
-        <span class="chat-unread-dot"></span>
-      </button>`;
+      return tabHtml + `<button class="prop-tab chat-tab" id="chatBtnMobile" aria-label="Chat">Chat<span class="chat-unread-dot"></span></button>`;
     }
     return tabHtml;
   }).join('');
