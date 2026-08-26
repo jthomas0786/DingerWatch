@@ -2314,6 +2314,11 @@ footer{ margin-left:0; }
   .chat-panel{
     width: 100vw; max-width: 100vw; height: 65vh; max-height: 65vh;
     border-radius: 16px 16px 0 0;
+    /* Sits above the bottom nav bar rather than covering it — same
+       safe-area-aware offset the bet slip bar already uses for the same
+       reason. Without this, the base rule's bottom:0 puts the panel's
+       higher z-index directly over the nav bar, hiding it while open. */
+    bottom: calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px));
   }
   /* Keep the count visible on phones — hiding it left a 34px button showing
      nothing but a 6px dot, which read as an empty rounded rectangle. */
