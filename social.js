@@ -954,6 +954,85 @@ async function getWatchlist(date = todayStr()){
   return data;
 }
 
+// ---------------------------------------------------------------- points wagering
+/**
+ * Current point balance. Returns 0 for a signed-in user with no balance row
+ * yet (place_wager() and the weekly allowance job create the row on first
+ * use) rather than null, so callers can display it directly without a
+ * null-check.
+ */
+// ---------------------------------------------------------------- points wagering
+/**
+ * Publicly-readable config (house edge, payout cap) — used client-side only
+ * to show an odds/payout PREVIEW before confirming. The real, authoritative
+ * calculation happens server-side inside place_wager() regardless of what
+ * this returns, so a stale or tampered client value here can't actually
+ * change what a wager pays out.
+ */
+async function loadWagerConfig(){
+  const { data, error } = await sb.from('wager_config').select('key, value');
+  if(error){ console.warn('[social] wager config load failed:', error.message); return {}; }
+  return Object.fromEntries(data.map(r => [r.key, r.value]));
+}
+
+async function loadBalance(){
+  if(!currentUser) return 0;
+  const { data, error } = await sb.from('point_balances')
+    .select('balance').eq('user_id', currentUser.id).maybeSingle();
+  if(error){ console.warn('[social] balance load failed:', error.message); return 0; }
+  return data?.balance ?? 0;
+}
+
+/**
+ * legs: [{ player_id, player_name, game_pk, slate_date, probability }, ...]
+ * One leg = a straight bet; more than one = a parlay — same call either
+ * way, place_wager() on the database side treats them identically. Odds
+ * are computed server-side from the live house_edge config, never trusted
+ * from the client, so nothing here can submit odds better than what the
+ * config actually allows.
+ */
+async function placeWager(stake, legs){
+  if(!currentUser) return { error: 'not signed in' };
+  if(!Array.isArray(legs) || !legs.length) return { error: 'at least one leg is required' };
+  const { data, error } = await sb.rpc('place_wager', {
+    stake_amount: stake,
+    legs_json: legs,
+  });
+  if(error){
+    // insufficient balance / not signed in / bad input all surface as plain
+    // Postgres exception text via RAISE EXCEPTION — readable as-is.
+    return { error: error.message };
+  }
+  return { ok: true, wagerId: data };
+}
+
+/** A user's own wager history, most recent first, with legs attached. */
+async function loadWagers(limit = 30){
+  if(!currentUser) return [];
+  const { data, error } = await sb.from('wagers')
+    .select('id, stake, combined_decimal_odds, potential_payout, status, placed_at, settled_at, wager_legs(*)')
+    .eq('user_id', currentUser.id)
+    .order('placed_at', { ascending: false })
+    .limit(limit);
+  if(error){ console.warn('[social] wager history load failed:', error.message); return []; }
+  return data;
+}
+
+/**
+ * Records today as an active day toward the weekly allowance multiplier —
+ * call once per session, first load. Safe to call more than once in the
+ * same day: the table's primary key on (user_id, date) makes this a no-op
+ * on a repeat, not an error.
+ */
+async function checkIn(){
+  if(!currentUser) return { error: 'not signed in' };
+  const today = todayStr();
+  const { error } = await sb.from('checkins')
+    .insert({ user_id: currentUser.id, checkin_date: today });
+  if(error && error.code === '23505') return { ok: true, already: true };
+  return error ? { error: error.message } : { ok: true };
+}
+
 async function addToWatchlist(player, date = todayStr()){
   if(!currentUser) return { error: 'not signed in' };
   const { error } = await sb.from('watchlist').insert({
@@ -1001,6 +1080,7 @@ export {
   loadNotifications, markAllNotificationsRead, selfNotify, subscribeNotifications,
   getWatchlist, addToWatchlist, removeFromWatchlist,
   savePushSubscription, removePushSubscription,
+  loadBalance, placeWager, loadWagers, checkIn, loadWagerConfig,
   joinPresence, getOnlineUsers,
   getProfile, updateProfile, isFollowing,
   postStatus, deleteStatus, loadStatuses, loadFollowingStatuses,

@@ -555,6 +555,26 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 .bs-btn:hover{ border-color:var(--accent); }
 .bs-btn.primary{ background:var(--accent); border-color:var(--accent); color:var(--night); font-weight:700; }
 .bs-btn.ghost{ flex:0 0 auto; padding:10px 14px; color:var(--mute); }
+.bs-btn.wager{ border-color:var(--live-green); color:var(--live-green); }
+.bs-btn.wager:hover{ background:var(--success-glow); }
+
+.balance-chip{ display:flex; align-items:center; gap:5px; padding:6px 12px;
+  background:var(--success-glow); border:1px solid var(--live-green); border-radius:999px;
+  color:var(--live-green); font-family:'Oswald',sans-serif; font-size:13px; font-weight:700; }
+.balance-chip::before{ content:'●'; font-size:9px; }
+
+.bs-wager-panel{ padding:0 18px 14px; }
+.bs-wager-note{ color:var(--mute); font-family:'Oswald',sans-serif; font-size:12px; padding:8px 0; }
+.bs-wager-balance{ color:var(--white); font-family:'Oswald',sans-serif; font-size:12px; margin-bottom:8px; }
+.bs-wager-row{ display:flex; gap:8px; }
+.bs-wager-row input{ flex:1; background:var(--night2); border:1px solid var(--line); color:var(--white);
+  font-family:'Oswald',sans-serif; font-size:14px; padding:9px 10px; border-radius:8px; }
+.bs-wager-row input:focus{ border-color:var(--live-green); outline:none; }
+.bs-wager-preview{ display:flex; justify-content:space-between; align-items:center;
+  margin-top:8px; padding:8px 10px; background:var(--night2); border-radius:8px;
+  font-family:'Oswald',sans-serif; font-size:12px; color:var(--white); }
+.bs-wager-preview span:first-child{ color:var(--live-green); font-weight:700; font-size:15px; }
+
 .bs-fallback{ width:100%; height:70px; margin-top:8px; background:var(--night); border:1px solid var(--line);
   color:var(--white); font-family:'JetBrains Mono','Space Mono',monospace; font-size:11px; padding:8px; border-radius:6px; }
 /* Keep the tray from covering the last row of content. */
@@ -3081,6 +3101,9 @@ footer{ margin-left:0; }
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 8.4-8.5 8.38 8.38 0 0 1 8.6 8.5z"/></svg>
           <span class="chat-unread-dot"></span>
         </button>
+        <div class="balance-chip" id="balanceChip" style="display:none;" title="Your points balance">
+          <span id="balanceChipVal">0</span>
+        </div>
         <button class="icon-btn" id="refreshBtn" title="Refresh live data now" aria-label="Refresh">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
         </button>
@@ -5396,7 +5419,8 @@ function renderAllPlayers(){
               kind:'prop', player:p.name,
               market:{hr:'HR',hits:'HITS',tb:'TOTAL BASES',rbi:'RBI',hrr:'H+R+RBI',sb:'STOLEN BASE'}[ALL_SORTS.find(o=>o.id===allPlayersSort).sim],
               line:simCfg.line.replace('over ',''), pct:simData.pct,
-              game:`${g.awayName} @ ${g.homeName}` }) : ''}
+              game:`${g.awayName} @ ${g.homeName}`,
+              player_id:p.id, game_pk:g.gamePk, slate_date:slateDate() }) : ''}
         </div>
       </div>`;
   }).join('');
@@ -5734,7 +5758,10 @@ function renderList(){
               kind:'prop', player:p.name,
               market:{hr:'HR',hits:'HITS',tb:'TOTAL BASES',rbi:'RBI',hrr:'H+R+RBI',sb:'STOLEN BASE'}[activeTab],
               line:TAB_SIM[activeTab].line.replace('over ',''), pct:score,
-              game:`${g.awayName} @ ${g.homeName}` }) : ''}
+              game:`${g.awayName} @ ${g.homeName}`,
+              // Needed for real settlement, not just display — the sharing-only
+              // slip never needed these before, wagering does.
+              player_id:p.id, game_pk:g.gamePk, slate_date:slateDate() }) : ''}
         </div>
       </div>`;
   }).join('');
@@ -9270,8 +9297,10 @@ function renderBetslipBar(){
       <div class="bs-actions">
         <button class="bs-btn primary" id="bsBuild">${priced ? 'Place bet' : 'Send picks'}</button>
         <button class="bs-btn" id="bsText">Text GamblyBot</button>
+        <button class="bs-btn wager" id="bsWager">Wager Points</button>
         <button class="bs-btn ghost" id="bsClear">Clear</button>
       </div>
+      <div class="bs-wager-panel" id="bsWagerPanel" style="display:none;"></div>
     </div>`;
 
   document.getElementById('bsHead').onclick = () => {
@@ -9340,8 +9369,102 @@ function renderBetslipBar(){
 
   const clearBtn = document.getElementById('bsClear');
   if(clearBtn) clearBtn.onclick = () => { betslip = []; saveBetslip(); renderBetslipBar(); syncAddButtons(); };
+
+  const wagerBtn = document.getElementById('bsWager');
+  if(wagerBtn) wagerBtn.onclick = () => openWagerPanel();
 }
 let betslipOpen = false;
+
+// Cached after first load — house_edge/max_payout_multiplier rarely change
+// mid-session, and this is only ever used for a client-side PREVIEW; the
+// real number is always recomputed server-side inside place_wager().
+let wagerConfigCache = null;
+
+/** Same formula as place_wager() on the database side, used here only to
+ *  show a live preview as the user types a stake — never trusted as the
+ *  actual payout. */
+function previewOdds(pct, houseEdge){
+  const trueProb = pct / 100;
+  const shaded = Math.min(0.90, trueProb * (1 + houseEdge));
+  return shaded > 0 ? 1 / shaded : 0;
+}
+
+async function openWagerPanel(){
+  const panel = document.getElementById('bsWagerPanel');
+  if(!panel) return;
+  const s = social();
+  if(!s?.getUser?.()){
+    panel.style.display = 'block';
+    panel.innerHTML = `<div class="bs-wager-note">Sign in to wager points.</div>`;
+    return;
+  }
+
+  // v1 scope: only Home Run legs can be wagered — everything else in the
+  // slip (other props, 1st-inning O/U) can still be shared or sent to
+  // GamblyBot, just not wagered yet.
+  const ineligible = betslip.filter(l => l.market !== 'HR' || l.player_id == null || l.game_pk == null || l.pct == null);
+  if(ineligible.length){
+    panel.style.display = 'block';
+    panel.innerHTML = `<div class="bs-wager-note">Only Home Run picks can be wagered right now —
+      remove ${ineligible.length === betslip.length ? 'these' : `${ineligible.length} non-HR`} leg(s) to continue.</div>`;
+    return;
+  }
+
+  if(!wagerConfigCache) wagerConfigCache = await s.loadWagerConfig();
+  const houseEdge = wagerConfigCache.house_edge ?? 0.07;
+  const maxMult = wagerConfigCache.max_payout_multiplier ?? 20;
+  const balance = await s.loadBalance();
+
+  const renderPreview = (stake) => {
+    const combined = Math.min(
+      betslip.reduce((acc, l) => acc * previewOdds(l.pct, houseEdge), 1),
+      maxMult
+    );
+    const payout = Math.round(stake * combined);
+    return `<div class="bs-wager-preview">
+      <span>${combined.toFixed(2)}x</span>
+      <span>Stake ${stake} → ${payout} pts if it hits</span>
+    </div>`;
+  };
+
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div class="bs-wager-balance">Balance: <b>${balance}</b> pts</div>
+    <div class="bs-wager-row">
+      <input type="number" id="wagerStake" min="1" max="${balance}" step="1" placeholder="Stake" value="${Math.min(50, balance) || ''}">
+      <button class="bs-btn primary" id="wagerConfirm">Confirm</button>
+    </div>
+    <div id="wagerPreview">${renderPreview(Math.min(50, balance) || 0)}</div>
+    <div class="bs-wager-note" id="wagerErr"></div>`;
+
+  const stakeInput = document.getElementById('wagerStake');
+  stakeInput.oninput = () => {
+    const v = Math.max(0, +stakeInput.value || 0);
+    document.getElementById('wagerPreview').innerHTML = renderPreview(v);
+  };
+
+  document.getElementById('wagerConfirm').onclick = async () => {
+    const stake = Math.floor(+stakeInput.value || 0);
+    const err = document.getElementById('wagerErr');
+    err.textContent = '';
+    if(stake <= 0){ err.textContent = 'Enter a stake first.'; return; }
+    if(stake > balance){ err.textContent = `You only have ${balance} points.`; return; }
+
+    const legs = betslip.map(l => ({
+      player_id: l.player_id, player_name: l.player,
+      game_pk: l.game_pk, slate_date: l.slate_date,
+      probability: l.pct / 100,   // stored as a whole-number percent on the leg; RPC expects 0-1
+    }));
+    const confirmBtn = document.getElementById('wagerConfirm');
+    confirmBtn.disabled = true;
+    const res = await s.placeWager(stake, legs);
+    confirmBtn.disabled = false;
+    if(res.error){ err.textContent = res.error; return; }
+
+    betslip = []; saveBetslip(); renderBetslipBar(); syncAddButtons();
+    refreshBalanceChip();
+  };
+}
 
 // ============================================================================
 //  MONTE CARLO — per-prop probabilities, p50, and ceiling
@@ -10826,7 +10949,8 @@ function propsGridHTML(p){
                   player:p.name, market:t.label, line:t.line.replace('over ',''),
                   pct:t.d.pct, grade:gr.g, game:`${p.game.awayName} @ ${p.game.homeName}`,
                   price: od?.best?.price ?? null, link: od?.best?.link ?? null,
-                  book: od?.best?.bookTitle ?? null };
+                  book: od?.best?.bookTitle ?? null,
+                  player_id:p.id, game_pk:p.game.gamePk, slate_date:slateDate() };
     return `<div class="prop-tile ${gr.cls}">
       ${addLegBtn(leg)}
       <div class="pt-key">${t.label}</div>
@@ -10858,7 +10982,8 @@ function propProbabilitiesHTML(p){
     const gr = gradeFor(key, d.exact ?? d.pct);
     const leg = { id: legId(p.name, name, line.replace('over ','')), kind:'prop',
                   player:p.name, market:name, line:line.replace('over ',''),
-                  pct:d.pct, grade:gr.g, game:`${p.game.awayName} @ ${p.game.homeName}` };
+                  pct:d.pct, grade:gr.g, game:`${p.game.awayName} @ ${p.game.homeName}`,
+                  player_id:p.id, game_pk:p.game.gamePk, slate_date:slateDate() };
     return `<div class="prob-row">
       <div class="prob-name">${name} <span>${line}</span>
         <div class="prob-sub">p50: ${d.p50} · ceiling: ${d.ceiling}</div>
@@ -12612,6 +12737,7 @@ function initOnlinePresence(){
     initChatPanel();
     initOnlineDropdown();
     initOnlinePresence();
+    if(s.getUser?.()){ s.checkIn?.(); refreshBalanceChip(); }
     document.getElementById('authBtn')?.addEventListener('click', () => {
       const u = s.getUser?.();
       // Signed in, the button is your profile; sign-out lives inside the editor.
@@ -12631,11 +12757,14 @@ function initOnlinePresence(){
       // persisted cookie) never set up the realtime subscription, so watch-list
       // at-bat alerts written by selfNotify were never echoed back to the bell.
       startNotifications();
+      s.checkIn?.();
+      refreshBalanceChip();
     } else {
       // Signed out — drop the inbox + realtime subscription so the next user
       // starts clean and the previous user's alerts don't linger in the bell.
       stopNotifications();
       renderNotifyBtn();
+      refreshBalanceChip();
     }
     // Watch list is per-user: reload it and repaint every star so the
     // signed-in state is reflected immediately across all open tabs.
@@ -12893,6 +13022,20 @@ function exportToExcel(){
  * if the data ever genuinely needs protecting, that has to happen server-side.
  */
 const EXPORT_OWNER = 'dingerwatch';   // compared lower-case
+
+/** Shows/hides and updates the header balance chip. Called on sign-in,
+ *  sign-out, and after a wager is placed — the only three moments a
+ *  displayed balance can actually go stale. */
+async function refreshBalanceChip(){
+  const chip = document.getElementById('balanceChip');
+  const val = document.getElementById('balanceChipVal');
+  if(!chip || !val) return;
+  const s = social();
+  if(!s?.getUser?.()){ chip.style.display = 'none'; return; }
+  const balance = await s.loadBalance();
+  val.textContent = balance.toLocaleString();
+  chip.style.display = '';
+}
 
 function refreshExportVisibility(){
   const btn = document.getElementById('exportBtn');
