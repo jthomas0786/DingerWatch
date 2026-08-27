@@ -778,8 +778,6 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 /* For You feed: highlight each betslip leg by its live HR result. */
 /* Green border = that leg's player went deep tonight; red border = game final, */
 /* player appeared in the boxscore, 0 HR. Live/preview legs stay neutral. */
-.sl-leg.sl-leg--dinger{ border-color: var(--grass-bright); box-shadow: 0 0 0 1px var(--grass-bright); background: linear-gradient(90deg, rgba(34,197,94,0.12), var(--night) 50%); }
-.sl-leg.sl-leg--missed{ border-color: var(--hr-red); box-shadow: 0 0 0 1px var(--hr-red); background: linear-gradient(90deg, rgba(255,59,59,0.10), var(--night) 50%); }
 .status-head{ display:flex; align-items:center; gap:9px; }
 .status-name{ font-family:'Oswald',sans-serif; font-size:14px; cursor:pointer; }
 .status-name:hover{ color:var(--accent); }
@@ -791,6 +789,7 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .sl-leg{ display:flex; justify-content:space-between; align-items:center; gap:10px; background:var(--night);
   border:1px solid var(--line); border-radius:7px; padding:7px 10px; font-size:11.5px; }
 .sl-leg-info{ display:flex; align-items:center; gap:8px; min-width:0; }
+.sl-leg-right{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
 .sl-leg-headshot{ width:26px; height:26px; border-radius:50%; border:1px solid var(--line);
   background:var(--bg); flex-shrink:0; }
 .sl-leg b{ color:var(--grass-bright); font-family:'JetBrains Mono','Space Mono',monospace; }
@@ -5982,14 +5981,23 @@ function applyLiveHRHighlights(){
 // match the leg text to today's slate batters by name (longest prefix match)
 // and reuse the same live boxscore result as the Top 20 list. Idempotent so
 // the 20s poll can call it without a full re-render.
-function applyLegHighlights(){
-  const root = document.querySelector('.foryou-list');
+/**
+ * Fills in the hit/miss mark on each betslip leg shown in a list of
+ * statuses, from live box score data. Takes an optional root so it can run
+ * against either the For You feed or a profile page's status list — same
+ * underlying result data (playerHRResult()), just applied to whichever
+ * container is currently on screen. Defaults to the For You feed's
+ * container to keep the two existing call sites unchanged.
+ */
+function applyLegHighlights(root){
+  root = root || document.querySelector('.foryou-list');
   if(!root) return;
   const legs = root.querySelectorAll('.sl-leg');
   if(!legs.length) return;
   const batters = (typeof allBatters !== 'undefined' && Array.isArray(allBatters)) ? allBatters : [];
   legs.forEach(leg => {
-    leg.classList.remove('sl-leg--dinger','sl-leg--missed');
+    const mark = leg.querySelector('.wager-leg-mark');
+    if(mark){ mark.className = 'wager-leg-mark'; mark.textContent = ''; }
     const txt = (leg.textContent || '').trim().toLowerCase();
     if(!txt) return;
     let match = null;
@@ -5997,10 +6005,10 @@ function applyLegHighlights(){
       const nm = (b.name || '').trim().toLowerCase();
       if(nm && txt.startsWith(nm) && (!match || nm.length > (match.name||'').length)) match = b;
     }
-    if(!match) return;
+    if(!match || !mark) return;
     const r = playerHRResult(match);
-    if(r.hr >= 1) leg.classList.add('sl-leg--dinger');
-    else if(isCompletedResultGame(match.game) && r.appeared) leg.classList.add('sl-leg--missed');
+    if(r.hr >= 1){ mark.className = 'wager-leg-mark hit'; mark.textContent = '✓'; }
+    else if(isCompletedResultGame(match.game) && r.appeared){ mark.className = 'wager-leg-mark miss'; mark.textContent = '✗'; }
   });
 }
 
@@ -10670,7 +10678,8 @@ function statusHTML(st, canDelete){
     ${legs.length ? `<div class="status-legs">${legs.map(l => `
       <div class="sl-leg">
         <span class="sl-leg-info">${headshotImgTag(l.player, 'sl-leg-headshot', null, l.player_id)}<span>${escapeHTML(l.text || '')}</span></span>
-      ${l.price != null ? `<b>${fmtAmerican(l.price)}</b>` : ''}</div>`).join('')}</div>` : ''}
+        <span class="sl-leg-right">${l.price != null ? `<b>${fmtAmerican(l.price)}</b>` : ''}<span class="wager-leg-mark"></span></span>
+      </div>`).join('')}</div>` : ''}
     ${legs.length && legs.every(l => l.player_id != null && l.game_pk != null && l.market != null && l.line != null && l.pct != null)
       ? `<button class="status-add-slip" data-legs="${encodeURIComponent(JSON.stringify(legs))}">+ Add to Betslip</button>`
       : ''}
@@ -10749,6 +10758,7 @@ async function openProfile(username){
       </div>
     </div>`;
   document.body.appendChild(wrap);
+  applyLegHighlights(document.getElementById('pfStatuses'));
 
   const close = () => wrap.remove();
   document.getElementById('pfClose').onclick = close;
