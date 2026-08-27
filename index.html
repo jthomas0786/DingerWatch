@@ -5989,16 +5989,70 @@ function applyLiveHRHighlights(){
  * container is currently on screen. Defaults to the For You feed's
  * container to keep the two existing call sites unchanged.
  */
-function applyLegHighlights(root){
+/** Fetch cache for arbitrary (possibly past) game_pk values — separate
+ *  from fetchLiveGameStates()'s own logic, which only ever refreshes
+ *  today's games array in place. This one can query any game by ID,
+ *  regardless of what day it happened, and is keyed/shared across the
+ *  whole session so the same game is never fetched twice. */
+const legGameFeedCache = new Map();
+function fetchLegGameFeed(gamePk){
+  if(legGameFeedCache.has(gamePk)) return legGameFeedCache.get(gamePk);
+  const p = fetch(`https://statsapi.mlb.com/api/v1.1/game/${gamePk}/feed/live`)
+    .then(r => r.ok ? r.json() : null)
+    .catch(() => null);
+  legGameFeedCache.set(gamePk, p);
+  return p;
+}
+
+/** Same field paths as settle-wagers.js's playerResultFromFeed() — kept in
+ *  sync deliberately, so what the client shows as "hit" is defined the
+ *  same way the settlement job actually decides it, not a second,
+ *  potentially-diverging interpretation of the same data. */
+function playerResultFromFeedClient(data, playerId){
+  const status = data?.gameData?.status;
+  const abstractState = status?.abstractGameState || null;
+  const teams = data?.liveData?.boxscore?.teams;
+  const sides = [teams?.away, teams?.home].filter(Boolean);
+  let hr = 0, appeared = false;
+  for(const side of sides){
+    const p = side?.players?.['ID' + playerId];
+    const batting = p?.stats?.batting;
+    if(p && batting?.atBats != null){ appeared = true; hr = Math.max(hr, batting.homeRuns ?? 0); }
+  }
+  return { abstractState, hr, appeared };
+}
+
+async function applyLegHighlights(root){
   root = root || document.querySelector('.foryou-list');
   if(!root) return;
   const legs = root.querySelectorAll('.sl-leg');
   if(!legs.length) return;
   const batters = (typeof allBatters !== 'undefined' && Array.isArray(allBatters)) ? allBatters : [];
-  console.log(`[legs] checking ${legs.length} leg(s) against ${batters.length} batter(s) in today's slate`);
-  legs.forEach(leg => {
+
+  await Promise.all([...legs].map(async leg => {
     const mark = leg.querySelector('.wager-leg-mark');
     if(mark){ mark.className = 'wager-leg-mark'; mark.textContent = ''; }
+    if(!mark) return;
+
+    const gamePk = leg.dataset.gamePk;
+    const playerId = leg.dataset.playerId;
+
+    if(gamePk && playerId){
+      // The real fix: check the SPECIFIC game this pick was actually
+      // about, by its real IDs — works for any date the post happened on,
+      // not just today, and doesn't depend on that player being in
+      // whatever slate happens to be loaded right now.
+      const feed = await fetchLegGameFeed(gamePk);
+      if(!feed) return;   // couldn't fetch — leave unmarked rather than guess
+      const r = playerResultFromFeedClient(feed, playerId);
+      if(r.hr >= 1){ mark.className = 'wager-leg-mark hit'; mark.textContent = '✓'; }
+      else if(r.abstractState === 'Final' && r.appeared){ mark.className = 'wager-leg-mark miss'; mark.textContent = '✗'; }
+      return;
+    }
+
+    // Fallback for older legs that never stored game_pk/player_id (the
+    // simpler manual share-a-pick flow) — best effort against today's
+    // slate only, same limited behavior as before this fix.
     const txt = (leg.textContent || '').trim().toLowerCase();
     if(!txt) return;
     let match = null;
@@ -6006,17 +6060,11 @@ function applyLegHighlights(root){
       const nm = (b.name || '').trim().toLowerCase();
       if(nm && txt.startsWith(nm) && (!match || nm.length > (match.name||'').length)) match = b;
     }
-    // TEMPORARY — remove once the no-match-on-profile issue is confirmed
-    // and resolved. Logs exactly why a leg didn't get a mark: no player in
-    // today's slate matched its text, vs. a match was found but the game
-    // hasn't reached a decidable state yet.
-    if(!match){ console.log(`[legs] NO MATCH for leg text: "${txt}"`); return; }
-    if(!mark) return;
+    if(!match) return;
     const r = playerHRResult(match);
-    console.log(`[legs] matched "${match.name}" — hr:${r.hr} appeared:${r.appeared} gameComplete:${isCompletedResultGame(match.game)}`);
     if(r.hr >= 1){ mark.className = 'wager-leg-mark hit'; mark.textContent = '✓'; }
     else if(isCompletedResultGame(match.game) && r.appeared){ mark.className = 'wager-leg-mark miss'; mark.textContent = '✗'; }
-  });
+  }));
 
   // Once any leg in a status has a confirmed result, the underlying pick
   // already happened — nothing left to actually wager on, so that status's
@@ -10695,7 +10743,7 @@ function statusHTML(st, canDelete){
     </div>
     <div class="status-body">${escapeHTML(st.body)}</div>
     ${legs.length ? `<div class="status-legs">${legs.map(l => `
-      <div class="sl-leg">
+      <div class="sl-leg"${l.game_pk != null ? ` data-game-pk="${l.game_pk}"` : ''}${l.player_id != null ? ` data-player-id="${l.player_id}"` : ''}>
         <span class="sl-leg-info">${headshotImgTag(l.player, 'sl-leg-headshot', null, l.player_id)}<span>${escapeHTML(l.text || '')}</span></span>
         <span class="sl-leg-right">${l.price != null ? `<b>${fmtAmerican(l.price)}</b>` : ''}<span class="wager-leg-mark"></span></span>
       </div>`).join('')}</div>` : ''}
