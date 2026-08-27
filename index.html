@@ -6010,6 +6010,18 @@ function applyLegHighlights(root){
     if(r.hr >= 1){ mark.className = 'wager-leg-mark hit'; mark.textContent = '✓'; }
     else if(isCompletedResultGame(match.game) && r.appeared){ mark.className = 'wager-leg-mark miss'; mark.textContent = '✗'; }
   });
+
+  // Once any leg in a status has a confirmed result, the underlying pick
+  // already happened — nothing left to actually wager on, so that status's
+  // Add to Betslip button no longer makes sense. Re-evaluated every call
+  // for the same idempotency reason the marks above are, so the 20s poll
+  // can run this repeatedly without a full re-render.
+  root.querySelectorAll('.status').forEach(card => {
+    const addBtn = card.querySelector('.status-add-slip');
+    if(!addBtn) return;
+    const settled = !!card.querySelector('.wager-leg-mark.hit, .wager-leg-mark.miss');
+    addBtn.style.display = settled ? 'none' : '';
+  });
 }
 
 function windDirLabel(deg){ const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW']; return dirs[Math.round(deg/22.5)%16]; }
