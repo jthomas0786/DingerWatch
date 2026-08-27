@@ -578,6 +578,10 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
   line-height:1.4; padding:6px 8px; margin-bottom:8px; background:var(--night2);
   border:1px solid var(--line); border-radius:6px; }
 .bs-wager-row{ display:flex; gap:8px; }
+.bs-wager-caption{ width:100%; min-height:64px; margin:8px 0; padding:9px 10px;
+  background:var(--night2); border:1px solid var(--line); color:var(--white);
+  font-family:'Oswald',sans-serif; font-size:13px; border-radius:8px; resize:vertical; }
+.bs-wager-caption:focus{ border-color:var(--live-green); outline:none; }
 .bs-wager-row input{ flex:1; background:var(--night2); border:1px solid var(--line); color:var(--white);
   font-family:'Oswald',sans-serif; font-size:14px; padding:9px 10px; border-radius:8px; }
 .bs-wager-row input:focus{ border-color:var(--live-green); outline:none; }
@@ -781,6 +785,9 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .status-head{ display:flex; align-items:center; gap:9px; }
 .status-name{ font-family:'Oswald',sans-serif; font-size:14px; cursor:pointer; }
 .status-name:hover{ color:var(--accent); }
+.status-multiplier{ margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:11px;
+  font-weight:700; color:var(--accent-bright); background:var(--accent-glow);
+  border:1px solid var(--accent); border-radius:999px; padding:2px 9px; flex-shrink:0; }
 .status-del{ margin-left:auto; background:none; border:none; color:var(--mute); font-size:17px;
   cursor:pointer; line-height:1; }
 .status-del:hover{ color:var(--hot); }
@@ -9631,16 +9638,19 @@ function previewOdds(pct, houseEdge){
  * the time this runs, and a failed feed post shouldn't read as a failed
  * wager to the person who just placed it.
  */
-async function postWagerToFeed(wageredLegs, houseEdge, maxMult){
-  const s = social();
-  if(!s?.postStatus || !wageredLegs.length) return;
-
+/**
+ * Pure computation, no network call — the default caption text, the
+ * multiplier, and the structured leg data a post needs. Split out from
+ * actually posting so the confirm flow can show this as an editable draft
+ * first, rather than committing it immediately.
+ */
+function buildWagerShareDraft(wageredLegs, houseEdge, maxMult){
   const combined = Math.min(
     wageredLegs.reduce((acc, l) => acc * previewOdds(l.pct, houseEdge), 1),
     maxMult
   );
 
-  const body = wageredLegs.length === 1
+  const defaultBody = wageredLegs.length === 1
     ? `🎰 Locked in a ${combined.toFixed(2)}x bet slip`
     : `🎰 Locked in a ${wageredLegs.length}-leg parlay — ${combined.toFixed(2)}x`;
 
@@ -9658,8 +9668,49 @@ async function postWagerToFeed(wageredLegs, houseEdge, maxMult){
     slate_date: l.slate_date, game: l.game,
   }));
 
-  const res = await s.postStatus(body, statusLegs, wageredLegs[0]?.slate_date || null);
-  if(res.error) console.warn('[wager] auto-post to feed failed:', res.error);
+  return { defaultBody, statusLegs, multiplier: combined, slateDate: wageredLegs[0]?.slate_date || null };
+}
+
+async function submitWagerShare(body, statusLegs, slateDate, multiplier){
+  const s = social();
+  if(!s?.postStatus) return;
+  const res = await s.postStatus(body, statusLegs, slateDate, multiplier);
+  if(res.error) console.warn('[wager] posting to feed failed:', res.error);
+}
+
+/**
+ * Shown once a wager is already placed and committed — this step is
+ * purely about what (if anything) gets shared, not whether the wager
+ * itself succeeded. Reuses the same panel real estate rather than a new
+ * modal, matching how openWagerPanel() already swaps its own content for
+ * different states (sign-in-first, ineligible legs, stake entry).
+ */
+function showShareCaptionStep(wageredLegs, houseEdge, maxMult){
+  const panel = document.getElementById('bsWagerPanel');
+  if(!panel || !wageredLegs.length) return;
+  const draft = buildWagerShareDraft(wageredLegs, houseEdge, maxMult);
+
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div class="bs-wager-note" style="padding-top:0;">Wager placed. Want to share it?</div>
+    <textarea id="shareCaptionInput" class="bs-wager-caption" maxlength="500">${escapeHTML(draft.defaultBody)}</textarea>
+    <div class="bs-wager-row">
+      <button class="bs-btn ghost" id="shareSkip">Skip</button>
+      <button class="bs-btn primary" id="sharePost">Post</button>
+    </div>
+    <div class="bs-wager-note" id="shareErr"></div>`;
+
+  const input = document.getElementById('shareCaptionInput');
+  const closeOut = () => { panel.style.display = 'none'; panel.innerHTML = ''; };
+
+  document.getElementById('shareSkip').onclick = closeOut;
+  document.getElementById('sharePost').onclick = async () => {
+    const body = input.value.trim() || draft.defaultBody;
+    const postBtn = document.getElementById('sharePost');
+    postBtn.disabled = true; postBtn.textContent = 'Posting…';
+    await submitWagerShare(body, draft.statusLegs, draft.slateDate, draft.multiplier);
+    closeOut();
+  };
 }
 
 async function openWagerPanel(){
@@ -9740,15 +9791,18 @@ async function openWagerPanel(){
     confirmBtn.disabled = false;
     if(res.error){ err.textContent = res.error; return; }
 
-    // Auto-post the slip to the status feed — multiplier shown, stake
-    // deliberately left out. Same combined-odds formula already verified
-    // against the server's own calculation for the pre-confirm preview
-    // above, so this number matches what actually got wagered rather than
-    // needing a second round-trip just to read it back.
-    postWagerToFeed(wageredLegs, houseEdge, maxMult);
-
+    // The wager itself is fully committed at this point — clear it out
+    // immediately rather than waiting on whatever happens with the share
+    // step next, since sharing is now a separate, optional moment after
+    // the wager, not part of placing it.
     betslip = []; saveBetslip(); renderBetslipBar(); syncAddButtons();
     refreshBalanceChip();
+
+    // Same combined-odds formula already verified against the server's own
+    // calculation for the pre-confirm preview above, so the multiplier
+    // shown here matches what actually got wagered rather than needing a
+    // second round-trip just to read it back.
+    showShareCaptionStep(wageredLegs, houseEdge, maxMult);
   };
 }
 
@@ -10739,6 +10793,7 @@ function statusHTML(st, canDelete){
       <span class="chat-av">${avatarHTML(st, 30)}</span>
       <span class="status-name chat-user" data-username="${escapeHTML(st.username)}">${escapeHTML(name)}</span>
       <span class="chat-time">${timeAgo(new Date(st.created_at).getTime())}</span>
+      ${st.multiplier != null ? `<span class="status-multiplier">${(+st.multiplier).toFixed(2)}x</span>` : ''}
       ${canDelete ? `<button class="status-del" data-del="${st.id}" title="Delete">&times;</button>` : ''}
     </div>
     <div class="status-body">${escapeHTML(st.body)}</div>
