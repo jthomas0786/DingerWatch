@@ -5995,6 +5995,7 @@ function applyLegHighlights(root){
   const legs = root.querySelectorAll('.sl-leg');
   if(!legs.length) return;
   const batters = (typeof allBatters !== 'undefined' && Array.isArray(allBatters)) ? allBatters : [];
+  console.log(`[legs] checking ${legs.length} leg(s) against ${batters.length} batter(s) in today's slate`);
   legs.forEach(leg => {
     const mark = leg.querySelector('.wager-leg-mark');
     if(mark){ mark.className = 'wager-leg-mark'; mark.textContent = ''; }
@@ -6005,8 +6006,14 @@ function applyLegHighlights(root){
       const nm = (b.name || '').trim().toLowerCase();
       if(nm && txt.startsWith(nm) && (!match || nm.length > (match.name||'').length)) match = b;
     }
-    if(!match || !mark) return;
+    // TEMPORARY — remove once the no-match-on-profile issue is confirmed
+    // and resolved. Logs exactly why a leg didn't get a mark: no player in
+    // today's slate matched its text, vs. a match was found but the game
+    // hasn't reached a decidable state yet.
+    if(!match){ console.log(`[legs] NO MATCH for leg text: "${txt}"`); return; }
+    if(!mark) return;
     const r = playerHRResult(match);
+    console.log(`[legs] matched "${match.name}" — hr:${r.hr} appeared:${r.appeared} gameComplete:${isCompletedResultGame(match.game)}`);
     if(r.hr >= 1){ mark.className = 'wager-leg-mark hit'; mark.textContent = '✓'; }
     else if(isCompletedResultGame(match.game) && r.appeared){ mark.className = 'wager-leg-mark miss'; mark.textContent = '✗'; }
   });
