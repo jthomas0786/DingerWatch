@@ -2331,6 +2331,12 @@ footer{ margin-left:0; }
 }
 .wagers-panel.open{ display: flex; transform: translateY(0); }
 .wagers-panel-body{ flex: 1 1 auto; overflow-y: auto; padding: 12px; }
+.wagers-tabs{ display:flex; border-bottom:1px solid var(--line); flex-shrink:0; }
+.wagers-tab{ flex:1; background:none; border:none; padding:10px; cursor:pointer;
+  font-family:'Oswald',sans-serif; font-size:12.5px; font-weight:600; color:var(--mute);
+  border-bottom:2px solid transparent; }
+.wagers-tab.active{ color:var(--white); border-bottom-color:var(--accent); }
+.wagers-tab:hover:not(.active){ color:var(--white); }
 
 .wager-card{ background:var(--night); border:1px solid var(--line); border-radius:10px;
   padding:12px; margin-bottom:10px; }
@@ -12662,6 +12668,8 @@ function setChatUnreadDot(show){
 
 // ---------------------------------------------------------------- my wagers panel
 let wagersPanelOpen = false;
+let wagersActiveTab = 'active';   // 'active' | 'settled'
+let wagersCache = [];             // loaded once per panel-open; tab switches just re-filter this
 
 function toggleWagersPanel(){
   const panel = document.getElementById('wagersPanel');
@@ -12671,12 +12679,19 @@ function toggleWagersPanel(){
   if(wagersPanelOpen) renderWagerHistory();
 }
 
-/** Wired once at boot — #balanceChip and the panel's close button are both
- *  static elements that never get recreated via innerHTML, same reasoning
- *  as why #chatBtnTb only needs one-time wiring in initChatPanel(). */
+/** Wired once at boot — #balanceChip, the panel's close button, and the tab
+ *  bar are all static elements that never get recreated via innerHTML, same
+ *  reasoning as why #chatBtnTb only needs one-time wiring in initChatPanel(). */
 function initWagersPanel(){
   document.getElementById('balanceChip')?.addEventListener('click', toggleWagersPanel);
   document.getElementById('wagersPanelClose')?.addEventListener('click', toggleWagersPanel);
+  document.getElementById('wagersTabs')?.querySelectorAll('.wagers-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      wagersActiveTab = tab.dataset.tab;
+      document.querySelectorAll('.wagers-tab').forEach(t => t.classList.toggle('active', t === tab));
+      renderWagerList();   // re-filters the already-fetched cache, no re-fetch needed
+    });
+  });
 }
 
 /** One leg's row within a wager card — reuses the same real MLB.com headshot
@@ -12718,12 +12733,30 @@ async function renderWagerHistory(){
   const s = social();
   if(!s?.loadWagers){ body.innerHTML = `<div class="wagers-empty">Social module not ready yet — try again in a moment.</div>`; return; }
   body.innerHTML = `<div class="wagers-empty">Loading…</div>`;
-  const wagers = await s.loadWagers();
-  if(!wagers.length){ body.innerHTML = `<div class="wagers-empty">No wagers yet — build a slip and lock one in from any Home Run pick.</div>`; return; }
-  body.innerHTML = wagers.map(wagerCardHTML).join('');
+  wagersCache = await s.loadWagers();
+  renderWagerList();
+}
+
+/** Filters the already-fetched wagersCache by the current tab and re-renders
+ *  — called on tab switch too, so switching Active/Settled never re-fetches. */
+function renderWagerList(){
+  const body = document.getElementById('wagersPanelBody');
+  if(!body) return;
+  const filtered = wagersCache.filter(w =>
+    wagersActiveTab === 'active' ? w.status === 'pending' : w.status !== 'pending'
+  );
+  if(!wagersCache.length){
+    body.innerHTML = `<div class="wagers-empty">No wagers yet — build a slip and lock one in from any Home Run pick.</div>`;
+    return;
+  }
+  if(!filtered.length){
+    body.innerHTML = `<div class="wagers-empty">${wagersActiveTab === 'active' ? 'No active wagers right now.' : 'Nothing settled yet.'}</div>`;
+    return;
+  }
+  body.innerHTML = filtered.map(wagerCardHTML).join('');
   body.querySelectorAll('[data-share-id]').forEach(btn => {
     btn.onclick = () => {
-      const w = wagers.find(x => x.id === +btn.dataset.shareId);
+      const w = wagersCache.find(x => x.id === +btn.dataset.shareId);
       if(w) shareWagerResult(w, btn);
     };
   });
@@ -14725,6 +14758,10 @@ document.addEventListener('visibilitychange', ()=>{
     <div class="chat-panel-actions">
       <button class="chat-panel-close" id="wagersPanelClose" title="Close">&times;</button>
     </div>
+  </div>
+  <div class="wagers-tabs" id="wagersTabs">
+    <button class="wagers-tab active" data-tab="active">Active</button>
+    <button class="wagers-tab" data-tab="settled">Settled</button>
   </div>
   <div class="wagers-panel-body" id="wagersPanelBody"></div>
 </div>
