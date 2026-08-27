@@ -14791,5 +14791,20 @@ document.addEventListener('visibilitychange', ()=>{
 <!-- Phase 0: sport switcher + #hash routing (mlb active; nfl/nhl/nba "coming soon") -->
 <script type="module" src="./sports/router.js"></script>
 
+<!-- Mobile debug console — completely inert for everyone else. Loads a
+     floating, on-screen devtools overlay (Eruda) ONLY when ?debug=1 is in
+     the URL, so console output can actually be read on a phone with no
+     computer/USB needed. Safe to leave in permanently; regular visits
+     never touch this at all. Remove this block once mobile debugging via
+     a normal DevTools setup is available, or if it's no longer needed. -->
+<script>
+  if(new URLSearchParams(location.search).get('debug') === '1'){
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/eruda';
+    s.onload = () => { window.eruda.init(); };
+    document.body.appendChild(s);
+  }
+</script>
+
 </body>
 </html>
