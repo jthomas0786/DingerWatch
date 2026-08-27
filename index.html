@@ -11657,8 +11657,11 @@ function maybeRunSims(){
 }
 
 /** Pre-run Monte Carlo for every playable batter in batches, yielding to the
- *  browser between batches so the splash animation stays smooth. */
-async function preRunSimulations(){
+ *  browser between batches so the splash animation stays smooth. Also
+ *  reused for background re-priming after a periodic slate refresh, where
+ *  there's no splash to update — showCompletionPause defaults to true for
+ *  the original boot-splash call site and is explicitly turned off there. */
+async function preRunSimulations(showCompletionPause = true){
   const players = allBatters.filter(isPlayable);
   const BATCH = 12;
   const bar = document.getElementById('splashProgBar');
@@ -11690,8 +11693,10 @@ async function preRunSimulations(){
     const totalSims = total * SIM_RUNS;
     cnt.innerHTML = `<b>${totalSims.toLocaleString()}</b> simulations complete`;
   }
-  // Let the completed state register before the splash fades.
-  await new Promise(r => setTimeout(r, 420));
+  // Let the completed state register before the splash fades — skipped
+  // entirely for background re-priming, where there's no splash to pause
+  // for and this would just be a pure, pointless delay before rendering.
+  if(showCompletionPause) await new Promise(r => setTimeout(r, 420));
 }
 
 /** Fade out and remove the splash screen. */
@@ -13325,7 +13330,23 @@ async function fullLiveRefresh(){
   // Re-pull the whole slate (cheap: one request) plus current live game state.
   const ok = await loadSlate();
   if(ok){ refreshDayLabelsAndStaleness(); updateSlateFooter(); }
-  await fetchLiveGameStates();
+
+  // loadSlate() rebuilds every batter as a fresh object via rebuildPools(),
+  // which silently wipes each player's cached simulation (p._sim lives on
+  // the object itself, and these are new objects). Without re-priming here,
+  // that cache gets refilled the moment renderList() below needs it — but
+  // ranked tabs and All Players sort by simulating EVERY candidate to
+  // compare them, all synchronously inside one .sort() call. On ~400
+  // batters at 10,000 runs each, that's a multi-second freeze with zero
+  // yielding back to the browser, worse on slower devices. preRunSimulations()
+  // already does this in small batches with a yield between each — same
+  // function the boot splash uses, safe to call again here since every DOM
+  // reference inside it (splash progress bar, batter count) is already
+  // null-guarded and simply no-ops once the splash is long gone. Run
+  // alongside the live-state fetch rather than after it, so this doesn't
+  // add extra wall-clock delay before scores update.
+  await Promise.all([ preRunSimulations(false), fetchLiveGameStates() ]);
+
   renderList();   // re-renders the active tab — incl. For You (date-scoped to the new slate)
   touchLastUpdated();
   if(btn) btn.classList.remove('spinning');
