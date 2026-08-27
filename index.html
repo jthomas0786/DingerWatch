@@ -786,8 +786,11 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .status-del:hover{ color:var(--hot); }
 .status-body{ font-size:13px; color:var(--white); line-height:1.55; margin-top:7px; word-break:break-word; }
 .status-legs{ margin-top:10px; display:flex; flex-direction:column; gap:4px; }
-.sl-leg{ display:flex; justify-content:space-between; gap:10px; background:var(--night);
+.sl-leg{ display:flex; justify-content:space-between; align-items:center; gap:10px; background:var(--night);
   border:1px solid var(--line); border-radius:7px; padding:7px 10px; font-size:11.5px; }
+.sl-leg-info{ display:flex; align-items:center; gap:8px; min-width:0; }
+.sl-leg-headshot{ width:26px; height:26px; border-radius:50%; border:1px solid var(--line);
+  background:var(--bg); flex-shrink:0; }
 .sl-leg b{ color:var(--grass-bright); font-family:'JetBrains Mono','Space Mono',monospace; }
 .status-add-slip{ display:block; width:100%; margin-top:8px; background:none;
   border:1px solid var(--accent); color:var(--accent-bright); font-family:'Oswald',sans-serif;
@@ -10612,7 +10615,8 @@ function statusHTML(st, canDelete){
     </div>
     <div class="status-body">${escapeHTML(st.body)}</div>
     ${legs.length ? `<div class="status-legs">${legs.map(l => `
-      <div class="sl-leg"><span>${escapeHTML(l.text || '')}</span>
+      <div class="sl-leg">
+        <span class="sl-leg-info">${headshotImgTag(l.player, 'sl-leg-headshot', null, l.player_id)}<span>${escapeHTML(l.text || '')}</span></span>
       ${l.price != null ? `<b>${fmtAmerican(l.price)}</b>` : ''}</div>`).join('')}</div>` : ''}
     ${legs.length && legs.every(l => l.player_id != null && l.game_pk != null && l.market != null && l.line != null && l.pct != null)
       ? `<button class="status-add-slip" data-legs="${encodeURIComponent(JSON.stringify(legs))}">+ Add to Betslip</button>`
