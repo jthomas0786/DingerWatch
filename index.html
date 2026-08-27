@@ -5368,14 +5368,15 @@ function headshotUrl(name, playerId){
 }
 function headshotImgTag(name, cls, teamAbbr, playerId){
   cls = cls || 'pick-headshot';
+  const safeName = name || 'Player';
   // Inline style beats the stylesheet's default border, so the ring can be
   // per-player without needing 30 generated CSS classes.
   const ring = teamAbbr ? ` style="border-color:${teamColor(teamAbbr)};"` : '';
   const url = headshotUrl(name, playerId);
   if(url){
-    return `<img class="${cls}" src="${url}"${ring} alt="${name}" onerror="this.onerror=null;this.src='${AVATAR_PLACEHOLDER}';this.classList.add('placeholder');">`;
+    return `<img class="${cls}" src="${url}"${ring} alt="${safeName}" onerror="this.onerror=null;this.src='${AVATAR_PLACEHOLDER}';this.classList.add('placeholder');">`;
   }
-  return `<img class="${cls} placeholder" src="${AVATAR_PLACEHOLDER}"${ring} alt="${name}">`;
+  return `<img class="${cls} placeholder" src="${AVATAR_PLACEHOLDER}"${ring} alt="${safeName}">`;
 }
 
 // ---- Small inline ballpark + wind icons (custom SVG — no external image dependency) ----
@@ -8692,7 +8693,7 @@ function loadPlayerIdMap(){
   return playerIdMapPromise;
 }
 function resolvePlayerId(name){
-  if(!playerIdMap) return null;
+  if(!playerIdMap || !name) return null;
   const key = name.toLowerCase().replace(/[.'']/g,'').trim();
   if(playerIdMap[name.toLowerCase()]) return playerIdMap[name.toLowerCase()];
   // fallback: fuzzy match ignoring punctuation/suffixes
