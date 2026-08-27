@@ -739,14 +739,14 @@ async function setAvatarPreset(presetId){
 }
 
 // ---------------------------------------------------------------- statuses
-async function postStatus(body, legs = null, slateDate = null){
+async function postStatus(body, legs = null, slateDate = null, multiplier = null){
   if(!currentUser) return { error: 'not signed in' };
   const trimmed = String(body || '').trim();
   if(!trimmed) return { error: 'Say something first.' };
   if(trimmed.length > 500) return { error: 'Status too long (500 max).' };
 
   const { data, error } = await sb.from('statuses')
-    .insert({ user_id: currentUser.id, body: trimmed, legs, slate_date: slateDate })
+    .insert({ user_id: currentUser.id, body: trimmed, legs, slate_date: slateDate, multiplier })
     .select().single();
   if(error) return { error: error.message };
   return { ok: true, status: { ...data, username: currentUser.username,
