@@ -566,7 +566,9 @@ footer{ max-width:760px; margin:36px auto 0; padding:0 20px; color: var(--mute);
 
 .balance-chip{ display:flex; align-items:center; gap:5px; padding:6px 12px;
   background:var(--success-glow); border:1px solid var(--live-green); border-radius:999px;
-  color:var(--live-green); font-family:'Oswald',sans-serif; font-size:13px; font-weight:700; }
+  color:var(--live-green); font-family:'Oswald',sans-serif; font-size:13px; font-weight:700;
+  cursor:pointer; -webkit-appearance:none; appearance:none; }
+.balance-chip:hover{ background:rgba(34,197,94,0.22); }
 .balance-chip::before{ content:'◆'; font-size:9px; }
 
 .bs-wager-panel{ padding:0 18px 14px; }
@@ -2319,6 +2321,45 @@ footer{ margin-left:0; }
 .chat-panel.minimized{ height: 48px; }
 .chat-panel.minimized .chat-panel-body{ display: none; }
 
+.wagers-panel{
+  position: fixed; bottom: 0; right: 0; width: 380px; max-width: 100vw;
+  height: 520px; max-height: 70vh; z-index: 9000;
+  background: #0f1421; border: 1px solid var(--border-light);
+  border-radius: 16px 0 0 0; box-shadow: 0 -8px 40px rgba(0,0,0,.6);
+  display: none; flex-direction: column; overflow: hidden;
+  transform: translateY(100%); transition: transform .25s ease;
+}
+.wagers-panel.open{ display: flex; transform: translateY(0); }
+.wagers-panel-body{ flex: 1 1 auto; overflow-y: auto; padding: 12px; }
+
+.wager-card{ background:var(--night); border:1px solid var(--line); border-radius:10px;
+  padding:12px; margin-bottom:10px; }
+.wager-card-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.wager-status{ font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700;
+  letter-spacing:0.06em; text-transform:uppercase; padding:3px 8px; border-radius:999px; }
+.wager-status.pending{ background:rgba(45,127,255,0.15); color:var(--accent-bright); }
+.wager-status.won{ background:rgba(34,197,94,0.15); color:var(--live-green); }
+.wager-status.lost{ background:rgba(239,68,68,0.15); color:var(--hr-red); }
+.wager-status.void{ background:rgba(139,147,167,0.15); color:var(--mute); }
+.wager-date{ font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--mute); }
+.wager-legs{ display:flex; flex-direction:column; gap:6px; margin-bottom:10px; }
+.wager-leg{ display:flex; align-items:center; gap:8px; }
+.wager-leg-headshot{ width:26px; height:26px; border-radius:50%; flex-shrink:0;
+  object-fit:cover; object-position:50% 16%; border:1px solid var(--line); background:var(--bg); }
+.wager-leg-text{ font-size:12.5px; color:var(--white); flex:1; min-width:0; }
+.wager-leg-mark{ font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; flex-shrink:0; }
+.wager-leg-mark.hit{ color:var(--live-green); }
+.wager-leg-mark.miss{ color:var(--hr-red); }
+.wager-leg-mark.pending{ color:var(--mute); }
+.wager-stats{ display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace;
+  font-size:11px; color:var(--mute); border-top:1px dashed var(--line); padding-top:8px; }
+.wager-stats b{ color:var(--white); }
+.wager-share-btn{ display:block; width:100%; margin-top:10px; background:none;
+  border:1px solid var(--live-green); color:var(--live-green); font-family:'Oswald',sans-serif;
+  font-size:12px; font-weight:600; padding:8px; border-radius:8px; cursor:pointer; }
+.wager-share-btn:hover{ background:rgba(34,197,94,0.12); }
+.wagers-empty{ text-align:center; color:var(--mute); font-size:13px; padding:40px 20px; }
+
 .chat-panel-head{
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 10px 14px; background: #141a2a; border-bottom: 1px solid var(--border);
@@ -2353,6 +2394,11 @@ footer{ margin-left:0; }
        safe-area-aware offset the bet slip bar already uses for the same
        reason. Without this, the base rule's bottom:0 puts the panel's
        higher z-index directly over the nav bar, hiding it while open. */
+    bottom: calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px));
+  }
+  .wagers-panel{
+    width: 100vw; max-width: 100vw; height: 65vh; max-height: 65vh;
+    border-radius: 16px 16px 0 0;
     bottom: calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px));
   }
   /* Keep the count visible on phones — hiding it left a 34px button showing
@@ -3160,9 +3206,9 @@ footer{ margin-left:0; }
         </div>
       </div>
       <div class="topbar-right">
-        <div class="balance-chip" id="balanceChip" style="display:none;" title="Your points balance">
+        <button class="balance-chip" id="balanceChip" style="display:none;" title="Your points balance — tap to see your wager history">
           <span id="balanceChipVal">0</span>
-        </div>
+        </button>
         <div class="online-wrap-tb" id="onlineWrapTb" hidden>
           <button class="icon-btn online-btn-tb" id="onlineBtnTb" title="Who's online" aria-label="Online now" aria-expanded="false">
             <span class="online-dot-tb"></span>
@@ -12613,6 +12659,201 @@ function setChatUnreadDot(show){
   getChatTriggers().forEach(btn => btn.querySelector('.chat-unread-dot')?.classList.toggle('show', show));
 }
 
+// ---------------------------------------------------------------- my wagers panel
+let wagersPanelOpen = false;
+
+function toggleWagersPanel(){
+  const panel = document.getElementById('wagersPanel');
+  if(!panel) return;
+  wagersPanelOpen = !wagersPanelOpen;
+  panel.classList.toggle('open', wagersPanelOpen);
+  if(wagersPanelOpen) renderWagerHistory();
+}
+
+/** Wired once at boot — #balanceChip and the panel's close button are both
+ *  static elements that never get recreated via innerHTML, same reasoning
+ *  as why #chatBtnTb only needs one-time wiring in initChatPanel(). */
+function initWagersPanel(){
+  document.getElementById('balanceChip')?.addEventListener('click', toggleWagersPanel);
+  document.getElementById('wagersPanelClose')?.addEventListener('click', toggleWagersPanel);
+}
+
+/** One leg's row within a wager card — reuses the same real MLB.com headshot
+ *  helper the status feed and ranked cards already use, not a new mechanism. */
+function wagerLegRow(leg){
+  const markClass = leg.status === 'won' ? 'hit' : leg.status === 'lost' ? 'miss' : 'pending';
+  const markSymbol = leg.status === 'won' ? '✓' : leg.status === 'lost' ? '✗' : '—';
+  // wager_legs has no stored line — v1 is HR-only by design, so 0.5+ is the
+  // only line that currently exists. Worth revisiting if that scope ever
+  // widens beyond HR.
+  return `<div class="wager-leg">
+    ${headshotImgTag(leg.player_name, 'wager-leg-headshot', null, leg.player_id)}
+    <span class="wager-leg-text">${escapeHTML(leg.player_name)} ${escapeHTML(leg.market)} 0.5+</span>
+    <span class="wager-leg-mark ${markClass}">${markSymbol}</span>
+  </div>`;
+}
+
+function wagerCardHTML(w){
+  const legs = (w.wager_legs || []).slice().sort((a,b) => a.id - b.id);
+  const placedDate = new Date(w.placed_at).toLocaleDateString(undefined, { month:'short', day:'numeric' });
+  return `<div class="wager-card" data-wager-id="${w.id}">
+    <div class="wager-card-top">
+      <span class="wager-status ${w.status}">${w.status}</span>
+      <span class="wager-date">${placedDate}</span>
+    </div>
+    <div class="wager-legs">${legs.map(wagerLegRow).join('')}</div>
+    <div class="wager-stats">
+      <span>Stake <b>${w.stake}</b></span>
+      <span>${(+w.combined_decimal_odds).toFixed(2)}x</span>
+      <span>${w.status === 'won' ? 'Won' : 'Potential'} <b>${w.potential_payout}</b></span>
+    </div>
+    ${w.status === 'won' ? `<button class="wager-share-btn" data-share-id="${w.id}">Share result</button>` : ''}
+  </div>`;
+}
+
+async function renderWagerHistory(){
+  const body = document.getElementById('wagersPanelBody');
+  if(!body) return;
+  const s = social();
+  if(!s?.loadWagers){ body.innerHTML = `<div class="wagers-empty">Social module not ready yet — try again in a moment.</div>`; return; }
+  body.innerHTML = `<div class="wagers-empty">Loading…</div>`;
+  const wagers = await s.loadWagers();
+  if(!wagers.length){ body.innerHTML = `<div class="wagers-empty">No wagers yet — build a slip and lock one in from any Home Run pick.</div>`; return; }
+  body.innerHTML = wagers.map(wagerCardHTML).join('');
+  body.querySelectorAll('[data-share-id]').forEach(btn => {
+    btn.onclick = () => {
+      const w = wagers.find(x => x.id === +btn.dataset.shareId);
+      if(w) shareWagerResult(w, btn);
+    };
+  });
+}
+
+// ---------------------------------------------------------------- share card generation
+let html2canvasLoadPromise = null;
+/** Lazy-loaded only when someone actually clicks Share — no reason to make
+ *  everyone pay for this library on every page load. */
+function ensureHtml2Canvas(){
+  if(window.html2canvas) return Promise.resolve();
+  if(html2canvasLoadPromise) return html2canvasLoadPromise;
+  html2canvasLoadPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    script.onload = resolve;
+    script.onerror = () => reject(new Error('Could not load the image-export library.'));
+    document.head.appendChild(script);
+  });
+  return html2canvasLoadPromise;
+}
+
+/** Builds the same ticket/stamp share card design as a real, off-screen DOM
+ *  node populated with this specific wager's actual data — not the mockup
+ *  file, a live equivalent built from real values. Deliberately omits the
+ *  stake, same privacy convention the auto-post to the feed already uses. */
+function buildShareCardNode(w){
+  const legs = (w.wager_legs || []).slice().sort((a,b) => a.id - b.id);
+  const legCount = legs.length;
+  const headline = legCount === 1
+    ? `Hit at <b>${(+w.combined_decimal_odds).toFixed(2)}x</b>`
+    : `Hit all ${legCount} legs at <b>${(+w.combined_decimal_odds).toFixed(2)}x</b>`;
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:fixed; left:-9999px; top:0; width:390px;';
+  wrap.innerHTML = `
+    <div id="shareCardRoot" style="position:relative; width:390px; background:#0a0d17; font-family:'Oswald',sans-serif; padding:26px 22px 20px; box-sizing:border-box;">
+      <div style="position:absolute; top:-120px; left:50%; transform:translateX(-50%); width:520px; height:420px; background:radial-gradient(circle, rgba(34,197,94,0.20) 0%, rgba(34,197,94,0) 70%); pointer-events:none;"></div>
+      <div style="position:relative; display:flex; align-items:center; gap:10px;">
+        <div style="width:34px; height:34px; border-radius:9px; background:linear-gradient(160deg,#4a9fff,#2d7fff 55%,#1a4fb8); display:flex; align-items:center; justify-content:center;">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#0a0d17" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3c2 3 2 15 0 18M3 12c3-2 15-2 18 0"/></svg>
+        </div>
+        <div>
+          <div style="font-weight:700; font-size:15px; color:#f4f6fb;">DINGER<span style="color:#4a9fff;">WATCH</span></div>
+          <div style="font-family:'JetBrains Mono',monospace; font-size:10px; color:#7b849c; letter-spacing:0.08em; text-transform:uppercase; margin-top:1px;">Slip settled</div>
+        </div>
+      </div>
+      <div style="position:absolute; top:118px; right:-38px; transform:rotate(14deg); border:3px solid #4ade80; border-radius:10px; padding:7px 46px; font-family:'JetBrains Mono',monospace; font-weight:800; font-size:22px; letter-spacing:0.14em; color:#4ade80;">CASHED</div>
+      <div style="position:relative; margin-top:26px; background:#0f1420; border:1px solid #232a3d; border-radius:14px; padding:22px 20px 0;">
+        <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#7b849c; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:6px;">${legCount}-leg ${legCount===1?'wager':'parlay'} &middot; final</div>
+        <div style="font-size:21px; font-weight:600; color:#f4f6fb; line-height:1.25; margin-bottom:18px;">${headline}</div>
+        <div>
+          ${legs.map((l,i) => `
+            <div style="display:flex; align-items:center; gap:12px; padding:13px 0; ${i>0?'border-top:1px dashed #232a3d;':''}">
+              ${headshotImgTag(l.player_name, 'share-card-headshot', null, l.player_id).replace('<img', '<img style="width:38px;height:38px;border-radius:50%;object-fit:cover;object-position:50% 16%;border:1px solid #232a3d;background:#0a0d17;flex-shrink:0;" crossorigin="anonymous"')}
+              <div style="flex:1;">
+                <div style="font-size:14.5px; color:#f4f6fb;">${escapeHTML(l.player_name)}</div>
+                <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#7b849c; margin-top:2px;">${escapeHTML(l.market)} 0.5+</div>
+              </div>
+              <div style="width:22px; height:22px; border-radius:50%; background:rgba(34,197,94,0.14); border:1px solid rgba(74,222,128,0.5); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#4ade80" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+            </div>`).join('')}
+        </div>
+        <div style="margin-top:4px; height:1px; background:repeating-linear-gradient(90deg,#232a3d 0 6px,transparent 6px 12px);"></div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-end; padding:16px 0 18px;">
+          <div><div style="font-family:'JetBrains Mono',monospace; font-size:10px; color:#7b849c; letter-spacing:0.08em; text-transform:uppercase;">Multiplier</div>
+            <div style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:20px; color:#f4f6fb; margin-top:3px;">${(+w.combined_decimal_odds).toFixed(2)}x</div></div>
+          <div style="text-align:right;"><div style="font-family:'JetBrains Mono',monospace; font-size:10px; color:#7b849c; letter-spacing:0.08em; text-transform:uppercase;">Points won</div>
+            <div style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:20px; color:#4ade80; margin-top:3px;">+${w.potential_payout}</div></div>
+        </div>
+        <div style="height:34px; margin:0 0 16px; background-image:repeating-linear-gradient(90deg,#232a3d 0 2px,transparent 2px 5px,#232a3d 5px 6px,transparent 6px 10px,#232a3d 10px 13px,transparent 13px 15px); opacity:0.7;"></div>
+      </div>
+      <div style="margin-top:18px;">
+        <div style="font-size:10.5px; color:#5b6784; line-height:1.4; margin-bottom:14px; padding-top:14px; border-top:1px solid #232a3d;">Model-based predictions, not real sportsbook odds. Points have no cash value.</div>
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-size:13px; color:#7b849c;">Build your own slip</span>
+          <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:14px; color:#4a9fff;">dingerwatch.app</span>
+        </div>
+      </div>
+    </div>`;
+  return wrap;
+}
+
+async function shareWagerResult(w, triggerBtn){
+  const originalText = triggerBtn.textContent;
+  triggerBtn.textContent = 'Generating…';
+  triggerBtn.disabled = true;
+  try{
+    await ensureHtml2Canvas();
+    const node = buildShareCardNode(w);
+    document.body.appendChild(node);
+    const target = node.querySelector('#shareCardRoot');
+
+    // useCORS is required for html2canvas to read pixel data from MLB's own
+    // CDN — whether their server actually sends the right CORS headers for
+    // this to succeed hasn't been verified against the live site yet, so
+    // this is exactly the kind of thing to watch for once this ships.
+    const canvas = await window.html2canvas(target, {
+      backgroundColor: '#0a0d17', scale: 2, useCORS: true, logging: false,
+    });
+    document.body.removeChild(node);
+
+    canvas.toBlob(async (blob) => {
+      if(!blob){ triggerBtn.textContent = 'Failed — try again'; triggerBtn.disabled = false; return; }
+      const file = new File([blob], 'dingerwatch-result.png', { type: 'image/png' });
+
+      if(navigator.canShare && navigator.canShare({ files: [file] })){
+        try{
+          await navigator.share({ files: [file], title: 'DingerWatch result' });
+          triggerBtn.textContent = originalText; triggerBtn.disabled = false;
+          return;
+        }catch(e){
+          if(e?.name === 'AbortError'){ triggerBtn.textContent = originalText; triggerBtn.disabled = false; return; }
+          // Fall through to plain download if the native share sheet itself errors.
+        }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'dingerwatch-result.png';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      triggerBtn.textContent = originalText; triggerBtn.disabled = false;
+    }, 'image/png');
+  }catch(e){
+    console.error('[share] card generation failed:', e);
+    triggerBtn.textContent = 'Failed — try again';
+    triggerBtn.disabled = false;
+  }
+}
+
 function toggleChatPanel(){
   const panel = document.getElementById('chatPanel');
   if(!panel) return;
@@ -12994,6 +13235,7 @@ function initOnlinePresence(){
     startForYouSubscription();
     loadWatchlistCache().then(() => renderList());
     initChatPanel();
+    initWagersPanel();
     initOnlineDropdown();
     initOnlinePresence();
     if(s.getUser?.()){ s.checkIn?.(); refreshBalanceChip(); }
@@ -14470,6 +14712,20 @@ document.addEventListener('visibilitychange', ()=>{
       <button id="chatPanelSend" disabled>Send</button>
     </div>
   </div>
+</div>
+
+<!-- ===== My Wagers Panel ===== -->
+<div class="wagers-panel" id="wagersPanel">
+  <div class="chat-panel-head">
+    <div class="chat-panel-title">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 8.4-8.5 8.38 8.38 0 0 1 8.6 8.5z"/></svg>
+      <span>My Wagers</span>
+    </div>
+    <div class="chat-panel-actions">
+      <button class="chat-panel-close" id="wagersPanelClose" title="Close">&times;</button>
+    </div>
+  </div>
+  <div class="wagers-panel-body" id="wagersPanelBody"></div>
 </div>
 
 <!-- Phase 0: sport switcher + #hash routing (mlb active; nfl/nhl/nba "coming soon") -->
