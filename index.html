@@ -14800,8 +14800,9 @@ document.addEventListener('visibilitychange', ()=>{
 <script>
   if(new URLSearchParams(location.search).get('debug') === '1'){
     const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/eruda';
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/eruda/3.4.3/eruda.min.js';
     s.onload = () => { window.eruda.init(); };
+    s.onerror = () => { alert('Debug console failed to load — check your connection and try reloading.'); };
     document.body.appendChild(s);
   }
 </script>
