@@ -1,0 +1,27 @@
+name: Settle Wagers
+
+on:
+  schedule:
+    # Every 5 minutes — same cadence as the client's own live-refresh cycle,
+    # a reasonable balance between prompt settlement and not hammering the
+    # MLB Stats API. GitHub's schedule trigger is best-effort and can drift
+    # a few minutes under load; the script is safe to run more or less
+    # often than this without any change in behavior.
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}   # manual "Run workflow" button, useful for testing
+
+jobs:
+  settle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Settle pending wagers
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node settle-wagers.js
