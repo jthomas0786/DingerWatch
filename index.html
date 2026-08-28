@@ -800,7 +800,6 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .leg-game-details{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:10px;
   color:var(--mute); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .leg-game-details:empty{ display:none; }
-.leg-game-details.live{ color:var(--hr-red); font-weight:700; }
 .sl-leg-right{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
 .sl-leg-headshot{ width:26px; height:26px; border-radius:50%; border:1px solid var(--line);
   background:var(--bg); flex-shrink:0; }
@@ -6045,10 +6044,22 @@ function gameDetailsFromFeed(feedData){
   };
 }
 
+/** Returns HTML now, not plain text — "Live" needs its own color, separate
+ *  from the team names, so it's wrapped in its own span rather than the
+ *  whole line sharing one color. Uses an inline style rather than an
+ *  external CSS class specifically because the share card renders through
+ *  html2canvas, which doesn't reliably resolve CSS custom properties like
+ *  var(--live-green) — the rest of that card already uses hardcoded hex
+ *  for the same reason, so this matches that established pattern rather
+ *  than risk it rasterizing as the wrong color there. Team names come from
+ *  an external API response, so they're explicitly escaped here since
+ *  callers now use innerHTML instead of the auto-escaping textContent. */
 function formatGameDetails(details){
   if(!details) return '';
-  const timePart = details.isLive ? 'Live' : (details.iso ? localTimeLabel(details.iso) : '');
-  return `${details.awayName} @ ${details.homeName}${timePart ? ' · ' + timePart : ''}`;
+  const teams = `${escapeHTML(details.awayName)} @ ${escapeHTML(details.homeName)}`;
+  if(details.isLive) return `${teams} · <span style="color:#22c55e;font-weight:700;">Live</span>`;
+  const timeLabel = details.iso ? localTimeLabel(details.iso) : '';
+  return timeLabel ? `${teams} · ${escapeHTML(timeLabel)}` : teams;
 }
 
 function playerResultFromFeedClient(data, playerId){
@@ -6093,9 +6104,7 @@ async function applyLegHighlights(root){
       // function was already doing.
       const gd = leg.querySelector('.leg-game-details');
       if(gd){
-        const details = gameDetailsFromFeed(feed);
-        gd.textContent = formatGameDetails(details);
-        gd.classList.toggle('live', !!details?.isLive);
+        gd.innerHTML = formatGameDetails(gameDetailsFromFeed(feed));
       }
 
       const r = playerResultFromFeedClient(feed, playerId);
@@ -12967,9 +12976,7 @@ async function populateGameDetails(root){
     if(!gamePk || !gd) return;
     const feed = await fetchLegGameFeed(gamePk);
     if(!feed) return;
-    const details = gameDetailsFromFeed(feed);
-    gd.textContent = formatGameDetails(details);
-    gd.classList.toggle('live', !!details?.isLive);
+    gd.innerHTML = formatGameDetails(gameDetailsFromFeed(feed));
   }));
 }
 
