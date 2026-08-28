@@ -1026,19 +1026,34 @@ async function loadBalance(){
  * from the client, so nothing here can submit odds better than what the
  * config actually allows.
  */
+/**
+ * Routes through the place-wager-validated edge function rather than
+ * calling the place_wager RPC directly — that function checks every leg
+ * against live MLB data first (has this player already homered, has the
+ * game already ended) and only forwards to place_wager() if every leg is
+ * still genuinely undecided. Closes a real exploit: without this check,
+ * someone could watch a home run happen live and immediately wager on
+ * that exact player for a guaranteed win.
+ */
 async function placeWager(stake, legs){
   if(!currentUser) return { error: 'not signed in' };
   if(!Array.isArray(legs) || !legs.length) return { error: 'at least one leg is required' };
-  const { data, error } = await sb.rpc('place_wager', {
-    stake_amount: stake,
-    legs_json: legs,
+
+  const { data, error } = await sb.functions.invoke('place-wager-validated', {
+    body: { stake, legs },
   });
+
   if(error){
-    // insufficient balance / not signed in / bad input all surface as plain
-    // Postgres exception text via RAISE EXCEPTION — readable as-is.
-    return { error: error.message };
+    // Supabase's functions.invoke() surfaces a non-2xx response as `error`
+    // rather than putting it in `data` — the edge function's own JSON body
+    // (with the real, specific reason) lives on error.context, so dig it
+    // out rather than showing a generic "Edge Function returned a non-2xx
+    // status code" message.
+    const detail = await error.context?.json?.().catch(() => null);
+    return { error: detail?.error || error.message };
   }
-  return { ok: true, wagerId: data };
+  if(data?.error) return { error: data.error };
+  return { ok: true, wagerId: data?.wager_id };
 }
 
 /** A user's own wager history, most recent first, with legs attached. */
