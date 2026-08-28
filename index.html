@@ -6207,9 +6207,12 @@ function slateFieldHTML(g){
     : rel.sector === 'out' ? 'var(--accent)'
     : rel.sector === 'in'  ? 'var(--cool)' : 'var(--warm)';
 
-  // Animated wind arrow
+  // Animated wind arrow — scaled up 40% from its base geometry via the
+  // transform chain rather than hand-editing every coordinate, so the
+  // line, arrowhead, and tail dot all grow together proportionally,
+  // stroke-width included.
   const arrow = haveWind ? `
-    <g class="sf-wind-arrow-anim" transform="translate(100,100) rotate(${rel.arrowDeg})" opacity="0.95">
+    <g class="sf-wind-arrow-anim" transform="translate(100,100) rotate(${rel.arrowDeg}) scale(1.4)" opacity="0.95">
       <line x1="0" y1="34" x2="0" y2="-30" stroke="${sectorColor}" stroke-width="5" stroke-linecap="round"/>
       <path d="M0,-40 L12,-18 L-12,-18 Z" fill="${sectorColor}"/>
       <circle cx="0" cy="34" r="4" fill="${sectorColor}"/>
