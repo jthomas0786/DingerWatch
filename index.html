@@ -796,6 +796,11 @@ body.dw-booting > *:not(#splash):not(#gate){ visibility:hidden; }
 .sl-leg{ display:flex; justify-content:space-between; align-items:center; gap:10px; background:var(--night);
   border:1px solid var(--line); border-radius:7px; padding:7px 10px; font-size:11.5px; }
 .sl-leg-info{ display:flex; align-items:center; gap:8px; min-width:0; }
+.sl-leg-text-stack{ display:flex; flex-direction:column; min-width:0; }
+.leg-game-details{ font-family:'JetBrains Mono','Space Mono',monospace; font-size:10px;
+  color:var(--mute); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.leg-game-details:empty{ display:none; }
+.leg-game-details.live{ color:var(--hr-red); font-weight:700; }
 .sl-leg-right{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
 .sl-leg-headshot{ width:26px; height:26px; border-radius:50%; border:1px solid var(--line);
   background:var(--bg); flex-shrink:0; }
@@ -2358,7 +2363,8 @@ footer{ margin-left:0; }
 .wager-leg{ display:flex; align-items:center; gap:8px; }
 .wager-leg-headshot{ width:26px; height:26px; border-radius:50%; flex-shrink:0;
   object-fit:cover; object-position:50% 16%; border:1px solid var(--line); background:var(--bg); }
-.wager-leg-text{ font-size:12.5px; color:var(--white); flex:1; min-width:0; }
+.wager-leg-text-stack{ display:flex; flex-direction:column; flex:1; min-width:0; }
+.wager-leg-text{ font-size:12.5px; color:var(--white); }
 .wager-leg-mark{ font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; flex-shrink:0; }
 .wager-leg-mark.hit{ color:var(--live-green); }
 .wager-leg-mark.miss{ color:var(--hr-red); }
@@ -6015,6 +6021,36 @@ function fetchLegGameFeed(gamePk){
  *  sync deliberately, so what the client shows as "hit" is defined the
  *  same way the settlement job actually decides it, not a second,
  *  potentially-diverging interpretation of the same data. */
+/**
+ * Extracts team names, live status, and start time from the same feed
+ * fetchLegGameFeed() already retrieves for the hit/miss check — reusing
+ * that cache means zero extra network cost for this. Worth flagging
+ * honestly: unlike the box-score fields above (copied directly from this
+ * app's own already-verified extractBoxSide()), the team-name and
+ * start-time paths here (gameData.teams / gameData.datetime) aren't
+ * independently confirmed against a live response in this codebase — the
+ * short-name fallback chain below is defensive specifically because of
+ * that uncertainty, but this is worth double-checking once deployed.
+ */
+function gameDetailsFromFeed(feedData){
+  if(!feedData) return null;
+  const teams = feedData.gameData?.teams;
+  const awayName = teams?.away?.teamName || teams?.away?.name || '';
+  const homeName = teams?.home?.teamName || teams?.home?.name || '';
+  if(!awayName || !homeName) return null;
+  return {
+    awayName, homeName,
+    isLive: feedData.gameData?.status?.abstractGameState === 'Live',
+    iso: feedData.gameData?.datetime?.dateTime || null,
+  };
+}
+
+function formatGameDetails(details){
+  if(!details) return '';
+  const timePart = details.isLive ? 'Live' : (details.iso ? localTimeLabel(details.iso) : '');
+  return `${details.awayName} @ ${details.homeName}${timePart ? ' · ' + timePart : ''}`;
+}
+
 function playerResultFromFeedClient(data, playerId){
   const status = data?.gameData?.status;
   const abstractState = status?.abstractGameState || null;
@@ -6051,6 +6087,17 @@ async function applyLegHighlights(root){
       // whatever slate happens to be loaded right now.
       const feed = await fetchLegGameFeed(gamePk);
       if(!feed) return;   // couldn't fetch — leave unmarked rather than guess
+
+      // Same fetched feed already retrieved for the mark above — populating
+      // the game-details line here costs nothing extra over what this
+      // function was already doing.
+      const gd = leg.querySelector('.leg-game-details');
+      if(gd){
+        const details = gameDetailsFromFeed(feed);
+        gd.textContent = formatGameDetails(details);
+        gd.classList.toggle('live', !!details?.isLive);
+      }
+
       const r = playerResultFromFeedClient(feed, playerId);
       if(r.hr >= 1){ mark.className = 'wager-leg-mark hit'; mark.textContent = '✓'; }
       else if(r.abstractState === 'Final' && r.appeared){ mark.className = 'wager-leg-mark miss'; mark.textContent = '✗'; }
@@ -10799,7 +10846,7 @@ function statusHTML(st, canDelete){
     <div class="status-body">${escapeHTML(st.body)}</div>
     ${legs.length ? `<div class="status-legs">${legs.map(l => `
       <div class="sl-leg"${l.game_pk != null ? ` data-game-pk="${l.game_pk}"` : ''}${l.player_id != null ? ` data-player-id="${l.player_id}"` : ''}>
-        <span class="sl-leg-info">${headshotImgTag(l.player, 'sl-leg-headshot', null, l.player_id)}<span>${escapeHTML(l.text || '')}</span></span>
+        <span class="sl-leg-info">${headshotImgTag(l.player, 'sl-leg-headshot', null, l.player_id)}<span class="sl-leg-text-stack"><span>${escapeHTML(l.text || '')}</span><span class="leg-game-details"></span></span></span>
         <span class="sl-leg-right">${l.price != null ? `<b>${fmtAmerican(l.price)}</b>` : ''}<span class="wager-leg-mark"></span></span>
       </div>`).join('')}</div>` : ''}
     ${legs.length && legs.every(l => l.player_id != null && l.game_pk != null && l.market != null && l.line != null && l.pct != null)
@@ -12834,9 +12881,12 @@ function wagerLegRow(leg){
   // wager_legs has no stored line — v1 is HR-only by design, so 0.5+ is the
   // only line that currently exists. Worth revisiting if that scope ever
   // widens beyond HR.
-  return `<div class="wager-leg">
+  return `<div class="wager-leg" data-game-pk="${leg.game_pk}">
     ${headshotImgTag(leg.player_name, 'wager-leg-headshot', null, leg.player_id)}
-    <span class="wager-leg-text">${escapeHTML(leg.player_name)} ${escapeHTML(leg.market)} 0.5+</span>
+    <span class="wager-leg-text-stack">
+      <span class="wager-leg-text">${escapeHTML(leg.player_name)} ${escapeHTML(leg.market)} 0.5+</span>
+      <span class="leg-game-details"></span>
+    </span>
     <span class="wager-leg-mark ${markClass}">${markSymbol}</span>
   </div>`;
 }
@@ -12892,6 +12942,27 @@ function renderWagerList(){
       if(w) shareWagerResult(w, btn);
     };
   });
+  populateGameDetails(body);
+}
+
+/** Populates .leg-game-details for any [data-game-pk] element within root
+ *  — shared between the My Wagers panel and the share card, both of which
+ *  build their own leg rows separately from statusHTML()/
+ *  applyLegHighlights() but want the identical game-details line. Reuses
+ *  the same cached fetch either way, so a game already looked up for one
+ *  context costs nothing extra in the other. */
+async function populateGameDetails(root){
+  const els = root.querySelectorAll('[data-game-pk]');
+  await Promise.all([...els].map(async el => {
+    const gamePk = el.dataset.gamePk;
+    const gd = el.querySelector('.leg-game-details');
+    if(!gamePk || !gd) return;
+    const feed = await fetchLegGameFeed(gamePk);
+    if(!feed) return;
+    const details = gameDetailsFromFeed(feed);
+    gd.textContent = formatGameDetails(details);
+    gd.classList.toggle('live', !!details?.isLive);
+  }));
 }
 
 // ---------------------------------------------------------------- share card generation
@@ -12942,11 +13013,12 @@ function buildShareCardNode(w){
         <div style="font-size:21px; font-weight:600; color:#f4f6fb; line-height:1.25; margin-bottom:18px;">${headline}</div>
         <div>
           ${legs.map((l,i) => `
-            <div style="display:flex; align-items:center; gap:12px; padding:13px 0; ${i>0?'border-top:1px dashed #232a3d;':''}">
+            <div data-game-pk="${l.game_pk}" style="display:flex; align-items:center; gap:12px; padding:13px 0; ${i>0?'border-top:1px dashed #232a3d;':''}">
               ${headshotImgTag(l.player_name, 'share-card-headshot', null, l.player_id).replace('<img', '<img style="width:38px;height:38px;border-radius:50%;object-fit:cover;object-position:50% 16%;border:1px solid #232a3d;background:#0a0d17;flex-shrink:0;" crossorigin="anonymous"')}
               <div style="flex:1;">
                 <div style="font-size:14.5px; color:#f4f6fb;">${escapeHTML(l.player_name)}</div>
                 <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#7b849c; margin-top:2px;">${escapeHTML(l.market)} 0.5+</div>
+                <div class="leg-game-details" style="font-family:'JetBrains Mono',monospace; font-size:10px; color:#5b6784; margin-top:2px;"></div>
               </div>
               <div style="width:22px; height:22px; border-radius:50%; background:rgba(34,197,94,0.14); border:1px solid rgba(74,222,128,0.5); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#4ade80" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -12982,6 +13054,11 @@ async function shareWagerResult(w, triggerBtn){
     const node = buildShareCardNode(w);
     document.body.appendChild(node);
     const target = node.querySelector('#shareCardRoot');
+
+    // Must resolve BEFORE the html2canvas call below — it takes a snapshot
+    // of whatever's in the DOM at that instant, so the game-details text
+    // needs to already be populated, not still in flight.
+    await populateGameDetails(target);
 
     // useCORS is required for html2canvas to read pixel data from MLB's own
     // CDN — whether their server actually sends the right CORS headers for
