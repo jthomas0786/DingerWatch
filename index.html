@@ -9748,7 +9748,12 @@ function showShareCaptionStep(wageredLegs, houseEdge, maxMult){
     <div class="bs-wager-note" id="shareErr"></div>`;
 
   const input = document.getElementById('shareCaptionInput');
-  const closeOut = () => { panel.style.display = 'none'; panel.innerHTML = ''; };
+  // Now that the share step is fully done (either way), it's safe to let
+  // the bet-slip bar's own render logic actually remove itself — this is
+  // the deferred half of what used to run immediately in the confirm
+  // handler, moved here specifically so it can't tear down this panel
+  // out from under itself while the person is still using it.
+  const closeOut = () => { panel.style.display = 'none'; panel.innerHTML = ''; renderBetslipBar(); };
 
   document.getElementById('shareSkip').onclick = closeOut;
   document.getElementById('sharePost').onclick = async () => {
@@ -9838,11 +9843,14 @@ async function openWagerPanel(){
     confirmBtn.disabled = false;
     if(res.error){ err.textContent = res.error; return; }
 
-    // The wager itself is fully committed at this point — clear it out
-    // immediately rather than waiting on whatever happens with the share
-    // step next, since sharing is now a separate, optional moment after
-    // the wager, not part of placing it.
-    betslip = []; saveBetslip(); renderBetslipBar(); syncAddButtons();
+    // The wager itself is fully committed at this point — clear the
+    // underlying betslip data immediately, but NOT the bet-slip bar's own
+    // DOM yet: renderBetslipBar() removes the whole bar (including this
+    // very panel) the instant betslip is empty, which would take the
+    // share step down with it before it ever got a chance to show. That
+    // removal is deferred to showShareCaptionStep()'s own close handler
+    // instead, once the person is actually done with it (Post or Skip).
+    betslip = []; saveBetslip(); syncAddButtons();
     refreshBalanceChip();
 
     // Same combined-odds formula already verified against the server's own
