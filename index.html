@@ -9061,10 +9061,12 @@ function openShareSheet(text, url, imgDataUrl, opts){
   const sheet=document.createElement('div');
   sheet.className='dw-share-sheet';
   if(opts.ev && opts.ev.key) sheet.dataset.shareEv = String(opts.ev.key);
+  sheet.dataset.shareText = text||'';
+  sheet.dataset.shareUrl = fullUrl;
   const preview = imgDataUrl ? `<img class="dw-share-cardimg" src="${imgDataUrl}" alt="Home run card"/>` : '';
   const download = imgDataUrl ? `<button class="dw-share-copy" id="dw-share-dl">Download card image</button>` : '';
-  // Animated clip: only where the device can record + share a real video/mp4.
-  // Pre-generated on open; the button enables the moment the MP4 is ready so the
+  // Animated clip: only where the device can share a file (gifenc is vendored).
+  // Pre-generated on open; the button enables the moment the GIF is ready so the
   // share fires inside a fresh tap gesture (iOS rejects an async navigator.share).
   const showClip = !!(opts.showClip && opts.ev && opts.ev.key && _hrClipSupported());
   const clipBtn = showClip ? `<button class="dw-share-copy dw-share-clip dw-share-clip-loading" id="dw-share-clip" disabled><span class="dw-clip-spin"></span> Preparing animated clip…</button>` : '';
@@ -9355,29 +9357,20 @@ async function _drainHRShareQueue(){
   _hrShareRunning = false;
 }
 
-// ---- HR animated clip: a short MP4 of the ball flying the arc ----
-// MediaRecorder + canvas.captureStream, attached to the DOM with continuous rAF
-// redraw (Safari captureStream needs a rendered canvas or the video comes out
-// blank). Only offered where the device can record AND share a real video/mp4
-// file, so iPhone users get a native share-sheet video and everyone else gets
-// the existing static image share unchanged.
+// ---- HR animated clip: an optimized looping GIF of the ball flying the arc ----
+// gifenc (vendored as ./gifenc.js) is loaded by a module script on page load,
+// before DOMContentLoaded, so it's ready by the time the feed renders. A single
+// global 256-color palette is built from the final (landing) frame; each flight
+// frame is then frame-differenced against the previous one (unchanged pixels ->
+// a reserved transparent index) so the GIF stays tiny (~120KB) while the arc
+// draws in, the ball rides it with a ghost trail, and the landing splash pops.
+// The landing frame holds for 1s before the GIF loops back to the start.
 function _hrClipSupported(){
-  try{
-    if(!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream || typeof navigator.canShare!=='function') return false;
-    // Require a true MP4 path — never save a webm blob as .mp4.
-    return !!_hrClipMp4Mime();
-  }catch(e){ return false; }
+  try{ return typeof navigator.canShare==='function' && !!window._gifenc; }catch(e){ return false; }
 }
-function _stopStream(s){ if(!s) return; try{ s.getTracks().forEach(t=>t.stop()); }catch(e){} }
-// First MP4 MIME the browser can actually encode — some Safari builds only report
-// support for codec-qualified strings, so try those before the bare video/mp4.
-function _hrClipMp4Mime(){
-  try{
-    if(!window.MediaRecorder || !MediaRecorder.isTypeSupported) return null;
-    const cands=['video/mp4;codecs=avc1.42E01E','video/mp4;codecs=avc1.4D401F','video/mp4'];
-    for(const c of cands){ if(MediaRecorder.isTypeSupported(c)) return c; }
-    return null;
-  }catch(e){ return null; }
+function _ensureGifenc(){
+  if(window._gifenc) return Promise.resolve(window._gifenc);
+  return new Promise(res=>{ let n=0; (function chk(){ if(window._gifenc||n>80) return res(window._gifenc||null); n++; setTimeout(chk,50); })(); });
 }
 const _hrClipCache = new Map();     // ev.key -> { file, url, sig }  (LRU, capped below)
 const _hrClipPending = new Set();
@@ -9434,10 +9427,14 @@ function _hrDrawTrajFrame(ctx, W, FH, ev, p){
     ctx.lineCap='butt';
   }
 }
-// Render the home-run animated clip as an MP4 File. ~1.5s real-time: the base
-// card (no trajectory) is drawn scaled, then the arc/ball/splash animate on top.
+// Render the home-run animated clip as an optimized, looping GIF File. ~1.44s
+// flight (arc draws in, ball + ghost trail ride the arc, landing splash grows in)
+// then a 1s hold on the landing frame before the GIF loops back to the start.
 async function renderHRClip(ev, quip){
   if(!_hrClipSupported()) return null;
+  const G = window._gifenc || await _ensureGifenc();
+  if(!G || !G.GIFEncoder || !G.quantize || !G.applyPalette) return null;
+  const { GIFEncoder, quantize, applyPalette } = G;
   // base card WITHOUT the trajectory (frame 0 = no arc)
   let baseImg=null, baseDataUrl=null;
   try{
@@ -9445,45 +9442,44 @@ async function renderHRClip(ev, quip){
     if(!f) return null;
     baseDataUrl=URL.createObjectURL(f);
     baseImg=await _hrLoadImg(baseDataUrl);
-  }catch(e){}
-  const W=720, H=900, FH=Math.round(W*9/16);  // 405 — 4:5 card, small file + fast encode
-  const vc=document.createElement('canvas'); vc.width=W; vc.height=H;
-  // In the viewport (not offscreen) so WebKit actually paints the canvas — an
-  // offscreen element can produce a blank captureStream video on iOS Safari.
-  vc.style.cssText='position:fixed;left:0;top:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:-1';
-  document.body.appendChild(vc);
-  const ctx=vc.getContext('2d');
-  function drawFrame(p){
-    if(baseImg) ctx.drawImage(baseImg,0,0,W,H); else { ctx.fillStyle='#080b14'; ctx.fillRect(0,0,W,H); }
-    _hrDrawTrajFrame(ctx, W, FH, ev, p);
-  }
-  let stream=null, rec=null;
-  try{ stream=vc.captureStream(30); }catch(e){ vc.remove(); if(baseDataUrl)URL.revokeObjectURL(baseDataUrl); return null; }
-  const mime=_hrClipMp4Mime()||'video/mp4';
-  try{ rec=new MediaRecorder(stream, {mimeType:mime, videoBitsPerSecond:3_500_000}); }
-  catch(e){ try{ rec=new MediaRecorder(stream); }catch(e2){ _stopStream(stream); vc.remove(); if(baseDataUrl)URL.revokeObjectURL(baseDataUrl); return null; } }
-  return new Promise(resolve=>{
-    const chunks=[];
-    rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
-    rec.onstop=()=>{
-      _stopStream(stream); vc.remove(); if(baseDataUrl)URL.revokeObjectURL(baseDataUrl);
-      const type=(rec.mimeType||mime);
-      const blob=new Blob(chunks,{type});
-      if(!blob.size || !/mp4/i.test(type)){ resolve(null); return; }   // no blank/webm-as-mp4
-      resolve(new File([blob], 'dingerwatch-home-run.mp4', {type:'video/mp4', lastModified:Date.now()}));
-    };
-    rec.onerror=()=>{ _stopStream(stream); vc.remove(); if(baseDataUrl)URL.revokeObjectURL(baseDataUrl); resolve(null); };
-    drawFrame(0);
-    try{ rec.start(); }catch(e){ _stopStream(stream); vc.remove(); if(baseDataUrl)URL.revokeObjectURL(baseDataUrl); resolve(null); return; }
-    const DURATION=1500, start=performance.now();
-    function loop(now){
-      const p=Math.min(1,(now-start)/DURATION);
-      drawFrame(p);
-      if(p<1) requestAnimationFrame(loop);
-      else setTimeout(()=>{ try{ rec.stop(); }catch(e){ _stopStream(stream); vc.remove(); if(baseDataUrl)URL.revokeObjectURL(baseDataUrl); resolve(null); } }, 200);
+  }catch(e){ if(baseDataUrl)URL.revokeObjectURL(baseDataUrl); return null; }
+  if(!baseImg){ if(baseDataUrl)URL.revokeObjectURL(baseDataUrl); return null; }
+  const W=480, H=600, FH=Math.round(W*9/16);  // 270 — 4:5 card, small file + fast encode
+  const c=document.createElement('canvas'); c.width=W; c.height=H;
+  const ctx=c.getContext('2d', {willReadFrequent:true});
+  // Global palette from the final (landing) frame — it has the base + full arc +
+  // splash, so it's a superset of every flight frame. Quantize to 255 colors and
+  // reserve index T (magenta, never present in the source) as the transparent
+  // marker used for frame-diffing.
+  ctx.drawImage(baseImg,0,0,W,H); _hrDrawTrajFrame(ctx, W, FH, ev, 1);
+  const palette=quantize(ctx.getImageData(0,0,W,H).data, 255);
+  const T=palette.length; palette.push([255,0,255]);
+  const gif=GIFEncoder();
+  const FLIGHT=24, DELAY=60;  // ~16fps -> ~1.44s flight
+  let prevIdx=null;
+  for(let i=0;i<=FLIGHT;i++){
+    const p=i/FLIGHT;
+    ctx.drawImage(baseImg,0,0,W,H); _hrDrawTrajFrame(ctx, W, FH, ev, p);
+    const idx=applyPalette(ctx.getImageData(0,0,W,H).data, palette);
+    if(i===0){
+      // first frame: full image, establishes the global color table (no transparency)
+      gif.writeFrame(idx, W, H, { palette, delay: DELAY, transparent: false });
+    } else {
+      // diff: pixels identical to the previous frame become transparent (reserved
+      // index T) so only the moving arc/ball/splash pixels are encoded per frame.
+      const out=new Uint8Array(idx.length);
+      for(let j=0;j<idx.length;j++) out[j] = (idx[j]===prevIdx[j]) ? T : idx[j];
+      gif.writeFrame(out, W, H, { delay: (i===FLIGHT)?1000:DELAY, transparent:true, transparentIndex:T, dispose:1 });
     }
-    requestAnimationFrame(loop);
-  });
+    prevIdx=idx;
+  }
+  gif.finish();
+  if(baseDataUrl)URL.revokeObjectURL(baseDataUrl);
+  const bytes=gif.bytes();
+  if(!bytes || !bytes.length) return null;
+  const blob=new Blob([bytes], {type:'image/gif'});
+  if(!blob.size) return null;
+  return new File([blob], 'dingerwatch-home-run.gif', {type:'image/gif', lastModified:Date.now()});
 }
 // Pre-generate (on demand, when the share sheet opens) so the Share tap fires
 // navigator.share synchronously inside the user gesture.
@@ -9495,32 +9491,49 @@ function primeHRClip(ev, quip){
   if(cached){ if(cached.url) URL.revokeObjectURL(cached.url); _hrClipCache.delete(ev.key); }
   if(_hrClipPending.has(ev.key)) return;
   _hrClipPending.add(ev.key);
+  let done=false;
   (async()=>{
-    try{ const file=await renderHRClip(ev, quip||''); if(file){ _hrClipCacheSet(ev.key, {file, url:URL.createObjectURL(file), sig}); _dwClipReady(ev.key); } }
-    catch(e){}
+    try{ const file=await renderHRClip(ev, quip||''); done=true; if(file){ _hrClipCacheSet(ev.key, {file, url:URL.createObjectURL(file), sig}); _dwClipReady(ev.key); } else { _dwClipFail(ev.key); } }
+    catch(e){ _dwClipFail(ev.key); }
     _hrClipPending.delete(ev.key);
   })();
+  // Safety net: if generation hasn't finished in 12s, surface a fallback so the
+  // button isn't stuck on "Preparing…" forever.
+  setTimeout(()=>{ if(!done && _hrClipPending.has(ev.key)) _dwClipFail(ev.key); }, 12000);
 }
-// Enable the clip button in the open sheet once its MP4 is ready, wired so the
+// Enable the clip button in the open sheet once its GIF is ready, wired so the
 // share fires within the tap gesture (no await before navigator.share).
 function _dwClipReady(key){
   const sheet=document.querySelector('.dw-share-sheet');
   if(!sheet || sheet.dataset.shareEv!==String(key)) return;
   const btn=sheet.querySelector('#dw-share-clip');
-  if(!btn) return;
+  if(!btn || btn.dataset.failed) return;
   const entry=_hrClipCache.get(key);
   if(!entry || !entry.file) return;
-  btn.disabled=false; btn.classList.remove('dw-share-clip-loading');
+  btn.disabled=false; btn.classList.remove('dw-share-clip-loading'); btn.removeAttribute('data-failed');
+  const t=sheet.dataset.shareText||'', u=sheet.dataset.shareUrl||'https://dingerwatch.app';
+  const fullText=(t?t+' ':'')+u;
   if(navigator.canShare && navigator.canShare({files:[entry.file]})){
     btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Share animated clip';
-    btn.onclick=function(){ navigator.share({files:[entry.file]}).catch(()=>{}); };
+    btn.onclick=function(){ navigator.share({title:'DingerWatch', text:fullText, files:[entry.file]}).catch(()=>{}); };
   } else {
     btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download animated clip';
-    btn.onclick=function(){ const a=document.createElement('a'); a.href=entry.url; a.download='dingerwatch-home-run.mp4'; document.body.appendChild(a); a.click(); a.remove(); };
+    btn.onclick=function(){ const a=document.createElement('a'); a.href=entry.url; a.download='dingerwatch-home-run.gif'; document.body.appendChild(a); a.click(); a.remove(); };
   }
 }
+// Shown if GIF generation fails or times out — points the user at the static
+// image share instead, so they're never stuck on "Preparing…".
+function _dwClipFail(key){
+  const sheet=document.querySelector('.dw-share-sheet');
+  if(!sheet || sheet.dataset.shareEv!==String(key)) return;
+  const btn=sheet.querySelector('#dw-share-clip');
+  if(!btn || btn.dataset.failed) return;
+  btn.dataset.failed='1'; btn.disabled=true; btn.classList.remove('dw-share-clip-loading');
+  btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Clip unavailable — use Share image';
+  btn.onclick=function(){ const img=_hrShareImgCache.get(key); if(img&&img.file&&navigator.canShare&&navigator.canShare({files:[img.file]})) navigator.share({title:'DingerWatch',files:[img.file]}).catch(()=>{}); };
+}
 function shareHRClip(btn){
-  // Defensive: if the device can't produce/share a video clip, behave like Share
+  // Defensive: if the device can't produce/share a clip, behave like Share
   // (the button is also hidden in renderFeed, but this guards stale DOM).
   if(!_hrClipSupported()){ shareHR(btn); return; }
   let data={text:'',url:'https://dingerwatch.app'};
@@ -15851,6 +15864,7 @@ document.addEventListener('visibilitychange', ()=>{
 
 <!-- Phase 0: sport switcher + #hash routing (mlb active; nfl/nhl/nba "coming soon") -->
 <script type="module" src="./sports/router.js"></script>
+<script type="module">import * as _g from './gifenc.js'; window._gifenc = _g;</script>
 
 <!-- Mobile debug console — completely inert for everyone else. Loads a
      floating, on-screen devtools overlay (Eruda) ONLY when ?debug=1 is in
