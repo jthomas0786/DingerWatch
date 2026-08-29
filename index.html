@@ -2754,6 +2754,13 @@ footer{ margin-left:0; }
 .dw-share-copy{ display:block; width:100%; padding:11px; margin-bottom:8px; border-radius:10px; border:1px solid #1f2937;
   background:rgba(45,127,255,.1); color:#2d7fff; font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; cursor:pointer; }
 .dw-share-copy:last-child{ margin-bottom:0; }
+.dw-share-clip{ display:flex; align-items:center; justify-content:center; gap:8px; background:linear-gradient(135deg,rgba(45,127,255,.18),rgba(245,200,66,.14)); color:#f5c842; border-color:rgba(245,200,66,.4); }
+.dw-share-clip svg{ display:block; }
+.dw-share-clip-loading{ color:#9fb0c8; border-color:#1f2937; background:rgba(255,255,255,.04); cursor:progress; }
+.dw-share-clip:disabled{ opacity:.8; }
+.dw-clip-spin{ width:13px; height:13px; border:2px solid rgba(159,176,200,.3); border-top-color:#9fb0c8; border-radius:50%; display:inline-block; animation:dw-clip-spin .8s linear infinite; }
+@keyframes dw-clip-spin{ to{ transform:rotate(360deg); } }
+.hr-clip-btn{ color:#f5c842; border-color:rgba(245,200,66,.4); background:rgba(245,200,66,.08); }
 
 /* ── Home Run Moment — glanceable stadium + trajectory arc per feed row.
    Borrows the Slate ballpark visual (sky gradient, light towers, outfield grass
@@ -8930,6 +8937,10 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
         </div>` : ''}
       </div>
       <div class="hr-traj-share-row">
+        <button type="button" class="hr-share-btn hr-clip-btn" onclick="shareHRClip(this)" data-share="${_shareData}" data-ev="${_evData}" aria-label="Share animated clip" title="Animated clip">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          Clip
+        </button>
         <button type="button" class="hr-share-btn" onclick="shareHR(this)" data-share="${_shareData}" data-ev="${_evData}">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
           Share
@@ -9035,7 +9046,8 @@ const _SHARE_LOGOS = {
   RD:'<svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M24 11.779c0-1.459-1.192-2.645-2.657-2.645-.715 0-1.363.286-1.836.746-1.813-1.192-4.226-1.957-6.884-2.06l1.172-3.712 3.2.748a2.38 2.38 0 002.376 2.245 2.38 2.38 0 002.376-2.382A2.38 2.38 0 0018.6.135a2.38 2.38 0 00-2.176 1.42l-3.953-.929a.626.626 0 00-.74.441l-1.394 4.414c-2.746.099-5.232.862-7.083 2.075-.474-.46-1.119-.746-1.835-.746C1.193 9.134 0 10.32 0 11.779c0 .977.537 1.832 1.336 2.278-.07.394-.106.797-.106 1.207 0 4.018 4.679 7.273 10.455 7.273 5.776 0 10.455-3.255 10.455-7.273 0-.41-.036-.813-.106-1.207.799-.446 1.336-1.301 1.336-2.278zm-5.4 1.41a2.38 2.38 0 01-2.376-2.382 2.38 2.38 0 012.376-2.382 2.38 2.38 0 012.376 2.382 2.38 2.38 0 01-2.376 2.382zm-13.2 0a2.38 2.38 0 01-2.376-2.382 2.38 2.38 0 012.376-2.382 2.38 2.38 0 012.376 2.382 2.38 2.38 0 01-2.376 2.382zm3.513 6.796c0-2.5 3.182-2.738 3.182-2.738s3.182.238 3.182 2.738c0 .797-1.428 1.459-3.182 1.459s-3.182-.662-3.182-1.459z"/></svg>',
   EM:'<svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6zm-2 0l-8 5-8-5h16zm0 12H4V8l8 5 8-5v10z"/></svg>'
 };
-function openShareSheet(text, url, imgDataUrl){
+function openShareSheet(text, url, imgDataUrl, opts){
+  opts=opts||{};
   const enc = encodeURIComponent;
   const fullUrl = url || 'https://dingerwatch.app';
   closeShareSheet();
@@ -9048,12 +9060,19 @@ function openShareSheet(text, url, imgDataUrl){
   ];
   const sheet=document.createElement('div');
   sheet.className='dw-share-sheet';
+  if(opts.ev && opts.ev.key) sheet.dataset.shareEv = String(opts.ev.key);
   const preview = imgDataUrl ? `<img class="dw-share-cardimg" src="${imgDataUrl}" alt="Home run card"/>` : '';
   const download = imgDataUrl ? `<button class="dw-share-copy" id="dw-share-dl">Download card image</button>` : '';
+  // Animated clip: only where the device can record + share a real video/mp4.
+  // Pre-generated on open; the button enables the moment the MP4 is ready so the
+  // share fires inside a fresh tap gesture (iOS rejects an async navigator.share).
+  const showClip = !!(opts.showClip && opts.ev && opts.ev.key && _hrClipSupported());
+  const clipBtn = showClip ? `<button class="dw-share-copy dw-share-clip dw-share-clip-loading" id="dw-share-clip" disabled><span class="dw-clip-spin"></span> Preparing animated clip…</button>` : '';
   sheet.innerHTML=`<div class="dw-share-card">
     <div class="dw-share-head"><span>Share home run</span><button class="dw-share-x" aria-label="Close">\u2715</button></div>
     ${preview}
     <p class="dw-share-preview">${escapeHTML(text||'')}</p>
+    ${clipBtn}
     <div class="dw-share-grid">${links.map(l=>`<a class="dw-share-opt" href="${l.url}" target="_blank" rel="noopener noreferrer"><span class="dw-share-logo" style="background:${l.color}">${l.logo}</span>${l.name}</a>`).join('')}</div>
     ${download}
     <button class="dw-share-copy" id="dw-share-copylink">Copy link</button>
@@ -9066,6 +9085,11 @@ function openShareSheet(text, url, imgDataUrl){
   if(dl && imgDataUrl){ dl.onclick=function(){ const a=document.createElement('a'); a.href=imgDataUrl; a.download='dingerwatch-home-run.png'; document.body.appendChild(a); a.click(); a.remove(); }; }
   const copy=sheet.querySelector('#dw-share-copylink');
   if(copy){ copy.onclick=async function(){ try{ await navigator.clipboard.writeText(fullUrl); this.textContent='Copied!'; setTimeout(()=>{this.textContent='Copy link';},1500); }catch(e){} }; }
+  if(showClip){
+    const key=opts.ev.key;
+    if(_hrClipCache.get(key)) _dwClipReady(key);   // already cached from a prior open
+    else primeHRClip(opts.ev, opts.quip||'');     // generate now, enables button when ready
+  }
 }
 function closeShareSheet(){
   const s=document.querySelector('.dw-share-sheet');
@@ -9143,7 +9167,7 @@ function _hrDrawTrajectory(ctx,ox,oy,sx,syOrEv,maybeEv){
   ctx.lineCap='butt';
   return null;
 }
-async function renderHRShareImage(ev, narrative, shortPitch){
+async function renderHRShareImage(ev, narrative, shortPitch, opts){
   if(document.fonts&&document.fonts.ready){ try{ await Promise.race([document.fonts.ready,new Promise(r=>setTimeout(r,4000))]); }catch(e){} }
   const W=HR_SHARE_W,H=HR_SHARE_H;
   const canvas=document.createElement('canvas'); canvas.width=W; canvas.height=H;
@@ -9182,7 +9206,9 @@ async function renderHRShareImage(ev, narrative, shortPitch){
     if(rg.unit){ ctx.fillStyle=MUTE; ctx.font="700 13px 'JetBrains Mono','Space Mono',monospace"; ctx.fillText(rg.unit,cx,cy+R+12); }
   });
   // ---- trajectory arc + in-flight ball over the field (exact per-axis field scaling) ----
-  _hrDrawTrajectory(ctx,0,0,W/400,FH/225,ev);
+  // opts.skipTrajectory renders the base card WITHOUT the arc/ball/splash so the
+  // animated clip can draw the flight progressively on top (frame 0 = no arc).
+  if(!(opts&&opts.skipTrajectory)) _hrDrawTrajectory(ctx,0,0,W/400,FH/225,ev);
   // ---- footer ----
   ctx.fillStyle=BG; ctx.fillRect(0,FH,W,H-FH);
   // quip
@@ -9329,6 +9355,186 @@ async function _drainHRShareQueue(){
   _hrShareRunning = false;
 }
 
+// ---- HR animated clip: a short MP4 of the ball flying the arc ----
+// MediaRecorder + canvas.captureStream, attached to the DOM with continuous rAF
+// redraw (Safari captureStream needs a rendered canvas or the video comes out
+// blank). Only offered where the device can record AND share a real video/mp4
+// file, so iPhone users get a native share-sheet video and everyone else gets
+// the existing static image share unchanged.
+function _hrClipSupported(){
+  try{
+    if(!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream || typeof navigator.canShare!=='function') return false;
+    // Require a true MP4 path — never save a webm blob as .mp4.
+    return !!_hrClipMp4Mime();
+  }catch(e){ return false; }
+}
+function _stopStream(s){ if(!s) return; try{ s.getTracks().forEach(t=>t.stop()); }catch(e){} }
+// First MP4 MIME the browser can actually encode — some Safari builds only report
+// support for codec-qualified strings, so try those before the bare video/mp4.
+function _hrClipMp4Mime(){
+  try{
+    if(!window.MediaRecorder || !MediaRecorder.isTypeSupported) return null;
+    const cands=['video/mp4;codecs=avc1.42E01E','video/mp4;codecs=avc1.4D401F','video/mp4'];
+    for(const c of cands){ if(MediaRecorder.isTypeSupported(c)) return c; }
+    return null;
+  }catch(e){ return null; }
+}
+const _hrClipCache = new Map();     // ev.key -> { file, url, sig }  (LRU, capped below)
+const _hrClipPending = new Set();
+function _hrClipCacheSet(key, entry){
+  if(_hrClipCache.has(key)) _hrClipCache.delete(key);
+  _hrClipCache.set(key, entry);
+  if(_hrClipCache.size > 6){
+    const oldest=_hrClipCache.keys().next().value, e=_hrClipCache.get(oldest);
+    if(e && e.url) URL.revokeObjectURL(e.url);
+    _hrClipCache.delete(oldest);
+  }
+}
+// Draw one progress frame (0..1) of the trajectory onto the field region of ctx.
+function _hrDrawTrajFrame(ctx, W, FH, ev, p){
+  const sx=W/400, sy=FH/225;
+  const VW=400,VH=225,HX=200,HY=202,WALL_TOP=140,WALL_CORNER=146,POLE_X=180;
+  const evv=ev.exitVelo!=null?Number(ev.exitVelo):null, dist=ev.distance!=null?Number(ev.distance):null;
+  let theta=0;
+  if(ev.coordX!=null&&ev.coordY!=null&&isFinite(ev.coordX)&&isFinite(ev.coordY)) theta=Math.atan2(ev.coordX-125,199-ev.coordY);
+  theta=Math.max(-0.87,Math.min(0.87,theta));
+  const d=(dist&&dist>0)?dist:400;
+  const wallYAt=(x)=>{const f=Math.min(1,Math.abs(x-HX)/POLE_X);return WALL_TOP+(WALL_CORNER-WALL_TOP)*f*f;};
+  const landX=HX+POLE_X*Math.sin(theta), landY=wallYAt(landX)-7;
+  const apexRaise=Math.max(16,Math.min(38,d*0.10)), midX=(HX+landX)/2, apexY=Math.max(6,landY-apexRaise);
+  const bezT=(t)=>{const bx=(1-t)*(1-t)*HX+2*(1-t)*t*midX+t*t*landX;const by=(1-t)*(1-t)*HY+2*(1-t)*t*apexY+t*t*landY;return [bx,by];};
+  const spd=evv!=null?Math.max(0,Math.min(1,(evv-95)/25)):0.5, glow=0.55+0.35*spd;
+  const smin=Math.min(sx,sy), Rb=6.5*smin;
+  const px=(x)=>x*sx, py=(y)=>y*sy;
+  const lx=px(landX), ly=py(landY), splashR=(4+3*spd)*smin;
+  // landing splash grows in over the last 20% of the flight
+  const sp = p>0.8 ? Math.min(1,(p-0.8)/0.2) : 0;
+  if(sp>0){
+    ctx.fillStyle='rgba(255,210,74,'+((0.45+0.35*spd)*sp)+')'; _hrCircle(ctx,lx,ly,splashR*2.1); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.95)'; _hrCircle(ctx,lx,ly,splashR); ctx.fill();
+  }
+  // arc draws in from home toward the landing, up to progress p
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.shadowColor='rgba(255,210,74,'+glow+')'; ctx.shadowBlur=10;
+  ctx.strokeStyle='rgba(255,210,74,'+glow+')'; ctx.lineWidth=(1.8+1.4*spd)*smin*1.15;
+  ctx.beginPath();
+  const N=24, kmax=Math.max(1,Math.ceil(N*p));
+  let started=false;
+  for(let k=0;k<=kmax;k++){const t=Math.min(p,k/N);const [bx,by]=bezT(t); if(started) ctx.lineTo(px(bx),py(by)); else { ctx.moveTo(px(bx),py(by)); started=true; } }
+  ctx.stroke(); ctx.shadowBlur=0;
+  // ball + fading ghost trail riding the arc tip (while in flight)
+  if(p<0.99){
+    for(let g=5;g>=1;g--){const t=p-0.045*g; if(t<=0)continue; const [gx,gy]=bezT(t); ctx.fillStyle='rgba(255,255,255,'+(0.09*g)+')'; _hrCircle(ctx,px(gx),py(gy),Rb*0.9); ctx.fill();}
+    const [bxp,byp]=bezT(p);
+    ctx.fillStyle='rgba(255,210,74,0.45)'; _hrCircle(ctx,px(bxp),py(byp),Rb*1.8); ctx.fill();
+    ctx.fillStyle='#ffffff'; _hrCircle(ctx,px(bxp),py(byp),Rb); ctx.fill();
+    ctx.strokeStyle='#8B1E22'; ctx.lineWidth=Math.max(1.2,Rb*0.18); ctx.lineCap='round';
+    ctx.beginPath(); ctx.arc(px(bxp),py(byp),Rb*0.78,0.5,Math.PI-0.5); ctx.stroke();
+    ctx.beginPath(); ctx.arc(px(bxp),py(byp),Rb*0.78,Math.PI+0.5,2*Math.PI-0.5); ctx.stroke();
+    ctx.lineCap='butt';
+  }
+}
+// Render the home-run animated clip as an MP4 File. ~1.5s real-time: the base
+// card (no trajectory) is drawn scaled, then the arc/ball/splash animate on top.
+async function renderHRClip(ev, quip){
+  if(!_hrClipSupported()) return null;
+  // base card WITHOUT the trajectory (frame 0 = no arc)
+  let baseImg=null, baseDataUrl=null;
+  try{
+    const f=await renderHRShareImage(ev, quip||'', shortPitchLabel, {skipTrajectory:true});
+    if(!f) return null;
+    baseDataUrl=URL.createObjectURL(f);
+    baseImg=await _hrLoadImg(baseDataUrl);
+  }catch(e){}
+  const W=720, H=900, FH=Math.round(W*9/16);  // 405 — 4:5 card, small file + fast encode
+  const vc=document.createElement('canvas'); vc.width=W; vc.height=H;
+  // In the viewport (not offscreen) so WebKit actually paints the canvas — an
+  // offscreen element can produce a blank captureStream video on iOS Safari.
+  vc.style.cssText='position:fixed;left:0;top:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:-1';
+  document.body.appendChild(vc);
+  const ctx=vc.getContext('2d');
+  function drawFrame(p){
+    if(baseImg) ctx.drawImage(baseImg,0,0,W,H); else { ctx.fillStyle='#080b14'; ctx.fillRect(0,0,W,H); }
+    _hrDrawTrajFrame(ctx, W, FH, ev, p);
+  }
+  let stream=null, rec=null;
+  try{ stream=vc.captureStream(30); }catch(e){ vc.remove(); if(baseDataUrl)URL.revokeObjectURL(baseDataUrl); return null; }
+  const mime=_hrClipMp4Mime()||'video/mp4';
+  try{ rec=new MediaRecorder(stream, {mimeType:mime, videoBitsPerSecond:3_500_000}); }
+  catch(e){ try{ rec=new MediaRecorder(stream); }catch(e2){ _stopStream(stream); vc.remove(); if(baseDataUrl)URL.revokeObjectURL(baseDataUrl); return null; } }
+  return new Promise(resolve=>{
+    const chunks=[];
+    rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
+    rec.onstop=()=>{
+      _stopStream(stream); vc.remove(); if(baseDataUrl)URL.revokeObjectURL(baseDataUrl);
+      const type=(rec.mimeType||mime);
+      const blob=new Blob(chunks,{type});
+      if(!blob.size || !/mp4/i.test(type)){ resolve(null); return; }   // no blank/webm-as-mp4
+      resolve(new File([blob], 'dingerwatch-home-run.mp4', {type:'video/mp4', lastModified:Date.now()}));
+    };
+    rec.onerror=()=>{ _stopStream(stream); vc.remove(); if(baseDataUrl)URL.revokeObjectURL(baseDataUrl); resolve(null); };
+    drawFrame(0);
+    try{ rec.start(); }catch(e){ _stopStream(stream); vc.remove(); if(baseDataUrl)URL.revokeObjectURL(baseDataUrl); resolve(null); return; }
+    const DURATION=1500, start=performance.now();
+    function loop(now){
+      const p=Math.min(1,(now-start)/DURATION);
+      drawFrame(p);
+      if(p<1) requestAnimationFrame(loop);
+      else setTimeout(()=>{ try{ rec.stop(); }catch(e){ _stopStream(stream); vc.remove(); if(baseDataUrl)URL.revokeObjectURL(baseDataUrl); resolve(null); } }, 200);
+    }
+    requestAnimationFrame(loop);
+  });
+}
+// Pre-generate (on demand, when the share sheet opens) so the Share tap fires
+// navigator.share synchronously inside the user gesture.
+function primeHRClip(ev, quip){
+  if(!_hrClipSupported() || !ev || !ev.key) return;
+  const sig=_hrShareSig(ev);
+  const cached=_hrClipCache.get(ev.key);
+  if(cached && cached.sig===sig) return;
+  if(cached){ if(cached.url) URL.revokeObjectURL(cached.url); _hrClipCache.delete(ev.key); }
+  if(_hrClipPending.has(ev.key)) return;
+  _hrClipPending.add(ev.key);
+  (async()=>{
+    try{ const file=await renderHRClip(ev, quip||''); if(file){ _hrClipCacheSet(ev.key, {file, url:URL.createObjectURL(file), sig}); _dwClipReady(ev.key); } }
+    catch(e){}
+    _hrClipPending.delete(ev.key);
+  })();
+}
+// Enable the clip button in the open sheet once its MP4 is ready, wired so the
+// share fires within the tap gesture (no await before navigator.share).
+function _dwClipReady(key){
+  const sheet=document.querySelector('.dw-share-sheet');
+  if(!sheet || sheet.dataset.shareEv!==String(key)) return;
+  const btn=sheet.querySelector('#dw-share-clip');
+  if(!btn) return;
+  const entry=_hrClipCache.get(key);
+  if(!entry || !entry.file) return;
+  btn.disabled=false; btn.classList.remove('dw-share-clip-loading');
+  if(navigator.canShare && navigator.canShare({files:[entry.file]})){
+    btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Share animated clip';
+    btn.onclick=function(){ navigator.share({files:[entry.file]}).catch(()=>{}); };
+  } else {
+    btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download animated clip';
+    btn.onclick=function(){ const a=document.createElement('a'); a.href=entry.url; a.download='dingerwatch-home-run.mp4'; document.body.appendChild(a); a.click(); a.remove(); };
+  }
+}
+function shareHRClip(btn){
+  // Defensive: if the device can't produce/share a video clip, behave like Share
+  // (the button is also hidden in renderFeed, but this guards stale DOM).
+  if(!_hrClipSupported()){ shareHR(btn); return; }
+  let data={text:'',url:'https://dingerwatch.app'};
+  try{ data=Object.assign(data, JSON.parse(btn.dataset.share||'{}')); }catch(e){}
+  let ev=null;
+  try{ ev=JSON.parse(btn.dataset.ev||'null'); }catch(e){}
+  const card=btn.closest('.hr-traj-card');
+  const quip=card?card.querySelector('.hr-traj-quip')?.textContent:'';
+  const cached = ev ? _hrShareImgCache.get(ev.key) : null;
+  // Open the share sheet; it pre-generates the clip in the background and enables
+  // the Share button the instant the MP4 is ready (inside a fresh tap gesture).
+  openShareSheet(data.text, data.url, cached?cached.url:null, {ev, quip, showClip:true});
+}
+
 function renderFeed(){
   if(!feedEvents.length){
     const anyLive = games.some(g => g.mlbStatus === 'Live');
@@ -9398,6 +9604,9 @@ function renderFeed(){
   // Pre-render each card's share image in the background so the Share tap is
   // instant (navigator.share fires synchronously within the user gesture).
   feedEvents.slice(0, 8).forEach(ev => primeHRShareImage(ev, ev._quip));
+  // Hide the animated-clip button where the device can't record + share an MP4
+  // (desktop Chrome, older iOS). On those, the regular Share button still works.
+  if(!_hrClipSupported()) pickList.querySelectorAll('.hr-clip-btn').forEach(b=>b.style.display='none');
 
   document.getElementById('iosHintX')?.addEventListener('click', e=>{
     e.stopPropagation();
