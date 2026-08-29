@@ -2727,7 +2727,7 @@ footer{ margin-left:0; }
    launch angle. EV sits at launch, launch angle at the apex, distance at the
    landing — six numbers become one curve. Honors prefers-reduced-motion. ── */
 .hrm-wrap{
-  position: relative; width: 100%; aspect-ratio: 400 / 300; overflow: hidden;
+  position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden;
   border-bottom: 1px solid #1a2540;
 }
 .hrm-svg{ display:block; width:100%; height:100%; }
@@ -2761,6 +2761,24 @@ footer{ margin-left:0; }
 .hrm-chip-dist{ } .hrm-chip-dist b{ color:#f5c842; }
 .hrm-chip-pitch{ } .hrm-chip-pitch b{ color:#7eb4ff; }
 
+/* Stat rings — radial progress gauges in a top row */
+.hrm-stats{
+  position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between;
+  gap:4px; padding:7px 8px 5px; pointer-events:none;
+  background:linear-gradient(180deg, rgba(8,11,20,.82) 0%, rgba(8,11,20,.5) 55%, rgba(8,11,20,0) 100%);
+}
+.hrm-ring{ flex:1 1 0; min-width:0; max-width:96px; display:flex; flex-direction:column; align-items:center; gap:2px; }
+.hrm-ring-label{
+  font-size:7.5px; letter-spacing:.1em; text-transform:uppercase; font-weight:700; color:#9fb0c8;
+  font-family:'JetBrains Mono','Space Mono',monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;
+}
+.hrm-ring-svg{ width:100%; height:auto; display:block; }
+.hrm-ring-num{
+  font-size:19px; font-weight:700; font-style:italic; fill:#f4f1ea;
+  font-family:'JetBrains Mono','Space Mono',monospace; font-variant-numeric:tabular-nums;
+}
+.hrm-ring-unit{ font-size:7px; font-weight:700; letter-spacing:.06em; fill:#9fb0c8; }
+
 /* Pending state — muted shell, no animation fire */
 .hrm-wrap.is-pending .hrm-chip b{ color:rgba(226,232,240,.3); }
 .hrm-pending-tag{
@@ -2780,8 +2798,9 @@ footer{ margin-left:0; }
 }
 
 @media (max-width: 560px){
-  .hrm-wrap{ aspect-ratio: 400 / 300; height: auto; }
-  .hrm-chip b{ font-size:12px; }
+  .hrm-wrap{ aspect-ratio: 16 / 9; height: auto; }
+  .hrm-ring-num{ font-size:16px; }
+  .hrm-ring-label{ font-size:7px; letter-spacing:.06em; }
 }
 .feed-team-badge{
   font-family: 'JetBrains Mono','Space Mono',monospace; font-size: 8.5px; font-weight: 500;
@@ -8799,8 +8818,8 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
   // Elevated camera behind home plate looking out to center: the field is drawn
   // in slight 3D — grass wedge foreshortened toward home, outfield wall as a
   // curved (elliptical) arc, and tall foul poles rising in the LF/RF corners.
-  const VW=400, VH=300, HX=200, HY=198;   // home plate (~66% down, centered in the photo)
-  const WALL_TOP=132, WALL_CORNER=144, POLE_X=180;  // outfield wall y (center/corner) + half-span to poles
+  const VW=400, VH=225, HX=200, HY=202;   // home plate (~90% down, centered in the 16:9 photo)
+  const WALL_TOP=140, WALL_CORNER=146, POLE_X=180;  // outfield wall y (center/corner) + half-span to poles
 
   // ---- the actual landing: bearing from Statcast spray coords, distance from EV ----
   const evv = ev.exitVelo != null ? Number(ev.exitVelo) : null;
@@ -8873,14 +8892,32 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
       </div>
     </div>`;
 
-  const evChip = evv != null
-    ? `<div class="hrm-chip hrm-chip-ev" style="left:8px;top:8px;transform:none"><small>Exit Velo</small><b>${Math.round(evv)}<i>mph</i></b></div>` : '';
-  const laChip = la != null
-    ? `<div class="hrm-chip hrm-chip-la" style="right:8px;top:8px;transform:none"><b>${Math.round(la)}°</b><small>launch</small></div>` : '';
-  const distChip = dist != null
-    ? `<div class="hrm-chip hrm-chip-dist" style="left:${landPctX.toFixed(0)}%;top:${landPctY.toFixed(0)}%"><b>${Math.round(dist)}</b><small>ft</small></div>` : '';
-  const pitchChip = (ev.pitchType || ev.pitchSpeed)
-    ? `<div class="hrm-chip hrm-chip-pitch" style="left:8px;bottom:8px;transform:none"><b>${ev.pitchSpeed ? Math.round(ev.pitchSpeed) : shortPitch(ev.pitchType)}</b><small>${ev.pitchSpeed ? shortPitch(ev.pitchType) : 'pitch'}</small></div>` : '';
+  // ---- radial stat rings (top row): label above, value inside the donut ----
+  const statRing = (label, value, unit, pct, color='#2d7fff') => {
+    const R=40, SW=15, C=2*Math.PI*R;
+    const cl=Math.max(0,Math.min(1,pct));
+    const off=C*(1-cl);
+    const v=escapeHTML(String(value));
+    const numY = unit ? 50 : 56;
+    const u = unit ? `<text class="hrm-ring-unit" x="50" y="63" text-anchor="middle">${escapeHTML(unit)}</text>` : '';
+    return `<div class="hrm-ring"><div class="hrm-ring-label">${escapeHTML(label)}</div>
+      <svg class="hrm-ring-svg" viewBox="0 0 100 100" aria-label="${escapeHTML(label)} ${v}${unit?' '+unit:''}">
+        <circle cx="50" cy="50" r="${R}" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="${SW}"/>
+        <circle cx="50" cy="50" r="${R}" fill="none" stroke="${color}" stroke-width="${SW}" stroke-linecap="butt" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 50 50)"/>
+        <text class="hrm-ring-num" x="50" y="${numY}" text-anchor="middle">${v}</text>${u}
+      </svg></div>`;
+  };
+  const evPct = evv!=null ? Math.max(0,Math.min(1, evv/120)) : 0;
+  const laPct = la!=null ? Math.max(0,Math.min(1, la/45)) : 0;
+  const distPct = dist!=null ? Math.max(0,Math.min(1, dist/500)) : 0;
+  const _ps = ev.pitchSpeed!=null ? Number(ev.pitchSpeed) : null;
+  const psPct = _ps!=null ? Math.max(0,Math.min(1, _ps/105)) : 0;
+  const statsBar = `<div class="hrm-stats">
+    ${evv!=null ? statRing('Exit Velo', Math.round(evv), 'mph', evPct) : ''}
+    ${la!=null ? statRing('Launch', Math.round(la)+'°', '', laPct) : ''}
+    ${dist!=null ? statRing('Distance', Math.round(dist), 'ft', distPct) : ''}
+    ${_ps!=null ? statRing('Pitch', Math.round(_ps), shortPitch(ev.pitchType)||'mph', psPct) : (ev.pitchType ? statRing('Pitch', shortPitch(ev.pitchType), '', 0) : '')}
+  </div>`;
 
   if(!hasStatcast){
     return `<div class="hr-traj-card ${ev.isNew?'is-new':''}" data-batter="${escapeHTML(ev.batter)}">
@@ -8906,7 +8943,7 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
       <circle class="hrm-splash" cx="${landX.toFixed(1)}" cy="${landY.toFixed(1)}" r="6" fill="#f59e0b"/>
       <circle class="hrm-ball" style="offset-path:path('${arcPath}')" cx="0" cy="0" r="${(5.5+2*spd).toFixed(2)}" fill="#fff" stroke="#0b162c" stroke-width="1"/>
     </svg>
-    ${evChip}${laChip}${distChip}${pitchChip}
+    ${statsBar}
     </div></div>
     ${_foot}
   </div>`;
