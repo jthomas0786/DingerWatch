@@ -2721,6 +2721,36 @@ footer{ margin-left:0; }
 .hr-traj-meta > *:not(:last-child)::after{ content: '·'; margin-left: 8px; color: var(--border-light); }
 .hr-traj-rbi{ color: var(--live-green); font-weight: 700; }
 
+/* Share button (under the pitcher) + share-sheet modal */
+.hr-traj-share-row{ display:flex; justify-content:flex-end; margin:-1px 0 9px; }
+.hr-share-btn{ display:inline-flex; align-items:center; gap:5px; cursor:pointer;
+  font-family:'Oswald',sans-serif; font-size:11px; font-weight:500; letter-spacing:.04em;
+  color:var(--accent,#2d7fff); background:rgba(45,127,255,.10); border:1px solid rgba(45,127,255,.32);
+  padding:4px 11px; border-radius:999px; transition:background .15s, transform .1s; }
+.hr-share-btn:hover{ background:rgba(45,127,255,.2); }
+.hr-share-btn:active{ transform:scale(.96); }
+.hr-share-btn svg{ flex-shrink:0; }
+
+.dw-share-sheet{ position:fixed; inset:0; z-index:999999; display:flex; align-items:flex-end; justify-content:center;
+  background:rgba(0,0,0,0); transition:background .2s; }
+.dw-share-sheet.is-open{ background:rgba(0,0,0,.55); }
+.dw-share-card{ width:100%; max-width:440px; background:#0f1421; border:1px solid #1f2937;
+  border-radius:16px 16px 0 0; padding:16px 16px calc(16px + env(safe-area-inset-bottom));
+  transform:translateY(100%); transition:transform .25s cubic-bezier(.22,.68,.3,1); box-shadow:0 -8px 30px rgba(0,0,0,.4); }
+.dw-share-sheet.is-open .dw-share-card{ transform:translateY(0); }
+.dw-share-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.dw-share-head span{ font-family:'Oswald',sans-serif; font-size:14px; color:#e2e8f0; font-weight:600; }
+.dw-share-x{ background:none; border:none; color:#8b95a8; font-size:15px; cursor:pointer; padding:2px 6px; }
+.dw-share-preview{ font-size:12px; color:#8b95a8; background:rgba(255,255,255,.04); padding:8px 10px; border-radius:8px; margin-bottom:14px; line-height:1.4; max-height:90px; overflow:auto; }
+.dw-share-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
+.dw-share-opt{ display:flex; flex-direction:column; align-items:center; gap:6px; padding:12px 4px; border-radius:12px;
+  background:rgba(255,255,255,.04); text-decoration:none; color:#e2e8f0; font-size:11px; font-family:'Oswald',sans-serif; transition:background .15s, transform .1s; }
+.dw-share-opt:hover{ background:rgba(255,255,255,.08); }
+.dw-share-opt:active{ transform:scale(.95); }
+.dw-share-dot{ width:30px; height:30px; border-radius:50%; }
+.dw-share-copy{ width:100%; padding:11px; border-radius:10px; border:1px solid #1f2937;
+  background:rgba(45,127,255,.1); color:#2d7fff; font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; cursor:pointer; }
+
 /* ── Home Run Moment — glanceable stadium + trajectory arc per feed row.
    Borrows the Slate ballpark visual (sky gradient, light towers, outfield grass
    + wall, foul poles, infield) and draws a home-run arc from exit velocity +
@@ -8870,6 +8900,17 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
   const landPctX = clampPct(landX / VW * 100, 5, 90);
   const landPctY = clampPct(landY / VH * 100, 3, 55);
 
+  // share payload for the footer Share button (native share sheet on mobile)
+  const _shareText = [
+    `${ev.batter} goes deep`,
+    dist!=null ? `${Math.round(dist)} FT` : '',
+    evv!=null ? `${Math.round(evv)} mph EV` : '',
+    ev.pitcher ? `off ${ev.pitcher}` : '',
+    ev.pitchType ? `(${shortPitch(ev.pitchType)}${ev.pitchSpeed?', '+Math.round(ev.pitchSpeed)+' mph':''})` : '',
+    ev.park ? `at ${ev.park}` : ''
+  ].filter(Boolean).join(' · ') + '. #DingerWatch';
+  const _shareData = escapeHTML(JSON.stringify({ text:_shareText, url:'https://dingerwatch.app' }));
+
   const _foot = `
     <div class="hr-traj-body">
       <div class="hr-traj-quip">${escapeHTML(narrative)}</div>
@@ -8882,6 +8923,12 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
           <div style="text-align:right;"><div class="hr-traj-role">Pitching</div><div class="hr-traj-name">${escapeHTML(ev.pitcher)}</div></div>
           ${headshotImgTag(ev.pitcher, 'hr-traj-headshot', null, ev.pitcherId)}
         </div>` : ''}
+      </div>
+      <div class="hr-traj-share-row">
+        <button type="button" class="hr-share-btn" onclick="shareHR(this)" data-share="${_shareData}">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+          Share
+        </button>
       </div>
       <div class="hr-traj-meta">
         ${ev.rbi ? `<span class="hr-traj-rbi">${ev.rbi} RBI</span>` : ''}
@@ -8907,9 +8954,9 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
       </svg></div>`;
   };
   const evPct = evv!=null ? Math.max(0,Math.min(1, evv/120)) : 0;
-  // launch angle → "quality" bell centered on the ~28° HR sweet spot:
-  // max fill at 28°, tapers for grounders (<15°) and popups (>40°)
-  const laPct = la!=null ? Math.max(0, Math.min(1, 1 - Math.pow((la - 28) / 22, 2))) : 0;
+  // launch angle → "quality" bell centered on the ~30° HR sweet spot:
+  // max fill at 30°, tapers for grounders (<15°) and popups (>40°)
+  const laPct = la!=null ? Math.max(0, Math.min(1, 1 - Math.pow((la - 30) / 22, 2))) : 0;
   const distPct = dist!=null ? Math.max(0,Math.min(1, dist/500)) : 0;
   const _ps = ev.pitchSpeed!=null ? Number(ev.pitchSpeed) : null;
   const psPct = _ps!=null ? Math.max(0,Math.min(1, _ps/105)) : 0;
@@ -8975,10 +9022,49 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
   }
 }
 
-
-
-
-
+// ---- Share sheet: native Web Share API, with a social-app fallback ----
+function openShareSheet(text, url){
+  const enc = encodeURIComponent;
+  if(navigator.share){
+    navigator.share({ title:'DingerWatch', text:text||'', url:url||'' }).catch(()=>{});
+    return;
+  }
+  closeShareSheet();
+  const links=[
+    {name:'X', color:'#1d9bf0', url:`https://twitter.com/intent/tweet?text=${enc(text)}&url=${enc(url)}`},
+    {name:'Facebook', color:'#1877f2', url:`https://www.facebook.com/sharer/sharer.php?u=${enc(url)}&quote=${enc(text)}`},
+    {name:'WhatsApp', color:'#25d366', url:`https://wa.me/?text=${enc(text+' '+url)}`},
+    {name:'Reddit', color:'#ff4500', url:`https://www.reddit.com/submit?title=${enc(text)}&url=${enc(url)}`},
+    {name:'Email', color:'#6b7280', url:`mailto:?subject=${enc('Home run \u2014 DingerWatch')}&body=${enc(text+'\n'+url)}`}
+  ];
+  const sheet=document.createElement('div');
+  sheet.className='dw-share-sheet';
+  sheet.innerHTML=`<div class="dw-share-card">
+    <div class="dw-share-head"><span>Share home run</span><button class="dw-share-x" aria-label="Close">\u2715</button></div>
+    <p class="dw-share-preview">${escapeHTML(text||'')}</p>
+    <div class="dw-share-grid">${links.map(l=>`<a class="dw-share-opt" href="${l.url}" target="_blank" rel="noopener noreferrer"><span class="dw-share-dot" style="background:${l.color}"></span>${l.name}</a>`).join('')}</div>
+    <button class="dw-share-copy">Copy link</button>
+  </div>`;
+  document.body.appendChild(sheet);
+  requestAnimationFrame(()=>sheet.classList.add('is-open'));
+  sheet.querySelector('.dw-share-x').onclick=closeShareSheet;
+  sheet.addEventListener('click',e=>{ if(e.target===sheet) closeShareSheet(); });
+  const copy=sheet.querySelector('.dw-share-copy');
+  copy.onclick=async function(){
+    try{ await navigator.clipboard.writeText(url); this.textContent='Copied!'; setTimeout(()=>{this.textContent='Copy link';},1500); }catch(e){}
+  };
+}
+function closeShareSheet(){
+  const s=document.querySelector('.dw-share-sheet');
+  if(!s) return;
+  s.classList.remove('is-open');
+  setTimeout(()=>s.remove(),220);
+}
+function shareHR(btn){
+  let data={text:'',url:'https://dingerwatch.app'};
+  try{ data=Object.assign(data, JSON.parse(btn.dataset.share||'{}')); }catch(e){}
+  openShareSheet(data.text, data.url);
+}
 
 function renderFeed(){
   if(!feedEvents.length){
