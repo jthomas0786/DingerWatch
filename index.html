@@ -9077,7 +9077,7 @@ function closeShareSheet(){
 // ---- HR share image: a purpose-built 1080x1350 canvas (field + trajectory + rings + footer) ----
 // Trajectory constants kept in sync with homeRunMomentHTML (do not diverge).
 const HR_SHARE_W=1080, HR_SHARE_H=1350;
-function _hrLoadImg(src){ return new Promise(res=>{ const img=new Image(); img.crossOrigin='anonymous'; img.onload=()=>res(img); img.onerror=()=>res(null); img.src=src; }); }
+function _hrLoadImg(src){ return new Promise(res=>{ const img=new Image(); img.crossOrigin='anonymous'; let done=false; const t=setTimeout(()=>{ if(!done){ done=true; res(null); } },6000); img.onload=()=>{ if(!done){ done=true; clearTimeout(t); res(img); } }; img.onerror=()=>{ if(!done){ done=true; clearTimeout(t); res(null); } }; img.src=src; }); }
 function _hrDrawCover(ctx,img,dx,dy,dw,dh){
   const iw=img.naturalWidth, ih=img.naturalHeight, s=Math.max(dw/iw,dh/ih), w=iw*s, h=ih*s;
   ctx.drawImage(img, dx+(dw-w)/2, dy+(dh-h)/2, w, h);
@@ -9122,7 +9122,7 @@ function _hrDrawTrajectory(ctx,ox,oy,scale,ev){
   ctx.stroke(); ctx.shadowBlur=0; ctx.lineCap='butt';
 }
 async function renderHRShareImage(ev, narrative, shortPitch){
-  if(document.fonts&&document.fonts.ready){ try{ await document.fonts.ready; }catch(e){} }
+  if(document.fonts&&document.fonts.ready){ try{ await Promise.race([document.fonts.ready,new Promise(r=>setTimeout(r,4000))]); }catch(e){} }
   const W=HR_SHARE_W,H=HR_SHARE_H;
   const canvas=document.createElement('canvas'); canvas.width=W; canvas.height=H;
   const ctx=canvas.getContext('2d');
@@ -9223,27 +9223,88 @@ async function renderHRShareImage(ev, narrative, shortPitch){
 function shareHR(btn){
   let data={text:'',url:'https://dingerwatch.app'};
   try{ data=Object.assign(data, JSON.parse(btn.dataset.share||'{}')); }catch(e){}
-  // try to render the home-run card to an image and attach it via native share
   let ev=null;
   try{ ev=JSON.parse(btn.dataset.ev||'null'); }catch(e){}
-  const _shortP=(t)=>{ if(!t) return t; const m={'four-seam fastball':'4-Seam','fastball':'Fastball','slider':'Slider','changeup':'Changeup','sinker':'Sinker','curveball':'Curve','cutter':'Cutter','splitter':'Split'}; return m[String(t).toLowerCase().trim()]||t; };
+  const fullText=(data.text?data.text+' ':'')+(data.url||'https://dingerwatch.app');
+  // Fast path: the share image was pre-generated when the card rendered, so
+  // navigator.share fires synchronously inside the user-gesture window (no
+  // async delay, which iOS Safari would otherwise reject as NotAllowedError).
+  const cached = ev ? _hrShareImgCache.get(ev.key) : null;
+  if(cached){
+    if(navigator.canShare && navigator.canShare({files:[cached.file]})){
+      navigator.share({title:'DingerWatch', text:fullText, files:[cached.file]}).catch(()=>openShareSheet(data.text,data.url,cached.url));
+      return;
+    }
+    openShareSheet(data.text, data.url, cached.url);
+    return;
+  }
+  // Slow path: tap before pre-generation finished — generate on demand.
   const card=btn.closest('.hr-traj-card');
   const quip=card?card.querySelector('.hr-traj-quip')?.textContent:'';
-  const fullText=(data.text?data.text+' ':'')+(data.url||'https://dingerwatch.app');
   (async()=>{
     let file=null, imgDataUrl=null;
     if(ev){
-      try{ file=await renderHRShareImage(ev, quip||'', _shortP); }catch(e){}
-      if(file){ imgDataUrl=URL.createObjectURL(file); }
+      try{ file=await renderHRShareImage(ev, quip||'', shortPitchLabel); }catch(e){}
+      if(file){ imgDataUrl=URL.createObjectURL(file); _hrShareCacheSet(ev.key,{file,url:imgDataUrl}); }
     }
-    const canShareFiles = file && navigator.canShare && navigator.canShare({files:[file]});
-    if(canShareFiles){
+    if(file && navigator.canShare && navigator.canShare({files:[file]})){
       navigator.share({title:'DingerWatch', text:fullText, files:[file]}).catch(()=>{}).finally(()=>{ if(imgDataUrl) setTimeout(()=>URL.revokeObjectURL(imgDataUrl), 30000); });
       return;
     }
-    // fallback: in-app sheet with the card image preview + social logos
     openShareSheet(data.text, data.url, imgDataUrl);
   })();
+}
+// ---- Share-image pre-generation cache (keeps the Share tap instant) ----
+// Pitch-name shortener (mirrors renderFeed's shortPitch map; global so the
+// pre-generator and the on-demand fallback share one source of truth).
+function shortPitchLabel(t){
+  if(!t) return t;
+  const map={'four-seam fastball':'4-Seam','fastball':'Fastball','two-seam fastball':'2-Seam','cutter':'Cutter','sinker':'Sinker','slider':'Slider','sweeper':'Sweeper','curveball':'Curveball','knuckle curve':'Knuckle CB','changeup':'Changeup','split-finger':'Splitter','splitter':'Splitter','slurve':'Slurve','knuckleball':'Knuckler','eephus':'Eephus','forkball':'Forkball'};
+  return map[String(t).toLowerCase().trim()]||t;
+}
+const _hrShareImgCache = new Map();   // ev.key -> { file, url }  (LRU, capped below)
+const _hrSharePending = new Set();
+let _hrShareQueue = [], _hrShareRunning = false;
+function _hrShareCacheSet(key, entry){   // LRU put, cap at 12 (~17MB) to bound memory
+  if(_hrShareImgCache.has(key)) _hrShareImgCache.delete(key);
+  _hrShareImgCache.set(key, entry);
+  if(_hrShareImgCache.size > 12){
+    const oldest = _hrShareImgCache.keys().next().value;
+    const e = _hrShareImgCache.get(oldest);
+    if(e && e.url) URL.revokeObjectURL(e.url);
+    _hrShareImgCache.delete(oldest);
+  }
+}
+// Signature of the fields that affect the rendered image — if Statcast data
+// attaches after the initial render, the signature changes and we regenerate.
+function _hrShareSig(ev){
+  return [ev.exitVelo,ev.distance,ev.launchAngle,ev.coordX,ev.coordY,ev.pitchSpeed,ev.rbi,ev.awayScore,ev.homeScore,ev.pitcherId,ev.batterId].join('|');
+}
+// Queue one card's image for background pre-generation (idempotent, invalidates on data change).
+function primeHRShareImage(ev, quip){
+  if(!ev || !ev.key) return;
+  const sig=_hrShareSig(ev);
+  const cached=_hrShareImgCache.get(ev.key);
+  if(cached && cached.sig===sig) return;            // already fresh
+  if(cached){ if(cached.url) URL.revokeObjectURL(cached.url); _hrShareImgCache.delete(ev.key); }
+  if(_hrSharePending.has(ev.key)) return;            // regen already queued
+  _hrSharePending.add(ev.key);
+  _hrShareQueue.push({ev, quip:quip||'', sig});
+  _drainHRShareQueue();
+}
+async function _drainHRShareQueue(){
+  if(_hrShareRunning) return;
+  _hrShareRunning = true;
+  while(_hrShareQueue.length){
+    const {ev, quip, sig} = _hrShareQueue.shift();
+    try{
+      const file = await renderHRShareImage(ev, quip, shortPitchLabel);
+      if(file) _hrShareCacheSet(ev.key, {file, url:URL.createObjectURL(file), sig});
+    }catch(e){}
+    _hrSharePending.delete(ev.key);
+    await new Promise(r=>setTimeout(r, 0));   // yield to the UI thread between cards
+  }
+  _hrShareRunning = false;
 }
 
 function renderFeed(){
@@ -9305,12 +9366,16 @@ function renderFeed(){
     })();
 
     const narrative = humor;
+    ev._quip = narrative;   // stash for the share-image pre-generator
     return homeRunMomentHTML(ev, narrative, shortPitch);
   }).join('') + `</div>
   <div class="odds-source-note" style="margin-top:14px;">Live from the MLB Stats API play-by-play feed. Batted-ball data is attached by Statcast moments after each swing — occasionally it lags the play by a few seconds.</div>`;
 
   feedEvents.forEach(ev => ev.isNew = false);   // clear highlight after one render
   primeVisibleReactions();
+  // Pre-render each card's share image in the background so the Share tap is
+  // instant (navigator.share fires synchronously within the user gesture).
+  feedEvents.slice(0, 8).forEach(ev => primeHRShareImage(ev, ev._quip));
 
   document.getElementById('iosHintX')?.addEventListener('click', e=>{
     e.stopPropagation();
