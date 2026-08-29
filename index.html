@@ -9092,8 +9092,16 @@ function _hrRing(ctx,cx,cy,R,sw,pct,color){
   ctx.strokeStyle=color; ctx.beginPath(); ctx.arc(cx,cy,R,-Math.PI/2,-Math.PI/2+2*Math.PI*pct); ctx.stroke();
   ctx.lineCap='butt';
 }
-// replicate the card's home-run arc + landing splash onto a canvas region
-function _hrDrawTrajectory(ctx,ox,oy,scale,ev){
+// replicate the card's home-run arc + landing splash + in-flight ball onto a canvas region.
+// Robust signature: (ctx, ox, oy, sx, syOrEv, maybeEv). If the 5th arg is the event object,
+// sx is used for both axes; if both sy + ev are passed, sx scales x and sy scales y. A non-object
+// ev is rejected so a stray number can never again be mistaken for the event (which silently
+// zeroed theta -> dead-center). Returns null on bad input.
+function _hrDrawTrajectory(ctx,ox,oy,sx,syOrEv,maybeEv){
+  if(maybeEv===undefined){ sx=syOrEv; }
+  const sy = maybeEv!==undefined ? syOrEv : sx;
+  const ev = maybeEv!==undefined ? maybeEv : syOrEv;
+  if(!ev || typeof ev!=='object') return null;
   const VW=400,VH=225,HX=200,HY=202,WALL_TOP=140,WALL_CORNER=146,POLE_X=180;
   const evv=ev.exitVelo!=null?Number(ev.exitVelo):null;
   const dist=ev.distance!=null?Number(ev.distance):null;
@@ -9108,18 +9116,32 @@ function _hrDrawTrajectory(ctx,ox,oy,scale,ev){
   const midX=(HX+landX)/2, apexY=Math.max(6,landY-apexRaise);
   const spd=evv!=null?Math.max(0,Math.min(1,(evv-95)/25)):0.5;
   const glow=0.55+0.35*spd;
-  const lx=landX*scale+ox, ly=landY*scale+oy, splashR=(4+3*spd)*scale;
+  const smin=Math.min(sx,sy);
+  const px=(x)=>x*sx+ox, py=(y)=>y*sy+oy;
+  const lx=px(landX), ly=py(landY), splashR=(4+3*spd)*smin;
+  const bezT=(t)=>{const bx=(1-t)*(1-t)*HX+2*(1-t)*t*midX+t*t*landX;const by=(1-t)*(1-t)*HY+2*(1-t)*t*apexY+t*t*landY;return [px(bx),py(by)];};
   // landing glow + core (behind the arc tip)
   ctx.fillStyle='rgba(255,210,74,'+(0.45+0.35*spd)+')'; _hrCircle(ctx,lx,ly,splashR*2.1); ctx.fill();
   ctx.fillStyle='rgba(255,255,255,0.95)'; _hrCircle(ctx,lx,ly,splashR); ctx.fill();
   // arc
   ctx.lineJoin='round'; ctx.lineCap='round';
   ctx.shadowColor='rgba(255,210,74,'+glow+')'; ctx.shadowBlur=10;
-  ctx.strokeStyle='rgba(255,210,74,'+glow+')'; ctx.lineWidth=(1.8+1.4*spd)*scale*1.15;
+  ctx.strokeStyle='rgba(255,210,74,'+glow+')'; ctx.lineWidth=(1.8+1.4*spd)*smin*1.15;
   ctx.beginPath();
   const N=24;
-  for(let k=0;k<=N;k++){const t=k/N;const bx=(1-t)*(1-t)*HX+2*(1-t)*t*midX+t*t*landX;const by=(1-t)*(1-t)*HY+2*(1-t)*t*apexY+t*t*landY;const px=bx*scale+ox,py=by*scale+oy;k?ctx.lineTo(px,py):ctx.moveTo(px,py);}
-  ctx.stroke(); ctx.shadowBlur=0; ctx.lineCap='butt';
+  for(let k=0;k<=N;k++){const t=k/N;const [bxp,byp]=bezT(t);k?ctx.lineTo(bxp,byp):ctx.moveTo(bxp,byp);}
+  ctx.stroke(); ctx.shadowBlur=0;
+  // ball in flight (~82% along arc) with fading ghost trail behind it — conveys motion in a static image
+  const Rb=6.5*smin, T=0.82;
+  for(let g=5;g>=1;g--){const t=T-0.045*g; if(t<=0)continue; const [gx,gy]=bezT(t); ctx.fillStyle='rgba(255,255,255,'+(0.09*g)+')'; _hrCircle(ctx,gx,gy,Rb*0.9); ctx.fill();}
+  const [bxp,byp]=bezT(T);
+  ctx.fillStyle='rgba(255,210,74,0.45)'; _hrCircle(ctx,bxp,byp,Rb*1.8); ctx.fill();
+  ctx.fillStyle='#ffffff'; _hrCircle(ctx,bxp,byp,Rb); ctx.fill();
+  ctx.strokeStyle='#8B1E22'; ctx.lineWidth=Math.max(1.2,Rb*0.18); ctx.lineCap='round';
+  ctx.beginPath(); ctx.arc(bxp,byp,Rb*0.78,0.5,Math.PI-0.5); ctx.stroke();
+  ctx.beginPath(); ctx.arc(bxp,byp,Rb*0.78,Math.PI+0.5,2*Math.PI-0.5); ctx.stroke();
+  ctx.lineCap='butt';
+  return null;
 }
 async function renderHRShareImage(ev, narrative, shortPitch){
   if(document.fonts&&document.fonts.ready){ try{ await Promise.race([document.fonts.ready,new Promise(r=>setTimeout(r,4000))]); }catch(e){} }
@@ -9159,7 +9181,7 @@ async function renderHRShareImage(ev, narrative, shortPitch){
     if(rg.val!==''){ ctx.fillStyle=TEXT; ctx.font="700 28px 'JetBrains Mono','Space Mono',monospace"; ctx.fillText(rg.val,cx,cy+1); }
     if(rg.unit){ ctx.fillStyle=MUTE; ctx.font="700 13px 'JetBrains Mono','Space Mono',monospace"; ctx.fillText(rg.unit,cx,cy+R+12); }
   });
-  // ---- trajectory arc over the field ----
+  // ---- trajectory arc + in-flight ball over the field (exact per-axis field scaling) ----
   _hrDrawTrajectory(ctx,0,0,W/400,FH/225,ev);
   // ---- footer ----
   ctx.fillStyle=BG; ctx.fillRect(0,FH,W,H-FH);
