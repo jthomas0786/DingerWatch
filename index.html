@@ -2764,20 +2764,19 @@ footer{ margin-left:0; }
 /* Stat rings — radial progress gauges in a top row */
 .hrm-stats{
   position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between;
-  gap:4px; padding:7px 8px 5px; pointer-events:none;
-  background:linear-gradient(180deg, rgba(8,11,20,.82) 0%, rgba(8,11,20,.5) 55%, rgba(8,11,20,0) 100%);
+  gap:4px; padding:5px 8px 4px; pointer-events:none;
 }
-.hrm-ring{ flex:1 1 0; min-width:0; max-width:96px; display:flex; flex-direction:column; align-items:center; gap:2px; }
+.hrm-ring{ flex:1 1 0; min-width:0; max-width:72px; display:flex; flex-direction:column; align-items:center; gap:1px; }
 .hrm-ring-label{
-  font-size:7.5px; letter-spacing:.1em; text-transform:uppercase; font-weight:700; color:#9fb0c8;
+  font-size:7px; letter-spacing:.1em; text-transform:uppercase; font-weight:700; color:#9fb0c8;
   font-family:'JetBrains Mono','Space Mono',monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;
 }
 .hrm-ring-svg{ width:100%; height:auto; display:block; }
 .hrm-ring-num{
-  font-size:19px; font-weight:700; font-style:italic; fill:#f4f1ea;
+  font-size:15px; font-weight:700; font-style:italic; fill:#f4f1ea;
   font-family:'JetBrains Mono','Space Mono',monospace; font-variant-numeric:tabular-nums;
 }
-.hrm-ring-unit{ font-size:7px; font-weight:700; letter-spacing:.06em; fill:#9fb0c8; }
+.hrm-ring-unit{ font-size:6.5px; font-weight:700; letter-spacing:.06em; fill:#9fb0c8; }
 
 /* Pending state — muted shell, no animation fire */
 .hrm-wrap.is-pending .hrm-chip b{ color:rgba(226,232,240,.3); }
@@ -2799,8 +2798,8 @@ footer{ margin-left:0; }
 
 @media (max-width: 560px){
   .hrm-wrap{ aspect-ratio: 16 / 9; height: auto; }
-  .hrm-ring-num{ font-size:16px; }
-  .hrm-ring-label{ font-size:7px; letter-spacing:.06em; }
+  .hrm-ring-num{ font-size:13px; }
+  .hrm-ring-label{ font-size:6px; letter-spacing:.05em; }
 }
 .feed-team-badge{
   font-family: 'JetBrains Mono','Space Mono',monospace; font-size: 8.5px; font-weight: 500;
@@ -8908,15 +8907,18 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
       </svg></div>`;
   };
   const evPct = evv!=null ? Math.max(0,Math.min(1, evv/120)) : 0;
-  const laPct = la!=null ? Math.max(0,Math.min(1, la/45)) : 0;
+  // launch angle → "quality" bell centered on the ~28° HR sweet spot:
+  // max fill at 28°, tapers for grounders (<15°) and popups (>40°)
+  const laPct = la!=null ? Math.max(0, Math.min(1, 1 - Math.pow((la - 28) / 22, 2))) : 0;
   const distPct = dist!=null ? Math.max(0,Math.min(1, dist/500)) : 0;
   const _ps = ev.pitchSpeed!=null ? Number(ev.pitchSpeed) : null;
   const psPct = _ps!=null ? Math.max(0,Math.min(1, _ps/105)) : 0;
+  const GOLD='#f5c842', BLUE='#2d7fff';
   const statsBar = `<div class="hrm-stats">
-    ${evv!=null ? statRing('Exit Velo', Math.round(evv), 'mph', evPct) : ''}
-    ${la!=null ? statRing('Launch', Math.round(la)+'°', '', laPct) : ''}
-    ${dist!=null ? statRing('Distance', Math.round(dist), 'ft', distPct) : ''}
-    ${_ps!=null ? statRing('Pitch', Math.round(_ps), shortPitch(ev.pitchType)||'mph', psPct) : (ev.pitchType ? statRing('Pitch', shortPitch(ev.pitchType), '', 0) : '')}
+    ${evv!=null ? statRing('Exit Velo', Math.round(evv), 'mph', evPct, GOLD) : ''}
+    ${la!=null ? statRing('Launch', Math.round(la)+'°', '', laPct, GOLD) : ''}
+    ${dist!=null ? statRing('Distance', Math.round(dist), 'ft', distPct, GOLD) : ''}
+    ${_ps!=null ? statRing('Pitch', Math.round(_ps), shortPitch(ev.pitchType)||'mph', psPct, BLUE) : (ev.pitchType ? statRing('Pitch', shortPitch(ev.pitchType), '', 0, BLUE) : '')}
   </div>`;
 
   if(!hasStatcast){
@@ -8956,13 +8958,10 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
           <stop offset="55%" stop-color="#0d1e2a"/>
           <stop offset="100%" stop-color="#1d4326"/>
         </linearGradient>
-        <linearGradient id="hrmGrass${id}" x1="0" y1="1" x2="0" y2="0">
-          <stop offset="0%" stop-color="#2c5f36"/>
-          <stop offset="100%" stop-color="#123319"/>
-        </linearGradient>
-        <linearGradient id="hrmWall${id}" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#1b2a1a"/>
-          <stop offset="100%" stop-color="#2e4322"/>
+        <linearGradient id="hrmTopFade${id}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#080b14" stop-opacity="0.82"/>
+          <stop offset="62%" stop-color="#080b14" stop-opacity="0.4"/>
+          <stop offset="100%" stop-color="#080b14" stop-opacity="0"/>
         </linearGradient>
         <radialGradient id="hrmLand${id}" cx="0.5" cy="0.5" r="0.5">
           <stop offset="0" stop-color="#ffd24a" stop-opacity="0.9"/><stop offset="1" stop-color="#ffd24a" stop-opacity="0"/>
@@ -8972,8 +8971,7 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
   function slateBackdrop(id, dim){
     const op = dim ? '0.4' : '1';
     return `<image href="field-bg.jpg" x="0" y="0" width="${VW}" height="${VH}" preserveAspectRatio="xMidYMid slice" opacity="${op}"/>
-      <rect x="0" y="0" width="${VW}" height="46" fill="url(#hrmSky${id})" opacity="${0.3*op}"/>
-      <rect x="0" y="${VH-42}" width="${VW}" height="42" fill="#080b14" opacity="${0.42*op}"/>`;
+      <rect x="0" y="0" width="${VW}" height="98" fill="url(#hrmTopFade${id})" opacity="${op}"/>`;
   }
 }
 
