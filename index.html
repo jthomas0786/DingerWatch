@@ -8799,8 +8799,8 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
   // Elevated camera behind home plate looking out to center: the field is drawn
   // in slight 3D — grass wedge foreshortened toward home, outfield wall as a
   // curved (elliptical) arc, and tall foul poles rising in the LF/RF corners.
-  const VW=400, VH=300, HX=200, HY=272;
-  const WCX=200, WCY=96, WRX=176, WRY=58;   // outfield wall ellipse (center + radii)
+  const VW=400, VH=300, HX=200, HY=198;   // home plate (~66% down, centered in the photo)
+  const WALL_TOP=132, WALL_CORNER=144, POLE_X=180;  // outfield wall y (center/corner) + half-span to poles
 
   // ---- the actual landing: bearing from Statcast spray coords, distance from EV ----
   const evv = ev.exitVelo != null ? Number(ev.exitVelo) : null;
@@ -8816,12 +8816,14 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
   theta = Math.max(-0.87, Math.min(0.87, theta));
   const dirDeg = theta * 180 / Math.PI;
   const d = (dist && dist > 0) ? dist : 400;
-  // point where the ball clears the outfield wall (on the wall ellipse)
-  const crossX = WCX + WRX * Math.sin(theta);
-  const crossY = WCY - WRY * Math.cos(theta);
+  // wall height at a given x — parabola: highest at center field, lower toward the poles
+  const wallYAt = (x) => { const f = Math.min(1, Math.abs(x - HX) / POLE_X); return WALL_TOP + (WALL_CORNER - WALL_TOP) * f * f; };
+  // point where the ball clears the outfield wall, mapped onto the photo at the real bearing
+  const crossX = HX + POLE_X * Math.sin(theta);
+  const crossY = wallYAt(crossX);
   // landing splash sits just beyond the wall, up in the stands
   const landX = crossX;
-  const landY = crossY - 9;
+  const landY = crossY - 7;
 
   // apex of the visual arc (peak above the landing), sized by distance
   const apexRaise = Math.max(16, Math.min(38, d * 0.10));
@@ -8848,7 +8850,7 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
   // landing chip clamp
   const clampPct = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const landPctX = clampPct(landX / VW * 100, 5, 90);
-  const landPctY = clampPct(landY / VH * 100, 3, 32);
+  const landPctY = clampPct(landY / VH * 100, 3, 55);
 
   const _foot = `
     <div class="hr-traj-body">
@@ -8932,36 +8934,9 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
   }
   function slateBackdrop(id, dim){
     const op = dim ? '0.4' : '1';
-    const LFX = WCX - WRX, RFX = WCX + WRX;   // foul-pole x (at the wall corners)
-    return `<rect x="0" y="0" width="${VW}" height="${VH}" fill="url(#hrmSky${id})"/>
-      <path d="M0,22 L${VW},22 L${VW},${WCY} L${RFX},${WCY} A${WRX},${WRY} 0 0,0 ${LFX},${WCY} L0,${WCY} Z" fill="#0c1320" opacity="${0.92*op}"/>
-      <g opacity="${0.2*op}" stroke="#2a3a55" stroke-width="0.6"><line x1="0" y1="76" x2="${VW}" y2="76"/><line x1="0" y1="86" x2="${VW}" y2="86"/><line x1="0" y1="96" x2="${VW}" y2="96"/></g>
-      <rect x="14" y="6" width="7" height="26" fill="#1e2740" rx="1" opacity="${op}"/>
-      <rect x="${VW-21}" y="6" width="7" height="26" fill="#1e2740" rx="1" opacity="${op}"/>
-      <circle cx="17.5" cy="9" r="2.6" fill="#5aa8ff" opacity="${0.85*op}"/>
-      <circle cx="${VW-17.5}" cy="9" r="2.6" fill="#5aa8ff" opacity="${0.85*op}"/>
-      <path d="M${HX},${HY} L${LFX},${WCY} A${WRX},${WRY} 0 0,1 ${RFX},${WCY} Z" fill="url(#hrmGrass${id})" opacity="${op}"/>
-      <path d="M${LFX+6},${WCY-2} A${WRX-6},${WRY-2} 0 0,1 ${RFX-6},${WCY-2}" fill="none" stroke="#b9a06a" stroke-width="4" opacity="${0.4*op}"/>
-      <path d="M${LFX},${WCY} A${WRX},${WRY} 0 0,1 ${RFX},${WCY}" fill="none" stroke="url(#hrmWall${id})" stroke-width="6" stroke-linecap="round" opacity="${op}"/>
-      <line x1="${LFX}" y1="${WCY}" x2="${LFX}" y2="10" stroke="#f2c14e" stroke-width="3" opacity="${op}"/>
-      <line x1="${LFX+1.6}" y1="${WCY}" x2="${LFX+1.6}" y2="10" stroke="#fff4cf" stroke-width="1" opacity="${0.7*op}"/>
-      <line x1="${RFX}" y1="${WCY}" x2="${RFX}" y2="10" stroke="#f2c14e" stroke-width="3" opacity="${op}"/>
-      <line x1="${RFX-1.6}" y1="${WCY}" x2="${RFX-1.6}" y2="10" stroke="#fff4cf" stroke-width="1" opacity="${0.7*op}"/>
-      <circle cx="${LFX}" cy="8" r="2" fill="#f2c14e" opacity="${0.9*op}"/>
-      <circle cx="${RFX}" cy="8" r="2" fill="#f2c14e" opacity="${0.9*op}"/>
-      <line x1="${HX}" y1="${HY}" x2="${LFX}" y2="${WCY}" stroke="#f0ece8" stroke-width="1" opacity="${0.4*op}"/>
-      <line x1="${HX}" y1="${HY}" x2="${RFX}" y2="${WCY}" stroke="#f0ece8" stroke-width="1" opacity="${0.4*op}"/>
-      <ellipse cx="${HX}" cy="246" rx="46" ry="30" fill="#4a3226" opacity="${op}"/>
-      <path d="M${HX},${HY} L236,244 L${HX},218 L164,244 Z" fill="#1d4326" stroke="#c9c2bc" stroke-width="1.2" opacity="${op}"/>
-      <rect x="233.5" y="241.5" width="5" height="5" fill="#f0ece8" opacity="${op}" transform="rotate(45 236 244)"/>
-      <rect x="${HX-2.5}" y="215.5" width="5" height="5" fill="#f0ece8" opacity="${op}" transform="rotate(45 ${HX} 218)"/>
-      <rect x="161.5" y="241.5" width="5" height="5" fill="#f0ece8" opacity="${op}" transform="rotate(45 164 244)"/>
-      <ellipse cx="${HX}" cy="236" rx="7" ry="4.5" fill="#5a3c2c" opacity="${op}"/>
-      <circle cx="${HX}" cy="236" r="1.8" fill="#f0ece8" opacity="${op}"/>
-      <path d="M${HX-3},${HY-2} L${HX+3},${HY-2} L${HX+3},${HY+1} L${HX},${HY+4} L${HX-3},${HY+1} Z" fill="#f0ece8" opacity="${op}"/>
-      <text x="${HX}" y="62" text-anchor="middle" font-size="9" fill="#9fb0c8" opacity="${0.8*op}" font-family="monospace">CF</text>
-      <text x="58" y="120" text-anchor="middle" font-size="9" fill="#9fb0c8" opacity="${0.8*op}" font-family="monospace">LF</text>
-      <text x="${VW-58}" y="120" text-anchor="middle" font-size="9" fill="#9fb0c8" opacity="${0.8*op}" font-family="monospace">RF</text>`;
+    return `<image href="field-bg.jpg" x="0" y="0" width="${VW}" height="${VH}" preserveAspectRatio="xMidYMid slice" opacity="${op}"/>
+      <rect x="0" y="0" width="${VW}" height="46" fill="url(#hrmSky${id})" opacity="${0.3*op}"/>
+      <rect x="0" y="${VH-42}" width="${VW}" height="42" fill="#080b14" opacity="${0.42*op}"/>`;
   }
 }
 
