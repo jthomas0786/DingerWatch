@@ -8937,11 +8937,7 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
         </div>` : ''}
       </div>
       <div class="hr-traj-share-row">
-        <button type="button" class="hr-share-btn hr-clip-btn" onclick="shareHRClip(this)" data-share="${_shareData}" data-ev="${_evData}" aria-label="Share animated clip" title="Animated clip">
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-          Clip
-        </button>
-        <button type="button" class="hr-share-btn" onclick="shareHR(this)" data-share="${_shareData}" data-ev="${_evData}">
+        <button type="button" class="hr-share-btn" onclick="shareHR(this)" data-share="${_shareData}" data-ev="${_evData}" aria-label="Share home run" title="Share">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
           Share
         </button>
@@ -9065,11 +9061,12 @@ function openShareSheet(text, url, imgDataUrl, opts){
   sheet.dataset.shareUrl = fullUrl;
   const preview = imgDataUrl ? `<img class="dw-share-cardimg" src="${imgDataUrl}" alt="Home run card"/>` : '';
   const download = imgDataUrl ? `<button class="dw-share-copy" id="dw-share-dl">Download card image</button>` : '';
-  // Animated clip: only where the device can share a file (gifenc is vendored).
-  // Pre-generated on open; the button enables the moment the GIF is ready so the
-  // share fires inside a fresh tap gesture (iOS rejects an async navigator.share).
+  // Animated GIF: gifenc is vendored, so anyone can download the GIF; the native
+  // system-share button is offered as a fallback (files-only, so X preserves the
+  // GIF animation instead of flattening it to a static photo). Pre-generated on
+  // open; the placeholder splits into Download + System-share the moment it's ready.
   const showClip = !!(opts.showClip && opts.ev && opts.ev.key && _hrClipSupported());
-  const clipBtn = showClip ? `<button class="dw-share-copy dw-share-clip dw-share-clip-loading" id="dw-share-clip" disabled><span class="dw-clip-spin"></span> Preparing animated clip…</button>` : '';
+  const clipBtn = showClip ? `<button class="dw-share-copy dw-share-clip dw-share-clip-loading" id="dw-share-clip" disabled><span class="dw-clip-spin"></span> Preparing animated GIF…</button>` : '';
   sheet.innerHTML=`<div class="dw-share-card">
     <div class="dw-share-head"><span>Share home run</span><button class="dw-share-x" aria-label="Close">\u2715</button></div>
     ${preview}
@@ -9275,33 +9272,23 @@ function shareHR(btn){
   try{ data=Object.assign(data, JSON.parse(btn.dataset.share||'{}')); }catch(e){}
   let ev=null;
   try{ ev=JSON.parse(btn.dataset.ev||'null'); }catch(e){}
-  const fullText=(data.text?data.text+' ':'')+(data.url||'https://dingerwatch.app');
-  // Fast path: the share image was pre-generated when the card rendered, so
-  // navigator.share fires synchronously inside the user-gesture window (no
-  // async delay, which iOS Safari would otherwise reject as NotAllowedError).
-  const cached = ev ? _hrShareImgCache.get(ev.key) : null;
-  if(cached){
-    if(navigator.canShare && navigator.canShare({files:[cached.file]})){
-      navigator.share({title:'DingerWatch', text:fullText, files:[cached.file]}).catch(()=>openShareSheet(data.text,data.url,cached.url));
-      return;
-    }
-    openShareSheet(data.text, data.url, cached.url);
-    return;
-  }
-  // Slow path: tap before pre-generation finished — generate on demand.
   const card=btn.closest('.hr-traj-card');
   const quip=card?card.querySelector('.hr-traj-quip')?.textContent:'';
+  const openSheet=(imgDataUrl)=>openShareSheet(data.text, data.url, imgDataUrl, {ev, quip, showClip:true});
+  // Open the website share sheet FIRST. The native system share is offered only
+  // as a fallback button inside the sheet (never fired before the sheet opens),
+  // so the website share is what the user sees on tap. The sheet pre-generates
+  // the animated GIF in the background and enables the Download + System-share
+  // buttons the instant it's ready (inside a fresh tap gesture).
+  const cached = ev ? _hrShareImgCache.get(ev.key) : null;
+  if(cached){ openSheet(cached.url); return; }
+  // Slow path: image not yet pre-generated — build it on demand, then open.
   (async()=>{
-    let file=null, imgDataUrl=null;
+    let imgDataUrl=null;
     if(ev){
-      try{ file=await renderHRShareImage(ev, quip||'', shortPitchLabel); }catch(e){}
-      if(file){ imgDataUrl=URL.createObjectURL(file); _hrShareCacheSet(ev.key,{file,url:imgDataUrl}); }
+      try{ const file=await renderHRShareImage(ev, quip||'', shortPitchLabel); if(file){ imgDataUrl=URL.createObjectURL(file); _hrShareCacheSet(ev.key,{file,url:imgDataUrl}); } }catch(e){}
     }
-    if(file && navigator.canShare && navigator.canShare({files:[file]})){
-      navigator.share({title:'DingerWatch', text:fullText, files:[file]}).catch(()=>{}).finally(()=>{ if(imgDataUrl) setTimeout(()=>URL.revokeObjectURL(imgDataUrl), 30000); });
-      return;
-    }
-    openShareSheet(data.text, data.url, imgDataUrl);
+    openSheet(imgDataUrl);
   })();
 }
 // ---- Share-image pre-generation cache (keeps the Share tap instant) ----
@@ -9366,7 +9353,9 @@ async function _drainHRShareQueue(){
 // draws in, the ball rides it with a ghost trail, and the landing splash pops.
 // The landing frame holds for 1s before the GIF loops back to the start.
 function _hrClipSupported(){
-  try{ return typeof navigator.canShare==='function' && !!window._gifenc; }catch(e){ return false; }
+  // Anyone can download the GIF, so this only gates on gifenc being vendored
+  // (the native system-share button separately checks navigator.canShare).
+  try{ return !!window._gifenc; }catch(e){ return false; }
 }
 function _ensureGifenc(){
   if(window._gifenc) return Promise.resolve(window._gifenc);
@@ -9501,36 +9490,41 @@ function primeHRClip(ev, quip){
   // button isn't stuck on "Preparing…" forever.
   setTimeout(()=>{ if(!done && _hrClipPending.has(ev.key)) _dwClipFail(ev.key); }, 12000);
 }
-// Enable the clip button in the open sheet once its GIF is ready, wired so the
-// share fires within the tap gesture (no await before navigator.share).
+// Split the placeholder into a Download-GIF button plus a native System-share
+// button (the fallback). The system share is files-only — no text/title — so X
+// attaches the GIF as an animated file instead of flattening it to a static
+// photo (which is what happens when text is sent alongside the file).
 function _dwClipReady(key){
   const sheet=document.querySelector('.dw-share-sheet');
   if(!sheet || sheet.dataset.shareEv!==String(key)) return;
-  const btn=sheet.querySelector('#dw-share-clip');
-  if(!btn || btn.dataset.failed) return;
+  const ph=sheet.querySelector('#dw-share-clip');
+  if(!ph || ph.dataset.failed) return;
   const entry=_hrClipCache.get(key);
   if(!entry || !entry.file) return;
-  btn.disabled=false; btn.classList.remove('dw-share-clip-loading'); btn.removeAttribute('data-failed');
-  const t=sheet.dataset.shareText||'', u=sheet.dataset.shareUrl||'https://dingerwatch.app';
-  const fullText=(t?t+' ':'')+u;
-  if(navigator.canShare && navigator.canShare({files:[entry.file]})){
-    btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Share animated clip';
-    btn.onclick=function(){ navigator.share({title:'DingerWatch', text:fullText, files:[entry.file]}).catch(()=>{}); };
-  } else {
-    btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download animated clip';
-    btn.onclick=function(){ const a=document.createElement('a'); a.href=entry.url; a.download='dingerwatch-home-run.gif'; document.body.appendChild(a); a.click(); a.remove(); };
+  const gifUrl=entry.url, gifFile=entry.file;
+  // 1) Download animated GIF — always available, no canShare needed.
+  ph.id='dw-share-gif-dl'; ph.disabled=false; ph.classList.remove('dw-share-clip-loading'); ph.removeAttribute('data-failed');
+  ph.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download animated GIF';
+  ph.onclick=function(){ const a=document.createElement('a'); a.href=gifUrl; a.download='dingerwatch-home-run.gif'; document.body.appendChild(a); a.click(); a.remove(); };
+  // 2) System share (native fallback) — files-only so the GIF stays animated.
+  if(!ph.dataset.sysInserted && navigator.canShare && navigator.canShare({files:[gifFile]})){
+    ph.dataset.sysInserted='1';
+    const sys=document.createElement('button');
+    sys.className='dw-share-copy dw-share-clip'; sys.id='dw-share-system';
+    sys.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> System share';
+    sys.onclick=function(){ navigator.share({files:[gifFile]}).catch(()=>{}); };
+    ph.parentNode.insertBefore(sys, ph.nextSibling);
   }
 }
 // Shown if GIF generation fails or times out — points the user at the static
-// image share instead, so they're never stuck on "Preparing…".
+// card image download instead, so they're never stuck on "Preparing…".
 function _dwClipFail(key){
   const sheet=document.querySelector('.dw-share-sheet');
   if(!sheet || sheet.dataset.shareEv!==String(key)) return;
-  const btn=sheet.querySelector('#dw-share-clip');
+  const btn=sheet.querySelector('#dw-share-clip');   // still the placeholder id pre-ready
   if(!btn || btn.dataset.failed) return;
   btn.dataset.failed='1'; btn.disabled=true; btn.classList.remove('dw-share-clip-loading');
-  btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Clip unavailable — use Share image';
-  btn.onclick=function(){ const img=_hrShareImgCache.get(key); if(img&&img.file&&navigator.canShare&&navigator.canShare({files:[img.file]})) navigator.share({title:'DingerWatch',files:[img.file]}).catch(()=>{}); };
+  btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> GIF unavailable — use Download card image';
 }
 function shareHRClip(btn){
   // Defensive: if the device can't produce/share a clip, behave like Share
@@ -9619,7 +9613,7 @@ function renderFeed(){
   feedEvents.slice(0, 8).forEach(ev => primeHRShareImage(ev, ev._quip));
   // Hide the animated-clip button where the device can't record + share an MP4
   // (desktop Chrome, older iOS). On those, the regular Share button still works.
-  if(!_hrClipSupported()) pickList.querySelectorAll('.hr-clip-btn').forEach(b=>b.style.display='none');
+  // (in-card Clip button removed — animated GIF lives in the share sheet now)
 
   document.getElementById('iosHintX')?.addEventListener('click', e=>{
     e.stopPropagation();
