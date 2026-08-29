@@ -2727,21 +2727,16 @@ footer{ margin-left:0; }
    launch angle. EV sits at launch, launch angle at the apex, distance at the
    landing — six numbers become one curve. Honors prefers-reduced-motion. ── */
 .hrm-wrap{
-  position: relative; width: 100%; height: 150px; overflow: hidden;
+  position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden;
   border-bottom: 1px solid #1a2540;
 }
 .hrm-svg{ display:block; width:100%; height:100%; }
 
-/* Trajectory arc — draws in once, then the ball rides it to the landing splash */
+/* Trajectory arc — static (visible immediately) with a soft glow */
 .hrm-arc{
-  stroke-dasharray: 620; stroke-dashoffset: 620;
-  animation: hrmArcDraw 1s .15s cubic-bezier(.4,0,.2,1) forwards;
   filter: drop-shadow(0 0 3px rgba(245,200,66,.45));
 }
-.hrm-ball{ offset-distance: 0%; opacity:0;
-  animation: hrmBallFly 1.1s .25s cubic-bezier(.22,.68,.3,1) forwards; }
-.hrm-splash{ opacity:0; transform-origin:center; animation: hrmSplash .5s 1.15s ease-out forwards; }
-.hrm-splash-ring{ opacity:0; transform-origin:center; animation: hrmRing .6s 1.15s ease-out forwards; }
+.hrm-ball{ opacity:1; }
 
 /* Metric chips anchored to the arc's key points */
 .hrm-chip{
@@ -2779,7 +2774,7 @@ footer{ margin-left:0; }
 }
 
 @media (max-width: 560px){
-  .hrm-wrap{ height:138px; }
+  .hrm-wrap{ aspect-ratio: 16 / 9; height: auto; }
   .hrm-chip b{ font-size:12px; }
 }
 .feed-team-badge{
@@ -8723,6 +8718,9 @@ async function pollHomeRunFeed(){
           exitVelo: hd.launchSpeed ?? null,
           launchAngle: hd.launchAngle ?? null,
           distance: hd.totalDistance ?? null,
+          coordX: hd.coordinates?.coordX ?? null,
+          coordY: hd.coordinates?.coordY ?? null,
+          trajectory: hd.trajectory ?? null,
           hardness: hd.hardness ?? null,
           park: g.parkShort || g.park,
           matchupLabel: `${g.awayName} @ ${g.homeName}`,
@@ -8776,150 +8774,192 @@ function iosInstallHintHTML(){
 }
 
 /**
- * Home Run Moment — a glanceable stadium + trajectory arc for each HR Feed card.
- * Borrows the Slate tab's behind-home ballpark visual language (sky gradient,
- * light towers, outfield grass + wall, foul poles, infield diamond) and draws a
- * per-row home-run trajectory arc computed from exit velocity + launch angle +
- * distance. The arc IS the glanceable shape: the six separate numbers become
- * one curve, with EV anchored at launch, launch angle at the apex, and distance
- * at the landing point in the stands. When Statcast batted-ball data is pending
- * (null), the shell renders muted with a dashed arc placeholder. Honors
- * prefers-reduced-motion.
+ * Home Run Moment — a full-field ballpark view for each HR Feed card.
+ * Behind-home-plate perspective (same pinhole projection as the Contact Quality
+ * spray chart) shows the WHOLE field: both foul poles, the full outfield fence
+ * arc, diamond, warning track, and stands. The trajectory is drawn from the
+ * ball's ACTUAL landing bearing (MLB Statcast coordX/coordY) + totalDistance, so
+ * each dinger lands where it really was hit — left field, right-center, down the
+ * line — not one static direction. Exit velocity sizes the glow, launch angle
+ * sets the apex, distance sets the landing spot beyond the fence.
  */
 function homeRunMomentHTML(ev, narrative, shortPitch){
-  const hasSC = ev.exitVelo != null || ev.launchAngle != null || ev.distance != null;
-  const id = (ev.key || ev.batter + ev.ts || '').toString().replace(/[^a-z0-9]/gi,'').slice(0,8) || 'hr';
+  const id = ev.key;
+  const hasStatcast = ev.exitVelo != null || ev.launchAngle != null || ev.distance != null;
+  const rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  const _foot = `
-    <div class="hr-traj-body">
-      <div class="hr-traj-quip">${escapeHTML(narrative)}</div>
-      <div class="hr-traj-matchup">
-        <div class="hr-traj-person">
-          ${headshotImgTag(ev.batter, 'hr-traj-headshot', ev.battingTeam, ev.batterId)}
-          <div><div class="hr-traj-role">Batting</div><div class="hr-traj-name">${escapeHTML(ev.batter)}</div></div>
-        </div>
-        ${ev.pitcher ? `<div class="hr-traj-person hr-traj-person-pitcher">
-          <div style="text-align:right;"><div class="hr-traj-role">Pitching</div><div class="hr-traj-name">${escapeHTML(ev.pitcher)}</div></div>
-          ${headshotImgTag(ev.pitcher, 'hr-traj-headshot', null, null)}
-        </div>` : ''}
-      </div>
-      <div class="hr-traj-meta">
-        ${ev.rbi ? `<span class="hr-traj-rbi">${ev.rbi} RBI</span>` : ''}
-        <span class="hr-traj-park">${escapeHTML(ev.park || '')}</span>
-        ${ev.awayScore != null ? `<span>${ev.awayScore}–${ev.homeScore}</span>` : ''}
-        <span class="hr-traj-time">${timeAgo(ev.ts)}</span>
-      </div>
-    </div>`;
+  // ---- behind-home pinhole projection (field feet -> screen px) ----
+  const VW=400, VH=225, CX=200, HY=203, VP=128, CAMD=60, FOCAL=239;
+  const proj = (fx, fy, fz=0) => {
+    const d = fy + CAMD;
+    return { sx: CX + FOCAL*fx/d, sy: VP + (HY-VP)*CAMD/d - FOCAL*fz/d };
+  };
+  // MLB Statcast coordinate convention: home plate at (125,199); coordX>125 = RF
+  // (1B side, +x), coordX<125 = LF (3B side, -x); coordY<199 = deeper outfield.
+  const HOME_X = 125, HOME_Y = 199;
+  const rf = proj(233,233), lf = proj(-233,233), cf = proj(0,400), hp = proj(0,0);
+  const b1 = proj(63.6,63.6), b2 = proj(0,127.3), b3 = proj(-63.6,63.6), mound = proj(0,60.5);
+  // outfield fence arc (screen space), bowing up through center
+  const fenceD = `M 0 ${lf.sy.toFixed(1)} Q ${cf.sx} ${(cf.sy-14).toFixed(1)} ${VW} ${rf.sy.toFixed(1)}`;
+  const fenceBack = `M 0 ${(lf.sy-60).toFixed(1)} Q ${cf.sx} ${(cf.sy-14-60).toFixed(1)} ${VW} ${(rf.sy-60).toFixed(1)}`;
 
-  // --- Trajectory arc geometry (drawn in 0..300 x 0..150 space; the SVG scales
-  //     it vertically to fit a 3:1 card). Home plate at (150,124); wall at y=40. ---
-  const dist = ev.distance != null ? ev.distance : 400;
-  const la = (ev.launchAngle != null && !isNaN(ev.launchAngle)) ? Math.max(12, Math.min(46, ev.launchAngle)) : 28;
-  const evv = ev.exitVelo != null ? ev.exitVelo : 100;
-  const range = Math.max(0, Math.min(1, (dist - 360) / 110));   // 0..1 how far it carries
-  const peak  = Math.max(0, Math.min(1, (la - 18) / 18));       // 0..1 how steep the arc is
-  const speed = Math.max(0, Math.min(1, (evv - 95) / 25));      // 0..1 how hard it was hit
-  const hp = { x: 150, y: 124 };
-  const landX = 198 + 58 * range;           // 198..256 (right-field stands, beyond the wall)
-  const landY = 36 - 8 * range;             // 36..28 (lands up in the stands, above the wall)
-  const apexX = 150 + (landX - 150) * 0.5;
-  const apexY = 46 - 38 * peak;             // 46 (low liner) .. 8 (high arc) — wide enough to read
-  const ctrlY = 2 * apexY - 0.5 * (hp.y + landY);
-  const arcPath = `M${hp.x} ${hp.y} Q${apexX.toFixed(1)} ${ctrlY.toFixed(1)} ${landX.toFixed(1)} ${landY.toFixed(1)}`;
+  // ---- the actual landing: bearing from Statcast spray coords, distance from EV ----
+  const evv = ev.exitVelo != null ? Number(ev.exitVelo) : null;
+  const la = ev.launchAngle != null ? Number(ev.launchAngle) : null;
+  const dist = ev.distance != null ? Number(ev.distance) : null;
+  // bearing theta: 0 = straightaway center, + = RF, - = LF (radians)
+  let theta = 0;
+  if(ev.coordX != null && ev.coordY != null && isFinite(ev.coordX) && isFinite(ev.coordY)){
+    theta = Math.atan2(ev.coordX - HOME_X, HOME_Y - ev.coordY);
+  } else if(ev.batter && /L\b|R\b/.test(ev.batter)){ /* no coords -> center fallback */ }
+  const dirDeg = theta * 180 / Math.PI;
+  const d = (dist && dist > 0) ? dist : 400;
+  const landX = d * Math.sin(theta);
+  const landY = d * Math.cos(theta);
 
-  if(!hasSC){
-    return `<div class="hr-traj-card ${ev.isNew?'is-new':''}" data-batter="${escapeHTML(ev.batter)}">
-      <div class="hrm-wrap is-pending" aria-hidden="true">
-        ${hrmStadiumSVG(id, 0, '<path d="M150 124 Q185 30 210 36" stroke="rgba(226,232,240,.14)" stroke-width="2" fill="none" stroke-dasharray="4 5"/>')}
-        <div class="hrm-pending-tag">Statcast pending</div>
-        <div class="hrm-chip hrm-chip-ev" style="left:8px;top:70%"><small>Exit Velo</small><b>—</b></div>
-      </div>
-      ${_foot}
-    </div>`;
+  // apex height (ft) from launch angle, clamped
+  let apex;
+  if(la != null){
+    apex = Math.max(6, Math.min(95, d * Math.tan(la*Math.PI/180) / 4));
+  } else {
+    const tr = (ev.trajectory || 'fly_ball').toLowerCase();
+    apex = /popup/.test(tr) ? Math.min(70, d*0.22) : /line/.test(tr) ? Math.max(8, d*0.08) : Math.max(18, d*0.17);
+  }
+  // speed factor for glow/weight
+  const spd = evv != null ? Math.max(0, Math.min(1, (evv - 95) / 25)) : 0.5;
+
+  // ---- trajectory polyline (home -> apex -> landing) projected to screen ----
+  const N = 16;
+  const pts = [];
+  for(let k=0; k<=N; k++){
+    const t = k / N;
+    const px = landX * t;
+    const py = landY * t;
+    const pz = apex * 4 * t * (1 - t);
+    pts.push(proj(px, py, pz));
+  }
+  const start = pts[0], end = pts[N];
+  let arcPath = `M ${start.sx.toFixed(1)} ${start.sy.toFixed(1)}`;
+  for(let k=1; k<=N; k++) arcPath += ` L ${pts[k].sx.toFixed(1)} ${pts[k].sy.toFixed(1)}`;
+  // where the arc clears the fence (approx radial fence distance at this bearing)
+  const fDist = 330 + 70 * Math.cos(theta) * Math.cos(theta);
+  const crossT = Math.min(1, fDist / d);
+  const cx = landX * crossT, cy = landY * crossT, cz = apex * 4 * crossT * (1 - crossT);
+  const cross = proj(cx, cy, cz);
+  const splashR = 4 + 3 * spd;
+
+  const glow = (0.55 + 0.35 * spd).toFixed(2);
+  const arcW = (1.8 + 1.4 * spd).toFixed(2);
+  const arcColor = rm ? 'rgba(245,208,74,0.9)' : 'rgba(255,210,74,'+glow+')';
+
+  // landing chip clamp
+  const clampPct = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const landPctX = clampPct(end.sx / VW * 100, 6, 84);
+  const landPctY = clampPct(end.sy / VH * 100, 4, 78);
+
+  const base = `<b>${escapeHTML(ev.batter)}</b>`;
+  const headshot = headshotImgTag(ev.batter, 'headshot small', ev.battingTeam, ev.batterId);
+  const rbiLabel = ev.rbi > 1 ? ` · ${ev.rbi} RBI` : '';
+  const oppName = ev.pitcher ? `<div class="hr-traj-pitcher">${headshotImgTag(ev.pitcher, 'headshot small', ev.opponent)}<span>${escapeHTML(ev.pitcher)}</span></div>` : '';
+
+  const evChip = evv != null
+    ? `<div class="hrm-chip hrm-chip-ev" style="left:8px;top:8px;transform:none"><small>Exit Velo</small><b>${Math.round(evv)}<i>mph</i></b></div>` : '';
+  const laChip = la != null
+    ? `<div class="hrm-chip hrm-chip-la" style="right:8px;top:8px;transform:none"><b>${Math.round(la)}°</b><small>launch</small></div>` : '';
+  const distChip = dist != null
+    ? `<div class="hrm-chip hrm-chip-dist" style="left:${landPctX.toFixed(0)}%;top:${landPctY.toFixed(0)}%"><b>${Math.round(dist)}</b><small>ft</small></div>` : '';
+  const pitchChip = (ev.pitchType || ev.pitchSpeed)
+    ? `<div class="hrm-chip hrm-chip-pitch" style="left:8px;bottom:8px;transform:none"><b>${ev.pitchSpeed ? Math.round(ev.pitchSpeed) : shortPitch(ev.pitchType)}</b><small>${ev.pitchSpeed ? shortPitch(ev.pitchType) : 'pitch'}</small></div>` : '';
+
+  if(!hasStatcast){
+    return `<div class="hrm-wrap"><div class="hrm-graphic">
+      ${fieldShell(id, VW, VH, lf, rf, cf, hp, b1, b2, b3, mound, fenceD, fenceBack, true)}
+      <div class="hrm-pending">Tracking live batted-ball data…</div>
+    </div></div>`;
   }
 
-  const arc = `
-    <path d="${arcPath}" stroke="rgba(226,232,240,.10)" stroke-width="${(3+1.5*speed).toFixed(1)}" fill="none" stroke-linecap="round"/>
-    <path d="${arcPath}" class="hrm-arc" stroke="url(#hrmArc${id})" stroke-width="${(3+1.5*speed).toFixed(1)}" fill="none" stroke-linecap="round"/>
-    <circle class="hrm-ball" style="offset-path:path('${arcPath}')" cx="0" cy="0" r="4.5" fill="#fff" stroke="#0b162c" stroke-width="1"/>
-    <circle class="hrm-splash" cx="${landX.toFixed(1)}" cy="${landY.toFixed(1)}" r="6" fill="#f59e0b"/>
-    <circle class="hrm-splash-ring" cx="${landX.toFixed(1)}" cy="${landY.toFixed(1)}" r="9" fill="none" stroke="#f59e0b" stroke-width="1.5"/>`;
-  const defs = `<linearGradient id="hrmArc${id}" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#4a9fff" stop-opacity="${(0.55+0.45*speed).toFixed(2)}"/>
-      <stop offset="100%" stop-color="#f5c842" stop-opacity="${(0.65+0.35*speed).toFixed(2)}"/>
-    </linearGradient>`;
+  return `<div class="hrm-wrap"><div class="hrm-graphic">
+    <svg class="hrm-svg" viewBox="0 0 ${VW} ${VH}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Home run trajectory landing ${Math.round(d)} feet to ${dirDeg>=0?'right':'left'} field">
+      <defs>
+        <linearGradient id="hrmSky${id}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#0a1525"/><stop offset="0.45" stop-color="#0d1e14"/><stop offset="1" stop-color="#16301c"/>
+        </linearGradient>
+        <linearGradient id="hrmArc${id}" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#2d7fff" stop-opacity="${glow}"/>
+          <stop offset="0.5" stop-color="#ffd24a" stop-opacity="${glow}"/>
+          <stop offset="1" stop-color="#ff5e3a" stop-opacity="${glow}"/>
+        </linearGradient>
+        <radialGradient id="hrmLand${id}" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stop-color="#ffd24a" stop-opacity="0.9"/><stop offset="1" stop-color="#ffd24a" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <rect width="${VW}" height="${VH}" fill="url(#hrmSky${id})"/>
+      ${stadiumScenery(id, VW, VH, lf, rf, cf, fenceD, fenceBack)}
+      <path d="${fenceD}" fill="none" stroke="#f59e0b" stroke-width="2" opacity="0.55"/>
+      ${outfieldGrass(lf, rf, cf, hp)}
+      ${warningTrack(lf, rf, cf)}
+      ${foulLines(hp, lf, rf)}
+      ${infieldDiamond(hp, b1, b2, b3, mound)}
+      <circle class="hrm-foulpole" cx="0" cy="${lf.sy.toFixed(1)}" r="1.4" fill="#f59e0b"/>
+      <circle class="hrm-foulpole" cx="${VW}" cy="${rf.sy.toFixed(1)}" r="1.4" fill="#f59e0b"/>
+      <!-- trajectory -->
+      <circle cx="${cross.sx.toFixed(1)}" cy="${cross.sy.toFixed(1)}" r="${(splashR+2).toFixed(1)}" fill="url(#hrmLand${id})" opacity="0.6"/>
+      <path class="hrm-arc" d="${arcPath}" fill="none" stroke="${arcColor}" stroke-width="${arcW}" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle class="hrm-ball" cx="${end.sx.toFixed(1)}" cy="${end.sy.toFixed(1)}" r="${(3.4+1.6*spd).toFixed(2)}" fill="#fff" stroke="#ffd24a" stroke-width="0.6"/>
+      <circle cx="${end.sx.toFixed(1)}" cy="${end.sy.toFixed(1)}" r="${(2.2).toFixed(1)}" fill="#ffd24a" opacity="0.9"/>
+    </svg>
+    ${evChip}${laChip}${distChip}${pitchChip}
+  </div></div>`;
 
-  // Numbers anchored to the arc shape. Edge chips use corner anchoring (no -50%
-  // translate) so they never clip off the card. Arc-anchored chips are clamped in.
-  const clampPct = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-  const evChip = ev.exitVelo != null
-    ? `<div class="hrm-chip hrm-chip-ev" style="left:8px;top:70%;transform:none"><small>Exit Velo</small><b>${Math.round(ev.exitVelo)}<i>mph</i></b></div>` : '';
-  const laChip = ev.launchAngle != null
-    ? `<div class="hrm-chip hrm-chip-la" style="left:${clampPct(apexX/300*100,16,62).toFixed(0)}%;top:${clampPct((apexY-6)/150*100,11,26).toFixed(0)}%"><b>${Math.round(ev.launchAngle)}°</b><small>launch</small></div>` : '';
-  const distChip = ev.distance != null
-    ? `<div class="hrm-chip hrm-chip-dist" style="left:${clampPct((landX+4)/300*100,52,86).toFixed(0)}%;top:${clampPct(landY/150*100,16,30).toFixed(0)}%"><b>${Math.round(ev.distance)}</b><small>ft</small></div>` : '';
-  const pitchChip = (ev.pitchType || ev.pitchSpeed)
-    ? `<div class="hrm-chip hrm-chip-pitch" style="left:8px;top:8px;transform:none"><b>${ev.pitchSpeed ? Math.round(ev.pitchSpeed) : shortPitch(ev.pitchType)}</b><small>${ev.pitchSpeed ? shortPitch(ev.pitchType) : 'pitch'}</small></div>` : '';
-
-  return `<div class="hr-traj-card ${ev.isNew?'is-new':''}" data-batter="${escapeHTML(ev.batter)}">
-    <div class="hrm-wrap is-ready" aria-hidden="true">
-      ${hrmStadiumSVG(id, 1, arc, defs)}
-      ${evChip}${laChip}${distChip}${pitchChip}
-    </div>
-    ${_foot}
-  </div>`;
+  // ---- field sub-shapes (shared by the live + pending shells) ----
+  function fieldShell(id, VW, VH, lf, rf, cf, hp, b1, b2, b3, mound, fenceD, fenceBack, dim){
+    const op = dim ? '0.4' : '1';
+    return `<svg class="hrm-svg" viewBox="0 0 ${VW} ${VH}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="home run moment">
+      <rect width="${VW}" height="${VH}" fill="#0d1e14" opacity="${op}"/>
+      ${stadiumScenery(id, VW, VH, lf, rf, cf, fenceD, fenceBack, op)}
+      <path d="${fenceD}" fill="none" stroke="#f59e0b" stroke-width="2" opacity="${0.55*op}"/>
+      ${outfieldGrass(lf, rf, cf, hp, op)}
+      ${warningTrack(lf, rf, cf, op)}
+      ${foulLines(hp, lf, rf, op)}
+      ${infieldDiamond(hp, b1, b2, b3, mound, op)}
+      <circle cx="0" cy="${lf.sy.toFixed(1)}" r="1.4" fill="#f59e0b" opacity="${op}"/>
+      <circle cx="${VW}" cy="${rf.sy.toFixed(1)}" r="1.4" fill="#f59e0b" opacity="${op}"/>
+    </svg>`;
+  }
+  function stadiumScenery(id, VW, VH, lf, rf, cf, fenceD, fenceBack, op){
+    const o = op==null?1:op;
+    return `<path d="${fenceBack} L ${VW} ${(rf.sy-60).toFixed(1)} L ${VW} ${rf.sy.toFixed(1)} Q ${cf.sx} ${(cf.sy-14).toFixed(1)} 0 ${lf.sy.toFixed(1)} Z" fill="#0c1020" opacity="${0.9*o}"/>
+      <path d="${fenceBack}" fill="none" stroke="#1e2740" stroke-width="1" opacity="${0.6*o}"/>
+      <rect x="6" y="10" width="9" height="${(VH*0.22).toFixed(0)}" rx="2" fill="#1e2740" opacity="${0.85*o}"/>
+      <circle cx="10.5" cy="14" r="2.6" fill="#4a9fff" opacity="${0.8*o}"/>
+      <rect x="${VW-15}" y="10" width="9" height="${(VH*0.22).toFixed(0)}" rx="2" fill="#1e2740" opacity="${0.85*o}"/>
+      <circle cx="${VW-10.5}" cy="14" r="2.6" fill="#4a9fff" opacity="${0.8*o}"/>`;
+  }
+  function outfieldGrass(lf, rf, cf, hp, op){
+    const o = op==null?1:op;
+    return `<path d="M ${hp.sx.toFixed(1)} ${hp.sy.toFixed(1)} L 0 ${lf.sy.toFixed(1)} Q ${cf.sx} ${(cf.sy-6).toFixed(1)} ${VW} ${rf.sy.toFixed(1)} L ${hp.sx.toFixed(1)} ${hp.sy.toFixed(1)} Z" fill="#1d4326" opacity="${0.92*o}"/>`;
+  }
+  function warningTrack(lf, rf, cf, op){
+    const o = op==null?1:op;
+    return `<path d="M 0 ${(lf.sy+6).toFixed(1)} Q ${cf.sx} ${(cf.sy-14+6).toFixed(1)} ${VW} ${(rf.sy+6).toFixed(1)} L ${VW} ${rf.sy.toFixed(1)} Q ${cf.sx} ${(cf.sy-14).toFixed(1)} 0 ${lf.sy.toFixed(1)} Z" fill="#c9c2bc" opacity="${0.22*o}"/>`;
+  }
+  function foulLines(hp, lf, rf, op){
+    const o = op==null?1:op;
+    return `<line x1="${hp.sx.toFixed(1)}" y1="${hp.sy.toFixed(1)}" x2="0" y2="${lf.sy.toFixed(1)}" stroke="#c9c2bc" stroke-width="0.8" opacity="${0.5*o}"/>
+      <line x1="${hp.sx.toFixed(1)}" y1="${hp.sy.toFixed(1)}" x2="${VW}" y2="${rf.sy.toFixed(1)}" stroke="#c9c2bc" stroke-width="0.8" opacity="${0.5*o}"/>`;
+  }
+  function infieldDiamond(hp, b1, b2, b3, mound, op){
+    const o = op==null?1:op;
+    return `<polygon points="${b1.sx.toFixed(1)},${b1.sy.toFixed(1)} ${b2.sx.toFixed(1)},${b2.sy.toFixed(1)} ${b3.sx.toFixed(1)},${b3.sy.toFixed(1)} ${hp.sx.toFixed(1)},${hp.sy.toFixed(1)}" fill="#4a3226" opacity="${0.92*o}"/>
+      <polygon points="${b1.sx.toFixed(1)},${b1.sy.toFixed(1)} ${b2.sx.toFixed(1)},${b2.sy.toFixed(1)} ${b3.sx.toFixed(1)},${b3.sy.toFixed(1)} ${hp.sx.toFixed(1)},${hp.sy.toFixed(1)}" fill="none" stroke="#1d4326" stroke-width="1" opacity="${o}"/>
+      <circle cx="${mound.sx.toFixed(1)}" cy="${mound.sy.toFixed(1)}" r="3" fill="#6b4a36" opacity="${o}"/>
+      <circle cx="${hp.sx.toFixed(1)}" cy="${hp.sy.toFixed(1)}" r="2.2" fill="#f0ece8" opacity="${o}"/>
+      <circle cx="${b1.sx.toFixed(1)}" cy="${b1.sy.toFixed(1)}" r="1.8" fill="#f0ece8" opacity="${o}"/>
+      <circle cx="${b2.sx.toFixed(1)}" cy="${b2.sy.toFixed(1)}" r="1.8" fill="#f0ece8" opacity="${o}"/>
+      <circle cx="${b3.sx.toFixed(1)}" cy="${b3.sy.toFixed(1)}" r="1.8" fill="#f0ece8" opacity="${o}"/>`;
+  }
 }
 
-/** The shared behind-home ballpark SVG (sky gradient, light towers, field, wall,
- *  foul poles, infield). extra = trailing arc/ball markup; defs = gradient defs.
- *  mode 0 = pending (dim lights), mode 1 = ready. Content is drawn in 0..300 x
- *  0..150 space and scaled vertically (×0.667) into a 3:1 viewBox so the wide
- *  feed card fills edge-to-edge with no cropping. */
-function hrmStadiumSVG(id, mode, extra, defs){
-  const towerGlow = mode ? 0.85 : 0.4;
-  return `<svg class="hrm-svg" viewBox="0 0 300 100" preserveAspectRatio="xMidYMid slice">
-    <defs>
-      <linearGradient id="hrmSky${id}" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#0a1525"/>
-        <stop offset="55%" stop-color="#0d1e14"/>
-        <stop offset="100%" stop-color="#1d4326"/>
-      </linearGradient>
-      ${defs || ''}
-    </defs>
-    <g transform="scale(1 0.6667)">
-      <rect x="0" y="0" width="300" height="150" fill="url(#hrmSky${id})"/>
-      <!-- upper deck + light towers -->
-      <path d="M0,12 Q15,8 30,12 Q45,8 60,12 Q75,8 90,12 Q105,8 120,12 Q135,8 150,12 Q165,8 180,12 Q195,8 210,12 Q225,8 240,12 Q255,8 270,12 Q285,8 300,12 L300,0 L0,0 Z" fill="#141a2a"/>
-      <rect x="0" y="0" width="300" height="12" fill="#0c1020" opacity="0.8"/>
-      <rect x="12" y="2" width="6" height="14" fill="#1e2740" rx="1"/>
-      <rect x="282" y="2" width="6" height="14" fill="#1e2740" rx="1"/>
-      <circle cx="15" cy="5" r="2" fill="#4a9fff" opacity="${towerGlow}"/>
-      <circle cx="285" cy="5" r="2" fill="#4a9fff" opacity="${towerGlow}"/>
-      <!-- outfield grass -->
-      <path d="M150,124 L40,40 A110,110 0 0,1 260,40 Z" fill="#16301c"/>
-      <path d="M150,124 L46,42 A104,104 0 0,1 254,42 Z" fill="#1d4326"/>
-      <!-- outfield wall + warning track -->
-      <path d="M40,40 A110,110 0 0,1 260,40" fill="none" stroke="#f59e0b" stroke-width="2.5" opacity="0.5"/>
-      <path d="M48,42 A102,102 0 0,1 252,42" fill="none" stroke="#c9c2bc" stroke-width="0.8" opacity="0.2" stroke-dasharray="3,2"/>
-      <!-- infield dirt + diamond -->
-      <path d="M150,124 L118,92 A44,44 0 0,1 182,92 Z" fill="#4a3226"/>
-      <path d="M150,120 L176,94 L150,68 L124,94 Z" fill="#1d4326" stroke="#c9c2bc" stroke-width="1.2"/>
-      <rect x="173.5" y="91.5" width="5" height="5" fill="#f0ece8" transform="rotate(45 176 94)"/>
-      <rect x="147.5" y="65.5" width="5" height="5" fill="#f0ece8" transform="rotate(45 150 68)"/>
-      <rect x="121.5" y="91.5" width="5" height="5" fill="#f0ece8" transform="rotate(45 124 94)"/>
-      <circle cx="150" cy="94" r="5" fill="#4a3226"/>
-      <circle cx="150" cy="94" r="1.6" fill="#f0ece8"/>
-      <path d="M147,122 L153,122 L153,124 L150,126.5 L147,124 Z" fill="#f0ece8"/>
-      <!-- foul poles -->
-      <line x1="150" y1="124" x2="40" y2="40" stroke="#f0ece8" stroke-width="1" opacity="0.28"/>
-      <line x1="150" y1="124" x2="260" y2="40" stroke="#f0ece8" stroke-width="1" opacity="0.28"/>
-      <circle cx="40" cy="40" r="1.6" fill="#f59e0b" opacity="0.7"/>
-      <circle cx="260" cy="40" r="1.6" fill="#f59e0b" opacity="0.7"/>
-      <!-- trajectory arc + ball -->
-      ${extra || ''}
-    </g>
-  </svg>`;
-}
 
 
 
