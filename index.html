@@ -2742,14 +2742,18 @@ footer{ margin-left:0; }
 .dw-share-head span{ font-family:'Oswald',sans-serif; font-size:14px; color:#e2e8f0; font-weight:600; }
 .dw-share-x{ background:none; border:none; color:#8b95a8; font-size:15px; cursor:pointer; padding:2px 6px; }
 .dw-share-preview{ font-size:12px; color:#8b95a8; background:rgba(255,255,255,.04); padding:8px 10px; border-radius:8px; margin-bottom:14px; line-height:1.4; max-height:90px; overflow:auto; }
+.dw-share-cardimg{ width:100%; max-height:240px; object-fit:contain; border-radius:10px; margin-bottom:12px;
+  background:#080b14; border:1px solid #1f2937; }
 .dw-share-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
 .dw-share-opt{ display:flex; flex-direction:column; align-items:center; gap:6px; padding:12px 4px; border-radius:12px;
   background:rgba(255,255,255,.04); text-decoration:none; color:#e2e8f0; font-size:11px; font-family:'Oswald',sans-serif; transition:background .15s, transform .1s; }
 .dw-share-opt:hover{ background:rgba(255,255,255,.08); }
 .dw-share-opt:active{ transform:scale(.95); }
-.dw-share-dot{ width:30px; height:30px; border-radius:50%; }
-.dw-share-copy{ width:100%; padding:11px; border-radius:10px; border:1px solid #1f2937;
+.dw-share-logo{ width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+.dw-share-logo svg{ width:22px; height:22px; display:block; }
+.dw-share-copy{ display:block; width:100%; padding:11px; margin-bottom:8px; border-radius:10px; border:1px solid #1f2937;
   background:rgba(45,127,255,.1); color:#2d7fff; font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; cursor:pointer; }
+.dw-share-copy:last-child{ margin-bottom:0; }
 
 /* ── Home Run Moment — glanceable stadium + trajectory arc per feed row.
    Borrows the Slate ballpark visual (sky gradient, light towers, outfield grass
@@ -8910,6 +8914,7 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
     ev.park ? `at ${ev.park}` : ''
   ].filter(Boolean).join(' · ') + '. #DingerWatch';
   const _shareData = escapeHTML(JSON.stringify({ text:_shareText, url:'https://dingerwatch.app' }));
+  const _evData = escapeHTML(JSON.stringify(ev));
 
   const _foot = `
     <div class="hr-traj-body">
@@ -8925,7 +8930,7 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
         </div>` : ''}
       </div>
       <div class="hr-traj-share-row">
-        <button type="button" class="hr-share-btn" onclick="shareHR(this)" data-share="${_shareData}">
+        <button type="button" class="hr-share-btn" onclick="shareHR(this)" data-share="${_shareData}" data-ev="${_evData}">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
           Share
         </button>
@@ -9023,36 +9028,44 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
 }
 
 // ---- Share sheet: native Web Share API, with a social-app fallback ----
-function openShareSheet(text, url){
+const _SHARE_LOGOS = {
+  X:'<svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.66l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117l11.966 15.644Z"/></svg>',
+  FB:'<svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M24 12.073C24 5.404 18.627 0 12 0S0 5.404 0 12.073C0 18.06 4.388 23.027 10.125 24v-8.437H7.078v-3.49h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.49h-2.796V24C19.612 23.027 24 18.06 24 12.073Z"/></svg>',
+  WA:'<svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.817 11.817 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.989-1.057zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>',
+  RD:'<svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M24 11.779c0-1.459-1.192-2.645-2.657-2.645-.715 0-1.363.286-1.836.746-1.813-1.192-4.226-1.957-6.884-2.06l1.172-3.712 3.2.748a2.38 2.38 0 002.376 2.245 2.38 2.38 0 002.376-2.382A2.38 2.38 0 0018.6.135a2.38 2.38 0 00-2.176 1.42l-3.953-.929a.626.626 0 00-.74.441l-1.394 4.414c-2.746.099-5.232.862-7.083 2.075-.474-.46-1.119-.746-1.835-.746C1.193 9.134 0 10.32 0 11.779c0 .977.537 1.832 1.336 2.278-.07.394-.106.797-.106 1.207 0 4.018 4.679 7.273 10.455 7.273 5.776 0 10.455-3.255 10.455-7.273 0-.41-.036-.813-.106-1.207.799-.446 1.336-1.301 1.336-2.278zm-5.4 1.41a2.38 2.38 0 01-2.376-2.382 2.38 2.38 0 012.376-2.382 2.38 2.38 0 012.376 2.382 2.38 2.38 0 01-2.376 2.382zm-13.2 0a2.38 2.38 0 01-2.376-2.382 2.38 2.38 0 012.376-2.382 2.38 2.38 0 012.376 2.382 2.38 2.38 0 01-2.376 2.382zm3.513 6.796c0-2.5 3.182-2.738 3.182-2.738s3.182.238 3.182 2.738c0 .797-1.428 1.459-3.182 1.459s-3.182-.662-3.182-1.459z"/></svg>',
+  EM:'<svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6zm-2 0l-8 5-8-5h16zm0 12H4V8l8 5 8-5v10z"/></svg>'
+};
+function openShareSheet(text, url, imgDataUrl){
   const enc = encodeURIComponent;
-  if(navigator.share){
-    navigator.share({ title:'DingerWatch', text:text||'', url:url||'' }).catch(()=>{});
-    return;
-  }
+  const fullUrl = url || 'https://dingerwatch.app';
   closeShareSheet();
   const links=[
-    {name:'X', color:'#1d9bf0', url:`https://twitter.com/intent/tweet?text=${enc(text)}&url=${enc(url)}`},
-    {name:'Facebook', color:'#1877f2', url:`https://www.facebook.com/sharer/sharer.php?u=${enc(url)}&quote=${enc(text)}`},
-    {name:'WhatsApp', color:'#25d366', url:`https://wa.me/?text=${enc(text+' '+url)}`},
-    {name:'Reddit', color:'#ff4500', url:`https://www.reddit.com/submit?title=${enc(text)}&url=${enc(url)}`},
-    {name:'Email', color:'#6b7280', url:`mailto:?subject=${enc('Home run \u2014 DingerWatch')}&body=${enc(text+'\n'+url)}`}
+    {name:'X', color:'#000000', logo:_SHARE_LOGOS.X, url:`https://twitter.com/intent/tweet?text=${enc(text)}&url=${enc(fullUrl)}`},
+    {name:'Facebook', color:'#1877f2', logo:_SHARE_LOGOS.FB, url:`https://www.facebook.com/sharer/sharer.php?u=${enc(fullUrl)}&quote=${enc(text)}`},
+    {name:'WhatsApp', color:'#25d366', logo:_SHARE_LOGOS.WA, url:`https://wa.me/?text=${enc(text+' '+fullUrl)}`},
+    {name:'Reddit', color:'#ff4500', logo:_SHARE_LOGOS.RD, url:`https://www.reddit.com/submit?title=${enc(text)}&url=${enc(fullUrl)}`},
+    {name:'Email', color:'#6b7280', logo:_SHARE_LOGOS.EM, url:`mailto:?subject=${enc('Home run \u2014 DingerWatch')}&body=${enc(text+'\n'+fullUrl)}`}
   ];
   const sheet=document.createElement('div');
   sheet.className='dw-share-sheet';
+  const preview = imgDataUrl ? `<img class="dw-share-cardimg" src="${imgDataUrl}" alt="Home run card"/>` : '';
+  const download = imgDataUrl ? `<button class="dw-share-copy" id="dw-share-dl">Download card image</button>` : '';
   sheet.innerHTML=`<div class="dw-share-card">
     <div class="dw-share-head"><span>Share home run</span><button class="dw-share-x" aria-label="Close">\u2715</button></div>
+    ${preview}
     <p class="dw-share-preview">${escapeHTML(text||'')}</p>
-    <div class="dw-share-grid">${links.map(l=>`<a class="dw-share-opt" href="${l.url}" target="_blank" rel="noopener noreferrer"><span class="dw-share-dot" style="background:${l.color}"></span>${l.name}</a>`).join('')}</div>
-    <button class="dw-share-copy">Copy link</button>
+    <div class="dw-share-grid">${links.map(l=>`<a class="dw-share-opt" href="${l.url}" target="_blank" rel="noopener noreferrer"><span class="dw-share-logo" style="background:${l.color}">${l.logo}</span>${l.name}</a>`).join('')}</div>
+    ${download}
+    <button class="dw-share-copy" id="dw-share-copylink">Copy link</button>
   </div>`;
   document.body.appendChild(sheet);
   requestAnimationFrame(()=>sheet.classList.add('is-open'));
   sheet.querySelector('.dw-share-x').onclick=closeShareSheet;
   sheet.addEventListener('click',e=>{ if(e.target===sheet) closeShareSheet(); });
-  const copy=sheet.querySelector('.dw-share-copy');
-  copy.onclick=async function(){
-    try{ await navigator.clipboard.writeText(url); this.textContent='Copied!'; setTimeout(()=>{this.textContent='Copy link';},1500); }catch(e){}
-  };
+  const dl=sheet.querySelector('#dw-share-dl');
+  if(dl && imgDataUrl){ dl.onclick=function(){ const a=document.createElement('a'); a.href=imgDataUrl; a.download='dingerwatch-home-run.png'; document.body.appendChild(a); a.click(); a.remove(); }; }
+  const copy=sheet.querySelector('#dw-share-copylink');
+  if(copy){ copy.onclick=async function(){ try{ await navigator.clipboard.writeText(fullUrl); this.textContent='Copied!'; setTimeout(()=>{this.textContent='Copy link';},1500); }catch(e){} }; }
 }
 function closeShareSheet(){
   const s=document.querySelector('.dw-share-sheet');
@@ -9060,10 +9073,177 @@ function closeShareSheet(){
   s.classList.remove('is-open');
   setTimeout(()=>s.remove(),220);
 }
+
+// ---- HR share image: a purpose-built 1080x1350 canvas (field + trajectory + rings + footer) ----
+// Trajectory constants kept in sync with homeRunMomentHTML (do not diverge).
+const HR_SHARE_W=1080, HR_SHARE_H=1350;
+function _hrLoadImg(src){ return new Promise(res=>{ const img=new Image(); img.crossOrigin='anonymous'; img.onload=()=>res(img); img.onerror=()=>res(null); img.src=src; }); }
+function _hrDrawCover(ctx,img,dx,dy,dw,dh){
+  const iw=img.naturalWidth, ih=img.naturalHeight, s=Math.max(dw/iw,dh/ih), w=iw*s, h=ih*s;
+  ctx.drawImage(img, dx+(dw-w)/2, dy+(dh-h)/2, w, h);
+}
+function _hrCircle(ctx,cx,cy,r){ ctx.beginPath(); ctx.arc(cx,cy,r,0,2*Math.PI); ctx.closePath(); }
+function _hrWrap(ctx,text,x,y,maxW,lineH){
+  const words=String(text).split(' '); let line=''; for(let i=0;i<words.length;i++){ const test=line?line+' '+words[i]:words[i]; if(ctx.measureText(test).width>maxW&&line){ ctx.fillText(line,x,y); y+=lineH; line=words[i]; } else line=test; } if(line) ctx.fillText(line,x,y); return y;
+}
+function _hrRing(ctx,cx,cy,R,sw,pct,color){
+  ctx.lineCap='round';
+  ctx.strokeStyle='rgba(255,255,255,0.14)'; ctx.lineWidth=sw; _hrCircle(ctx,cx,cy,R); ctx.stroke();
+  ctx.strokeStyle=color; ctx.beginPath(); ctx.arc(cx,cy,R,-Math.PI/2,-Math.PI/2+2*Math.PI*pct); ctx.stroke();
+  ctx.lineCap='butt';
+}
+// replicate the card's home-run arc + landing splash onto a canvas region
+function _hrDrawTrajectory(ctx,ox,oy,scale,ev){
+  const VW=400,VH=225,HX=200,HY=202,WALL_TOP=140,WALL_CORNER=146,POLE_X=180;
+  const evv=ev.exitVelo!=null?Number(ev.exitVelo):null;
+  const dist=ev.distance!=null?Number(ev.distance):null;
+  let theta=0;
+  if(ev.coordX!=null&&ev.coordY!=null&&isFinite(ev.coordX)&&isFinite(ev.coordY)) theta=Math.atan2(ev.coordX-125,199-ev.coordY);
+  theta=Math.max(-0.87,Math.min(0.87,theta));
+  const d=(dist&&dist>0)?dist:400;
+  const wallYAt=(x)=>{const f=Math.min(1,Math.abs(x-HX)/POLE_X);return WALL_TOP+(WALL_CORNER-WALL_TOP)*f*f;};
+  const crossX=HX+POLE_X*Math.sin(theta), crossY=wallYAt(crossX);
+  const landX=crossX, landY=crossY-7;
+  const apexRaise=Math.max(16,Math.min(38,d*0.10));
+  const midX=(HX+landX)/2, apexY=Math.max(6,landY-apexRaise);
+  const spd=evv!=null?Math.max(0,Math.min(1,(evv-95)/25)):0.5;
+  const glow=0.55+0.35*spd;
+  const lx=landX*scale+ox, ly=landY*scale+oy, splashR=(4+3*spd)*scale;
+  // landing glow + core (behind the arc tip)
+  ctx.fillStyle='rgba(255,210,74,'+(0.45+0.35*spd)+')'; _hrCircle(ctx,lx,ly,splashR*2.1); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.95)'; _hrCircle(ctx,lx,ly,splashR); ctx.fill();
+  // arc
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.shadowColor='rgba(255,210,74,'+glow+')'; ctx.shadowBlur=10;
+  ctx.strokeStyle='rgba(255,210,74,'+glow+')'; ctx.lineWidth=(1.8+1.4*spd)*scale*1.15;
+  ctx.beginPath();
+  const N=24;
+  for(let k=0;k<=N;k++){const t=k/N;const bx=(1-t)*(1-t)*HX+2*(1-t)*t*midX+t*t*landX;const by=(1-t)*(1-t)*HY+2*(1-t)*t*apexY+t*t*landY;const px=bx*scale+ox,py=by*scale+oy;k?ctx.lineTo(px,py):ctx.moveTo(px,py);}
+  ctx.stroke(); ctx.shadowBlur=0; ctx.lineCap='butt';
+}
+async function renderHRShareImage(ev, narrative, shortPitch){
+  if(document.fonts&&document.fonts.ready){ try{ await document.fonts.ready; }catch(e){} }
+  const W=HR_SHARE_W,H=HR_SHARE_H;
+  const canvas=document.createElement('canvas'); canvas.width=W; canvas.height=H;
+  const ctx=canvas.getContext('2d');
+  const GOLD='#f5c842', BLUE='#2d7fff', TEXT='#f4f1ea', MUTE='#9fb0c8', BG='#080b14';
+  // bg
+  ctx.fillStyle=BG; ctx.fillRect(0,0,W,H);
+  // ---- field photo (16:9) ----
+  const FH=Math.round(W*9/16); // 607
+  const field=await _hrLoadImg('field-bg.jpg');
+  if(field){ _hrDrawCover(ctx,field,0,0,W,FH); }
+  // top scrim for ring legibility
+  const sg=ctx.createLinearGradient(0,0,0,FH*0.42); sg.addColorStop(0,'rgba(8,11,20,0.82)'); sg.addColorStop(0.7,'rgba(8,11,20,0.4)'); sg.addColorStop(1,'rgba(8,11,20,0)');
+  ctx.fillStyle=sg; ctx.fillRect(0,0,W,FH*0.42);
+  // ---- stat rings across the top ----
+  const evv=ev.exitVelo!=null?Number(ev.exitVelo):null;
+  const la=ev.launchAngle!=null?Number(ev.launchAngle):null;
+  const dist=ev.distance!=null?Number(ev.distance):null;
+  const ps=ev.pitchSpeed!=null?Number(ev.pitchSpeed):null;
+  const evPct=evv!=null?Math.max(0,Math.min(1,evv/120)):0;
+  const laPct=la!=null?Math.max(0,Math.min(1,1-Math.pow((la-30)/22,2))):0;
+  const distPct=dist!=null?Math.max(0,Math.min(1,dist/500)):0;
+  const psPct=ps!=null?Math.max(0,Math.min(1,ps/105)):0;
+  const R=46, SW=13, cy=112;
+  const cxs=[150,420,690,960];
+  const rings=[
+    {label:'EXIT VELO', val:evv!=null?Math.round(evv):'', unit:'MPH', pct:evPct, color:GOLD},
+    {label:'LAUNCH', val:la!=null?Math.round(la)+'°':'', unit:'', pct:laPct, color:GOLD},
+    {label:'DISTANCE', val:dist!=null?Math.round(dist):'', unit:'FT', pct:distPct, color:GOLD},
+    {label:'PITCH', val:ps!=null?Math.round(ps):shortPitch(ev.pitchType)||'', unit:ps!=null?'MPH':'', pct:psPct, color:BLUE},
+  ];
+  rings.forEach((rg,i)=>{ const cx=cxs[i]; _hrRing(ctx,cx,cy,R,SW,rg.pct,rg.color);
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    if(rg.label){ ctx.fillStyle=MUTE; ctx.font="700 15px 'JetBrains Mono','Space Mono',monospace"; ctx.fillText(rg.label,cx,cy-R-12); }
+    if(rg.val!==''){ ctx.fillStyle=TEXT; ctx.font="700 28px 'JetBrains Mono','Space Mono',monospace"; ctx.fillText(rg.val,cx,cy+1); }
+    if(rg.unit){ ctx.fillStyle=MUTE; ctx.font="700 13px 'JetBrains Mono','Space Mono',monospace"; ctx.fillText(rg.unit,cx,cy+R+12); }
+  });
+  // ---- trajectory arc over the field ----
+  _hrDrawTrajectory(ctx,0,0,W/400,FH/225,ev);
+  // ---- footer ----
+  ctx.fillStyle=BG; ctx.fillRect(0,FH,W,H-FH);
+  // quip
+  ctx.textAlign='center'; ctx.textBaseline='top'; ctx.fillStyle=TEXT; ctx.font="500 38px Oswald,sans-serif";
+  _hrWrap(ctx, narrative||'Home run.', W/2, FH+44, W-120, 46);
+  // matchup
+  const mcY=FH+200;
+  const batt=await _hrLoadImg(headshotUrl(ev.batter,ev.batterId));
+  const pitch=ev.pitcher?await _hrLoadImg(headshotUrl(ev.pitcher,ev.pitcherId)):null;
+  function drawHead(img,cx,cy,r){ ctx.save(); _hrCircle(ctx,cx,cy,r); ctx.clip(); if(img){ _hrDrawCover(ctx,img,cx-r,cy-r,r*2,r*2); } else { ctx.fillStyle='#1f2937'; _hrCircle(ctx,cx,cy,r); ctx.fill(); } ctx.restore(); ctx.strokeStyle='rgba(255,255,255,0.18)'; ctx.lineWidth=3; _hrCircle(ctx,cx,cy,r); ctx.stroke(); }
+  const hr=58;
+  drawHead(batt,120,mcY,hr);
+  ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.fillStyle=MUTE; ctx.font="700 18px Oswald,sans-serif"; ctx.fillText('BATTING',200,mcY-14);
+  ctx.fillStyle=TEXT; ctx.font="500 34px Oswald,sans-serif"; ctx.fillText(ev.batter||'',200,mcY+12);
+  if(ev.pitcher){ drawHead(pitch,W-120,mcY,hr);
+    ctx.textAlign='right';
+    ctx.fillStyle=MUTE; ctx.font="700 18px Oswald,sans-serif"; ctx.fillText('PITCHING',W-200,mcY-14);
+    ctx.fillStyle=TEXT; ctx.font="500 34px Oswald,sans-serif"; ctx.fillText(ev.pitcher,W-200,mcY+12);
+  }
+  // meta row
+  const metaY=FH+330;
+  const metaParts=[];
+  if(ev.rbi) metaParts.push([''+ev.rbi+' RBI','#5be37a']);
+  if(ev.park) metaParts.push([ev.park,MUTE]);
+  if(ev.awayScore!=null) metaParts.push([ev.awayScore+'\u2013'+ev.homeScore,MUTE]);
+  metaParts.push([timeAgo(ev.ts),MUTE]);
+  ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font="500 26px 'JetBrains Mono','Space Mono',monospace";
+  let mx=W/2; // center the joined string
+  const joined=metaParts.map(p=>p[0]).join('  \u00b7  ');
+  ctx.fillStyle=MUTE; ctx.fillText(joined, mx, metaY);
+  // big stat recap row
+  const recapY=FH+430;
+  const recaps=[
+    ['EXIT VELO', evv!=null?Math.round(evv)+' MPH':'\u2014', GOLD],
+    ['LAUNCH', la!=null?Math.round(la)+'\u00b0':'\u2014', GOLD],
+    ['DISTANCE', dist!=null?Math.round(dist)+' FT':'\u2014', GOLD],
+    ['PITCH', ps!=null?Math.round(ps)+' MPH':(shortPitch(ev.pitchType)||'\u2014'), BLUE],
+  ];
+  ctx.textAlign='center';
+  const gapW=W/recaps.length;
+  recaps.forEach((r,i)=>{ const cx=gapW*i+gapW/2;
+    ctx.fillStyle=MUTE; ctx.font="700 17px 'JetBrains Mono','Space Mono',monospace"; ctx.fillText(r[0],cx,recapY);
+    ctx.fillStyle=r[2]; ctx.font="700 34px 'JetBrains Mono','Space Mono',monospace"; ctx.fillText(r[1],cx,recapY+30);
+  });
+  // divider
+  ctx.strokeStyle='rgba(255,255,255,0.10)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(80,FH+510); ctx.lineTo(W-80,FH+510); ctx.stroke();
+  // DingerWatch wordmark + URL
+  const wmY=FH+570;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  // little home-plate mark
+  ctx.fillStyle=GOLD; ctx.beginPath(); ctx.moveTo(W/2-150,wmY-22); ctx.lineTo(W/2-110,wmY-22); ctx.lineTo(W/2-92,wmY-4); ctx.lineTo(W/2-110,wmY+18); ctx.lineTo(W/2-150,wmY+18); ctx.lineTo(W/2-168,wmY); ctx.closePath(); ctx.fill();
+  ctx.textAlign='left';
+  ctx.fillStyle=TEXT; ctx.font="700 46px Oswald,sans-serif"; ctx.fillText('DINGER',W/2-80,wmY);
+  ctx.fillStyle=GOLD; ctx.fillText('WATCH',W/2+88,wmY);
+  ctx.textAlign='center'; ctx.fillStyle=MUTE; ctx.font="600 26px Oswald,sans-serif"; ctx.fillText('dingerwatch.app',W/2,wmY+48);
+  ctx.fillStyle=MUTE; ctx.font="400 19px Oswald,sans-serif"; ctx.fillText('Home runs the moment they happen',W/2,wmY+84);
+  return new Promise((res)=>canvas.toBlob(b=>res(b?new File([b],'dingerwatch-home-run.png',{type:'image/png'}):null),'image/png',0.92));
+}
 function shareHR(btn){
   let data={text:'',url:'https://dingerwatch.app'};
   try{ data=Object.assign(data, JSON.parse(btn.dataset.share||'{}')); }catch(e){}
-  openShareSheet(data.text, data.url);
+  // try to render the home-run card to an image and attach it via native share
+  let ev=null;
+  try{ ev=JSON.parse(btn.dataset.ev||'null'); }catch(e){}
+  const _shortP=(t)=>{ if(!t) return t; const m={'four-seam fastball':'4-Seam','fastball':'Fastball','slider':'Slider','changeup':'Changeup','sinker':'Sinker','curveball':'Curve','cutter':'Cutter','splitter':'Split'}; return m[String(t).toLowerCase().trim()]||t; };
+  const card=btn.closest('.hr-traj-card');
+  const quip=card?card.querySelector('.hr-traj-quip')?.textContent:'';
+  const fullText=(data.text?data.text+' ':'')+(data.url||'https://dingerwatch.app');
+  (async()=>{
+    let file=null, imgDataUrl=null;
+    if(ev){
+      try{ file=await renderHRShareImage(ev, quip||'', _shortP); }catch(e){}
+      if(file){ imgDataUrl=URL.createObjectURL(file); }
+    }
+    const canShareFiles = file && navigator.canShare && navigator.canShare({files:[file]});
+    if(canShareFiles){
+      navigator.share({title:'DingerWatch', text:fullText, files:[file]}).catch(()=>{}).finally(()=>{ if(imgDataUrl) setTimeout(()=>URL.revokeObjectURL(imgDataUrl), 30000); });
+      return;
+    }
+    // fallback: in-app sheet with the card image preview + social logos
+    openShareSheet(data.text, data.url, imgDataUrl);
+  })();
 }
 
 function renderFeed(){
