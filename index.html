@@ -2720,6 +2720,120 @@ footer{ margin-left:0; }
   font-family: 'JetBrains Mono', 'Space Mono', monospace; font-size: 10.5px; color: var(--mute); }
 .hr-traj-meta > *:not(:last-child)::after{ content: '·'; margin-left: 8px; color: var(--border-light); }
 .hr-traj-rbi{ color: var(--live-green); font-weight: 700; }
+
+/* ── Home Run Moment — side-view Statcast swing + trajectory graphic.
+   Replaces the top-down arc with a batter's-eye swing scene: incoming
+   pitch (purple) → gold bat-path ribbon → contact flash → ball launches
+   along the REAL launch-angle trajectory. Metric callouts (EV, LA,
+   distance, pitch) float in staggered. Bat speed / swing length aren't in
+   the live MLB play-by-play, so the swing is shown as the PATH (ribbon),
+   not faked as numbers. Honors prefers-reduced-motion. ── */
+.hrm-wrap{
+  position: relative; width: 100%; height: 150px;
+  background: radial-gradient(120% 90% at 78% 35%, #16233b 0%, #0b162c 55%, #070e1c 100%);
+  border-bottom: 1px solid #1a2540;
+}
+.hrm-wrap svg{ display:block; width:100%; height:100%; overflow:visible; }
+
+/* Perspective grid floor */
+.hrm-grid line{ stroke: rgba(120,160,210,.10); stroke-width:1; }
+
+/* Pitch path (purple) draws in from left */
+.hrm-pitch-line{
+  stroke-dasharray: 200; stroke-dashoffset: 200;
+  animation: hrmPitchDraw .9s .15s ease-out forwards;
+}
+/* Bat path ribbon (gold) sweeps once through contact */
+.hrm-bat-ribbon{
+  stroke-dasharray: 240; stroke-dashoffset: 240;
+  animation: hrmBatSweep .55s .55s cubic-bezier(.4,0,.2,1) forwards;
+}
+.hrm-bat{
+  opacity:0; transform-origin: 46px 92px;
+  animation: hrmBatSwing .5s .6s cubic-bezier(.3,0,.2,1) forwards;
+}
+/* Contact flash */
+.hrm-contact{ opacity:0; transform-origin: 150px 92px; }
+.hrm-contact.hrm-fire{ animation: hrmImpact .6s .85s ease-out forwards; }
+.hrm-impact-ring{ opacity:0; transform-origin:150px 92px; animation: hrmRing .7s .9s ease-out forwards; }
+
+/* Ball launches along the trajectory path */
+.hrm-ball{ offset-distance: 0%; opacity:0;
+  animation: hrmBallFly 1.1s 1.0s cubic-bezier(.22,.68,.3,1) forwards; }
+.hrm-trajectory{
+  stroke-dasharray: 300; stroke-dashoffset: 300;
+  animation: hrmTrajDraw 1.0s 1.0s ease-out forwards;
+}
+/* Launch angle wedge fills subtly */
+.hrm-wedge{ opacity:0; animation: hrmFade .5s 1.15s ease-out forwards; }
+
+/* Callouts fade/slide in staggered */
+.hrm-callout{ opacity:0; transform: translateY(6px);
+  position:absolute; display:flex; flex-direction:column; gap:1px;
+  font-family:'JetBrains Mono','Space Mono',monospace; }
+.hrm-callout.hrm-c-ev   { animation: hrmCallout .5s .25s ease-out forwards; }
+.hrm-callout.hrm-c-la   { animation: hrmCallout .5s 1.05s ease-out forwards; }
+.hrm-callout.hrm-c-dist { animation: hrmCallout .5s 1.45s ease-out forwards; }
+.hrm-callout.hrm-c-pitch{ animation: hrmCallout .5s 1.7s ease-out forwards; }
+
+/* Persistent subtle shimmer after the play finishes (not on pending) */
+.hrm-wrap.is-ready .hrm-glow-pulse{ animation: hrmGlow 3.5s 2.2s ease-in-out infinite; }
+
+.hrm-cv{ font-size:17px; font-weight:700; line-height:1; letter-spacing:-.01em;
+  font-variant-numeric: tabular-nums;
+  /* halo keeps numerals readable when the trajectory line passes behind them */
+  text-shadow: 0 0 6px #0b162c, 0 0 4px #0b162c, 0 1px 2px #0b162c; }
+.hrm-cv small{ font-size:9px; font-weight:600; margin-left:3px; opacity:.85; }
+.hrm-cl{ font-size:7.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; opacity:.7; }
+
+/* Top-left: HOME RUN + EV */
+.hrm-c-ev{ top:10px; left:12px; }
+.hrm-c-ev .hrm-cv{ color:#fff; }
+.hrm-c-ev .hrm-tag{ font-size:8px; font-weight:700; letter-spacing:.16em; color:#22c55e;
+  text-transform:uppercase; margin-bottom:3px; }
+/* Right of contact: launch angle (clear of bottom-left pitch callout) */
+.hrm-c-la{ top:50px; right:14px; text-align:right; align-items:flex-end; }
+.hrm-c-la .hrm-cv{ color:#fff; }
+/* Top-right: distance near trajectory end */
+.hrm-c-dist{ top:14px; right:14px; text-align:right; align-items:flex-end; }
+.hrm-c-dist .hrm-cv{ color:#e0b483; }
+/* Bottom-left: pitch type / speed */
+.hrm-c-pitch{ bottom:10px; left:12px; }
+.hrm-c-pitch .hrm-cv{ color:#7eb4ff; }
+
+/* Pending state — muted shell, no animation fire */
+.hrm-wrap.is-pending{ background: radial-gradient(120% 90% at 78% 35%, #141c2e 0%, #0a1120 100%); }
+.hrm-wrap.is-pending .hrm-cv{ color:rgba(226,232,240,.3); }
+.hrm-wrap.is-pending .hrm-tag{ color:rgba(139,149,168,.5); }
+.hrm-pending-tag{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:rgba(139,149,168,.6);
+  font-family:'JetBrains Mono',monospace; }
+
+@keyframes hrmPitchDraw{ to{ stroke-dashoffset:0; } }
+@keyframes hrmBatSweep{ to{ stroke-dashoffset:0; } }
+@keyframes hrmBatSwing{ 0%{opacity:0;} 15%{opacity:1;} 100%{opacity:1;} }
+@keyframes hrmImpact{ 0%{opacity:0; transform:scale(.3);} 30%{opacity:1; transform:scale(1.1);} 100%{opacity:.55; transform:scale(1);} }
+@keyframes hrmRing{ 0%{opacity:0; transform:scale(.4);} 25%{opacity:.8;} 100%{opacity:0; transform:scale(2.2);} }
+@keyframes hrmBallFly{ 0%{opacity:0; offset-distance:0%;} 8%{opacity:1;} 100%{opacity:.9; offset-distance:100%;} }
+@keyframes hrmTrajDraw{ to{ stroke-dashoffset:0; } }
+@keyframes hrmFade{ to{ opacity:1; } }
+@keyframes hrmCallout{ to{ opacity:1; transform:translateY(0); } }
+@keyframes hrmGlow{ 0%,100%{opacity:.5;} 50%{opacity:.9;} }
+
+@media (prefers-reduced-motion: reduce){
+  .hrm-pitch-line,.hrm-bat-ribbon,.hrm-bat,.hrm-contact,.hrm-impact-ring,
+  .hrm-ball,.hrm-trajectory,.hrm-wedge,.hrm-callout,.hrm-glow-pulse{
+    animation: none !important; opacity:1 !important; stroke-dashoffset:0 !important; transform:none !important;
+  }
+}
+
+@media (max-width: 560px){
+  .hrm-wrap{ height:132px; }
+  .hrm-cv{ font-size:15px; }
+  .hrm-cl{ font-size:7px; }
+}
+
 .feed-team-badge{
   font-family: 'JetBrains Mono','Space Mono',monospace; font-size: 8.5px; font-weight: 500;
   letter-spacing: .06em; color: var(--text-muted); text-transform: uppercase;
@@ -8714,192 +8828,111 @@ function iosInstallHintHTML(){
 }
 
 /**
- * Converts a home run's REAL launch angle + distance into an SVG arc path
- * — the shape itself is meant to carry information, not just decorate: a
- * flat 18-degree line-drive HR should visibly look lower and flatter than
- * a 42-degree moonshot, using the actual Statcast numbers for that swing,
- * not a generic curve reused for every card. Quadratic bezier control-point
- * math verified separately to confirm the rendered curve never goes
- * off-canvas even at the steepest realistic angles, and clears the stadium
- * backdrop zone at the top of the card with real margin to spare.
+ * Home Run Moment — the side-view Statcast swing graphic for each HR Feed card.
+ * Batter's-eye scene: incoming pitch (purple) → gold bat-path ribbon sweeping
+ * through contact → contact flash + impact ring → the ball launches along the
+ * REAL launch-angle trajectory (angle from ev.launchAngle, length from
+ * ev.distance, glow/weight from ev.exitVelo). Metric callouts fade in staggered.
+ *
+ * Deliberately does NOT show bat speed or swing length as numbers — that's
+ * Statcast bat-tracking sensor data the MLB Stats API play-by-play doesn't
+ * carry, and inventing values next to real ones would mislead. The swing path
+ * itself (the gold ribbon) is shown instead. When Statcast is pending, the same
+ * shell renders muted with a label and no animation fire.
  */
-function hrTrajectoryPath(launchAngle, distanceFt){
-  const startX = 24, groundY = 100;
-  const dist = Math.max(350, Math.min(distanceFt || 400, 500));
-  const endX = startX + ((dist - 350) / 150) * 250 + 90;   // ~114 to ~364
-  const angle = Math.max(10, Math.min(launchAngle ?? 28, 45));
-  const peakHeight = 16 + (angle - 10) * 1.55;
-  const controlX = startX + (endX - startX) * (0.28 + (45 - angle) * 0.004);
-  const controlY = groundY - peakHeight * 2;
-  return {
-    d: `M${startX},${groundY} Q${controlX.toFixed(1)},${controlY.toFixed(1)} ${endX.toFixed(1)},${groundY}`,
-    startX, endX, groundY, angle,
-  };
-}
-
-/** A small protractor arc at the contact point — sweeps from the ground
- *  line up to the actual launch angle, so the angle is genuinely shown
- *  geometrically, not just printed as a number nearby. */
-function hrProtractorArc(cx, cy, r, launchAngleDeg){
-  const toRad = d => -d * Math.PI / 180;
-  const groundPoint = { x: cx + r, y: cy };
-  const anglePoint = { x: cx + r * Math.cos(toRad(launchAngleDeg)), y: cy + r * Math.sin(toRad(launchAngleDeg)) };
-  const labelPoint = { x: cx + (r + 11) * Math.cos(toRad(launchAngleDeg / 2)), y: cy + (r + 11) * Math.sin(toRad(launchAngleDeg / 2)) };
-  return {
-    d: `M${groundPoint.x.toFixed(1)},${groundPoint.y.toFixed(1)} A${r},${r} 0 0 0 ${anglePoint.x.toFixed(1)},${anglePoint.y.toFixed(1)}`,
-    labelPoint,
-  };
-}
-
-/** Tick marks along the ground line from contact to landing — a real
- *  measured line rather than a bare number, evenly spaced regardless of
- *  the actual pixel distance so short and long HRs both get a
- *  proportionate ruler. */
-function hrRulerTicks(startX, endX, y, count = 7){
-  const ticks = [];
-  for(let i = 0; i <= count; i++){
-    const x = startX + (endX - startX) * (i / count);
-    ticks.push({ x: x.toFixed(1), y1: y - (i % 2 === 0 ? 5 : 2.5), y2: y });
-  }
-  return ticks;
-}
-
-/** A small radial gauge (like a speedometer) filled proportionally to
- *  where this exit velo sits within the real distribution of HR exit
- *  velocities (roughly 85-118mph) — a dial someone can read at a glance,
- *  not just a number with no sense of how hard that ball was actually hit. */
-function hrGaugeArc(cx, cy, r, value, min, max, startDeg, sweepDeg){
-  const pct = Math.max(0, Math.min(1, (value - min) / (max - min)));
-  const toRad = d => (d - 90) * Math.PI / 180;
-  const point = (deg) => ({ x: cx + r * Math.cos(toRad(deg)), y: cy + r * Math.sin(toRad(deg)) });
-  const endDeg = startDeg + sweepDeg;
-  const filledEndDeg = startDeg + sweepDeg * pct;
-  const largeArcFull = sweepDeg > 180 ? 1 : 0;
-  const largeArcFilled = (filledEndDeg - startDeg) > 180 ? 1 : 0;
-  return {
-    trackD: `M${point(startDeg).x.toFixed(1)},${point(startDeg).y.toFixed(1)} A${r},${r} 0 ${largeArcFull} 1 ${point(endDeg).x.toFixed(1)},${point(endDeg).y.toFixed(1)}`,
-    filledD: `M${point(startDeg).x.toFixed(1)},${point(startDeg).y.toFixed(1)} A${r},${r} 0 ${largeArcFilled} 1 ${point(filledEndDeg).x.toFixed(1)},${point(filledEndDeg).y.toFixed(1)}`,
-    pct,
-  };
-}
-
-/**
- * The HR Feed's signature visual — built around the actual trajectory,
- * angle, distance, and exit velo of each swing, using only fields this
- * app's real data genuinely has. Deliberately does NOT include bat speed
- * or swing length — that's newer Statcast bat-tracking sensor data this
- * app's MLB Stats API pipeline doesn't capture, and showing invented
- * numbers next to real ones would be a real integrity problem, not just
- * a design one.
- */
-function hrTrajectoryCardHTML(ev, narrative, shortPitch){
-  const arc = hrTrajectoryPath(ev.launchAngle, ev.distance);
-  const uid = `hr${ev.batterId || ''}${ev.ts}`.replace(/[^a-zA-Z0-9]/g, '');
-  const hasAngle = ev.launchAngle != null;
-  const hasEV = ev.exitVelo != null;
-  const protractor = hasAngle ? hrProtractorArc(arc.startX, arc.groundY, 20, arc.angle) : null;
-  const ruler = hrRulerTicks(arc.startX, arc.endX, arc.groundY + 8);
-  const gauge = hasEV ? hrGaugeArc(30, 30, 23, ev.exitVelo, 85, 118, -125, 250) : null;
-
-  return `
-    <div class="hr-traj-card ${ev.isNew ? 'is-new' : ''}" data-batter="${ev.batter}">
-      <div class="hr-traj-sky">
-        <svg class="hr-traj-svg" viewBox="0 0 400 140" preserveAspectRatio="none">
-          <defs>
-            <linearGradient id="skyg-${uid}" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#070c17"/>
-              <stop offset="55%" stop-color="#0c1526"/>
-              <stop offset="100%" stop-color="#132038"/>
-            </linearGradient>
-          </defs>
-          <rect x="0" y="0" width="400" height="140" fill="url(#skyg-${uid})"/>
-
-          <!-- stadium silhouette + light towers, reusing the same visual
-               language as the Slate page's field diagram -->
-          <path d="M0,24 L0,0 L400,0 L400,24" fill="#0c1020" opacity="0.85"/>
-          <path d="M0,24 Q40,16 80,24 Q120,16 160,24 Q200,16 240,24 Q280,16 320,24 Q360,16 400,24 L400,0 L0,0 Z" fill="#141a2a"/>
-          <rect x="14" y="3" width="10" height="22" fill="#1e2740" rx="1.5"/>
-          <rect x="376" y="3" width="10" height="22" fill="#1e2740" rx="1.5"/>
-          <circle cx="19" cy="8" r="3" fill="#4a9fff" opacity="0.75"/>
-          <circle cx="381" cy="8" r="3" fill="#4a9fff" opacity="0.75"/>
-
-          <!-- ground line -->
-          <line x1="0" y1="${arc.groundY}" x2="400" y2="${arc.groundY}" stroke="#1e2740" stroke-width="1"/>
-
-          <!-- distance ruler: tick marks from contact to landing -->
-          <g stroke="#3a4460" stroke-width="1" opacity="0.8">
-            ${ruler.map(t => `<line x1="${t.x}" y1="${t.y1}" x2="${t.x}" y2="${t.y2}"/>`).join('')}
-          </g>
-          ${ev.distance != null ? `<text x="${arc.endX}" y="${arc.groundY + 22}" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#f5b642">${ev.distance} ft</text>` : ''}
-
-          <!-- glowing multi-layer trajectory: outer glow, mid glow, bright core -->
-          <path d="${arc.d}" fill="none" stroke="#f5b642" stroke-width="11" opacity="0.12"/>
-          <path d="${arc.d}" fill="none" stroke="#f5b642" stroke-width="5.5" opacity="0.28"/>
-          <path class="hr-traj-arc" d="${arc.d}" fill="none" stroke="#ffcf6e" stroke-width="2.2" stroke-linecap="round"/>
-
-          <!-- impact burst at the contact point -->
-          <g stroke="#ffcf6e" stroke-width="1.4" stroke-linecap="round" opacity="0.85">
-            <line x1="${arc.startX - 9}" y1="${arc.groundY}" x2="${arc.startX - 3}" y2="${arc.groundY}"/>
-            <line x1="${arc.startX - 6}" y1="${arc.groundY - 7}" x2="${arc.startX - 2}" y2="${arc.groundY - 3}"/>
-            <line x1="${arc.startX - 6}" y1="${arc.groundY + 7}" x2="${arc.startX - 2}" y2="${arc.groundY + 3}"/>
-          </g>
-
-          <!-- launch-angle protractor, geometrically real -->
-          ${protractor ? `
-            <path d="${protractor.d}" fill="none" stroke="#4a9fff" stroke-width="1.6" opacity="0.85"/>
-            <text x="${protractor.labelPoint.x.toFixed(1)}" y="${protractor.labelPoint.y.toFixed(1)}" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10.5" font-weight="700" fill="#4a9fff">${ev.launchAngle}°</text>
-          ` : ''}
-
-          <!-- ball traveling the real path once, on appearance -->
-          <circle class="hr-traj-ball" r="3.5" fill="#fff">
-            <animateMotion dur="1.1s" fill="freeze" path="${arc.d}"/>
-          </circle>
-          <circle cx="${arc.endX}" cy="${arc.groundY}" r="3" fill="#f5b642" opacity="0.9"/>
-        </svg>
-
-        <div class="hr-traj-hero">
-          <div class="hr-traj-eyebrow">Home Run</div>
-          <div class="hr-traj-ev">${hasEV ? `${ev.exitVelo}<span>mph</span>` : '—'}</div>
+function homeRunMomentHTML(ev, narrative, shortPitch){
+  const hasSC = ev.exitVelo != null || ev.launchAngle != null || ev.distance != null;
+  const la = (ev.launchAngle != null && !isNaN(ev.launchAngle)) ? Math.max(8, Math.min(48, ev.launchAngle)) : 28;
+  // Trajectory endpoint from launch angle: up-and-out to the upper right.
+  // Contact at (150,92). Length scales with distance when available.
+  const len = ev.distance ? Math.max(110, Math.min(190, 90 + ev.distance * 0.18)) : 150;
+  const rad = la * Math.PI / 180;
+  const ex = 150 + Math.cos(rad) * len;
+  const ey = 92 - Math.sin(rad) * len;
+  const trajPath = `M150 92 L${ex.toFixed(1)} ${ey.toFixed(1)}`;
+  const ballOffset = `path('${trajPath}')`;
+  // Exit-velo glow intensity (75–120 mph → 0.35–0.9 opacity for the trajectory)
+  const evGlow = ev.exitVelo ? Math.max(0.35, Math.min(0.9, 0.12 + (ev.exitVelo - 75) * 0.018)) : 0.5;
+  const evStroke = ev.exitVelo ? Math.max(2.5, Math.min(5, 1.5 + (ev.exitVelo - 80) * 0.05)) : 3;
+  const id = (ev.key || ev.batter + ev.ts || '').toString().replace(/[^a-z0-9]/gi,'').slice(0,8) || 'hr';
+  const wedgeEndX = (150 + Math.cos(rad) * 60).toFixed(1);
+  const wedgeEndY = (92 - Math.sin(rad) * 60).toFixed(1);
+  const _foot = `
+    <div class="hr-traj-body">
+      <div class="hr-traj-quip">${escapeHTML(narrative)}</div>
+      <div class="hr-traj-matchup">
+        <div class="hr-traj-person">
+          ${headshotImgTag(ev.batter, 'hr-traj-headshot', ev.battingTeam, ev.batterId)}
+          <div><div class="hr-traj-role">Batting</div><div class="hr-traj-name">${escapeHTML(ev.batter)}</div></div>
         </div>
+        ${ev.pitcher ? `<div class="hr-traj-person hr-traj-person-pitcher">
+          <div style="text-align:right;"><div class="hr-traj-role">Pitching</div><div class="hr-traj-name">${escapeHTML(ev.pitcher)}</div></div>
+          ${headshotImgTag(ev.pitcher, 'hr-traj-headshot', null, null)}
+        </div>` : ''}
       </div>
-
-      <div class="hr-traj-body">
-        <div class="hr-traj-quip">${escapeHTML(narrative)}</div>
-
-        <div class="hr-traj-statsrow">
-          ${gauge ? `
-            <div class="hr-gauge-wrap">
-              <svg class="hr-gauge-svg" viewBox="0 0 60 60">
-                <path d="${gauge.trackD}" fill="none" stroke="#232a3d" stroke-width="5" stroke-linecap="round"/>
-                <path d="${gauge.filledD}" fill="none" stroke="#f5b642" stroke-width="5" stroke-linecap="round"/>
-              </svg>
-              <div class="hr-gauge-label"><b>${ev.exitVelo}</b><span>EV mph</span></div>
-            </div>` : ''}
-          <div class="hr-traj-pitchinfo">
-            ${ev.pitchType ? `<div class="hr-pitch-type">${escapeHTML(shortPitch(ev.pitchType))}</div>` : ''}
-            ${ev.pitchSpeed ? `<div class="hr-pitch-speed">${Math.round(ev.pitchSpeed)} mph pitch</div>` : ''}
-          </div>
-        </div>
-
-        <div class="hr-traj-matchup">
-          <div class="hr-traj-person">
-            ${headshotImgTag(ev.batter, 'hr-traj-headshot', ev.battingTeam, ev.batterId)}
-            <div><div class="hr-traj-role">Batting</div><div class="hr-traj-name">${escapeHTML(ev.batter)}</div></div>
-          </div>
-          ${ev.pitcher ? `<div class="hr-traj-person hr-traj-person-pitcher">
-            <div style="text-align:right;"><div class="hr-traj-role">Pitching</div><div class="hr-traj-name">${escapeHTML(ev.pitcher)}</div></div>
-            ${headshotImgTag(ev.pitcher, 'hr-traj-headshot', null, null)}
-          </div>` : ''}
-        </div>
-        <div class="hr-traj-meta">
-          ${ev.rbi ? `<span class="hr-traj-rbi">${ev.rbi} RBI</span>` : ''}
-          <span class="hr-traj-park">${escapeHTML(ev.park || '')}</span>
-          ${ev.awayScore != null ? `<span>${ev.awayScore}–${ev.homeScore}</span>` : ''}
-          <span class="hr-traj-time">${timeAgo(ev.ts)}</span>
-        </div>
+      <div class="hr-traj-meta">
+        ${ev.rbi ? `<span class="hr-traj-rbi">${ev.rbi} RBI</span>` : ''}
+        <span class="hr-traj-park">${escapeHTML(ev.park || '')}</span>
+        ${ev.awayScore != null ? `<span>${ev.awayScore}–${ev.homeScore}</span>` : ''}
+        <span class="hr-traj-time">${timeAgo(ev.ts)}</span>
       </div>
     </div>`;
+
+  if(!hasSC){
+    return `<div class="hr-traj-card ${ev.isNew?'is-new':''}" data-batter="${escapeHTML(ev.batter)}">
+      <div class="hrm-wrap is-pending" aria-hidden="true">
+        <svg viewBox="0 0 300 150" preserveAspectRatio="xMidYMid slice">
+          <g class="hrm-grid"><line x1="0" y1="130" x2="300" y2="130"/><line x1="0" y1="142" x2="300" y2="142"/></g>
+          <path d="M20 92 L150 92" class="hrm-pitch-line" stroke="#7b61ff" stroke-width="2" fill="none"/>
+          <path d="M150 92 L${(150 + Math.cos(28*Math.PI/180)*150).toFixed(1)} ${(92 - Math.sin(28*Math.PI/180)*150).toFixed(1)}" stroke="rgba(226,232,240,.12)" stroke-width="2" fill="none" stroke-dasharray="4 5"/>
+        </svg>
+        <div class="hrm-pending-tag">Statcast pending</div>
+        <div class="hrm-callout hrm-c-ev"><div class="hrm-tag">Home Run</div><div class="hrm-cv">—</div></div>
+      </div>
+      ${_foot}
+    </div>`;
+  }
+
+  return `<div class="hr-traj-card ${ev.isNew?'is-new':''}" data-batter="${escapeHTML(ev.batter)}">
+    <div class="hrm-wrap is-ready" aria-hidden="true">
+      <svg viewBox="0 0 300 150" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <linearGradient id="hrmBat${id}" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#b8803f"/><stop offset="50%" stop-color="#e0b483"/><stop offset="100%" stop-color="#c08840"/>
+          </linearGradient>
+          <linearGradient id="hrmTraj${id}" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#4a9fff" stop-opacity="${evGlow}"/><stop offset="100%" stop-color="#e0b483" stop-opacity="${(evGlow*0.8).toFixed(2)}"/>
+          </linearGradient>
+          <radialGradient id="hrmFlash${id}"><stop offset="0%" stop-color="#fff" stop-opacity="1"/><stop offset="100%" stop-color="#fff" stop-opacity="0"/></radialGradient>
+        </defs>
+        <g class="hrm-grid">
+          <line x1="0" y1="130" x2="300" y2="130"/><line x1="0" y1="142" x2="300" y2="142"/>
+          <line x1="40" y1="130" x2="10" y2="150"/><line x1="110" y1="130" x2="100" y2="150"/><line x1="190" y1="130" x2="210" y2="150"/><line x1="260" y1="130" x2="290" y2="150"/>
+        </g>
+        <ellipse cx="150" cy="131" rx="26" ry="4" fill="#000" opacity=".25"/>
+        <path d="M6 92 L150 92" class="hrm-pitch-line" stroke="#7b61ff" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+        <path d="M40 118 C70 70 110 60 150 92" class="hrm-bat-ribbon" stroke="rgba(224,180,131,.35)" stroke-width="9" fill="none" stroke-linecap="round"/>
+        <g class="hrm-bat">
+          <rect x="52" y="84" width="20" height="16" rx="5" fill="#7a4a1e" stroke="#2a1a0a" stroke-width="1.5"/>
+          <rect x="70" y="86" width="84" height="12" rx="6" fill="url(#hrmBat${id})" stroke="#2a1a0a" stroke-width="1.5"/>
+          <rect x="72" y="87" width="70" height="4" rx="2" fill="rgba(255,255,255,.18)"/>
+        </g>
+        <path d="M150 92 L210 92 A60 60 0 0 0 ${wedgeEndX} ${wedgeEndY} Z" class="hrm-wedge" fill="rgba(74,159,255,.10)" stroke="rgba(74,159,255,.25)" stroke-width="1"/>
+        <path d="M150 92 L210 92" stroke="rgba(226,232,240,.18)" stroke-width="1" stroke-dasharray="3 3"/>
+        <path d="${trajPath}" class="hrm-trajectory" stroke="url(#hrmTraj${id})" stroke-width="${evStroke}" fill="none" stroke-linecap="round"/>
+        <circle class="hrm-contact hrm-fire" cx="150" cy="92" r="18" fill="url(#hrmFlash${id})"/>
+        <circle class="hrm-impact-ring" cx="150" cy="92" r="14" fill="none" stroke="#4a9fff" stroke-width="2.5"/>
+        <circle class="hrm-ball" style="offset-path:${ballOffset}" cx="0" cy="0" r="5" fill="#fff" stroke="#1a1a2e" stroke-width="1"/>
+      </svg>
+      ${ev.exitVelo != null ? `<div class="hrm-callout hrm-c-ev"><div class="hrm-tag">Home Run</div><div class="hrm-cv">${Math.round(ev.exitVelo)}<small>MPH</small></div></div>` : ''}
+      ${ev.launchAngle != null ? `<div class="hrm-callout hrm-c-la"><div class="hrm-cv">${Math.round(ev.launchAngle)}°</div><div class="hrm-cl">Launch Angle</div></div>` : ''}
+      ${ev.distance != null ? `<div class="hrm-callout hrm-c-dist"><div class="hrm-cv">${Math.round(ev.distance)}<small>FT</small></div><div class="hrm-cl">Distance</div></div>` : ''}
+      ${(ev.pitchType || ev.pitchSpeed) ? `<div class="hrm-callout hrm-c-pitch"><div class="hrm-cv">${ev.pitchSpeed ? Math.round(ev.pitchSpeed) : shortPitch(ev.pitchType)}</div><div class="hrm-cl">${ev.pitchSpeed ? shortPitch(ev.pitchType) : 'Pitch'}</div></div>` : ''}
+    </div>
+    ${_foot}
+  </div>`;
 }
+
 
 function renderFeed(){
   if(!feedEvents.length){
@@ -8960,7 +8993,7 @@ function renderFeed(){
     })();
 
     const narrative = humor;
-    return hrTrajectoryCardHTML(ev, narrative, shortPitch);
+    return homeRunMomentHTML(ev, narrative, shortPitch);
   }).join('') + `</div>
   <div class="odds-source-note" style="margin-top:14px;">Live from the MLB Stats API play-by-play feed. Batted-ball data is attached by Statcast moments after each swing — occasionally it lags the play by a few seconds.</div>`;
 
