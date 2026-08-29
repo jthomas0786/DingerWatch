@@ -2727,7 +2727,7 @@ footer{ margin-left:0; }
    launch angle. EV sits at launch, launch angle at the apex, distance at the
    landing — six numbers become one curve. Honors prefers-reduced-motion. ── */
 .hrm-wrap{
-  position: relative; width: 100%; aspect-ratio: 200 / 165; overflow: hidden;
+  position: relative; width: 100%; aspect-ratio: 400 / 300; overflow: hidden;
   border-bottom: 1px solid #1a2540;
 }
 .hrm-svg{ display:block; width:100%; height:100%; }
@@ -2780,7 +2780,7 @@ footer{ margin-left:0; }
 }
 
 @media (max-width: 560px){
-  .hrm-wrap{ aspect-ratio: 200 / 165; height: auto; }
+  .hrm-wrap{ aspect-ratio: 400 / 300; height: auto; }
   .hrm-chip b{ font-size:12px; }
 }
 .feed-team-badge{
@@ -8795,10 +8795,12 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
   const hasStatcast = ev.exitVelo != null || ev.launchAngle != null || ev.distance != null;
   const rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // ---- Slate-page ballpark coordinate system (behind-home, viewBox 200x165) ----
-  // Same field graphic used pregame on the slate: sky gradient, light towers,
-  // outfield grass arc, infield diamond, foul poles, CF/LF/RF labels.
-  const VW=200, VH=165, HX=100, HY=150, WALL_R=104;
+  // ---- Mezzanine behind-home coordinate system (viewBox 400x300, perspective) ----
+  // Elevated camera behind home plate looking out to center: the field is drawn
+  // in slight 3D — grass wedge foreshortened toward home, outfield wall as a
+  // curved (elliptical) arc, and tall foul poles rising in the LF/RF corners.
+  const VW=400, VH=300, HX=200, HY=272;
+  const WCX=200, WCY=96, WRX=176, WRY=58;   // outfield wall ellipse (center + radii)
 
   // ---- the actual landing: bearing from Statcast spray coords, distance from EV ----
   const evv = ev.exitVelo != null ? Number(ev.exitVelo) : null;
@@ -8814,19 +8816,21 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
   theta = Math.max(-0.87, Math.min(0.87, theta));
   const dirDeg = theta * 180 / Math.PI;
   const d = (dist && dist > 0) ? dist : 400;
-  // map real distance (ft) to slate-field radius; HRs land just past the wall
-  const R_land = Math.max(WALL_R, Math.min(120, WALL_R + (d - 380) * 0.12));
-  const landX = HX + R_land * Math.sin(theta);
-  const landY = HY - R_land * Math.cos(theta);
+  // point where the ball clears the outfield wall (on the wall ellipse)
+  const crossX = WCX + WRX * Math.sin(theta);
+  const crossY = WCY - WRY * Math.cos(theta);
+  // landing splash sits just beyond the wall, up in the stands
+  const landX = crossX;
+  const landY = crossY - 9;
 
   // apex of the visual arc (peak above the landing), sized by distance
   const apexRaise = Math.max(16, Math.min(38, d * 0.10));
   const midX = (HX + landX) / 2;
-  const apexY = Math.max(8, landY - apexRaise);
+  const apexY = Math.max(6, landY - apexRaise);
   // speed factor for glow/weight
   const spd = evv != null ? Math.max(0, Math.min(1, (evv - 95) / 25)) : 0.5;
 
-  // ---- trajectory polyline (home -> apex -> landing) in slate coords ----
+  // ---- trajectory polyline (home -> apex -> landing) in mezzanine coords ----
   const N = 16;
   let arcPath = '';
   for(let k=0; k<=N; k++){
@@ -8835,9 +8839,6 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
     const by = (1-t)*(1-t)*HY + 2*(1-t)*t*apexY + t*t*landY;
     arcPath += (k===0 ? `M ${bx.toFixed(1)} ${by.toFixed(1)}` : ` L ${bx.toFixed(1)} ${by.toFixed(1)}`);
   }
-  // where the arc clears the fence (on the wall arc at this bearing)
-  const crossX = HX + WALL_R * Math.sin(theta);
-  const crossY = HY - WALL_R * Math.cos(theta);
   const splashR = 4 + 3 * spd;
 
   const glow = (0.55 + 0.35 * spd).toFixed(2);
@@ -8847,7 +8848,7 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
   // landing chip clamp
   const clampPct = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const landPctX = clampPct(landX / VW * 100, 5, 90);
-  const landPctY = clampPct(landY / VH * 100, 4, 72);
+  const landPctY = clampPct(landY / VH * 100, 3, 32);
 
   const _foot = `
     <div class="hr-traj-body">
@@ -8908,13 +8909,21 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
     ${_foot}
   </div>`;
 
-  // ---- slate-page ballpark backdrop (shared by live + pending shells) ----
+  // ---- Mezzanine ballpark backdrop (shared by live + pending shells) ----
   function slateDefs(id){
     return `<defs>
         <linearGradient id="hrmSky${id}" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stop-color="#0a1525"/>
-          <stop offset="60%" stop-color="#0d1e14"/>
+          <stop offset="55%" stop-color="#0d1e2a"/>
           <stop offset="100%" stop-color="#1d4326"/>
+        </linearGradient>
+        <linearGradient id="hrmGrass${id}" x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0%" stop-color="#2c5f36"/>
+          <stop offset="100%" stop-color="#123319"/>
+        </linearGradient>
+        <linearGradient id="hrmWall${id}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#1b2a1a"/>
+          <stop offset="100%" stop-color="#2e4322"/>
         </linearGradient>
         <radialGradient id="hrmLand${id}" cx="0.5" cy="0.5" r="0.5">
           <stop offset="0" stop-color="#ffd24a" stop-opacity="0.9"/><stop offset="1" stop-color="#ffd24a" stop-opacity="0"/>
@@ -8923,32 +8932,36 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
   }
   function slateBackdrop(id, dim){
     const op = dim ? '0.4' : '1';
+    const LFX = WCX - WRX, RFX = WCX + WRX;   // foul-pole x (at the wall corners)
     return `<rect x="0" y="0" width="${VW}" height="${VH}" fill="url(#hrmSky${id})"/>
-      <path d="M0,12 L0,0 L${VW},0 L${VW},12" fill="#0c1020" opacity="${0.8*op}"/>
-      <path d="M0,12 Q20,8 40,12 Q60,8 80,12 Q100,8 120,12 Q140,8 160,12 Q180,8 ${VW},12 L${VW},0 L0,0 Z" fill="#141a2a" opacity="${op}"/>
-      <rect x="8" y="2" width="6" height="14" fill="#1e2740" rx="1" opacity="${op}"/>
-      <rect x="${VW-14}" y="2" width="6" height="14" fill="#1e2740" rx="1" opacity="${op}"/>
-      <circle cx="11" cy="5" r="2" fill="#4a9fff" opacity="${0.7*op}"/>
-      <circle cx="${VW-11}" cy="5" r="2" fill="#4a9fff" opacity="${0.7*op}"/>
-      <path d="M${HX},${HY} L18,86 A104,104 0 0,1 182,86 Z" fill="#16301c" opacity="${op}"/>
-      <path d="M${HX},${HY} L22,88 A98,98 0 0,1 178,88 Z" fill="#1d4326" opacity="${op}"/>
-      <path d="M18,86 A104,104 0 0,1 182,86" fill="none" stroke="#f59e0b" stroke-width="2.5" opacity="${0.45*op}"/>
-      <path d="M26,88 A96,96 0 0,1 174,88" fill="none" stroke="#c9c2bc" stroke-width="0.8" opacity="${0.25*op}" stroke-dasharray="3,2"/>
-      <path d="M${HX},${HY} L66,116 A48,48 0 0,1 134,116 Z" fill="#4a3226" opacity="${op}"/>
-      <path d="M${HX},146 L128,118 L100,90 L72,118 Z" fill="#1d4326" stroke="#c9c2bc" stroke-width="1.4" opacity="${op}"/>
-      <rect x="125.5" y="115.5" width="5" height="5" fill="#f0ece8" opacity="${op}" transform="rotate(45 128 118)"/>
-      <rect x="97.5" y="87.5" width="5" height="5" fill="#f0ece8" opacity="${op}" transform="rotate(45 100 90)"/>
-      <rect x="69.5" y="115.5" width="5" height="5" fill="#f0ece8" opacity="${op}" transform="rotate(45 72 118)"/>
-      <circle cx="100" cy="118" r="6" fill="#4a3226" opacity="${op}"/>
-      <circle cx="100" cy="118" r="1.8" fill="#f0ece8" opacity="${op}"/>
-      <path d="M97,148 L103,148 L103,151 L100,153.5 L97,151 Z" fill="#f0ece8" opacity="${op}"/>
-      <line x1="${HX}" y1="${HY}" x2="20" y2="84" stroke="#f0ece8" stroke-width="1" opacity="${0.45*op}"/>
-      <line x1="${HX}" y1="${HY}" x2="180" y2="84" stroke="#f0ece8" stroke-width="1" opacity="${0.45*op}"/>
-      <circle cx="20" cy="84" r="1.5" fill="#f59e0b" opacity="${0.6*op}"/>
-      <circle cx="180" cy="84" r="1.5" fill="#f59e0b" opacity="${0.6*op}"/>
-      <text x="100" y="78" text-anchor="middle" font-size="8" fill="#8b95a8" opacity="${op}" font-family="monospace">CF</text>
-      <text x="34" y="98" text-anchor="middle" font-size="8" fill="#8b95a8" opacity="${op}" font-family="monospace">LF</text>
-      <text x="166" y="98" text-anchor="middle" font-size="8" fill="#8b95a8" opacity="${op}" font-family="monospace">RF</text>`;
+      <path d="M0,22 L${VW},22 L${VW},${WCY} L${RFX},${WCY} A${WRX},${WRY} 0 0,0 ${LFX},${WCY} L0,${WCY} Z" fill="#0c1320" opacity="${0.92*op}"/>
+      <g opacity="${0.2*op}" stroke="#2a3a55" stroke-width="0.6"><line x1="0" y1="76" x2="${VW}" y2="76"/><line x1="0" y1="86" x2="${VW}" y2="86"/><line x1="0" y1="96" x2="${VW}" y2="96"/></g>
+      <rect x="14" y="6" width="7" height="26" fill="#1e2740" rx="1" opacity="${op}"/>
+      <rect x="${VW-21}" y="6" width="7" height="26" fill="#1e2740" rx="1" opacity="${op}"/>
+      <circle cx="17.5" cy="9" r="2.6" fill="#5aa8ff" opacity="${0.85*op}"/>
+      <circle cx="${VW-17.5}" cy="9" r="2.6" fill="#5aa8ff" opacity="${0.85*op}"/>
+      <path d="M${HX},${HY} L${LFX},${WCY} A${WRX},${WRY} 0 0,1 ${RFX},${WCY} Z" fill="url(#hrmGrass${id})" opacity="${op}"/>
+      <path d="M${LFX+6},${WCY-2} A${WRX-6},${WRY-2} 0 0,1 ${RFX-6},${WCY-2}" fill="none" stroke="#b9a06a" stroke-width="4" opacity="${0.4*op}"/>
+      <path d="M${LFX},${WCY} A${WRX},${WRY} 0 0,1 ${RFX},${WCY}" fill="none" stroke="url(#hrmWall${id})" stroke-width="6" stroke-linecap="round" opacity="${op}"/>
+      <line x1="${LFX}" y1="${WCY}" x2="${LFX}" y2="10" stroke="#f2c14e" stroke-width="3" opacity="${op}"/>
+      <line x1="${LFX+1.6}" y1="${WCY}" x2="${LFX+1.6}" y2="10" stroke="#fff4cf" stroke-width="1" opacity="${0.7*op}"/>
+      <line x1="${RFX}" y1="${WCY}" x2="${RFX}" y2="10" stroke="#f2c14e" stroke-width="3" opacity="${op}"/>
+      <line x1="${RFX-1.6}" y1="${WCY}" x2="${RFX-1.6}" y2="10" stroke="#fff4cf" stroke-width="1" opacity="${0.7*op}"/>
+      <circle cx="${LFX}" cy="8" r="2" fill="#f2c14e" opacity="${0.9*op}"/>
+      <circle cx="${RFX}" cy="8" r="2" fill="#f2c14e" opacity="${0.9*op}"/>
+      <line x1="${HX}" y1="${HY}" x2="${LFX}" y2="${WCY}" stroke="#f0ece8" stroke-width="1" opacity="${0.4*op}"/>
+      <line x1="${HX}" y1="${HY}" x2="${RFX}" y2="${WCY}" stroke="#f0ece8" stroke-width="1" opacity="${0.4*op}"/>
+      <ellipse cx="${HX}" cy="246" rx="46" ry="30" fill="#4a3226" opacity="${op}"/>
+      <path d="M${HX},${HY} L236,244 L${HX},218 L164,244 Z" fill="#1d4326" stroke="#c9c2bc" stroke-width="1.2" opacity="${op}"/>
+      <rect x="233.5" y="241.5" width="5" height="5" fill="#f0ece8" opacity="${op}" transform="rotate(45 236 244)"/>
+      <rect x="${HX-2.5}" y="215.5" width="5" height="5" fill="#f0ece8" opacity="${op}" transform="rotate(45 ${HX} 218)"/>
+      <rect x="161.5" y="241.5" width="5" height="5" fill="#f0ece8" opacity="${op}" transform="rotate(45 164 244)"/>
+      <ellipse cx="${HX}" cy="236" rx="7" ry="4.5" fill="#5a3c2c" opacity="${op}"/>
+      <circle cx="${HX}" cy="236" r="1.8" fill="#f0ece8" opacity="${op}"/>
+      <path d="M${HX-3},${HY-2} L${HX+3},${HY-2} L${HX+3},${HY+1} L${HX},${HY+4} L${HX-3},${HY+1} Z" fill="#f0ece8" opacity="${op}"/>
+      <text x="${HX}" y="62" text-anchor="middle" font-size="9" fill="#9fb0c8" opacity="${0.8*op}" font-family="monospace">CF</text>
+      <text x="58" y="120" text-anchor="middle" font-size="9" fill="#9fb0c8" opacity="${0.8*op}" font-family="monospace">LF</text>
+      <text x="${VW-58}" y="120" text-anchor="middle" font-size="9" fill="#9fb0c8" opacity="${0.8*op}" font-family="monospace">RF</text>`;
   }
 }
 
