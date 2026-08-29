@@ -8710,6 +8710,7 @@ async function pollHomeRunFeed(){
           batter: play.matchup?.batter?.fullName ?? 'Unknown',
           batterId: play.matchup?.batter?.id ?? null,
           pitcher: play.matchup?.pitcher?.fullName ?? null,
+          pitcherId: play.matchup?.pitcher?.id ?? null,
           pitchType,
           pitchSpeed,
           pitcherHand,
@@ -8873,7 +8874,7 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
         </div>
         ${ev.pitcher ? `<div class="hr-traj-person hr-traj-person-pitcher">
           <div style="text-align:right;"><div class="hr-traj-role">Pitching</div><div class="hr-traj-name">${escapeHTML(ev.pitcher)}</div></div>
-          ${headshotImgTag(ev.pitcher, 'hr-traj-headshot', null, null)}
+          ${headshotImgTag(ev.pitcher, 'hr-traj-headshot', null, ev.pitcherId)}
         </div>` : ''}
       </div>
       <div class="hr-traj-meta">
