@@ -2732,11 +2732,17 @@ footer{ margin-left:0; }
 }
 .hrm-svg{ display:block; width:100%; height:100%; }
 
-/* Trajectory arc — static (visible immediately) with a soft glow */
+/* Trajectory arc — draws in once, then the ball rides it to the landing splash */
 .hrm-arc{
+  stroke-dasharray: 100; stroke-dashoffset: 100;
+  animation: hrmArcDraw 1s .15s cubic-bezier(.4,0,.2,1) forwards;
   filter: drop-shadow(0 0 3px rgba(245,200,66,.45));
 }
-.hrm-ball{ opacity:1; }
+.hrm-ball{ offset-distance: 0%; opacity:0;
+  animation: hrmBallFly 1.1s .25s cubic-bezier(.22,.68,.3,1) forwards;
+}
+.hrm-splash{ opacity:0; transform-origin:center; animation: hrmSplash .5s 1.15s ease-out forwards; }
+.hrm-splash-ring{ opacity:0; transform-origin:center; animation: hrmRing .6s 1.15s ease-out forwards; }
 
 /* Metric chips anchored to the arc's key points */
 .hrm-chip{
@@ -2769,7 +2775,7 @@ footer{ margin-left:0; }
 
 @media (prefers-reduced-motion: reduce){
   .hrm-arc,.hrm-ball,.hrm-splash,.hrm-splash-ring{
-    animation:none !important; opacity:1 !important; stroke-dashoffset:0 !important; transform:none !important;
+    animation:none !important; opacity:1 !important; stroke-dashoffset:0 !important; transform:none !important; offset-distance:100% !important;
   }
 }
 
@@ -8857,10 +8863,26 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
   const landPctX = clampPct(end.sx / VW * 100, 6, 84);
   const landPctY = clampPct(end.sy / VH * 100, 4, 78);
 
-  const base = `<b>${escapeHTML(ev.batter)}</b>`;
-  const headshot = headshotImgTag(ev.batter, 'headshot small', ev.battingTeam, ev.batterId);
-  const rbiLabel = ev.rbi > 1 ? ` · ${ev.rbi} RBI` : '';
-  const oppName = ev.pitcher ? `<div class="hr-traj-pitcher">${headshotImgTag(ev.pitcher, 'headshot small', ev.opponent)}<span>${escapeHTML(ev.pitcher)}</span></div>` : '';
+  const _foot = `
+    <div class="hr-traj-body">
+      <div class="hr-traj-quip">${escapeHTML(narrative)}</div>
+      <div class="hr-traj-matchup">
+        <div class="hr-traj-person">
+          ${headshotImgTag(ev.batter, 'hr-traj-headshot', ev.battingTeam, ev.batterId)}
+          <div><div class="hr-traj-role">Batting</div><div class="hr-traj-name">${escapeHTML(ev.batter)}</div></div>
+        </div>
+        ${ev.pitcher ? `<div class="hr-traj-person hr-traj-person-pitcher">
+          <div style="text-align:right;"><div class="hr-traj-role">Pitching</div><div class="hr-traj-name">${escapeHTML(ev.pitcher)}</div></div>
+          ${headshotImgTag(ev.pitcher, 'hr-traj-headshot', null, null)}
+        </div>` : ''}
+      </div>
+      <div class="hr-traj-meta">
+        ${ev.rbi ? `<span class="hr-traj-rbi">${ev.rbi} RBI</span>` : ''}
+        <span class="hr-traj-park">${escapeHTML(ev.park || '')}</span>
+        ${ev.awayScore != null ? `<span>${ev.awayScore}–${ev.homeScore}</span>` : ''}
+        <span class="hr-traj-time">${timeAgo(ev.ts)}</span>
+      </div>
+    </div>`;
 
   const evChip = evv != null
     ? `<div class="hrm-chip hrm-chip-ev" style="left:8px;top:8px;transform:none"><small>Exit Velo</small><b>${Math.round(evv)}<i>mph</i></b></div>` : '';
@@ -8872,13 +8894,17 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
     ? `<div class="hrm-chip hrm-chip-pitch" style="left:8px;bottom:8px;transform:none"><b>${ev.pitchSpeed ? Math.round(ev.pitchSpeed) : shortPitch(ev.pitchType)}</b><small>${ev.pitchSpeed ? shortPitch(ev.pitchType) : 'pitch'}</small></div>` : '';
 
   if(!hasStatcast){
-    return `<div class="hrm-wrap"><div class="hrm-graphic">
-      ${fieldShell(id, VW, VH, lf, rf, cf, hp, b1, b2, b3, mound, fenceD, fenceBack, true)}
-      <div class="hrm-pending">Tracking live batted-ball data…</div>
-    </div></div>`;
+    return `<div class="hr-traj-card ${ev.isNew?'is-new':''}" data-batter="${escapeHTML(ev.batter)}">
+      <div class="hrm-wrap is-pending"><div class="hrm-graphic">
+        ${fieldShell(id, VW, VH, lf, rf, cf, hp, b1, b2, b3, mound, fenceD, fenceBack, true)}
+        <div class="hrm-pending-tag">Statcast pending</div>
+      </div></div>
+      ${_foot}
+    </div>`;
   }
 
-  return `<div class="hrm-wrap"><div class="hrm-graphic">
+  return `<div class="hr-traj-card ${ev.isNew?'is-new':''}" data-batter="${escapeHTML(ev.batter)}">
+    <div class="hrm-wrap is-ready"><div class="hrm-graphic">
     <svg class="hrm-svg" viewBox="0 0 ${VW} ${VH}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Home run trajectory landing ${Math.round(d)} feet to ${dirDeg>=0?'right':'left'} field">
       <defs>
         <linearGradient id="hrmSky${id}" x1="0" y1="0" x2="0" y2="1">
@@ -8904,12 +8930,15 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
       <circle class="hrm-foulpole" cx="${VW}" cy="${rf.sy.toFixed(1)}" r="1.4" fill="#f59e0b"/>
       <!-- trajectory -->
       <circle cx="${cross.sx.toFixed(1)}" cy="${cross.sy.toFixed(1)}" r="${(splashR+2).toFixed(1)}" fill="url(#hrmLand${id})" opacity="0.6"/>
-      <path class="hrm-arc" d="${arcPath}" fill="none" stroke="${arcColor}" stroke-width="${arcW}" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle class="hrm-ball" cx="${end.sx.toFixed(1)}" cy="${end.sy.toFixed(1)}" r="${(3.4+1.6*spd).toFixed(2)}" fill="#fff" stroke="#ffd24a" stroke-width="0.6"/>
-      <circle cx="${end.sx.toFixed(1)}" cy="${end.sy.toFixed(1)}" r="${(2.2).toFixed(1)}" fill="#ffd24a" opacity="0.9"/>
+      <path class="hrm-arc" pathLength="100" d="${arcPath}" fill="none" stroke="${arcColor}" stroke-width="${arcW}" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle class="hrm-splash-ring" cx="${end.sx.toFixed(1)}" cy="${end.sy.toFixed(1)}" r="9" fill="none" stroke="#f59e0b" stroke-width="1.5"/>
+      <circle class="hrm-splash" cx="${end.sx.toFixed(1)}" cy="${end.sy.toFixed(1)}" r="6" fill="#f59e0b"/>
+      <circle class="hrm-ball" style="offset-path:path('${arcPath}')" cx="0" cy="0" r="${(5.5+2*spd).toFixed(2)}" fill="#fff" stroke="#0b162c" stroke-width="1"/>
     </svg>
     ${evChip}${laChip}${distChip}${pitchChip}
-  </div></div>`;
+    </div></div>
+    ${_foot}
+  </div>`;
 
   // ---- field sub-shapes (shared by the live + pending shells) ----
   function fieldShell(id, VW, VH, lf, rf, cf, hp, b1, b2, b3, mound, fenceD, fenceBack, dim){
