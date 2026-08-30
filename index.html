@@ -3515,18 +3515,17 @@ body.modal-open{ overflow:hidden; }
 .player-card-v2 .field .arc{ fill:none; stroke-linecap:round; filter:drop-shadow(0 0 6px currentColor) }
 .player-card-v2 .field .land{ filter:drop-shadow(0 0 5px currentColor) }
 .player-card-v2 .field .hp{ fill:rgba(255,255,255,.5) }
-.player-card-v2 .cq-field-wrap{ position:relative; width:100%; aspect-ratio:16/9; background:#0a0d14; border:1px solid var(--border); border-radius:12px; overflow:hidden }
+.player-card-v2 .cq-field-wrap{ position:relative; width:100%; max-width:100%; aspect-ratio:16/9; background:#0a0d14; border:1px solid var(--border); border-radius:12px; overflow:hidden }
 .player-card-v2 .cq-field-wrap svg.cq-field{ position:absolute; inset:0; width:100%; height:100% }
 .player-card-v2 .spray-leg{ display:flex; gap:16px; margin-top:10px; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted) }
 .player-card-v2 .spray-leg span b{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; vertical-align:middle }
 
 /* ---------- Recent at-bats log ---------- */
 .player-card-v2 .ab-log{ border:1px solid var(--border); border-radius:12px; overflow:hidden; background:var(--panel3) }
-.player-card-v2 .ab-sum{ display:flex; background:var(--panel2); border-bottom:1px solid var(--border) }
-.player-card-v2 .ab-sum .s{ flex:1; padding:11px 14px; border-right:1px solid var(--border); text-align:center }
-.player-card-v2 .ab-sum .s:last-child{ border-right:0 }
+.player-card-v2 .ab-sum{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:12px }
+.player-card-v2 .ab-sum .s{ background:var(--panel3); border:1px solid var(--border); border-radius:10px; padding:11px 6px; text-align:center }
 .player-card-v2 .ab-sum .s b{ display:block; font-family:'JetBrains Mono',monospace; font-weight:700; font-size:18px; color:var(--text); line-height:1.1 }
-.player-card-v2 .ab-sum .s small{ font-family:'JetBrains Mono',monospace; font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-top:4px; display:block }
+.player-card-v2 .ab-sum .s small{ font-family:'JetBrains Mono',monospace; font-size:9.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-top:6px; display:block }
 .player-card-v2 .ab-scroll{ overflow-x:auto }
 .player-card-v2 .ab-table{ width:100%; border-collapse:collapse; min-width:440px }
 .player-card-v2 .ab-table thead th{ font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:.12em; color:var(--faint); text-transform:uppercase; text-align:right; padding:9px 14px; background:var(--panel2); border-bottom:1px solid var(--border); font-weight:700 }
@@ -3549,7 +3548,7 @@ body.modal-open{ overflow:hidden; }
 .player-card-v2 tr.ab-brl td:first-child{ box-shadow:inset 3px 0 0 var(--gold) }
 
 /* ---------- Footer ---------- */
-.player-card-v2 .foot{ display:flex; align-items:center; justify-content:space-between; gap:14px; padding:13px 18px; border-top:1px solid var(--line); background:rgba(0,0,0,.2) }
+.player-card-v2 .foot{ display:flex; align-items:center; justify-content:center; gap:14px; padding:11px 18px; border-top:1px solid var(--line); background:rgba(0,0,0,.2); font-size:10.5px; color:var(--faint); text-align:center }
 .player-card-v2 .foot .disc{ font-size:10.5px; color:var(--faint); text-align:right; max-width:300px; line-height:1.4; margin-left:auto }
 .player-card-v2 .live-note{ font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); padding:6px 0 }
 .player-card-v2 .live-note.pending{ color:var(--faint) }
@@ -12942,17 +12941,9 @@ function openBatterModal(p){
       <div class="bars" style="gap:${gap}px">${bars}</div>`;
   }
   // Pitch Breakdown — mockup table.pitches (Pitch / Thrown / Barrels) from arsenal + batted balls.
-  function pcPitchBreakdownHTML(arsenal, balls, p){
-    if(!arsenal || !arsenal.length){
-      return `<div class="cq-top"><div class="streak"><span class="lbl">Pitch arsenal unavailable</span></div></div><div class="ab-empty">Run build-slate.js for the starter's pitch mix.</div>`;
-    }
-    const hand = p.oppPitcher?.throws;
-    let rows = balls||[];
-    if(hand==='L'||hand==='R') rows = rows.filter(b=>b.pHand===hand);
-    const sorted = [...arsenal].sort((a,b)=>(b.usagePct||0)-(a.usagePct||0));
-    const last6 = rows.slice(0,6);
-    const sqs = Array.from({length:6},(_,i)=>`<span class="sq ${last6[i]&&contactBarrel(last6[i].ev,last6[i].la)?'on':''}"></span>`).join('');
-    const brlCount = last6.filter(b=>contactBarrel(b.ev,b.la)).length;
+  // SEASON / L5 / L3 range buttons filter the batted-ball window used for barrel %.
+  let pdCtx = null;
+  function pcPitchTable(sorted, rows, handLabel){
     const tr = code => rows.filter(b=>b.pitchCode===code);
     const tbl = sorted.map(a=>{
       const bs = tr(a.code);
@@ -12962,12 +12953,27 @@ function openBatterModal(p){
       const sub = `${a.avgSpeed?Math.round(a.avgSpeed)+' mph':''}${hrs?` · ${hrs} HR`:''}`;
       return `<tr><td><span class="pdot" style="background:${pitchColor(a.code)}"></span><span class="pc">${a.code}</span> ${pitchName(a.code)||''}</td><td class="num">${a.usagePct!=null?a.usagePct+'%':'—'}</td><td class="num">${brlPct!=null?brlPct+'%':'—'} <span class="sub">${sub}</span></td></tr>`;
     }).join('');
+    return `<table class="pitches"><thead><tr><th>Pitch</th><th>Thrown</th><th>Barrels</th></tr></thead><tbody>${tbl}</tbody></table>
+      <div class="legend">Barrels = this hitter's barrel % on each pitch type, ${rows.length} balls in play vs ${handLabel}.</div>`;
+  }
+  function pcPitchBreakdownHTML(arsenal, balls, p){
+    if(!arsenal || !arsenal.length){
+      return `<div class="cq-top"><div class="streak"><span class="lbl">Pitch arsenal unavailable</span></div></div><div class="ab-empty">Run build-slate.js for the starter's pitch mix.</div>`;
+    }
+    const hand = p.oppPitcher?.throws;
+    let rows = balls||[];
+    if(hand==='L'||hand==='R') rows = rows.filter(b=>b.pHand===hand);
+    const sorted = [...arsenal].sort((a,b)=>(b.usagePct||0)-(a.usagePct||0));
+    const handLabel = hand==='L'?'LHP':hand==='R'?'RHP':'all hands';
+    const last6 = rows.slice(0,6);
+    const sqs = Array.from({length:6},(_,i)=>`<span class="sq ${last6[i]&&contactBarrel(last6[i].ev,last6[i].la)?'on':''}"></span>`).join('');
+    const brlCount = last6.filter(b=>contactBarrel(b.ev,b.la)).length;
+    pdCtx = { sorted, rows, handLabel };
     return `<div class="cq-top">
-        <div class="streak">${sqs}<span class="lbl">${brlCount} / ${last6.length||6} · vs ${hand==='L'?'LHP':hand==='R'?'RHP':'all'}</span></div>
-        <div class="ptabs"><button class="on">SEASON</button><button>L5</button><button>L3</button></div>
+        <div class="streak">${sqs}<span class="lbl">${brlCount} / ${last6.length||6} · vs ${handLabel}</span></div>
+        <div class="ptabs" id="pdTabs"><button class="on" data-range="season">SEASON</button><button data-range="l5">L5</button><button data-range="l3">L3</button></div>
       </div>
-      <table class="pitches"><thead><tr><th>Pitch</th><th>Thrown</th><th>Barrels</th></tr></thead><tbody>${tbl}</tbody></table>
-      <div class="legend">Barrels = this hitter's barrel % on each pitch type, last ${rows.length} balls in play vs ${hand==='L'?'LHP':hand==='R'?'RHP':'all hands'}.</div>`;
+      <div id="pdTable">${pcPitchTable(sorted, rows, handLabel)}</div>`;
   }
   // Recent At-Bats — mockup .ab-table (colored rows + EV color-coding + 4-stat summary).
   function pcRecentABHTML(balls, p){
@@ -13069,6 +13075,19 @@ function openBatterModal(p){
   document.body.classList.add('modal-open');
   overlay.classList.add('open');
   document.getElementById('modalClose').onclick = closeModal;
+  // Pitch breakdown range tabs (SEASON / L5 / L3) re-filter the batted-ball window.
+  const pdHost = modalBody.querySelector('#pitchBreakdownHost');
+  if(pdHost) pdHost.addEventListener('click', e=>{
+    const btn = e.target.closest && e.target.closest('#pdTabs button');
+    if(!btn || !pdCtx) return;
+    const on = pdHost.querySelector('#pdTabs button.on');
+    if(on) on.classList.remove('on');
+    btn.classList.add('on');
+    const r = btn.dataset.range;
+    const rows = r==='l5' ? pdCtx.rows.slice(0,5) : r==='l3' ? pdCtx.rows.slice(0,3) : pdCtx.rows;
+    const tbl = pdHost.querySelector('#pdTable');
+    if(tbl) tbl.innerHTML = pcPitchTable(pdCtx.sorted, rows, pdCtx.handLabel);
+  });
   // Bars chart state — logs (2026+2025), current prop, current range.
   let pcLogs = null, pcProp = 'hr', pcRange = '10';
   const renderBars = () => {
