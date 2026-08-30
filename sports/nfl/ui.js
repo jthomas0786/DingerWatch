@@ -20,6 +20,20 @@ let oddsDoc = null;
 let activeGameId = null;
 let posFilter = 'ALL';
 
+// Nav state — mirrors MLB's #propTabs: top-level tabs + a Player Props dropdown.
+// Not encoded in location.hash (router only routes #nfl); kept in-module.
+let activeNflTab = 'slate';        // 'slate' | 'feed' | 'props'
+let activeNflProp = 'atd';         // 'atd' | 'firstTd' | 'rushYds' | 'recYds' | 'receptions' | 'passTds'
+let nflPropMenuOpen = false;
+const NFL_PROPS = {
+  atd:        { label: 'Anytime TD',      modeled: true },
+  firstTd:    { label: 'First TD',        modeled: false },
+  rushYds:    { label: 'Rush Yards',     modeled: false },
+  recYds:     { label: 'Receiving Yards', modeled: false },
+  receptions: { label: 'Receptions',   modeled: false },
+  passTds:    { label: 'Passing TDs',   modeled: false },
+};
+
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
@@ -108,32 +122,8 @@ function mergeNflOdds(slate, odds) {
   }
 }
 
-/** Week-1 odds preview card — shown during preseason (no slate props posted yet). */
-function previewOddsHTML(odds) {
-  if (!odds?.games?.length) return '';
-  const game = odds.games.find(g => g.markets?.includes('atd'));
-  if (!game) return '';
-  const books = [...new Set(game.players.flatMap(p => p.odds?.atd?.all?.map(e => e.book) || []))].slice(0, 3);
-  const atd = game.players
-    .filter(p => p.odds?.atd?.best)
-    .sort((a, b) => a.odds.atd.best.price - b.odds.atd.best.price)
-    .slice(0, 6);
-  const yards = game.players.filter(p => p.odds?.rushYds || p.odds?.recYds || p.odds?.receptions).slice(0, 4);
-  const row = (p) => `<a class="nfl-prev-row" href="${esc(p.odds.atd.best.link)}" target="_blank" rel="noopener" title="${esc(p.odds.atd.best.book)} · Anytime TD — tap to bet"><span class="nfl-prev-name">${esc(p.name)}</span><span class="nfl-prev-amt">${priceFmt(p.odds.atd.best.price)}</span></a>`;
-  const yrow = (p) => {
-    const m = p.odds.rushYds || p.odds.recYds || p.odds.receptions; if (!m?.over?.best) return '';
-    const label = p.odds.rushYds ? 'Rush yds' : p.odds.recYds ? 'Rec yds' : 'Receptions';
-    return `<a class="nfl-prev-row" href="${esc(m.over.best.link)}" target="_blank" rel="noopener" title="${esc(m.over.best.book)} · ${label} Over ${esc(m.line)}"><span class="nfl-prev-name">${esc(p.name)} <em>${label} ${esc(m.line)}</em></span><span class="nfl-prev-amt">${priceFmt(m.over.best.price)}</span></a>`;
-  };
-  return `<section class="nfl-preview-odds" aria-label="Week 1 odds preview">
-    <div class="nfl-preview-odds-head"><h3>Week 1 odds preview</h3>
-      <span class="nfl-preview-odds-sub">Real ${esc(game.away)} @ ${esc(game.home)} props — regular season opens Sept 9. Tap to bet at ${esc(books.join(' / '))}.</span></div>
-    <div class="nfl-preview-odds-cols">
-      <div class="nfl-prev-col"><div class="nfl-prev-col-h">Anytime TD</div>${atd.map(row).join('')}</div>
-      <div class="nfl-prev-col"><div class="nfl-prev-col-h">Player lines</div>${yards.map(yrow).join('')}</div>
-    </div>
-  </section>`;
-}
+// (Week-1 odds preview card removed — real odds now live in the Player Props
+//  sub-tabs. The slate tab no longer injects a preview card.)
 
 // ---------------------------------------------------------------------------
 // football field gamecast
@@ -352,6 +342,106 @@ function allPlayers() {
   return slate.games.flatMap(g => g.players);
 }
 
+// ---------------------------------------------------------------------------
+// sidebar / bottom-nav: tab + prop switching (mirrors MLB's #propTabs)
+// ---------------------------------------------------------------------------
+function selectNflTab(id) {
+  activeNflTab = id;
+  closeNflPropMenu();
+  renderNflNav();
+  render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function selectNflProp(id) {
+  activeNflProp = id;
+  activeNflTab = 'props';
+  closeNflPropMenu();
+  renderNflNav();
+  render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function toggleNflPropMenu() {
+  nflPropMenuOpen = !nflPropMenuOpen;
+  document.getElementById('nflPropMenu')?.classList.toggle('open', nflPropMenuOpen);
+  renderNflNav();
+}
+function closeNflPropMenu() {
+  nflPropMenuOpen = false;
+  document.getElementById('nflPropMenu')?.classList.remove('open');
+}
+/** Sync the nav's active states with current tab/prop. Called from render(). */
+function renderNflNav() {
+  const nav = document.getElementById('nflSideNav');
+  if (!nav) return;
+  nav.querySelectorAll('.nfl-sn-tab[data-nfl-tab]').forEach(btn => {
+    const t = btn.dataset.nflTab;
+    const isActive = t === 'props' ? activeNflTab === 'props' : activeNflTab === t;
+    btn.classList.toggle('is-active', isActive || (t === 'props' && nflPropMenuOpen));
+  });
+  nav.querySelectorAll('.nfl-sn-item[data-nfl-prop]').forEach(btn => {
+    btn.classList.toggle('is-active', btn.dataset.nflProp === activeNflProp);
+  });
+}
+/** Wire the static nav buttons once (on mount). */
+function wireNflNav() {
+  const nav = document.getElementById('nflSideNav');
+  if (!nav || nav.dataset.wired) return;
+  nav.dataset.wired = '1';
+  nav.querySelectorAll('.nfl-sn-tab[data-nfl-tab]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const t = btn.dataset.nflTab;
+      if (t === 'props') { e.stopPropagation(); toggleNflPropMenu(); }
+      else selectNflTab(t);
+    });
+  });
+  nav.querySelectorAll('.nfl-sn-item[data-nfl-prop]').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); selectNflProp(btn.dataset.nflProp); });
+  });
+  document.addEventListener('click', e => {
+    if (!nflPropMenuOpen || nav.contains(e.target)) return;
+    closeNflPropMenu();
+    renderNflNav();
+  });
+}
+
+/** Player-prop odds view for non-ATD props (Rush/Rec/Receptions/Pass TDs).
+ *  Drawn from slates/nfl-odds.json — real best Over price + deep links where
+ *  books have posted lines. Empty state explains when lines go up. */
+function renderPropOdds(host, prop) {
+  const games = oddsDoc?.games || [];
+  const rows = [];
+  for (const gm of games) {
+    for (const p of gm.players || []) {
+      const o = p.odds?.[prop];
+      if (!o || !o.over?.best) continue;
+      rows.push({
+        name: p.name, team: p.team, line: o.line,
+        price: o.over.best.price, book: o.over.best.book, link: o.over.best.link,
+      });
+    }
+  }
+  // Best price first: highest American number = best payout (+300 > +150 > -110 > -120).
+  rows.sort((a, b) => b.price - a.price);
+  if (!rows.length) {
+    host.innerHTML = `<div class="nfl-empty">No ${esc(NFL_PROPS[prop].label)} lines posted yet — sportsbooks post player-prop odds 24–48 hours before kickoff. Check back closer to game time.</div>`;
+    return;
+  }
+  const bookList = [...new Set(rows.map(r => r.book))].slice(0, 3).join(' / ');
+  host.innerHTML =
+    `<div class="nfl-prop-odds-note">Best Over price across ${esc(bookList)} · ${rows.length} player${rows.length > 1 ? 's' : ''} · tap to bet.</div>` +
+    rows.map((r, i) => propOddsRow(r, i + 1, prop)).join('');
+}
+
+function propOddsRow(r, rank, prop) {
+  const label = NFL_PROPS[prop].label;
+  return `<a class="nfl-prop-row" href="${esc(r.link)}" target="_blank" rel="noopener" title="${esc(r.book)} · ${label} Over ${esc(r.line)} — tap to bet">
+    <div class="nfl-prop-rank">${rank}</div>
+    <div class="nfl-prop-name"><b>${esc(r.name)}</b>
+      <span class="nfl-prop-meta">${esc(r.team)} · Over ${esc(r.line)} ${esc(label)}</span></div>
+    <div class="nfl-prop-amt">${priceFmt(r.price)}</div>
+  </a>`;
+}
+
 function renderPicks(host) {
   let list = activeGameId
     ? (slate.games.find(g => g.gameId === activeGameId)?.players || [])
@@ -380,55 +470,8 @@ function renderGames(host) {
   });
 }
 
-export function render() {
-  const root = document.getElementById('nflView');
-  if (!root || !slate) return;
-  const g = activeGameId ? slate.games.find(x => x.gameId === activeGameId) : null;
-  const conf = slate.rosters?.dataConfidence || {};
-  const weekLabel = slate.seasonType === 'pre' ? `Preseason Week ${slate.week}`
-    : slate.seasonType === 'post' ? `Postseason Week ${slate.week}`
-    : `Week ${slate.week}`;
-
-  root.innerHTML = `
-${isPreview('nfl') ? `<div class="nfl-preview-banner" role="status">
-  <b>Preview build</b> — Touchdown Watch is not live yet. The model runs on 2025 production
-  blended with 2026 rosters and depth charts; numbers are directional and unvalidated against results.
-</div>` : ''}
-
-<header class="nfl-head">
-  <div class="nfl-head-left">
-    <h2 class="nfl-title">Anytime Touchdown</h2>
-    <p class="nfl-sub">${esc(weekLabel)} · ${slate.gameCount} games · ${allPlayers().length} players graded.
-      Ranked by modeled probability of scoring a rushing or receiving touchdown.</p>
-  </div>
-  <div class="nfl-head-meta">
-    <div class="nfl-freshness">Built ${esc(relTime(slate.generatedAt))}</div>
-    <div class="nfl-datamix">
-      <span title="Players with real 2025 production">${conf.full || 0} with history</span>
-      <span title="2026 rookies — prior-based projections">${conf.rookie || 0} rookies</span>
-      <span title="On a 2026 roster but no 2025 production">${conf['no-history'] || 0} no sample</span>
-    </div>
-  </div>
-</header>
-
-<div class="nfl-toolbar">
-  <div class="nfl-filters" role="group" aria-label="Position filter">
-    ${['ALL', 'RB', 'WR', 'TE', 'QB'].map(k => `<button type="button" class="nfl-filter ${posFilter === k ? 'active' : ''}" data-pos="${k}">${k}</button>`).join('')}
-  </div>
-  ${activeGameId ? `<button type="button" class="nfl-clear" id="nflClearGame">← All ${slate.gameCount} games</button>` : ''}
-</div>
-
-${slate.seasonType === 'pre' ? `<div class="nfl-preseason-banner" role="status">
-  <span class="nfl-preseason-icon" aria-hidden="true">!</span>
-  <p><b>Preseason mode.</b> Starters rarely play the full game — and many don't play at all —
-  so ATD probabilities here are projections of the regular-season role, not live reps.
-  Expect sizable misses; treat the numbers as a directional preview, not a prediction.</p>
-</div>` : ''}
-
-${slate.seasonType === 'pre' ? previewOddsHTML(oddsDoc) : ''}
-
-${g ? `
-<section class="nfl-gamecast">
+function gamecastHTML(g) {
+  return `<section class="nfl-gamecast">
   <div class="nfl-gc-field">
     ${fieldSVG(g, 'full')}
     <div class="nfl-gc-overlay">
@@ -453,12 +496,88 @@ ${g ? `
     ${(g.broadcast || []).map(b => `<span class="nfl-chip">${esc(b.names?.join('/') || '')}</span>`).join('')}
   </div>
   ${oddsHTML(g)}
-</section>` : `<div class="nfl-games" id="nflGames"></div>`}
+</section>`;
+}
 
-<div class="nfl-picklist-head">
-  <h3>${g ? `${esc(g.away.abbr)} @ ${esc(g.home.abbr)} — every graded player` : `Top 40 across the slate`}</h3>
-</div>
-<div class="nfl-picklist" id="nflPickList"></div>
+export function render() {
+  const root = document.getElementById('nflView');
+  if (!root || !slate) return;
+  renderNflNav();
+  const g = activeGameId ? slate.games.find(x => x.gameId === activeGameId) : null;
+  const conf = slate.rosters?.dataConfidence || {};
+  const weekLabel = slate.seasonType === 'pre' ? `Preseason Week ${slate.week}`
+    : slate.seasonType === 'post' ? `Postseason Week ${slate.week}`
+    : `Week ${slate.week}`;
+  const isAt = activeNflTab === 'props' && activeNflProp === 'atd';
+
+  // ---- header title + sub by tab ----
+  let title = 'Slate';
+  let sub = `${weekLabel} · ${slate.gameCount} games · tap a game for the field view and red-zone readout.`;
+  if (activeNflTab === 'feed') {
+    title = 'TD Feed';
+    sub = `Live touchdowns the moment they cross. The feed lights up with every scoring play — rush, pass, and return TDs — once games go live.`;
+  } else if (activeNflTab === 'props') {
+    title = NFL_PROPS[activeNflProp].label;
+    sub = isAt
+      ? `${weekLabel} · ${slate.gameCount} games · ${allPlayers().length} players graded. Ranked by modeled probability of scoring a rushing or receiving touchdown.`
+      : `${weekLabel} · best Over price across books · player-prop lines post 24–48 hours before kickoff.`;
+  }
+
+  // Position filters only make sense for the modeled Anytime-TD list.
+  const toolbar = isAt
+    ? `<div class="nfl-toolbar"><div class="nfl-filters" role="group" aria-label="Position filter">
+        ${['ALL', 'RB', 'WR', 'TE', 'QB'].map(k => `<button type="button" class="nfl-filter ${posFilter === k ? 'active' : ''}" data-pos="${k}">${k}</button>`).join('')}
+      </div>${activeGameId ? `<button type="button" class="nfl-clear" id="nflClearGame">← All ${slate.gameCount} games</button>` : ''}</div>`
+    : (activeNflTab === 'slate' && g ? `<div class="nfl-toolbar"><button type="button" class="nfl-clear" id="nflClearGame">← All ${slate.gameCount} games</button></div>` : '');
+
+  // ---- body by tab ----
+  let body;
+  if (activeNflTab === 'feed') {
+    body = `<section class="nfl-feed-empty" role="status">
+      <div class="nfl-feed-icon" aria-hidden="true">🏈</div>
+      <h3>Touchdown feed is quiet</h3>
+      <p>No NFL games are live right now. The feed lights up with every scoring play — rush, pass, and return TDs — the moment games kick off.</p>
+      <p class="nfl-feed-when">Regular season opens Sept 9.</p>
+    </section>`;
+  } else if (activeNflTab === 'props' && !isAt) {
+    body = `<div class="nfl-picklist-head"><h3>${NFL_PROPS[activeNflProp].label} — best Over prices</h3></div>
+    <div class="nfl-picklist" id="nflPickList"></div>`;
+  } else {
+    // Slate tab, OR Player Props → Anytime TD: field gamecast (or game grid) + ATD pick list.
+    body = `${g ? gamecastHTML(g) : '<div class="nfl-games" id="nflGames"></div>'}${isAt ? `<div class="nfl-picklist-head"><h3>${g ? `${esc(g.away.abbr)} @ ${esc(g.home.abbr)} — every graded player` : 'Top 40 across the slate'}</h3></div><div class="nfl-picklist" id="nflPickList"></div>` : ''}`;
+  }
+
+  root.innerHTML = `
+${isPreview('nfl') ? `<div class="nfl-preview-banner" role="status">
+  <b>Preview build</b> — Touchdown Watch is not live yet. The model runs on 2025 production
+  blended with 2026 rosters and depth charts; numbers are directional and unvalidated against results.
+</div>` : ''}
+
+<header class="nfl-head">
+  <div class="nfl-head-left">
+    <h2 class="nfl-title">${title}</h2>
+    <p class="nfl-sub">${esc(sub)}</p>
+  </div>
+  <div class="nfl-head-meta">
+    <div class="nfl-freshness">Built ${esc(relTime(slate.generatedAt))}</div>
+    <div class="nfl-datamix">
+      <span title="Players with real 2025 production">${conf.full || 0} with history</span>
+      <span title="2026 rookies — prior-based projections">${conf.rookie || 0} rookies</span>
+      <span title="On a 2026 roster but no 2025 production">${conf['no-history'] || 0} no sample</span>
+    </div>
+  </div>
+</header>
+
+${toolbar}
+
+${slate.seasonType === 'pre' ? `<div class="nfl-preseason-banner" role="status">
+  <span class="nfl-preseason-icon" aria-hidden="true">!</span>
+  <p><b>Preseason mode.</b> Starters rarely play the full game — and many don't play at all —
+  so ATD probabilities here are projections of the regular-season role, not live reps.
+  Expect sizable misses; treat the numbers as a directional preview, not a prediction.</p>
+</div>` : ''}
+
+${body}
 
 <footer class="nfl-foot">
   Model: ${esc(slate.sources?.model || '')}<br/>
@@ -469,8 +588,9 @@ ${g ? `
   Modeled projections for entertainment only — not betting advice.
 </footer>`;
 
-  if (!g) renderGames(root.querySelector('#nflGames'));
-  renderPicks(root.querySelector('#nflPickList'));
+  if (activeNflTab === 'slate' && !g) renderGames(root.querySelector('#nflGames'));
+  if (isAt) renderPicks(root.querySelector('#nflPickList'));
+  if (activeNflTab === 'props' && !isAt) renderPropOdds(root.querySelector('#nflPickList'), activeNflProp);
   root.querySelectorAll('.nfl-filter').forEach(b => b.addEventListener('click', () => {
     posFilter = b.dataset.pos; render();
   }));
@@ -482,6 +602,7 @@ let loading = false;
 export async function mount() {
   const root = document.getElementById('nflView');
   if (!root) return;
+  wireNflNav();          // wire the sidebar/bottom-nav buttons once (idempotent)
   if (slate) { render(); return; }
   if (loading) return;
   loading = true;
