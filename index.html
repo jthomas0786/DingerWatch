@@ -231,6 +231,16 @@ main{ max-width:1280px; margin:0 auto; padding:0 24px 100px; }
 .env-icon{ width:18px; height:18px; flex-shrink:0; opacity:0.85; }
 .wind-arrow{ width:14px; height:14px; flex-shrink:0; }
 .pick-score{ flex:0 0 60px; text-align:center; padding-top:6px; }
+/* Site-wide grade progress ring: arc fills with probability, grade letter centered. */
+.sgr{ position:relative; display:inline-block; vertical-align:middle; flex-shrink:0; }
+.sgr-svg{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+.sgr-rt{ fill:none; stroke:rgba(255,255,255,.14); stroke-width:8; }
+.sgr-rf{ fill:none; stroke:currentColor; stroke-width:8; stroke-linecap:round; transition:stroke-dashoffset .5s ease; }
+.sgr-l{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:'Cabinet Grotesk','Archivo Black',sans-serif; font-weight:700; color:currentColor; line-height:1; }
+.sgr-xs{ width:28px; height:28px; } .sgr-xs .sgr-l{ font-size:11px; }
+.sgr-sm{ width:36px; height:36px; } .sgr-sm .sgr-l{ font-size:14px; }
+.sgr-md{ width:40px; height:40px; } .sgr-md .sgr-l{ font-size:16px; }
+.sgr-lg{ width:46px; height:46px; } .sgr-lg .sgr-l{ font-size:18px; }
 .pick-grade{ font-family:'Cabinet Grotesk','Archivo Black',sans-serif; font-size:15px; line-height:1; margin-bottom:2px; }
 .pick-grade.grade-a{ color:var(--grass-bright); } .pick-grade.grade-b{ color:#f4c430; }
 .pick-grade.grade-c{ color:var(--warm); }        .pick-grade.grade-d{ color:var(--mute); }
@@ -6113,7 +6123,7 @@ function renderAllPlayers(){
           ${platoonRowHTML(propTab, p)}
         </div>
         <div class="pick-score">
-          ${gr ? `<div class="pick-grade ${gr.cls}">${gr.g}</div>` : ''}
+          ${gr ? gradeRingHTML(simData.pct, gr.g, 'sm') : ''}
           <div class="pick-score-val ${gr ? gr.cls : ''}">${display}</div>
           <div class="pick-score-label">${simCfg ? simCfg.line : sortLabel}</div>
           ${simCfg ? addLegBtn({
@@ -6486,7 +6496,7 @@ function renderList(){
           ${platoonRowHTML(activeTab, p)}
         </div>
         <div class="pick-score">
-          ${TAB_SIM[activeTab] ? `<div class="pick-grade ${gradeFor(TAB_SIM[activeTab].grade, scoreExact).cls}">${gradeFor(TAB_SIM[activeTab].grade, scoreExact).g}</div>` : ''}
+          ${TAB_SIM[activeTab] ? gradeRingHTML(scoreExact, gradeFor(TAB_SIM[activeTab].grade, scoreExact).g, 'sm') : ''}
           <div class="pick-score-val ${scoreTierClass(activeTab, scoreExact)}">${scoreDisplay}</div>
           <div class="pick-score-label">${scoreLabel(activeTab)}</div>
           ${TAB_SIM[activeTab] ? addLegBtn({
@@ -8389,7 +8399,7 @@ function gcOddsPropsHTML(g){
     const gr = gradeFor('hr', simulatePlayer(p).hr.exact);
     const edge = ['A+', 'A', 'B+'].includes(gr.letter) ? 'good' : '';
     const odds = p.odds ? fmtOdds(p.odds) : '—';
-    return `<div class="gc-prop-row"><span class="gc-prop-name">${p.name}</span><span class="gc-prop-edge ${edge}">${gr.g}</span><span class="gc-prop-odds">${odds}</span></div>`;
+    return `<div class="gc-prop-row"><span class="gc-prop-name">${p.name}</span>${gradeRingHTML(simulatePlayer(p).hr.pct, gr.g, 'xs')}<span class="gc-prop-odds">${odds}</span></div>`;
   }).join('') : '';
   if(!propsHTML) return grid;
   return grid + `<div class="gc-props-list">${propsHTML}</div>`;
@@ -11461,6 +11471,20 @@ const gradeFor = (prop, pct) => {
   return { g:'D', letter:'D', cls:'grade-d', pctl:Math.round(pctl) };
 };
 
+// Site-wide grade progress ring — same arc math as the player-modal ring.
+// The arc fills with the player's probability (0-40% => full ring); the
+// grade letter sits centered, colored by grade.
+const gradeColor = g => { const u=(g||'').toUpperCase(); return u.startsWith('A')?'#22c55e':u.startsWith('B')?'#f4c430':u.startsWith('C')?'#ff9f43':u.startsWith('D')?'#8b95a8':'#22c55e'; };
+const RING_C = 326.7;
+function siteRingSVG(pct){
+  const v = Math.max(0, Math.min(40, Number(pct)||0));
+  const off = (RING_C * (1 - v/40)).toFixed(1);
+  return `<svg viewBox="0 0 120 120" class="sgr-svg" aria-hidden="true"><circle class="sgr-rt" cx="60" cy="60" r="52"/><circle class="sgr-rf" cx="60" cy="60" r="52" transform="rotate(-90 60 60)" stroke-dasharray="${RING_C}" stroke-dashoffset="${off}"/></svg>`;
+}
+function gradeRingHTML(pct, grade, size){
+  return `<span class="sgr sgr-${size||'md'}" style="color:${gradeColor(grade)}">${siteRingSVG(pct)}<span class="sgr-l">${grade}</span></span>`;
+}
+
 /**
  * Graded prop tiles — the headline read. Each shows a letter grade, the
  * simulated probability, and the line it refers to.
@@ -11887,7 +11911,7 @@ body.dwpreview-active #modalOverlay.open{ z-index:4000; }
         const num = (r.sim && r.sim.hr && r.sim.hr.pct != null) ? r.sim.hr.pct : Math.round(r.score*100);
         return `<button class="dwpreview-pcard" data-i="${i}"><div class="dwpreview-pcard-rank">#${i+1}</div>
           <div class="dwpreview-pcard-head">${head}<div><div class="dwpreview-pcard-name">${previewEsc(p.name)}</div><div class="dwpreview-pcard-team">${previewEsc(p.team||'')}${opp?' \u00b7 '+previewEsc(opp):''}</div></div></div>
-          <div class="dwpreview-pcard-pct"><div class="dwpreview-pcard-num">${num.toFixed(0)}%</div><div class="dwpreview-pcard-grade ${gr.cls}">${gr.g}</div></div>
+          <div class="dwpreview-pcard-pct"><div class="dwpreview-pcard-num">${num.toFixed(0)}%</div>${gradeRingHTML(num, gr.g, 'lg')}</div>
           <div class="dwpreview-pct-label">Home run probability \u00b7 over 0.5</div></button>`;
       }).join('');
       host.querySelectorAll('.dwpreview-pcard').forEach(card => {
@@ -12700,7 +12724,7 @@ function propsGridHTML(p){
     return `<div class="prop-tile ${gr.cls}">
       ${addLegBtn(leg)}
       <div class="pt-key">${t.label}</div>
-      <div class="pt-grade">${gr.g}</div>
+      ${gradeRingHTML(t.d.pct, gr.g, 'md')}
       <div class="pt-pct">${t.d.pct}%</div>
       <div class="pt-line">${od?.best?.price != null ? fmtAmerican(od.best.price) : t.line}</div>
     </div>`;
@@ -13175,10 +13199,10 @@ function gamePlayersHTML(g){
     return `<div class="rt-row${rowCls}" data-side="${side}" data-idx="${idx}" role="button" tabindex="0">
       <span class="rt-ord">${idx+1}</span>
       <span class="rt-pl">${headshotImgTag(p.name, 'roster-head', p.team, p.id)}<span class="rt-pl-txt"><span class="rt-name">${escapeHTML(p.name)}</span><span class="rt-meta"><span class="rt-pos">${escapeHTML(p.pos||'')} · ${p.hand||'?'}B</span>${tag}</span></span></span>
-      <span class="rt-c"><span class="rt-grade ${gh.cls}">${gh.g}</span></span>
-      <span class="rt-c"><span class="rt-grade ${gt.cls}">${gt.g}</span></span>
-      <span class="rt-c"><span class="rt-grade ${gi.cls}">${gi.g}</span></span>
-      <span class="rt-c"><span class="rt-grade ${gr.cls}">${gr.g}</span></span>
+      <span class="rt-c">${gradeRingHTML(sim.hr.pct, gh.g, 'xs')}</span>
+      <span class="rt-c">${gradeRingHTML(sim.tb15.pct, gt.g, 'xs')}</span>
+      <span class="rt-c">${gradeRingHTML(sim.hits05.pct, gi.g, 'xs')}</span>
+      <span class="rt-c">${gradeRingHTML(sim.hrr15.pct, gr.g, 'xs')}</span>
     </div>`;
   };
 
