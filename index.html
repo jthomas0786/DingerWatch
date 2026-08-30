@@ -6123,7 +6123,7 @@ function renderAllPlayers(){
           ${platoonRowHTML(propTab, p)}
         </div>
         <div class="pick-score">
-          ${gr ? gradeRingHTML(simData.pct, gr.g, 'sm') : ''}
+          ${gr ? gradeRingHTML(simData.pct, gr.g, 'sm', simCfg.grade) : ''}
           <div class="pick-score-val ${gr ? gr.cls : ''}">${display}</div>
           <div class="pick-score-label">${simCfg ? simCfg.line : sortLabel}</div>
           ${simCfg ? addLegBtn({
@@ -6496,7 +6496,7 @@ function renderList(){
           ${platoonRowHTML(activeTab, p)}
         </div>
         <div class="pick-score">
-          ${TAB_SIM[activeTab] ? gradeRingHTML(scoreExact, gradeFor(TAB_SIM[activeTab].grade, scoreExact).g, 'sm') : ''}
+          ${TAB_SIM[activeTab] ? gradeRingHTML(scoreExact, gradeFor(TAB_SIM[activeTab].grade, scoreExact).g, 'sm', TAB_SIM[activeTab].grade) : ''}
           <div class="pick-score-val ${scoreTierClass(activeTab, scoreExact)}">${scoreDisplay}</div>
           <div class="pick-score-label">${scoreLabel(activeTab)}</div>
           ${TAB_SIM[activeTab] ? addLegBtn({
@@ -8399,7 +8399,7 @@ function gcOddsPropsHTML(g){
     const gr = gradeFor('hr', simulatePlayer(p).hr.exact);
     const edge = ['A+', 'A', 'B+'].includes(gr.letter) ? 'good' : '';
     const odds = p.odds ? fmtOdds(p.odds) : '—';
-    return `<div class="gc-prop-row"><span class="gc-prop-name">${p.name}</span>${gradeRingHTML(simulatePlayer(p).hr.pct, gr.g, 'xs')}<span class="gc-prop-odds">${odds}</span></div>`;
+    return `<div class="gc-prop-row"><span class="gc-prop-name">${p.name}</span>${gradeRingHTML(simulatePlayer(p).hr.pct, gr.g, 'xs', 'hr')}<span class="gc-prop-odds">${odds}</span></div>`;
   }).join('') : '';
   if(!propsHTML) return grid;
   return grid + `<div class="gc-props-list">${propsHTML}</div>`;
@@ -11476,13 +11476,16 @@ const gradeFor = (prop, pct) => {
 // grade letter sits centered, colored by grade.
 const gradeColor = g => { const u=(g||'').toUpperCase(); return u.startsWith('A')?'#22c55e':u.startsWith('B')?'#f4c430':u.startsWith('C')?'#ff9f43':u.startsWith('D')?'#8b95a8':'#22c55e'; };
 const RING_C = 326.7;
-function siteRingSVG(pct){
-  const v = Math.max(0, Math.min(40, Number(pct)||0));
-  const off = (RING_C * (1 - v/40)).toFixed(1);
+// Per-prop ring max — the probability at which the arc reads "full."
+const PROP_RING_MAX = { hr:35, hits:85, tb:65, rbi:70, hrr:75, sb:25 };
+const propRingMax = prop => { const m = PROP_RING_MAX[prop]; return m ? m : 40; };
+function siteRingSVG(pct, max){
+  const M = (max||40) || 1, v = Math.max(0, Math.min(M, Number(pct)||0));
+  const off = (RING_C * (1 - v/M)).toFixed(1);
   return `<svg viewBox="0 0 120 120" class="sgr-svg" aria-hidden="true"><circle class="sgr-rt" cx="60" cy="60" r="52"/><circle class="sgr-rf" cx="60" cy="60" r="52" transform="rotate(-90 60 60)" stroke-dasharray="${RING_C}" stroke-dashoffset="${off}"/></svg>`;
 }
-function gradeRingHTML(pct, grade, size){
-  return `<span class="sgr sgr-${size||'md'}" style="color:${gradeColor(grade)}">${siteRingSVG(pct)}<span class="sgr-l">${grade}</span></span>`;
+function gradeRingHTML(pct, grade, size, prop){
+  return `<span class="sgr sgr-${size||'md'}" style="color:${gradeColor(grade)}">${siteRingSVG(pct, propRingMax(prop))}<span class="sgr-l">${grade}</span></span>`;
 }
 
 /**
@@ -11911,7 +11914,7 @@ body.dwpreview-active #modalOverlay.open{ z-index:4000; }
         const num = (r.sim && r.sim.hr && r.sim.hr.pct != null) ? r.sim.hr.pct : Math.round(r.score*100);
         return `<button class="dwpreview-pcard" data-i="${i}"><div class="dwpreview-pcard-rank">#${i+1}</div>
           <div class="dwpreview-pcard-head">${head}<div><div class="dwpreview-pcard-name">${previewEsc(p.name)}</div><div class="dwpreview-pcard-team">${previewEsc(p.team||'')}${opp?' \u00b7 '+previewEsc(opp):''}</div></div></div>
-          <div class="dwpreview-pcard-pct"><div class="dwpreview-pcard-num">${num.toFixed(0)}%</div>${gradeRingHTML(num, gr.g, 'lg')}</div>
+          <div class="dwpreview-pcard-pct"><div class="dwpreview-pcard-num">${num.toFixed(0)}%</div>${gradeRingHTML(num, gr.g, 'lg', 'hr')}</div>
           <div class="dwpreview-pct-label">Home run probability \u00b7 over 0.5</div></button>`;
       }).join('');
       host.querySelectorAll('.dwpreview-pcard').forEach(card => {
@@ -12724,7 +12727,7 @@ function propsGridHTML(p){
     return `<div class="prop-tile ${gr.cls}">
       ${addLegBtn(leg)}
       <div class="pt-key">${t.label}</div>
-      ${gradeRingHTML(t.d.pct, gr.g, 'md')}
+      ${gradeRingHTML(t.d.pct, gr.g, 'md', t.k)}
       <div class="pt-pct">${t.d.pct}%</div>
       <div class="pt-line">${od?.best?.price != null ? fmtAmerican(od.best.price) : t.line}</div>
     </div>`;
@@ -12833,8 +12836,8 @@ function openBatterModal(p){
   const pcGradeColor = g => { const u=(g||'').toUpperCase(); return u.startsWith('A')?'#22c55e':u.startsWith('B')?'#f4c430':u.startsWith('C')?'#ff9f43':u.startsWith('D')?'#8b95a8':'#22c55e'; };
   const pcGradeHead = g => { const u=(g||'').toUpperCase(); return u.startsWith('A+')?'ELITE SETUP':u.startsWith('A')?'STRONG SPOT':u.startsWith('B')?'PLAYABLE LOOK':u.startsWith('C')?'OK MATCHUP':'TOUGH DRAW'; };
   // Mockup verdict ring: stroke-dashoffset scales the fill (40% = full ring).
-  function pcRingSVG(pct, big){
-    const C=326.7, off=(C*Math.max(0,1-(pct||0)/40)).toFixed(1);
+  function pcRingSVG(pct, big, max){
+    const C=326.7, M=(max||40)||1, v=Math.min(M,Number(pct)||0), off=(C*Math.max(0,1-v/M)).toFixed(1);
     return `<svg viewBox="0 0 120 120"><circle class="rt" cx="60" cy="60" r="52"/><circle class="rf" cx="60" cy="60" r="52" transform="rotate(-90 60 60)" stroke-dasharray="${C}" stroke-dashoffset="${off}"/></svg>`;
   }
   function pcVerdictHTML(p, prop){
@@ -12850,7 +12853,7 @@ function openBatterModal(p){
     if(sp.hr9) bits.push(`${sp.hr9} HR/9 allowed by ${surname(sp.name||'the starter')}`);
     if(p.game.parkFactor!==100) bits.push(`${p.game.parkShort||p.game.park} at ${p.game.parkFactor} park factor`);
     return `<div class="verdict">
-      <div class="ring" style="color:${col}">${pcRingSVG(pct,true)}<div class="ring-c"><div class="ring-g">${gr.g}</div><div class="ring-tag">${pct}% ${cfg.code}</div></div></div>
+      <div class="ring" style="color:${col}">${pcRingSVG(pct,true,propRingMax(prop))}<div class="ring-c"><div class="ring-g">${gr.g}</div><div class="ring-tag">${pct}% ${cfg.code}</div></div></div>
       <div class="vd-right" style="color:${col}">
         <div class="vd-head">${pcGradeHead(gr.g)}</div>
         <div class="vd-body">${pct}% ${cfg.short} for ${last}. ${bits.join(' · ')||'Matchup graded neutral.'}.</div>
@@ -12912,7 +12915,7 @@ function openBatterModal(p){
     const runs = Math.round(cfg.d.runs||200);
     return `<div class="why-intro">What's driving tonight's <b>${cfg.code} over ${cfg.line}</b> projection — every factor is a real model input.</div>
       <div class="phead" style="color:${col}">
-        <div class="pgring">${pcRingSVG(pct,false)}<div class="pg-c">${gr.g}</div></div>
+        <div class="pgring">${pcRingSVG(pct,false,propRingMax(prop))}<div class="pg-c">${gr.g}</div></div>
         <div class="mid"><div class="lbl">${cfg.code} <span>over ${cfg.line}</span></div></div>
         <div class="pct">${pct}%</div>
       </div>${propFactorBlockHTML(p, prop)}`;
@@ -13199,10 +13202,10 @@ function gamePlayersHTML(g){
     return `<div class="rt-row${rowCls}" data-side="${side}" data-idx="${idx}" role="button" tabindex="0">
       <span class="rt-ord">${idx+1}</span>
       <span class="rt-pl">${headshotImgTag(p.name, 'roster-head', p.team, p.id)}<span class="rt-pl-txt"><span class="rt-name">${escapeHTML(p.name)}</span><span class="rt-meta"><span class="rt-pos">${escapeHTML(p.pos||'')} · ${p.hand||'?'}B</span>${tag}</span></span></span>
-      <span class="rt-c">${gradeRingHTML(sim.hr.pct, gh.g, 'xs')}</span>
-      <span class="rt-c">${gradeRingHTML(sim.tb15.pct, gt.g, 'xs')}</span>
-      <span class="rt-c">${gradeRingHTML(sim.hits05.pct, gi.g, 'xs')}</span>
-      <span class="rt-c">${gradeRingHTML(sim.hrr15.pct, gr.g, 'xs')}</span>
+      <span class="rt-c">${gradeRingHTML(sim.hr.pct, gh.g, 'xs', 'hr')}</span>
+      <span class="rt-c">${gradeRingHTML(sim.tb15.pct, gt.g, 'xs', 'tb')}</span>
+      <span class="rt-c">${gradeRingHTML(sim.hits05.pct, gi.g, 'xs', 'hits')}</span>
+      <span class="rt-c">${gradeRingHTML(sim.hrr15.pct, gr.g, 'xs', 'hrr')}</span>
     </div>`;
   };
 
