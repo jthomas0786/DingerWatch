@@ -3601,15 +3601,13 @@ body.modal-open{ overflow:hidden; }
 /* --- Watchlist star --- */
 .watch-star{
   flex-shrink:0; width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center;
-  border:1px solid var(--panel); border-radius:8px; background:var(--panel); color:var(--panel);
+  border:1px solid var(--accent); border-radius:50%; background:var(--accent); color:#fff;
   cursor:pointer; transition: var(--transition); padding:0; line-height:0;
 }
-.watch-star:hover{ border-color:var(--accent); color:var(--accent); background:var(--accent-glow); }
+.watch-star:hover{ border-color:var(--accent-bright); background:var(--accent-bright); }
 .watch-star svg{ width:16px; height:16px; transition: var(--transition); }
-.watch-star[aria-pressed="true"]{ border-color:var(--accent); color:var(--accent); background:var(--accent-glow); }
-.watch-star[aria-pressed="true"] svg{ fill:var(--accent); }
-.watch-star[aria-pressed="true"]:hover{ border-color:var(--hr-red); color:var(--hr-red); background:transparent; }
-.watch-star[aria-pressed="true"]:hover svg{ fill:var(--hr-red); }
+.watch-star[aria-pressed="true"] svg{ fill:#fff; }
+.watch-star[aria-pressed="true"]:hover{ border-color:var(--hr-red); background:var(--hr-red); }
 .watch-star:disabled{ opacity:.5; cursor:default; }
 .watch-star.sm{ width:26px; height:26px; }
 .watch-star.sm svg{ width:14px; height:14px; }
