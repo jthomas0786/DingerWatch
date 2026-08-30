@@ -128,6 +128,14 @@ main{ max-width:1280px; margin:0 auto; padding:0 24px 100px; }
 .prop-tabs{ display:flex; gap:8px; overflow-x:auto; padding:16px 0 6px; scrollbar-width:none; position: sticky; top:0; background: var(--night); z-index:40; margin: 0 -24px; padding-left:24px; padding-right:24px; border-bottom: 1px solid var(--line); -webkit-overflow-scrolling: touch; }
 .prop-tabs::-webkit-scrollbar{ display:none; }
 .prop-tab{ flex:0 0 auto; background: var(--panel); border:1px solid var(--line); color: var(--mute); font-family:'Satoshi','Inter',sans-serif; font-size:13px; padding:8px 18px; border-radius:9999px; cursor:pointer; white-space:nowrap; transition: var(--transition); margin-bottom:14px; font-weight:500; }
+/* MLB player-prop sub-tab row — static, in-flow (never a dropdown/popover).
+   Horizontally scrollable on phones so all nine markets fit at 375px. Mirrors
+   the NFL .nfl-subtabs row. Uses the MLB amber accent for the active pill. */
+.prop-subtabs{ display:flex; gap:8px; overflow-x:auto; padding:2px 0 14px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+.prop-subtabs::-webkit-scrollbar{ display:none; }
+.prop-subtab{ flex:0 0 auto; background:var(--panel); border:1px solid var(--line); color:var(--mute); font-family:'Satoshi','Inter',sans-serif; font-size:13px; padding:8px 14px; border-radius:9999px; cursor:pointer; white-space:nowrap; transition:var(--transition); font-weight:500; }
+.prop-subtab:hover{ border-color:var(--line); color:var(--text); }
+.prop-subtab.is-active{ background:var(--accent); color:#fff; border-color:var(--accent); font-weight:700; box-shadow:0 2px 12px var(--accent-glow); }
 /* Desktop default: hidden — desktop keeps the separate chat icon already
    in the header. #chatBtnMobile is an ID selector, which always outranks
    any number of classes in specificity, so this reliably wins regardless
@@ -2080,6 +2088,11 @@ main{ max-width:none; margin:0; padding: 20px 28px 120px; flex:1; }
   #chatBtnTb{ display:none; }
   .app-sidebar .prop-tab.chat-tab::before{ -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 11.5a8.38 8.38 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 8.4-8.5 8.38 8.38 0 0 1 8.6 8.5z'/%3E%3C/svg%3E"); mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 11.5a8.38 8.38 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 8.4-8.5 8.38 8.38 0 0 1 8.6 8.5z'/%3E%3C/svg%3E"); }
   .app-sidebar .prop-tab.chat-tab::after{ content:"Chat"; }
+  /* Player Props icon — a target/crosshair (props & projections). The label
+     is shown via ::after so it appears on desktop (text hidden on mobile via
+     font-size:0, same as the other sidebar tabs). */
+  .app-sidebar .prop-tab[data-tab="__props__"]::before{ -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3Ccircle cx='12' cy='12' r='1.5'/%3E%3C/svg%3E"); mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3Ccircle cx='12' cy='12' r='1.5'/%3E%3C/svg%3E"); }
+  .app-sidebar .prop-tab[data-tab="__props__"]::after{ content:"Player Props"; }
   /* Confirmed directly against the live site: an active tab's label
      genuinely disappears (content:none) rather than staying visible —
      this makes chat match that behavior explicitly and reliably, rather
@@ -3553,6 +3566,7 @@ footer{ margin-left:0; }
 
     <main>
       <div id="propMenuInline"></div>
+      <div id="propSubtabs" hidden></div>
       <div class="section-head">
         <h2 id="sectionTitle">Top 20 · Home Run</h2>
         <p id="sectionSub">Ranked by Home Run Index — Statcast profile, park, weather, and matchup combined.</p>
@@ -5148,6 +5162,7 @@ const PROP_MENU = [
 ];
 const PROP_IDS = new Set(PROP_MENU.map(p=>p.id));
 let activeTab = 'slate';
+let lastProp = 'hr';            // last-selected prop market; 'Player Props' tab reopens here
 let propMenuOpen = false;
 let propMenuBackdrop = null;   // created once, reused across re-renders
 const TOP_N = 20;
@@ -5466,18 +5481,10 @@ function renderTabs(){
   const propActive = PROP_IDS.has(activeTab);
   propTabsEl.innerHTML = PROP_TABS.map(t => {
     if(t.dropdown){
-      // Label reflects the current selection so you can see what's showing
-      // without opening the menu.
-      const current = propActive ? PROP_MENU.find(p=>p.id===activeTab).label : t.label;
-      const unread = activeTab!=='feed' && feedUnread>0 ? '' : '';
-      return `<div class="prop-dropdown">
-        <button class="prop-tab ${propActive?'active':''}" id="propMenuBtn">
-          ${current} <span style="opacity:.7;font-size:10px;">▾</span>
-        </button>
-        <div class="prop-menu ${propMenuOpen?'open':''}" id="propMenu">
-          ${PROP_MENU.map(p=>`<button class="prop-menu-item ${p.id===activeTab?'active':''}" data-tab="${p.id}">${p.label}</button>`).join('')}
-        </div>
-      </div>`;
+      // "Player Props" is a normal tab now (no popover dropdown). The prop
+      // markets render as a static, in-flow sub-tab row above the pick list —
+      // see renderPropSubtabs(). Tapping this tab reopens the last market.
+      return `<button class="prop-tab ${propActive?'active':''}" data-tab="${t.id}" aria-haspopup="false">${t.label}</button>`;
     }
     const badge = (t.id==='feed' && feedUnread>0 && activeTab!=='feed')
       ? `<span class="tab-badge">${feedUnread>99?'99+':feedUnread}</span>`
@@ -5500,7 +5507,8 @@ function renderTabs(){
   }).join('');
 
   const selectTab = id => {
-    activeTab = id;
+    if(id === '__props__'){ activeTab = lastProp || 'hr'; }   // 'Player Props' tab reopens last market
+    else { activeTab = id; if(PROP_IDS.has(id)) lastProp = id; }
     closePropMenu();
     if(id==='feed') markFeedRead();
     if(id==='foryou') markForYouRead();
@@ -6131,6 +6139,33 @@ function paintBVP(slot){
 }
 
 
+// Static, in-flow sub-tab row for the player-prop markets. Replaces the old
+// popover dropdown: the nine markets (Home Runs, Hits, Total Bases, RBIs,
+// H+R+RBI, Stolen Bases, Strikeouts, 1st Inning O/U, All Players) render as
+// pill buttons directly above the pick list whenever a prop market is active,
+// and the row is hidden for Slate / HR Feed / For You. Mirrors the NFL props
+// sub-tab row. selectTab is an inner closure of renderTabs, so the click
+// handler inlines the same switch + re-render logic rather than calling it.
+function renderPropSubtabs(){
+  const host = document.getElementById('propSubtabs');
+  if(!host) return;
+  if(!PROP_IDS.has(activeTab)){ host.innerHTML=''; host.hidden = true; return; }
+  host.hidden = false;
+  host.innerHTML = `<div class="prop-subtabs" role="tablist" aria-label="Player prop market">` +
+    PROP_MENU.map(p => `<button type="button" class="prop-subtab ${p.id===activeTab?'is-active':''}" data-tab="${p.id}" role="tab" aria-selected="${p.id===activeTab}">${p.label}</button>`).join('') +
+    `</div>`;
+  host.querySelectorAll('.prop-subtab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeTab = btn.dataset.tab;
+      if(PROP_IDS.has(activeTab)) lastProp = activeTab;
+      renderTabs();
+      renderList();
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
+  });
+}
+
+
 function renderList(){
   // Suppress renders until the splash sequence finishes, so the slate can never
   // flash on screen before the sign-in gate / splash loading screen. Once
@@ -6139,6 +6174,12 @@ function renderList(){
   const meta = SECTION_META[activeTab];
   sectionTitle.textContent = meta.title;
   sectionSub.textContent = meta.sub;
+
+  // Static prop sub-tab row: shown whenever a player-prop market is active.
+  // Renders the nine markets as in-flow pills above the pick list (never a
+  // popover dropdown), mirroring the NFL props view. Cleared for non-prop
+  // tabs (slate / feed / foryou) so the row never lingers out of context.
+  renderPropSubtabs();
 
   // Tomorrow is a genuinely different slate (different matchups entirely, not just
   // different times), and this build only carries today's curated game data. Rather
