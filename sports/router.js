@@ -116,6 +116,11 @@ async function swapView(active) {
   const accent = SPORTS[active]?.accent;
   if (accent) document.documentElement.style.setProperty('--sport-accent', accent);
 
+  // Chat is sport-scoped (room = sport key). If the floating panel is open
+  // when the sport flips, reload it so the user lands in the new room rather
+  // than still viewing the previous sport's messages.
+  if (typeof window.DW_reloadChatForSport === 'function') window.DW_reloadChatForSport();
+
   if (active === 'nfl') {
     // Lazy-load the NFL view module only when it's actually needed, so the MLB
     // path pays nothing for it.

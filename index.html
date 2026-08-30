@@ -1645,6 +1645,16 @@ body{
     transform:translateX(-50%); margin:0; min-width:200px; max-height:60vh; overflow-y:auto; }
   .nfl-view{ padding:14px 16px calc(var(--mobile-nav-h) + 90px); }
   .nfl-games{ grid-template-columns:1fr; }
+  /* Chat is a mobile-only bottom-nav action (desktop opens chat from the header). */
+  .nfl-sn-tab.nfl-chat-tab{ display:flex !important; }
+  .nfl-chat-tab .chat-unread-dot{ position:absolute; top:6px; right:24%; width:8px; height:8px; border-radius:50%;
+    background:var(--hr-red); border:1.5px solid var(--bg); display:none; }
+  .nfl-chat-tab .chat-unread-dot.show{ display:block; }
+  /* 5 tabs at 375px: force equal 20% widths so labels never collide */
+  .nfl-sidenav > .nfl-sn-tab,
+  .nfl-sidenav > .nfl-sn-dropdown{ flex:0 0 20% !important; width:20% !important; min-width:0 !important; overflow:hidden; }
+  .nfl-sidenav .nfl-sn-tab{ font-size:9px !important; justify-content:center; gap:2px; }
+  .nfl-sidenav .nfl-sn-tab .nfl-sn-ico{ width:16px; height:16px; }
 }
 @media (max-width:560px){
   .tb-mobile-brand .brand-text{ display:none; }
@@ -1697,6 +1707,13 @@ html[data-sport="nfl"] #propTabs{ display:none; }
 .nfl-sn-item.is-active{ background:rgba(245,158,11,0.14); color:#fbbf24; font-weight:600;
   box-shadow:inset 2px 0 0 #f59e0b; }
 .nfl-sn-item:disabled{ color:var(--mute); opacity:0.5; cursor:not-allowed; }
+
+/* Chat tab is mobile-only in the NFL nav (mirrors MLB's #chatBtnMobile —
+   desktop reaches chat from the header icon instead). */
+.nfl-chat-tab{ display:none; }
+/* For You host — the shared community feed renders inside the NFL view; give it
+   a little breathing room under the toolbar. */
+.nfl-foryou-host{ padding:4px 0 0; }
 
 .nfl-view{ --nfl:#f59e0b; --nfl-dim:rgba(245,158,11,0.14); flex:1; margin:0; max-width:none;
   padding:20px 28px 120px; }
@@ -3443,6 +3460,8 @@ footer{ margin-left:0; }
     <nav class="nfl-sidenav" id="nflSideNav" hidden>
       <button type="button" class="nfl-sn-tab is-active" data-nfl-tab="slate"><svg class="nfl-sn-ico" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="10" x2="12" y2="20"/></svg>Slate</button>
       <button type="button" class="nfl-sn-tab" data-nfl-tab="feed"><svg class="nfl-sn-ico" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1.5"/></svg>TD Feed</button>
+      <button type="button" class="nfl-sn-tab nfl-chat-tab" id="nflChatBtnMobile"><svg class="nfl-sn-ico" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 8.4-8.5 8.38 8.38 0 0 1 8.6 8.5z"/></svg>Chat<span class="chat-unread-dot"></span></button>
+      <button type="button" class="nfl-sn-tab" data-nfl-tab="foryou"><svg class="nfl-sn-ico" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>For You</button>
       <div class="nfl-sn-dropdown">
         <button type="button" class="nfl-sn-tab" id="nflPropMenuBtn" data-nfl-tab="props"><svg class="nfl-sn-ico" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="12" y1="21" x2="12" y2="8"/><line x1="20" y1="21" x2="20" y2="12"/></svg>Player Props<span class="nfl-sn-caret">▾</span></button>
         <div class="nfl-sn-propmenu" id="nflPropMenu">
@@ -12139,10 +12158,14 @@ function openProfileEditor(prof){
 
 
 // ---------------------------------------------------------------- For You page
-async function renderForYou(){
+async function renderForYou(host){
+  // host defaults to the MLB pickList so MLB is unchanged; the NFL view passes
+  // its own body element so the same shared, multisport community feed renders
+  // inside the NFL view without duplicating #fyPost/#fyStatus/etc. IDs.
+  host = host || pickList;
   const s = social();
   if(!s || !s.socialEnabled()){
-    pickList.innerHTML = `<div class="foryou-empty">
+    host.innerHTML = `<div class="foryou-empty">
       <div class="foryou-empty-icon">👥</div>
       <div style="font-size:16px;color:var(--text);margin-bottom:8px;">Community isn't set up yet</div>
       Add your Supabase URL and anon key to <code style="color:var(--accent)">social.js</code>,
@@ -12150,7 +12173,7 @@ async function renderForYou(){
     return;
   }
   if(s.needsSchema?.()){
-    pickList.innerHTML = `<div class="foryou-empty">
+    host.innerHTML = `<div class="foryou-empty">
       <div class="foryou-empty-icon" style="color:var(--hr-red)">⚠</div>
       <div style="font-size:16px;color:var(--hr-red);margin-bottom:10px;">Database tables are missing</div>
       Open your Supabase project → SQL Editor → paste the contents of
@@ -12158,7 +12181,7 @@ async function renderForYou(){
     return;
   }
 
-  pickList.innerHTML = `<div class="foryou-empty"><div class="foryou-empty-icon">⟳</div>Loading community feed…</div>`;
+  host.innerHTML = `<div class="foryou-empty"><div class="foryou-empty-icon">⟳</div>Loading community feed…</div>`;
 
   const signedIn = !!s.getUser?.();
   const slateFor = slateDate();   // date-scope the feed so it clears with the slate
@@ -12182,22 +12205,24 @@ async function renderForYou(){
       <button class="bs-btn primary" id="fySignIn">Sign in to post</button>
     </div>`;
 
-  pickList.innerHTML = compose + (statuses.length
+  host.innerHTML = compose + (statuses.length
     ? `<div class="foryou-list">${statuses.map(st => statusHTML(st, s.getUser?.()?.id === st.user_id)).join('')}</div>`
     : `<div class="foryou-empty"><div class="foryou-empty-icon">📝</div><div style="font-size:15px;color:var(--text);margin-bottom:6px;">No posts yet</div>Be the first to share something.</div>`
   );
 
-  wireStatusInteractions(pickList, signedIn);
+  wireStatusInteractions(host, signedIn);
   applyLegHighlights();
 
-  const signInBtn = document.getElementById('fySignIn');
+  // Scope lookups to host so a hidden MLB For You render can't intercept the
+  // post/sign-in buttons of the NFL render (duplicate IDs).
+  const signInBtn = host.querySelector('#fySignIn');
   if(signInBtn) signInBtn.onclick = () => openAuthModal('signin');
 
-  const postBtn = document.getElementById('fyPost');
+  const postBtn = host.querySelector('#fyPost');
   if(postBtn) postBtn.onclick = async () => {
-    const ta = document.getElementById('fyStatus');
-    const err = document.getElementById('fyErr');
-    const attach = document.getElementById('fyAttach')?.checked;
+    const ta = host.querySelector('#fyStatus');
+    const err = host.querySelector('#fyErr');
+    const attach = host.querySelector('#fyAttach')?.checked;
     err.textContent = '';
     postBtn.disabled = true;
     const legs = attach ? betslip.map(l => ({ text: legToText(l), price: l.price ?? null })) : null;
@@ -12205,7 +12230,7 @@ async function renderForYou(){
     postBtn.disabled = false;
     if(res.error){ err.textContent = res.error; return; }
     ta.value = '';
-    const list = pickList.querySelector('.foryou-list');
+    const list = host.querySelector('.foryou-list');
     if(list){
       const empty = list.querySelector('.foryou-empty');
       if(empty) empty.remove();
@@ -12239,7 +12264,7 @@ async function renderChat(){
     return;
   }
 
-  const msgs = await s.loadChat('general');
+  const msgs = await s.loadChat(chatRoom());
   const signedIn = !!s.getUser?.();
 
   pickList.innerHTML = `
@@ -12269,7 +12294,7 @@ async function renderChat(){
     input.value = '';
     sendBtn.disabled = true;
 
-    const res = await s.sendMessage(body, 'general');
+    const res = await s.sendMessage(body, chatRoom());
     sendBtn.disabled = false;
 
     if(res.error){
@@ -12315,7 +12340,7 @@ async function renderChat(){
 
   // Live updates while the tab is open.
   if(chatUnsub) chatUnsub();
-  chatUnsub = s.subscribeChat('general', m => {
+  chatUnsub = s.subscribeChat(chatRoom(), m => {
     if(seen.has(m.id)) return;        // already shown optimistically
     seen.add(m.id);
     const list = document.getElementById('chatList');
@@ -13811,7 +13836,11 @@ let chatPanelSeen = new Set();
  * in sync regardless of which one someone actually clicks.
  */
 function getChatTriggers(){
-  return [document.getElementById('chatBtnTb'), document.getElementById('chatBtnMobile')].filter(Boolean);
+  return [
+    document.getElementById('chatBtnTb'),
+    document.getElementById('chatBtnMobile'),
+    document.getElementById('nflChatBtnMobile'),
+  ].filter(Boolean);
 }
 function setChatTriggersActive(isActive){
   getChatTriggers().forEach(btn => btn.classList.toggle('active', isActive));
@@ -14070,6 +14099,22 @@ async function shareWagerResult(w, triggerBtn){
   }
 }
 
+/* Sport-scoped chat room. The messages table already has a per-row `room`
+   column (social.js loadChat/sendMessage/subscribeChat all filter on it), so a
+   separate room per sport is a filter, not a schema change. MLB keeps using
+   the existing `general` room (preserves chat history); every other sport uses
+   its own key, so NFL chat is its own conversation. */
+function currentSportKey(){ return document.documentElement.getAttribute('data-sport') || 'mlb'; }
+function chatRoom(){ const s = currentSportKey(); return s === 'mlb' ? 'general' : s; }
+function chatRoomLabel(){ return currentSportKey().toUpperCase() + ' Chat'; }
+// Explicit window binding so the router module (which can't see lexical
+// declarations in this classic script reliably) can ask the chat panel to
+// re-subscribe to the new sport's room on a sport switch.
+window.DW_reloadChatForSport = function(){
+  const panel = document.getElementById('chatPanel');
+  if(panel && panel.classList.contains('open') && typeof window.loadChatPanelMessages === 'function') window.loadChatPanelMessages();
+};
+
 function toggleChatPanel(){
   const panel = document.getElementById('chatPanel');
   if(!panel) return;
@@ -14079,6 +14124,8 @@ function toggleChatPanel(){
   if(chatPanelOpen){
     chatPanelMinimized = false;
     panel.classList.remove('minimized');
+    const t = document.getElementById('chatPanelTitle');
+    if(t) t.textContent = chatRoomLabel();
     loadChatPanelMessages();
     document.getElementById('chatPanelInput')?.focus();
     setChatUnreadDot(false);
@@ -14181,7 +14228,7 @@ function initChatPanel(){
       input.value = '';
       sendBtn.disabled = true;
       const s = social();
-      const res = await s.sendMessage(body, 'general');
+      const res = await s.sendMessage(body, chatRoom());
       sendBtn.disabled = false;
       if(res.error){
         if(res.error === 'not signed in') promptSignIn();
@@ -14207,6 +14254,11 @@ function initChatPanel(){
 
 async function loadChatPanelMessages(){
   const s = social();
+  // Title is just a sport label — set it before the social-ready check so the
+  // panel always reads "NFL Chat" / "MLB Chat" the instant it opens, even when
+  // social isn't configured or still warming up.
+  const titleEl0 = document.getElementById('chatPanelTitle');
+  if(titleEl0) titleEl0.textContent = chatRoomLabel();
   if(!s || !s.socialEnabled()) return;
 
   const list = document.getElementById('chatPanelList');
@@ -14219,7 +14271,12 @@ async function loadChatPanelMessages(){
     return;
   }
 
-  const msgs = await s.loadChat('general');
+  const room = chatRoom();
+  // Set the sport-scoped title immediately, before the (possibly slow) message
+  // fetch, so the panel always reflects the current sport the moment it opens.
+  const titleEl = document.getElementById('chatPanelTitle');
+  if(titleEl) titleEl.textContent = chatRoomLabel();
+  const msgs = await s.loadChat(room);
   chatPanelSeen = new Set(msgs.map(m => m.id));
   if(list){
     list.innerHTML = msgs.length ? msgs.map(chatMsgHTML).join('')
@@ -14250,7 +14307,7 @@ async function loadChatPanelMessages(){
 
   // Realtime
   if(chatPanelUnsub) chatPanelUnsub();
-  chatPanelUnsub = s.subscribeChat('general', m => {
+  chatPanelUnsub = s.subscribeChat(room, m => {
     if(chatPanelSeen.has(m.id)) return;
     chatPanelSeen.add(m.id);
     if(!list) return;
@@ -14409,6 +14466,7 @@ window.refreshChatPanelAuth = refreshChatPanelAuth;
 
 // Start presence + online button as soon as social is ready
 window.initChatPanel = initChatPanel;
+window.loadChatPanelMessages = loadChatPanelMessages;
 window.initOnlinePresence = initOnlinePresence;
 function initOnlinePresence(){
   const s = social();
@@ -15912,7 +15970,7 @@ document.addEventListener('visibilitychange', ()=>{
   <div class="chat-panel-head">
     <div class="chat-panel-title">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 8.4-8.5 8.38 8.38 0 0 1 8.6 8.5z"/></svg>
-      <span>Game Chat</span>
+      <span id="chatPanelTitle">Game Chat</span>
       <span class="chat-panel-online" id="chatPanelOnline"></span>
     </div>
     <div class="chat-panel-actions">

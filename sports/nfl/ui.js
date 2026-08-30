@@ -22,7 +22,7 @@ let posFilter = 'ALL';
 
 // Nav state — mirrors MLB's #propTabs: top-level tabs + a Player Props dropdown.
 // Not encoded in location.hash (router only routes #nfl); kept in-module.
-let activeNflTab = 'slate';        // 'slate' | 'feed' | 'props'
+let activeNflTab = 'slate';        // 'slate' | 'feed' | 'foryou' | 'props'
 let activeNflProp = 'atd';         // 'atd' | 'firstTd' | 'rushYds' | 'recYds' | 'receptions' | 'passTds'
 let nflPropMenuOpen = false;
 const NFL_PROPS = {
@@ -394,6 +394,11 @@ function wireNflNav() {
       else selectNflTab(t);
     });
   });
+  // Chat is a floating panel action, not a tab — it opens the sport-scoped
+  // room (chatRoom() in index.html reads data-sport). Mobile-only via CSS.
+  document.getElementById('nflChatBtnMobile')?.addEventListener('click', () => {
+    window.toggleChatPanel?.();
+  });
   nav.querySelectorAll('.nfl-sn-item[data-nfl-prop]').forEach(btn => {
     btn.addEventListener('click', e => { e.stopPropagation(); selectNflProp(btn.dataset.nflProp); });
   });
@@ -513,7 +518,10 @@ export function render() {
   // ---- header title + sub by tab ----
   let title = 'Slate';
   let sub = `${weekLabel} · ${slate.gameCount} games · tap a game for the field view and red-zone readout.`;
-  if (activeNflTab === 'feed') {
+  if (activeNflTab === 'foryou') {
+    title = 'For You';
+    sub = `The shared, multisport community feed — picks, takes, and trash talk from across DingerWatch. Same page as MLB.`;
+  } else if (activeNflTab === 'feed') {
     title = 'TD Feed';
     sub = `Live touchdowns the moment they cross. The feed lights up with every scoring play — rush, pass, and return TDs — once games go live.`;
   } else if (activeNflTab === 'props') {
@@ -532,7 +540,12 @@ export function render() {
 
   // ---- body by tab ----
   let body;
-  if (activeNflTab === 'feed') {
+  if (activeNflTab === 'foryou') {
+    // Shared community feed (renderForYou writes its compose box + post list
+    // straight into this host). Kept out of the live-poll re-render path below
+    // so typing in the compose box isn't clobbered every poll tick.
+    body = `<div class="nfl-foryou-host" id="nflForYouHost"></div>`;
+  } else if (activeNflTab === 'feed') {
     body = `<section class="nfl-feed-empty" role="status">
       <div class="nfl-feed-icon" aria-hidden="true">🏈</div>
       <h3>Touchdown feed is quiet</h3>
@@ -588,6 +601,7 @@ ${body}
   Modeled projections for entertainment only — not betting advice.
 </footer>`;
 
+  if (activeNflTab === 'foryou') window.renderForYou?.(root.querySelector('#nflForYouHost'));
   if (activeNflTab === 'slate' && !g) renderGames(root.querySelector('#nflGames'));
   if (isAt) renderPicks(root.querySelector('#nflPickList'));
   if (activeNflTab === 'props' && !isAt) renderPropOdds(root.querySelector('#nflPickList'), activeNflProp);
@@ -624,7 +638,9 @@ export async function mount() {
     render();
     // Live score polling (ESPN scoreboard, CORS-enabled) keeps score/period/
     // clock/possession current so the win-probability tiles stay live.
-    startLivePolling(slate, () => render());
+    // Don't let the live-poll re-render blow away the For You compose box
+    // (typing + scroll position) every tick — only slate/feed/props need it.
+    startLivePolling(slate, () => { if (activeNflTab !== 'foryou') render(); });
   } catch (e) {
     root.innerHTML = `<div class="nfl-error">
       <div class="nfl-error-title">Couldn't load the NFL slate</div>
