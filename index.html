@@ -12964,7 +12964,7 @@ function openBatterModal(p){
     else if(range==='26'){ games=(logs.g26||[]).slice(); seasonTag='2026'; }
     else { const n=parseInt(range,10)||10; games=(logs.g26||[]).slice(-n); seasonTag=`Last ${n}`; }
     if(!games.length) return `<div class="filters">${chips}</div><div class="clear">No ${seasonTag} game log available.</div>`;
-    const rows = games.slice().reverse(); // oldest -> newest (left to right)
+    const rows = games.slice(); // newest on the right (chronological oldest -> newest, left to right)
     const maxV = Math.max(1, ...rows.map(propVal));
     let onPct=0; rows.forEach(g=>{ if(propVal(g)>0) onPct++; });
     const total = rows.reduce((s,g)=>s+propVal(g),0);
