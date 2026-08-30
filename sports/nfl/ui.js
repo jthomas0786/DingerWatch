@@ -16,6 +16,7 @@ import { liveWinProb } from './winprob.js';
 
 const CFG = SPORTS.nfl;
 let slate = null;
+let oddsDoc = null;
 let activeGameId = null;
 let posFilter = 'ALL';
 
@@ -68,6 +69,71 @@ const CONF_LABEL = {
   rookie: { text: 'Rookie', title: 'No NFL production history — projection is prior-based, scaled by draft position' },
   'no-history': { text: 'No 2025 sample', title: 'On a 2026 roster but recorded no 2025 production — projection is prior-based and discounted' },
 };
+
+// ---------------------------------------------------------------------------
+// player-prop odds (OpticOdds sample) — fail-soft, mirrors the MLB odds model
+// ---------------------------------------------------------------------------
+const ODDS_URL = './slates/nfl-odds.json';
+
+/** American-odds display: +140 / -120. */
+function priceFmt(p) {
+  if (p == null || !Number.isFinite(p)) return '';
+  return p > 0 ? `+${Math.round(p)}` : `${Math.round(p)}`;
+}
+
+/** Normalized name for join: lowercase, strip dots/suffixes, collapse spaces. */
+function normName(s) {
+  return String(s ?? '')
+    .toLowerCase()
+    .replace(/\./g, '')
+    .replace(/\s+(jr|sr|ii|iii|iv|v)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Attach odds (slates/nfl-odds.json) to slate players by matchup + name. Fail-soft. */
+function mergeNflOdds(slate, odds) {
+  if (!slate?.games?.length || !odds?.games?.length) return;
+  const byKey = {};
+  for (const g of odds.games) byKey[g.matchKey] = g;
+  for (const game of slate.games) {
+    const og = byKey[`${game.away?.abbr}-${game.home?.abbr}`];
+    if (!og) continue;
+    const byName = {};
+    for (const p of og.players) byName[normName(p.name)] = p;
+    for (const p of game.players) {
+      const m = byName[normName(p.name)];
+      if (m) p.odds = m.odds;
+    }
+  }
+}
+
+/** Week-1 odds preview card — shown during preseason (no slate props posted yet). */
+function previewOddsHTML(odds) {
+  if (!odds?.games?.length) return '';
+  const game = odds.games.find(g => g.markets?.includes('atd'));
+  if (!game) return '';
+  const books = [...new Set(game.players.flatMap(p => p.odds?.atd?.all?.map(e => e.book) || []))].slice(0, 3);
+  const atd = game.players
+    .filter(p => p.odds?.atd?.best)
+    .sort((a, b) => a.odds.atd.best.price - b.odds.atd.best.price)
+    .slice(0, 6);
+  const yards = game.players.filter(p => p.odds?.rushYds || p.odds?.recYds || p.odds?.receptions).slice(0, 4);
+  const row = (p) => `<a class="nfl-prev-row" href="${esc(p.odds.atd.best.link)}" target="_blank" rel="noopener" title="${esc(p.odds.atd.best.book)} · Anytime TD — tap to bet"><span class="nfl-prev-name">${esc(p.name)}</span><span class="nfl-prev-amt">${priceFmt(p.odds.atd.best.price)}</span></a>`;
+  const yrow = (p) => {
+    const m = p.odds.rushYds || p.odds.recYds || p.odds.receptions; if (!m?.over?.best) return '';
+    const label = p.odds.rushYds ? 'Rush yds' : p.odds.recYds ? 'Rec yds' : 'Receptions';
+    return `<a class="nfl-prev-row" href="${esc(m.over.best.link)}" target="_blank" rel="noopener" title="${esc(m.over.best.book)} · ${label} Over ${esc(m.line)}"><span class="nfl-prev-name">${esc(p.name)} <em>${label} ${esc(m.line)}</em></span><span class="nfl-prev-amt">${priceFmt(m.over.best.price)}</span></a>`;
+  };
+  return `<section class="nfl-preview-odds" aria-label="Week 1 odds preview">
+    <div class="nfl-preview-odds-head"><h3>Week 1 odds preview</h3>
+      <span class="nfl-preview-odds-sub">Real ${esc(game.away)} @ ${esc(game.home)} props — regular season opens Sept 9. Tap to bet at ${esc(books.join(' / '))}.</span></div>
+    <div class="nfl-preview-odds-cols">
+      <div class="nfl-prev-col"><div class="nfl-prev-col-h">Anytime TD</div>${atd.map(row).join('')}</div>
+      <div class="nfl-prev-col"><div class="nfl-prev-col-h">Player lines</div>${yards.map(yrow).join('')}</div>
+    </div>
+  </section>`;
+}
 
 // ---------------------------------------------------------------------------
 // football field gamecast
@@ -254,6 +320,8 @@ function playerRow(p, opts = {}) {
   const availChip = a.availability.status !== 'active' && a.availability.status !== 'unconfirmed'
     ? `<span class="nfl-chip nfl-chip-avail nfl-avail-${esc(a.availability.status)}" title="${esc(a.availability.note || '')}">${esc(AVAIL_LABEL[a.availability.status] || a.availability.status)}</span>`
     : '';
+  const atdOdds = p.odds?.atd?.best;
+  const oddsChip = atdOdds ? `<a class="nfl-chip nfl-odds-chip" href="${esc(atdOdds.link)}" target="_blank" rel="noopener" title="${esc(atdOdds.book)} · Anytime TD — tap to bet">Bet ${priceFmt(atdOdds.price)}</a>` : '';
   return `
 <div class="nfl-player ${isOut ? 'is-out' : ''}" data-gsis="${esc(p.gsisId)}">
   <div class="nfl-p-rank">${opts.rank != null ? opts.rank : ''}</div>
@@ -266,7 +334,7 @@ function playerRow(p, opts = {}) {
     <div class="nfl-p-sub">
       <span class="nfl-p-team">${esc(p.team)}</span>
       <span class="nfl-p-vs">vs ${esc(p.opponent)}</span>
-      ${depth}${moved}${confChip}${availChip}
+      ${depth}${moved}${confChip}${availChip}${oddsChip}
     </div>
   </div>
   <div class="nfl-p-prob">
@@ -357,6 +425,8 @@ ${slate.seasonType === 'pre' ? `<div class="nfl-preseason-banner" role="status">
   Expect sizable misses; treat the numbers as a directional preview, not a prediction.</p>
 </div>` : ''}
 
+${slate.seasonType === 'pre' ? previewOddsHTML(oddsDoc) : ''}
+
 ${g ? `
 <section class="nfl-gamecast">
   <div class="nfl-gc-field">
@@ -423,6 +493,13 @@ export async function mount() {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     slate = await r.json();
     if (!slate.games?.length) throw new Error('slate contains no games');
+    // Player-prop odds sample (OpticOdds). Fail-soft: a missing file or no name
+    // matches just means no odds chips render — the view still works.
+    try {
+      const or = await fetch(ODDS_URL, { cache: 'no-cache' });
+      if (or.ok) oddsDoc = await or.json();
+      mergeNflOdds(slate, oddsDoc);
+    } catch { oddsDoc = null; }
     render();
     // Live score polling (ESPN scoreboard, CORS-enabled) keeps score/period/
     // clock/possession current so the win-probability tiles stay live.
