@@ -3465,19 +3465,20 @@ body.modal-open{ overflow:hidden; }
 .player-card-v2 .phead .mid .lbl span{ color:var(--muted); font-weight:400 }
 .player-card-v2 .phead .mid .sub{ font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); margin-top:3px }
 .player-card-v2 .phead .pct{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:26px; color:var(--green-bright) }
-.player-card-v2 .fac-head{ display:grid; grid-template-columns:1fr 90px 70px; gap:10px; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); margin-bottom:6px }
+.player-card-v2 .fac-head{ display:grid; grid-template-columns:1fr 90px 70px; gap:10px; align-items:center; padding:7px 8px; border-bottom:1px solid var(--line); margin-bottom:6px }
 .player-card-v2 .fac-head span:first-child{ font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.1em; color:var(--muted); text-transform:uppercase; font-weight:700 }
 .player-card-v2 .fac-head span:nth-child(3){ text-align:right; font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--muted); letter-spacing:.06em; text-transform:uppercase }
-.player-card-v2 .fac-row{ display:grid; grid-template-columns:1fr 90px 70px; gap:10px; align-items:center; padding:9px 0; border-bottom:1px solid var(--line) }
+.player-card-v2 .fac-row{ display:grid; grid-template-columns:1fr 90px 70px; gap:10px; align-items:center; padding:9px 8px; border-bottom:1px solid var(--line) }
 .player-card-v2 .fac-row:last-child{ border-bottom:0 }
 .player-card-v2 .fac-label{ font-family:'Oswald',sans-serif; font-size:13px; color:var(--text); font-weight:500 }
 .player-card-v2 .fac-detail{ font-size:10.5px; color:var(--faint); margin-top:2px; line-height:1.3; font-family:'Inter',sans-serif }
-.player-card-v2 .fac-track{ height:8px; background:rgba(255,255,255,.05); border-radius:5px; overflow:hidden }
-.player-card-v2 .fac-fill{ display:block; height:100%; border-radius:5px }
+.player-card-v2 .fac-track{ position:relative; height:8px; background:rgba(255,255,255,.05); border-radius:5px; overflow:hidden }
+.player-card-v2 .fac-track::before{ content:''; position:absolute; left:50%; top:0; bottom:0; width:1px; background:var(--muted); opacity:.45; transform:translateX(-.5px); z-index:1 }
+.player-card-v2 .fac-fill{ position:absolute; top:0; bottom:0; border-radius:5px }
 .player-card-v2 .fac-pos{ background:linear-gradient(90deg,var(--green),var(--green-bright)) }
 .player-card-v2 .fac-neg{ background:linear-gradient(90deg,var(--red),#ff7a7a) }
 .player-card-v2 .fac-neu{ background:var(--panel3) }
-.player-card-v2 .fac-verdict{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:13px; text-align:right }
+.player-card-v2 .fac-verdict{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:13px; text-align:right; color:var(--text) }
 .player-card-v2 .ver-pos{ color:var(--green-bright) } .player-card-v2 .ver-neg{ color:var(--red) } .player-card-v2 .ver-neu{ color:var(--muted) }
 .player-card-v2 .fac-foot{ margin-top:12px; font-size:11.5px; color:var(--muted); line-height:1.5; background:rgba(45,127,255,.05); border:1px solid var(--border); border-radius:10px; padding:11px 13px }
 .player-card-v2 .fac-foot b{ color:var(--green-bright) }
@@ -5251,10 +5252,11 @@ function factorListHTML(p, prop){
     // rank within the matchup rather than an absolute scale nobody can read.
     const peak = Math.max(4, Math.abs(parts[0].pct));
     const width = Math.min(100, (Math.abs(r.pct) / peak) * 100);
+    const side = r.pct < -0.5 ? 'right:50%' : 'left:50%';
     return `<div class="fac-row">
       <div class="fac-label">${r.label}<div class="fac-detail">${detailFor(r)}</div></div>
-      <div class="fac-track"><div class="fac-fill ${cls}" style="width:${width}%"></div></div>
-      <div class="fac-verdict ${cls}">${signed(r.pct.toFixed(1))}%</div>
+      <div class="fac-track"><div class="fac-fill ${cls}" style="${side};width:${width/2}%"></div></div>
+      <div class="fac-verdict">${signed(r.pct.toFixed(1))}%</div>
     </div>`;
   };
 
@@ -5271,7 +5273,6 @@ function factorListHTML(p, prop){
     ${section('What helps', helps)}
     ${section('What hurts', hurts)}
     ${section('Neutral tonight', flat)}
-    <div class="fac-foot">Everything above multiplies together to <b>${signed(total.toFixed(1))}%</b> versus a league-average matchup for this prop.${clampNote} Percentages are the model's real contributions — change a weight in model-config.json and this list changes with the grade.</div>
   </div>`;
 }
 
@@ -12790,16 +12791,7 @@ function propFactorBlockHTML(p, prop){
     sb:   { d:sim.sb,     line:'over 0.5', label:'STOLEN BASE' },
   }[prop];
   const gr = gradeFor(prop, cfg.d.exact ?? cfg.d.pct);
-  return `
-    <div class="prop-head ${gr.cls}">
-      <div class="ph-grade">${gr.g}</div>
-      <div class="ph-mid">
-        <div class="ph-label">${cfg.label} <span>${cfg.line}</span></div>
-        <div class="ph-sub">median ${cfg.d.p50} · ceiling ${cfg.d.ceiling}</div>
-      </div>
-      <div class="ph-pct">${cfg.d.pct}%</div>
-    </div>
-    ${factorListHTML(p, prop)}`;
+  return factorListHTML(p, prop);
 }
 
 function openBatterModal(p){
@@ -12897,8 +12889,8 @@ function openBatterModal(p){
     const runs = Math.round(cfg.d.runs||200);
     return `<div class="why-intro">What's driving tonight's <b>${cfg.code} over ${cfg.line}</b> projection — every factor is a real model input.</div>
       <div class="phead" style="color:${col}">
-        <div class="pgring">${pcRingSVG(pct,false)}<div class="pg-c">${pct}%</div></div>
-        <div class="mid"><div class="lbl">${cfg.code} <span>over ${cfg.line}</span></div><div class="sub">median ${cfg.d.p50??'—'} · ceiling ${cfg.d.ceiling??'—'} · ${runs} simulated games</div></div>
+        <div class="pgring">${pcRingSVG(pct,false)}<div class="pg-c">${gr.g}</div></div>
+        <div class="mid"><div class="lbl">${cfg.code} <span>over ${cfg.line}</span></div></div>
         <div class="pct">${pct}%</div>
       </div>${propFactorBlockHTML(p, prop)}`;
   }
