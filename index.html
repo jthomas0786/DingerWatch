@@ -10807,8 +10807,13 @@ function syncAddButtons(){
   document.querySelectorAll('.add-leg').forEach(btn => {
     const on = inSlip(btn.dataset.legid);
     btn.classList.toggle('in-slip', on);
-    btn.textContent = on ? '✓' : '+';
-    btn.title = on ? 'Remove from slip' : 'Add to slip';
+    if(btn.dataset.ctaLabel != null){
+      // CTA keeps its prop-aware label; just reflect in-slip state.
+      btn.textContent = on ? '✓ In Slip' : btn.dataset.ctaLabel;
+    } else {
+      btn.textContent = on ? '✓' : '+';
+      btn.title = on ? 'Remove from slip' : 'Add to slip';
+    }
   });
 }
 
@@ -12837,14 +12842,21 @@ function openBatterModal(p){
       </div>
     </div>`;
   }
-  // HR is the only wagerable market in v1, so the CTA always books the HR leg.
-  function pcCtaHTML(p){
+  // CTA books the selected prop's leg. HR keeps its exact original leg id
+  // ('HOME RUN') so existing slip entries stay valid; other props book their own market.
+  function pcCtaHTML(p, prop){
     const sim = simulatePlayer(p);
-    const leg = { id: legId(p.name, 'HOME RUN', '0.5'), kind:'prop', player:p.name, market:'HR', line:'0.5',
-      pct:sim.hr.pct, grade:gradeFor('hr', sim.hr.exact ?? sim.hr.pct).g,
+    const cfg = pcPropCfg(prop, sim);
+    const MARKET = {hr:'HR',hits:'HITS',tb:'TOTAL BASES',rbi:'RBI',hrr:'H+R+RBI',sb:'STOLEN BASE'};
+    const LABEL = {hr:'HR',hits:'Hits',tb:'TB',rbi:'RBI',hrr:'H+R+RBI',sb:'SB'};
+    // HR keeps its exact original leg id ('HOME RUN') so existing slip legs stay valid.
+    const idMarket = prop==='hr' ? 'HOME RUN' : MARKET[prop];
+    const leg = { id: legId(p.name, idMarket, cfg.line), kind:'prop', player:p.name, market:MARKET[prop], line:cfg.line,
+      pct:cfg.d.pct, grade:gradeFor(prop, cfg.d.exact ?? cfg.d.pct).g,
       game:`${p.game.awayName} @ ${p.game.homeName}`, player_id:p.id, game_pk:p.game.gamePk, slate_date:slateDate() };
     const on = inSlip(leg.id);
-    return `<button class="add-leg cta ${on?'in-slip':''}" data-legid="${leg.id}" data-leg="${encodeURIComponent(JSON.stringify(leg))}">${on?'✓ In Slip':'Add +0.5 HR to Slip'}</button>`;
+    const labelTxt = `Add +${cfg.line} ${LABEL[prop]} to Slip`;
+    return `<button class="add-leg cta ${on?'in-slip':''}" data-legid="${leg.id}" data-leg="${encodeURIComponent(JSON.stringify(leg))}" data-cta-label="${labelTxt}">${on?'✓ In Slip':labelTxt}</button>`;
   }
   // “The Engine” — barrel rate vs pitcher HR/9, the two swing factors.
   function pcEngineHTML(p){
@@ -13023,7 +13035,7 @@ function openBatterModal(p){
       <div class="sec">
         <div id="pcVerdictHost">${pcVerdictHTML(p,'hr')}</div>
         <div id="barsHost"><div class="clear">Loading recent games…</div></div>
-        ${pcCtaHTML(p)}
+        <span id="pcCtaHost">${pcCtaHTML(p,'hr')}</span>
       </div>
 
       <div class="sec">
@@ -13097,6 +13109,7 @@ function openBatterModal(p){
       const wh = document.getElementById('whyHost');
       if(wh) wh.innerHTML = pcWhyHeadHTML(p, prop);
       pcProp = prop; renderBars();
+      const ch = document.getElementById('pcCtaHost'); if(ch) ch.innerHTML = pcCtaHTML(p, prop);
     });
   });
   // Wire the watch-list star in the modal header.
