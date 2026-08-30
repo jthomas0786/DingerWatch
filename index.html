@@ -242,9 +242,9 @@ main{ max-width:1280px; margin:0 auto; padding:0 24px 100px; }
 .sgr-md{ width:40px; height:40px; } .sgr-md .sgr-l{ font-size:16px; }
 .sgr-lg{ width:46px; height:46px; } .sgr-lg .sgr-l{ font-size:18px; }
 .sgr-xl{ width:54px; height:54px; } .sgr-xl .sgr-l{ font-size:18px; }
-.sgr-rank .sgr-l{ flex-direction:column; gap:1px; }
-.sgr-rank .sgr-rk{ font-size:20px; line-height:1; font-weight:800; }
-.sgr-rank .sgr-gd{ font-size:10px; line-height:1; opacity:.92; letter-spacing:.02em; }
+.sgr-pct .sgr-l{ flex-direction:column; gap:1px; }
+.sgr-pct .sgr-gd2{ font-size:16px; line-height:1; font-weight:800; }
+.sgr-pct .sgr-pv{ font-size:11px; line-height:1; opacity:.95; white-space:nowrap; }
 .pick-grade{ font-family:'Cabinet Grotesk','Archivo Black',sans-serif; font-size:15px; line-height:1; margin-bottom:2px; }
 .pick-grade.grade-a{ color:var(--grass-bright); } .pick-grade.grade-b{ color:#f4c430; }
 .pick-grade.grade-c{ color:var(--warm); }        .pick-grade.grade-d{ color:var(--mute); }
@@ -6127,7 +6127,7 @@ function renderAllPlayers(){
     const rk = i===0?'':(i===1?'r2':(i===2?'r3':'r5'));
     return `
       <div class="pick-card is-compact pick-card--all" data-tab="${propTab}" data-idx="${i}" data-team="${p.team}" data-pname="${p.name}">
-        ${gr ? rankGradeRingHTML(i+1, simData.pct, gr.g, simCfg.grade) : `<div class="pick-rank ${rk}">${i+1}</div>`}
+        <div class="pick-rank ${rk}">${i+1}</div>
         ${headshotImgTag(p.name, 'pick-headshot', p.team, p.id)}
         <div class="pick-body">
           <div class="pick-name-row"><span class="pick-name">${p.name}</span><span class="pick-team">${p.team} · ${p.pos||''}</span><span class="pick-matchup">${g.awayName} @ ${g.homeName} · ${gameTime(g)}</span>${watchStarHTML(p)}</div>
@@ -6141,7 +6141,7 @@ function renderAllPlayers(){
           ${platoonRowHTML(propTab, p)}
         </div>
         <div class="pick-score">
-          <div class="pick-score-val ${gr ? gr.cls : ''}">${display}</div>
+          ${gr ? gradePctRingHTML(simData.pct, gr.g, simCfg.grade) : `<div class="pick-score-val ${gr ? gr.cls : ''}">${display}</div>`}
           <div class="pick-score-label">${simCfg ? simCfg.line : sortLabel}</div>
           ${simCfg ? addLegBtn({
               id: legId(p.name, ALL_SORTS.find(o=>o.id===allPlayersSort).label, simCfg.line.replace('over ','')),
@@ -6499,7 +6499,7 @@ function renderList(){
       : 'Indoor / roof closed';
     return `
       <div class="pick-card is-compact" data-tab="${activeTab}" data-idx="${i}" title="${stripTags(propSummary(activeTab, p))}">
-        ${TAB_SIM[activeTab] ? rankGradeRingHTML(i+1, scoreExact, gradeFor(TAB_SIM[activeTab].grade, scoreExact).g, TAB_SIM[activeTab].grade) : `<div class="pick-rank ${rankClasses[i]}">${i+1}</div>`}
+        <div class="pick-rank ${rankClasses[i]}">${i+1}</div>
         ${headshotImgTag(p.name, 'pick-headshot', ringTeam, p.id)}
         <div class="pick-body">
           <div class="pick-name-row"><span class="pick-name">${p.name}</span><span class="pick-team">${isPitcher ? '' : team+' · '+(p.pos||'')}</span><span class="pick-matchup">${matchupTxt}</span>${isPitcher ? '' : watchStarHTML(p)}</div>
@@ -6513,7 +6513,7 @@ function renderList(){
           ${platoonRowHTML(activeTab, p)}
         </div>
         <div class="pick-score">
-          <div class="pick-score-val ${scoreTierClass(activeTab, scoreExact)}">${scoreDisplay}</div>
+          ${TAB_SIM[activeTab] ? gradePctRingHTML(scoreExact, gradeFor(TAB_SIM[activeTab].grade, scoreExact).g, TAB_SIM[activeTab].grade) : `<div class="pick-score-val ${scoreTierClass(activeTab, scoreExact)}">${scoreDisplay}</div>`}
           <div class="pick-score-label">${scoreLabel(activeTab)}</div>
           ${TAB_SIM[activeTab] ? addLegBtn({
               id: legId(p.name, scoreLabel(activeTab).split(' ')[0], TAB_SIM[activeTab].line.replace('over ','')),
@@ -11509,8 +11509,9 @@ function siteRingSVG(pct, max){
 function gradeRingHTML(pct, grade, size, prop){
   return `<span class="sgr sgr-${size||'md'}" style="color:${gradeColor(grade)}">${siteRingSVG(pct, propRingMax(prop))}<span class="sgr-l">${grade}</span></span>`;
 }
-function rankGradeRingHTML(rank, pct, grade, prop, size){
-  return `<span class="sgr sgr-${size||'xl'} sgr-rank" style="color:${gradeColor(grade)}">${siteRingSVG(pct, propRingMax(prop))}<span class="sgr-l"><b class="sgr-rk">${rank}</b><span class="sgr-gd">${grade}</span></span></span>`;
+function gradePctRingHTML(pct, grade, prop, size){
+  const p=Number(pct)||0; const disp=Number.isInteger(p)?`${p}%`:`${p.toFixed(1)}%`;
+  return `<span class="sgr sgr-${size||'xl'} sgr-pct" style="color:${gradeColor(grade)}">${siteRingSVG(pct, propRingMax(prop))}<span class="sgr-l"><b class="sgr-gd2">${grade}</b><span class="sgr-pv">${disp}</span></span></span>`;
 }
 
 /**
