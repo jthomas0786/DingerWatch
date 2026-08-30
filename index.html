@@ -1660,6 +1660,18 @@ body{
   .tb-mobile-brand .brand-text{ display:none; }
 }
 
+/* NFL player-prop sub-tab row — static, in-flow (never a dropdown/popover).
+   Horizontally scrollable on phones so all six markets fit at 375px. */
+.nfl-subtabs{ display:flex; gap:8px; overflow-x:auto; padding:2px 0 16px;
+  -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.nfl-subtabs::-webkit-scrollbar{ display:none; }
+.nfl-subtab{ flex:0 0 auto; background:var(--panel); border:1px solid var(--border);
+  color:var(--text-muted); font-family:'Inter',sans-serif; font-size:13px;
+  padding:8px 14px; border-radius:9999px; cursor:pointer; white-space:nowrap;
+  transition:var(--transition); font-weight:500; }
+.nfl-subtab:hover{ border-color:var(--border-light); color:var(--text); }
+.nfl-subtab.is-active{ background:var(--nfl); color:#0b0d12; border-color:var(--nfl); font-weight:700; }
+
 /* ============================================================================
    TOUCHDOWN WATCH (NFL) VIEW
    Scoped entirely under .nfl-view / .nfl-* so it cannot collide with the MLB
@@ -3462,17 +3474,7 @@ footer{ margin-left:0; }
       <button type="button" class="nfl-sn-tab" data-nfl-tab="feed"><svg class="nfl-sn-ico" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1.5"/></svg>TD Feed</button>
       <button type="button" class="nfl-sn-tab nfl-chat-tab" id="nflChatBtnMobile"><svg class="nfl-sn-ico" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 8.4-8.5 8.38 8.38 0 0 1 8.6 8.5z"/></svg>Chat<span class="chat-unread-dot"></span></button>
       <button type="button" class="nfl-sn-tab" data-nfl-tab="foryou"><svg class="nfl-sn-ico" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>For You</button>
-      <div class="nfl-sn-dropdown">
-        <button type="button" class="nfl-sn-tab" id="nflPropMenuBtn" data-nfl-tab="props"><svg class="nfl-sn-ico" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="12" y1="21" x2="12" y2="8"/><line x1="20" y1="21" x2="20" y2="12"/></svg>Player Props<span class="nfl-sn-caret">▾</span></button>
-        <div class="nfl-sn-propmenu" id="nflPropMenu">
-          <button type="button" class="nfl-sn-item is-active" data-nfl-prop="atd">Anytime TD</button>
-          <button type="button" class="nfl-sn-item" data-nfl-prop="firstTd">First TD</button>
-          <button type="button" class="nfl-sn-item" data-nfl-prop="rushYds">Rush Yards</button>
-          <button type="button" class="nfl-sn-item" data-nfl-prop="recYds">Receiving Yards</button>
-          <button type="button" class="nfl-sn-item" data-nfl-prop="receptions">Receptions</button>
-          <button type="button" class="nfl-sn-item" data-nfl-prop="passTds">Passing TDs</button>
-        </div>
-      </div>
+      <button type="button" class="nfl-sn-tab" data-nfl-tab="props"><svg class="nfl-sn-ico" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="12" y1="21" x2="12" y2="8"/><line x1="20" y1="21" x2="20" y2="12"/></svg>Player Props</button>
     </nav>
 
     <div class="sb-foot">

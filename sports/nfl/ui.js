@@ -20,11 +20,11 @@ let oddsDoc = null;
 let activeGameId = null;
 let posFilter = 'ALL';
 
-// Nav state — mirrors MLB's #propTabs: top-level tabs + a Player Props dropdown.
+// Nav state — mirrors MLB's #propTabs: top-level tabs + a Player Props view
+// whose six markets render as a static, in-flow sub-tab row (not a dropdown).
 // Not encoded in location.hash (router only routes #nfl); kept in-module.
 let activeNflTab = 'slate';        // 'slate' | 'feed' | 'foryou' | 'props'
 let activeNflProp = 'atd';         // 'atd' | 'firstTd' | 'rushYds' | 'recYds' | 'receptions' | 'passTds'
-let nflPropMenuOpen = false;
 const NFL_PROPS = {
   atd:        { label: 'Anytime TD',      modeled: true },
   firstTd:    { label: 'First TD',        modeled: false },
@@ -347,7 +347,6 @@ function allPlayers() {
 // ---------------------------------------------------------------------------
 function selectNflTab(id) {
   activeNflTab = id;
-  closeNflPropMenu();
   renderNflNav();
   render();
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -355,31 +354,24 @@ function selectNflTab(id) {
 function selectNflProp(id) {
   activeNflProp = id;
   activeNflTab = 'props';
-  closeNflPropMenu();
   renderNflNav();
   render();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
-function toggleNflPropMenu() {
-  nflPropMenuOpen = !nflPropMenuOpen;
-  document.getElementById('nflPropMenu')?.classList.toggle('open', nflPropMenuOpen);
-  renderNflNav();
+/** Static, in-flow sub-tab row for the six player-prop markets. Rendered at the
+ *  top of the props view body — never a popover, so mobile can't fail to open it. */
+function propSubtabsHTML() {
+  return `<div class="nfl-subtabs" role="tablist" aria-label="Player prop market">` +
+    Object.entries(NFL_PROPS).map(([id, p]) =>
+      `<button type="button" class="nfl-subtab ${id === activeNflProp ? 'is-active' : ''}" data-nfl-prop="${id}" role="tab">${esc(p.label)}</button>`
+    ).join('') + `</div>`;
 }
-function closeNflPropMenu() {
-  nflPropMenuOpen = false;
-  document.getElementById('nflPropMenu')?.classList.remove('open');
-}
-/** Sync the nav's active states with current tab/prop. Called from render(). */
+/** Sync the nav's active states with current tab. Called from render(). */
 function renderNflNav() {
   const nav = document.getElementById('nflSideNav');
   if (!nav) return;
   nav.querySelectorAll('.nfl-sn-tab[data-nfl-tab]').forEach(btn => {
-    const t = btn.dataset.nflTab;
-    const isActive = t === 'props' ? activeNflTab === 'props' : activeNflTab === t;
-    btn.classList.toggle('is-active', isActive || (t === 'props' && nflPropMenuOpen));
-  });
-  nav.querySelectorAll('.nfl-sn-item[data-nfl-prop]').forEach(btn => {
-    btn.classList.toggle('is-active', btn.dataset.nflProp === activeNflProp);
+    btn.classList.toggle('is-active', btn.dataset.nflTab === activeNflTab);
   });
 }
 /** Wire the static nav buttons once (on mount). */
@@ -388,24 +380,12 @@ function wireNflNav() {
   if (!nav || nav.dataset.wired) return;
   nav.dataset.wired = '1';
   nav.querySelectorAll('.nfl-sn-tab[data-nfl-tab]').forEach(btn => {
-    btn.addEventListener('click', e => {
-      const t = btn.dataset.nflTab;
-      if (t === 'props') { e.stopPropagation(); toggleNflPropMenu(); }
-      else selectNflTab(t);
-    });
+    btn.addEventListener('click', () => selectNflTab(btn.dataset.nflTab));
   });
   // Chat is a floating panel action, not a tab — it opens the sport-scoped
   // room (chatRoom() in index.html reads data-sport). Mobile-only via CSS.
   document.getElementById('nflChatBtnMobile')?.addEventListener('click', () => {
     window.toggleChatPanel?.();
-  });
-  nav.querySelectorAll('.nfl-sn-item[data-nfl-prop]').forEach(btn => {
-    btn.addEventListener('click', e => { e.stopPropagation(); selectNflProp(btn.dataset.nflProp); });
-  });
-  document.addEventListener('click', e => {
-    if (!nflPropMenuOpen || nav.contains(e.target)) return;
-    closeNflPropMenu();
-    renderNflNav();
   });
 }
 
@@ -540,6 +520,7 @@ export function render() {
 
   // ---- body by tab ----
   let body;
+  const propSubtabs = activeNflTab === 'props' ? propSubtabsHTML() : '';
   if (activeNflTab === 'foryou') {
     // Shared community feed (renderForYou writes its compose box + post list
     // straight into this host). Kept out of the live-poll re-render path below
@@ -553,11 +534,11 @@ export function render() {
       <p class="nfl-feed-when">Regular season opens Sept 9.</p>
     </section>`;
   } else if (activeNflTab === 'props' && !isAt) {
-    body = `<div class="nfl-picklist-head"><h3>${NFL_PROPS[activeNflProp].label} — best Over prices</h3></div>
+    body = `${propSubtabs}<div class="nfl-picklist-head"><h3>${NFL_PROPS[activeNflProp].label} — best Over prices</h3></div>
     <div class="nfl-picklist" id="nflPickList"></div>`;
   } else {
     // Slate tab, OR Player Props → Anytime TD: field gamecast (or game grid) + ATD pick list.
-    body = `${g ? gamecastHTML(g) : '<div class="nfl-games" id="nflGames"></div>'}${isAt ? `<div class="nfl-picklist-head"><h3>${g ? `${esc(g.away.abbr)} @ ${esc(g.home.abbr)} — every graded player` : 'Top 40 across the slate'}</h3></div><div class="nfl-picklist" id="nflPickList"></div>` : ''}`;
+    body = `${g ? gamecastHTML(g) : '<div class="nfl-games" id="nflGames"></div>'}${isAt ? `${propSubtabs}<div class="nfl-picklist-head"><h3>${g ? `${esc(g.away.abbr)} @ ${esc(g.home.abbr)} — every graded player` : 'Top 40 across the slate'}</h3></div><div class="nfl-picklist" id="nflPickList"></div>` : ''}`;
   }
 
   root.innerHTML = `
@@ -605,6 +586,9 @@ ${body}
   if (activeNflTab === 'slate' && !g) renderGames(root.querySelector('#nflGames'));
   if (isAt) renderPicks(root.querySelector('#nflPickList'));
   if (activeNflTab === 'props' && !isAt) renderPropOdds(root.querySelector('#nflPickList'), activeNflProp);
+  root.querySelectorAll('.nfl-subtab[data-nfl-prop]').forEach(b => {
+    b.addEventListener('click', () => selectNflProp(b.dataset.nflProp));
+  });
   root.querySelectorAll('.nfl-filter').forEach(b => b.addEventListener('click', () => {
     posFilter = b.dataset.pos; render();
   }));
