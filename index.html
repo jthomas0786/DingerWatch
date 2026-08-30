@@ -9614,12 +9614,24 @@ async function renderHRClip(ev, quip){
     rec.onerror=()=>{ _stopStream(stream); vc.remove(); if(baseDataUrl)URL.revokeObjectURL(baseDataUrl); resolve(null); };
     drawFrame(0);
     try{ rec.start(); }catch(e){ _stopStream(stream); vc.remove(); if(baseDataUrl)URL.revokeObjectURL(baseDataUrl); resolve(null); return; }
-    const DURATION=1500, start=performance.now();
+    const DURATION=1500, HOLD=1000, start=performance.now();
     function loop(now){
       const p=Math.min(1,(now-start)/DURATION);
       drawFrame(p);
       if(p<1) requestAnimationFrame(loop);
-      else setTimeout(()=>{ try{ rec.stop(); }catch(e){ _stopStream(stream); vc.remove(); if(baseDataUrl)URL.revokeObjectURL(baseDataUrl); resolve(null); } }, 200);
+      else {
+        // Hold the final frame (ball settled at its landing spot) for ~1s so the
+        // landing spot is clearly visible before the clip ends. captureStream(30)
+        // keeps sampling the canvas, and redrawing the same frame freezes it on
+        // video — the trajectory completes at p=1, so drawFrame(1) is the landing.
+        const holdEnd=start+DURATION+HOLD;
+        function hold(hnow){
+          drawFrame(1);
+          if(hnow<holdEnd) requestAnimationFrame(hold);
+          else setTimeout(()=>{ try{ rec.stop(); }catch(e){ _stopStream(stream); vc.remove(); if(baseDataUrl)URL.revokeObjectURL(baseDataUrl); resolve(null); } }, 200);
+        }
+        requestAnimationFrame(hold);
+      }
     }
     requestAnimationFrame(loop);
   });
