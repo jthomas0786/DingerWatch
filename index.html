@@ -3345,7 +3345,9 @@ footer{ margin-left:0; }
   --radius:14px; --radius-sm:9px;
   font-family:'Inter',system-ui,sans-serif; color:var(--text); -webkit-font-smoothing:antialiased;
   background:var(--bg); background-image:radial-gradient(1200px 600px at 50% -10%, rgba(45,127,255,.06), transparent 60%);
+  max-height:100%; flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;
 }
+body.modal-open{ overflow:hidden; }
 .player-card-v2 *{box-sizing:border-box; margin:0; padding:0; }
 .player-card-v2 .card{
   background:linear-gradient(180deg,var(--panel2),var(--panel));
@@ -3411,13 +3413,13 @@ footer{ margin-left:0; }
 .player-card-v2 .filters .g + .g{ border-left:1px solid var(--border); padding-left:8px; margin-left:2px }
 .player-card-v2 .chip{ font-family:'JetBrains Mono',monospace; font-weight:600; font-size:11px; padding:5px 9px; border-radius:6px; background:transparent;
   border:1px solid var(--border); color:var(--muted); cursor:pointer }
-.player-card-v2 .chip.on{ background:var(--panel3); color:var(--text); border-color:var(--border) }
+.player-card-v2 .chip.on{ background:var(--accent); color:#fff; border-color:transparent; box-shadow:0 4px 14px var(--accent-glow) }
 .player-card-v2 .clear{ color:var(--muted); font-size:11px; margin-top:8px; font-family:'JetBrains Mono',monospace }
 .player-card-v2 .clear b{ color:var(--gold) }
 
 /* ---------- 10-game bar chart ---------- */
-.player-card-v2 .bars{ display:flex; align-items:flex-end; gap:6px; height:96px; margin-top:8px }
-.player-card-v2 .bars .b{ flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; height:100%; justify-content:flex-end; cursor:pointer }
+.player-card-v2 .bars{ display:flex; align-items:flex-end; gap:6px; height:96px; margin-top:8px; overflow-x:auto; overscroll-behavior:contain; padding-bottom:4px }
+.player-card-v2 .bars .b{ flex:1 1 0; min-width:14px; max-width:34px; display:flex; flex-direction:column; align-items:center; gap:6px; height:100%; justify-content:flex-end; cursor:pointer }
 .player-card-v2 .bars .b .bar{ width:100%; max-width:22px; border-radius:4px 4px 0 0; background:var(--panel3); min-height:6px; transition:.2s; position:relative }
 .player-card-v2 .bars .b.hit .bar{ background:linear-gradient(180deg,var(--green-bright),var(--green)); box-shadow:0 0 12px rgba(62,227,122,.3) }
 .player-card-v2 .bars .b.hr .bar{ background:linear-gradient(180deg,var(--gold),var(--orange)); box-shadow:0 0 12px rgba(245,200,66,.3) }
@@ -10136,6 +10138,28 @@ async function fetchLast10(name, playerId){
       ab: s.stat.atBats, h: s.stat.hits, hr: s.stat.homeRuns, rbi: s.stat.rbi };
   });
 }
+// Full season game logs (2026 + 2025) with rich per-game fields for the bars chart.
+async function fetchPlayerGameLogs(playerId){
+  const id = playerId;
+  if(!id) throw new Error('Player ID required for game logs');
+  const _OPP = Object.entries(TEAM_IDS).reduce((m,[abbr,tid])=>{ m[tid]=abbr; return m; }, {});
+  const parse = (data) => {
+    const splits = (data && data.stats && data.stats[0] && data.stats[0].splits) || [];
+    return splits.map(s => {
+      const op = s.opponent;
+      const st = s.stat || {};
+      return { date: s.date,
+        opp: op ? (_OPP[op.id]||op.abbreviation||op.name||'') : '',
+        ab: st.atBats||0, h: st.hits||0, hr: st.homeRuns||0, rbi: st.rbi||0,
+        r: st.runs||0, tb: st.totalBases||0, sb: st.stolenBases||0 };
+    });
+  };
+  const get = (season) =>
+    fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=gameLog&group=hitting&season=${season}&gameType=R`)
+      .then(r => r.ok ? r.json() : null).catch(()=>null);
+  const [d26, d25] = await Promise.all([get(2026), get(2025)]);
+  return { g26: parse(d26), g25: parse(d25) };
+}
 
 // ---- Live active-roster / injury status check (real MLB Stats API) ----
 const TEAM_IDS = {
@@ -10218,7 +10242,7 @@ document.getElementById('dayToggle').addEventListener('click', (e)=>{
 const overlay = document.getElementById('modalOverlay');
 const modalBody = document.getElementById('modalBody');
 function pctl(val, max){ return Math.min(100, Math.round((val/max)*100)); }
-function closeModal(){ overlay.classList.remove('open'); modalBody.style.height = ''; }
+function closeModal(){ overlay.classList.remove('open'); modalBody.style.height = ''; document.body.classList.remove('modal-open'); }
 overlay.addEventListener('click', (e)=>{ if(e.target===overlay) closeModal(); });
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeModal(); });
 function wireTabs(playerName, player){
@@ -12867,21 +12891,48 @@ function openBatterModal(p){
       </div>${propFactorBlockHTML(p, prop)}`;
   }
   // 10-game trend — mockup .bars chart (hit→green, HR→gold).
-  function pcBarsHTML(games){
-    if(!games||!games.length) return `<div class="bars"><div class="clear">No game log available.</div></div>`;
-    const rows = games.slice(0,10).reverse();
-    const maxTB = Math.max(1, ...rows.map(g=>(g.h||0)+(g.hr||0)*3));
-    let hits=0, hr=0;
-    rows.forEach(g=>{ if((g.hr||0)>0)hr++; else if((g.h||0)>0)hits++; });
-    return `<div class="filters"><span class="chip active">L${rows.length}</span><span class="chip">L15</span><span class="chip">L30</span><span class="chip">SZN</span></div>
-      <div class="clear">${hits} multi-hit games · ${hr} games with a home run · ${rows.length} games tracked</div>
-      <div class="bars">${rows.map((g,i)=>{
-        const tb=(g.h||0)+(g.hr||0)*3, h=g.hr>0?90:(g.h>0?Math.max(40,Math.round(tb/maxTB*100)):0);
-        const cls=g.hr>0?'hr':(g.h>0?'hit':'');
-        const v=g.hr>0?g.hr+'HR':(g.h>0?g.h:'0');
-        const seen=new Set(); const isNew = (seen.has(g.date)?'':(seen.add(g.date),'new'));
-        return `<div class="b ${cls}"><div class="x" style="opacity:${i%2?1:1}">${g.opp||''}</div><div class="bar" style="height:${h}%"><div class="v">${v}</div></div><div class="x">${g.date?g.date.slice(5):''}</div></div>`;
-      }).join('')}</div>`;
+  function pcBarsHTML(logs, prop, range){
+    const RANGES = [['5','L5'],['10','L10'],['15','L15'],['30','L30'],['26',"'26"],['25',"'25"]];
+    const PROP_LABEL = {hr:'HR',hits:'HITS',tb:'TB',hrr:'H+R+RBI',rbi:'RBI',sb:'SB'};
+    const propVal = g => {
+      switch(prop){
+        case 'hits': return g.h||0;
+        case 'tb': return g.tb||0;
+        case 'hrr': return (g.h||0)+(g.r||0)+(g.rbi||0);
+        case 'rbi': return g.rbi||0;
+        case 'sb': return g.sb||0;
+        case 'hr': default: return g.hr||0;
+      }
+    };
+    const chips = RANGES.map(([k,l])=>`<button class="chip ${k===String(range)?'on':''}" data-range="${k}">${l}</button>`).join('');
+    if(!logs) return `<div class="filters">${chips}</div><div class="clear">Loading game log…</div>`;
+    let games, seasonTag='';
+    if(range==='25'){ games=(logs.g25||[]).slice(); seasonTag='2025'; }
+    else if(range==='26'){ games=(logs.g26||[]).slice(); seasonTag='2026'; }
+    else { const n=parseInt(range,10)||10; games=(logs.g26||[]).slice(-n); seasonTag=`Last ${n}`; }
+    if(!games.length) return `<div class="filters">${chips}</div><div class="clear">No ${seasonTag} game log available.</div>`;
+    const rows = games.slice().reverse(); // oldest -> newest (left to right)
+    const maxV = Math.max(1, ...rows.map(propVal));
+    let onPct=0; rows.forEach(g=>{ if(propVal(g)>0) onPct++; });
+    const total = rows.reduce((s,g)=>s+propVal(g),0);
+    const label = PROP_LABEL[prop]||'HR';
+    const summ = (range==='26'||range==='25')
+      ? `${total} ${label} · ${onPct} games with ${label} · ${rows.length} games`
+      : `${onPct} of ${rows.length} games with ${label} · ${total} ${label}`;
+    const bars = rows.map((g,i)=>{
+      const v = propVal(g);
+      const pct = v>0 ? Math.max(14, Math.round(v/maxV*100)) : 0;
+      const cls = prop==='hr' ? (v>0?'hr':'') : (v>0?'hit':'');
+      const step = rows.length>20 ? Math.ceil(rows.length/20) : 1;
+      const showLbl = i % step === 0;
+      const valTxt = (v>0 && showLbl) ? (prop==='hr'?v+'HR':v) : '';
+      const opp = showLbl ? (g.opp||'') : '';
+      const dt = (showLbl && g.date) ? g.date.slice(5) : '';
+      return `<div class="b ${cls}" title="${g.date||''} ${g.opp||''}"><div class="x">${opp}</div><div class="bar" style="height:${pct}%"><div class="v">${valTxt}</div></div><div class="x">${dt}</div></div>`;
+    }).join('');
+    return `<div class="filters">${chips}</div>
+      <div class="clear">${summ}</div>
+      <div class="bars">${bars}</div>`;
   }
   // Pitch Breakdown — mockup table.pitches (Pitch / Thrown / Barrels) from arsenal + batted balls.
   function pcPitchBreakdownHTML(arsenal, balls, p){
@@ -13008,13 +13059,22 @@ function openBatterModal(p){
       <div class="foot">Every number here is a model input. +0.5 HR — not a guarantee.</div>
     </div>
   `;
+  document.body.classList.add('modal-open');
   overlay.classList.add('open');
   document.getElementById('modalClose').onclick = closeModal;
-  // Async sections — bars (game log) + spray (contact) + recent at-bats table.
-  fetchLast10(p.name, p.id).then(games => {
+  // Bars chart state — logs (2026+2025), current prop, current range.
+  let pcLogs = null, pcProp = 'hr', pcRange = '10';
+  const renderBars = () => {
     const h = document.getElementById('barsHost');
-    if(h) h.innerHTML = pcBarsHTML(games);
-  }).catch(()=>{ const h=document.getElementById('barsHost'); if(h) h.innerHTML='<div class="clear">Game log unavailable.</div>'; });
+    if(!h) return;
+    h.innerHTML = pcBarsHTML(pcLogs, pcProp, pcRange);
+    h.querySelectorAll('.chip[data-range]').forEach(c => {
+      c.onclick = () => { pcRange = c.dataset.range; renderBars(); };
+    });
+  };
+  renderBars();
+  fetchPlayerGameLogs(p.id).then(data => { pcLogs = data; renderBars(); })
+    .catch(()=>{ const h=document.getElementById('barsHost'); if(h) h.innerHTML='<div class="clear">Game log unavailable.</div>'; });
   renderContactQuality(p);
   fetchContactBalls(p).then(data => {
     const h = document.getElementById('recentABHost');
@@ -13036,6 +13096,7 @@ function openBatterModal(p){
       if(vh) vh.innerHTML = pcVerdictHTML(p, prop);
       const wh = document.getElementById('whyHost');
       if(wh) wh.innerHTML = pcWhyHeadHTML(p, prop);
+      pcProp = prop; renderBars();
     });
   });
   // Wire the watch-list star in the modal header.
