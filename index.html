@@ -2868,8 +2868,16 @@ footer{ margin-left:0; }
 .hr-traj-meta > *:not(:last-child)::after{ content: '·'; margin-left: 8px; color: var(--border-light); }
 .hr-traj-rbi{ color: var(--live-green); font-weight: 700; }
 
-/* Share button (under the pitcher) + share-sheet modal */
-.hr-traj-share-row{ display:flex; justify-content:flex-end; margin:-1px 0 9px; }
+/* View toggle (expands the collapsed replay graphic) + Share button + share-sheet modal */
+.hr-traj-share-row{ display:flex; justify-content:flex-end; gap:8px; margin:-1px 0 9px; }
+.hr-view-btn{ display:inline-flex; align-items:center; gap:5px; cursor:pointer;
+  font-family:'Oswald',sans-serif; font-size:11px; font-weight:500; letter-spacing:.04em;
+  color:var(--mute,#8b95a8); background:rgba(139,149,168,.10); border:1px solid rgba(139,149,168,.32);
+  padding:4px 11px; border-radius:999px; transition:background .15s, transform .1s; }
+.hr-view-btn:hover{ background:rgba(139,149,168,.2); }
+.hr-view-btn:active{ transform:scale(.96); }
+.hr-view-chevron{ flex-shrink:0; transition:transform .2s ease; }
+.hr-view-btn[aria-expanded="true"] .hr-view-chevron{ transform:rotate(180deg); }
 .hr-share-btn{ display:inline-flex; align-items:center; gap:5px; cursor:pointer;
   font-family:'Oswald',sans-serif; font-size:11px; font-weight:500; letter-spacing:.04em;
   color:var(--accent,#2d7fff); background:rgba(45,127,255,.10); border:1px solid rgba(45,127,255,.32);
@@ -2914,6 +2922,16 @@ footer{ margin-left:0; }
    + wall, foul poles, infield) and draws a home-run arc from exit velocity +
    launch angle. EV sits at launch, launch angle at the apex, distance at the
    landing — six numbers become one curve. Honors prefers-reduced-motion. ── */
+/* Collapsed by default — the replay graphic only shows once someone taps
+   View. Height-based transition rather than display:none so it animates
+   open/closed instead of snapping; max-height is comfortably above any
+   real rendered height at 16:9, and overflow:hidden clips the rest while
+   collapsed. Sharing is unaffected either way — shareHR() reads entirely
+   from the button's own data attributes and a separately pre-generated
+   image, never from this graphic's visibility. */
+.hrm-collapse{ max-height:0; overflow:hidden; transition:max-height .3s ease; }
+.hrm-collapse.is-open{ max-height:600px; }
+
 .hrm-wrap{
   position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden;
   border-bottom: 1px solid #1a2540;
@@ -2949,12 +2967,14 @@ footer{ margin-left:0; }
 .hrm-chip-dist{ } .hrm-chip-dist b{ color:#f5c842; }
 .hrm-chip-pitch{ } .hrm-chip-pitch b{ color:#7eb4ff; }
 
-/* Stat rings — radial progress gauges in a top row */
+/* Stat rings — radial progress gauges, sitting inline in the matchup row
+   between the batter and pitcher (moved out from over the photo, where
+   they used to overlay hrm-graphic via position:absolute). */
 .hrm-stats{
-  position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between;
-  gap:6px; padding:6px 8px 5px; pointer-events:none;
+  display:flex; justify-content:center; align-items:center;
+  gap:10px; flex:1 1 auto; min-width:0;
 }
-.hrm-ring{ flex:1 1 0; min-width:0; max-width:86px; display:flex; flex-direction:column; align-items:center; gap:4px; }
+.hrm-ring{ flex:0 1 56px; min-width:0; max-width:60px; display:flex; flex-direction:column; align-items:center; gap:3px; }
 .hrm-ring-label{
   font-size:9px; letter-spacing:.08em; text-transform:uppercase; font-weight:700; color:#9fb0c8;
   font-family:'JetBrains Mono','Space Mono',monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; line-height:1;
@@ -9336,34 +9356,8 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
   const _shareData = escapeHTML(JSON.stringify({ text:_shareText, url:'https://dingerwatch.app' }));
   const _evData = escapeHTML(JSON.stringify(ev));
 
-  const _foot = `
-    <div class="hr-traj-body">
-      <div class="hr-traj-quip">${escapeHTML(narrative)}</div>
-      <div class="hr-traj-matchup">
-        <div class="hr-traj-person">
-          ${headshotImgTag(ev.batter, 'hr-traj-headshot', ev.battingTeam, ev.batterId)}
-          <div><div class="hr-traj-role">Batting</div><div class="hr-traj-name">${escapeHTML(ev.batter)}</div></div>
-        </div>
-        ${ev.pitcher ? `<div class="hr-traj-person hr-traj-person-pitcher">
-          <div style="text-align:right;"><div class="hr-traj-role">Pitching</div><div class="hr-traj-name">${escapeHTML(ev.pitcher)}</div></div>
-          ${headshotImgTag(ev.pitcher, 'hr-traj-headshot', null, ev.pitcherId)}
-        </div>` : ''}
-      </div>
-      <div class="hr-traj-share-row">
-        <button type="button" class="hr-share-btn" onclick="shareHR(this)" data-share="${_shareData}" data-ev="${_evData}" aria-label="Share home run" title="Share">
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
-          Share
-        </button>
-      </div>
-      <div class="hr-traj-meta">
-        ${ev.rbi ? `<span class="hr-traj-rbi">${ev.rbi} RBI</span>` : ''}
-        <span class="hr-traj-park">${escapeHTML(ev.park || '')}</span>
-        ${ev.awayScore != null ? `<span>${ev.awayScore}–${ev.homeScore}</span>` : ''}
-        <span class="hr-traj-time">${timeAgo(ev.ts)}</span>
-      </div>
-    </div>`;
-
-  // ---- radial stat rings (top row): label above, value inside the donut ----
+  // ---- radial stat rings (moved into the matchup row, so this now needs to
+  //      be computed before _foot below, which references statsBar) ----
   const statRing = (label, value, unit, pct, color='#2d7fff') => {
     const R=40, SW=15, C=2*Math.PI*R;
     const cl=Math.max(0,Math.min(1,pct));
@@ -9393,6 +9387,38 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
     ${_ps!=null ? statRing('Pitch', Math.round(_ps), shortPitch(ev.pitchType)||'mph', psPct, BLUE) : (ev.pitchType ? statRing('Pitch', shortPitch(ev.pitchType), '', 0, BLUE) : '')}
   </div>`;
 
+  const _foot = `
+    <div class="hr-traj-body">
+      <div class="hr-traj-quip">${escapeHTML(narrative)}</div>
+      <div class="hr-traj-matchup">
+        <div class="hr-traj-person">
+          ${headshotImgTag(ev.batter, 'hr-traj-headshot', ev.battingTeam, ev.batterId)}
+          <div><div class="hr-traj-role">Batting</div><div class="hr-traj-name">${escapeHTML(ev.batter)}</div></div>
+        </div>
+        ${hasStatcast ? statsBar : ''}
+        ${ev.pitcher ? `<div class="hr-traj-person hr-traj-person-pitcher">
+          <div style="text-align:right;"><div class="hr-traj-role">Pitching</div><div class="hr-traj-name">${escapeHTML(ev.pitcher)}</div></div>
+          ${headshotImgTag(ev.pitcher, 'hr-traj-headshot', null, ev.pitcherId)}
+        </div>` : ''}
+      </div>
+      <div class="hr-traj-share-row">
+        ${hasStatcast ? `<button type="button" class="hr-view-btn" onclick="toggleHRGraphic(this)" aria-expanded="false" aria-label="Show home run replay">
+          <svg class="hr-view-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          View
+        </button>` : ''}
+        <button type="button" class="hr-share-btn" onclick="shareHR(this)" data-share="${_shareData}" data-ev="${_evData}" aria-label="Share home run" title="Share">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+          Share
+        </button>
+      </div>
+      <div class="hr-traj-meta">
+        ${ev.rbi ? `<span class="hr-traj-rbi">${ev.rbi} RBI</span>` : ''}
+        <span class="hr-traj-park">${escapeHTML(ev.park || '')}</span>
+        ${ev.awayScore != null ? `<span>${ev.awayScore}–${ev.homeScore}</span>` : ''}
+        <span class="hr-traj-time">${timeAgo(ev.ts)}</span>
+      </div>
+    </div>`;
+
   if(!hasStatcast){
     return `<div class="hr-traj-card ${ev.isNew?'is-new':''}" data-batter="${escapeHTML(ev.batter)}">
       <div class="hrm-wrap is-pending"><div class="hrm-graphic">
@@ -9406,6 +9432,7 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
   }
 
   return `<div class="hr-traj-card ${ev.isNew?'is-new':''}" data-batter="${escapeHTML(ev.batter)}">
+    <div class="hrm-collapse">
     <div class="hrm-wrap is-ready"><div class="hrm-graphic">
     <svg class="hrm-svg" viewBox="0 0 ${VW} ${VH}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Home run trajectory landing ${Math.round(d)} feet to ${dirDeg>=0?'right':'left'} field">
       ${slateDefs(id)}
@@ -9417,8 +9444,8 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
       <circle class="hrm-splash" cx="${landX.toFixed(1)}" cy="${landY.toFixed(1)}" r="6" fill="#f59e0b"/>
       <circle class="hrm-ball" style="offset-path:path('${arcPath}')" cx="0" cy="0" r="${(5.5+2*spd).toFixed(2)}" fill="#fff" stroke="#0b162c" stroke-width="1"/>
     </svg>
-    ${statsBar}
     </div></div>
+    </div>
     ${_foot}
   </div>`;
 
@@ -9679,6 +9706,21 @@ async function renderHRShareImage(ev, narrative, shortPitch, opts){
   ctx.textAlign='center'; ctx.fillStyle=MUTE; ctx.font="600 26px Oswald,sans-serif"; ctx.fillText('dingerwatch.app',W/2,wmY+48);
   ctx.fillStyle=MUTE; ctx.font="400 19px Oswald,sans-serif"; ctx.fillText('Home runs the moment they happen',W/2,wmY+84);
   return new Promise((res)=>canvas.toBlob(b=>res(b?new File([b],'dingerwatch-home-run.png',{type:'image/png'}):null),'image/png',0.92));
+}
+/** Expands/collapses one card's replay graphic — entirely independent of
+ *  shareHR() below, which already reads everything it needs from this
+ *  button's own data attributes regardless of whether the graphic is
+ *  open. The chevron's rotation is handled purely by CSS off the
+ *  aria-expanded attribute; this only needs to flip the label text. */
+function toggleHRGraphic(btn){
+  const card = btn.closest('.hr-traj-card');
+  const collapse = card?.querySelector('.hrm-collapse');
+  if(!collapse) return;
+  const open = collapse.classList.toggle('is-open');
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  for(const node of btn.childNodes){
+    if(node.nodeType === 3 && node.textContent.trim()){ node.textContent = open ? ' Hide' : ' View'; break; }
+  }
 }
 function shareHR(btn){
   let data={text:'',url:'https://dingerwatch.app'};
