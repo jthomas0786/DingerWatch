@@ -2869,7 +2869,7 @@ footer{ margin-left:0; }
 .hr-traj-rbi{ color: var(--live-green); font-weight: 700; }
 
 /* View toggle (expands the collapsed replay graphic) + Share button + share-sheet modal */
-.hr-traj-share-row{ display:flex; justify-content:flex-end; gap:8px; margin:-1px 0 9px; }
+.hr-traj-share-row{ display:flex; flex-direction:column; align-items:flex-end; gap:6px; margin:-1px 0 9px; }
 .hr-view-btn{ display:inline-flex; align-items:center; gap:5px; cursor:pointer;
   font-family:'Oswald',sans-serif; font-size:11px; font-weight:500; letter-spacing:.04em;
   color:var(--mute,#8b95a8); background:rgba(139,149,168,.10); border:1px solid rgba(139,149,168,.32);
@@ -2967,24 +2967,27 @@ footer{ margin-left:0; }
 .hrm-chip-dist{ } .hrm-chip-dist b{ color:#f5c842; }
 .hrm-chip-pitch{ } .hrm-chip-pitch b{ color:#7eb4ff; }
 
-/* Stat rings — radial progress gauges, sitting inline in the matchup row
-   between the batter and pitcher (moved out from over the photo, where
-   they used to overlay hrm-graphic via position:absolute). */
+/* Stat rings — their own row directly under the batter/pitcher matchup,
+   not squeezed between the two headshots anymore. That squeeze was the
+   actual cause of the mobile readability/congestion problem — narrow
+   viewports simply didn't have room for two 44px headshots plus four
+   rings in one row, so giving the rings their own full-width row (rather
+   than continuing to shrink them to fit) is the real fix, not a patch. */
 .hrm-stats{
-  display:flex; justify-content:center; align-items:center;
-  gap:10px; flex:1 1 auto; min-width:0;
+  display:flex; justify-content:center; align-items:flex-start;
+  gap:14px; margin-bottom:12px;
 }
-.hrm-ring{ flex:0 1 56px; min-width:0; max-width:60px; display:flex; flex-direction:column; align-items:center; gap:3px; }
+.hrm-ring{ flex:0 1 76px; min-width:0; max-width:80px; display:flex; flex-direction:column; align-items:center; gap:3px; }
 .hrm-ring-label{
   font-size:9px; letter-spacing:.08em; text-transform:uppercase; font-weight:700; color:#9fb0c8;
   font-family:'JetBrains Mono','Space Mono',monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; line-height:1;
 }
 .hrm-ring-svg{ width:100%; height:auto; display:block; }
 .hrm-ring-num{
-  font-size:17px; font-weight:700; font-style:italic; fill:#f4f1ea;
+  font-size:21px; font-weight:700; font-style:italic; fill:#f4f1ea;
   font-family:'JetBrains Mono','Space Mono',monospace; font-variant-numeric:tabular-nums;
 }
-.hrm-ring-unit{ font-size:6.5px; font-weight:700; letter-spacing:.06em; fill:#9fb0c8; }
+.hrm-ring-unit{ font-size:7.5px; font-weight:700; letter-spacing:.06em; fill:#9fb0c8; }
 
 /* Pending state — muted shell, no animation fire */
 .hrm-wrap.is-pending .hrm-chip b{ color:rgba(226,232,240,.3); }
@@ -3006,8 +3009,6 @@ footer{ margin-left:0; }
 
 @media (max-width: 560px){
   .hrm-wrap{ aspect-ratio: 16 / 9; height: auto; }
-  .hrm-ring-num{ font-size:15px; }
-  .hrm-ring-label{ font-size:8px; letter-spacing:.04em; }
 }
 .feed-team-badge{
   font-family: 'JetBrains Mono','Space Mono',monospace; font-size: 8.5px; font-weight: 500;
@@ -9359,7 +9360,7 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
   // ---- radial stat rings (moved into the matchup row, so this now needs to
   //      be computed before _foot below, which references statsBar) ----
   const statRing = (label, value, unit, pct, color='#2d7fff') => {
-    const R=40, SW=15, C=2*Math.PI*R;
+    const R=40, SW=8, C=2*Math.PI*R;
     const cl=Math.max(0,Math.min(1,pct));
     const off=C*(1-cl);
     const v=escapeHTML(String(value));
@@ -9395,21 +9396,21 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
           ${headshotImgTag(ev.batter, 'hr-traj-headshot', ev.battingTeam, ev.batterId)}
           <div><div class="hr-traj-role">Batting</div><div class="hr-traj-name">${escapeHTML(ev.batter)}</div></div>
         </div>
-        ${hasStatcast ? statsBar : ''}
         ${ev.pitcher ? `<div class="hr-traj-person hr-traj-person-pitcher">
           <div style="text-align:right;"><div class="hr-traj-role">Pitching</div><div class="hr-traj-name">${escapeHTML(ev.pitcher)}</div></div>
           ${headshotImgTag(ev.pitcher, 'hr-traj-headshot', null, ev.pitcherId)}
         </div>` : ''}
       </div>
+      ${hasStatcast ? statsBar : ''}
       <div class="hr-traj-share-row">
-        ${hasStatcast ? `<button type="button" class="hr-view-btn" onclick="toggleHRGraphic(this)" aria-expanded="false" aria-label="Show home run replay">
-          <svg class="hr-view-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-          View
-        </button>` : ''}
         <button type="button" class="hr-share-btn" onclick="shareHR(this)" data-share="${_shareData}" data-ev="${_evData}" aria-label="Share home run" title="Share">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
           Share
         </button>
+        ${hasStatcast ? `<button type="button" class="hr-view-btn" onclick="toggleHRGraphic(this)" aria-expanded="false" aria-label="Show home run replay">
+          <svg class="hr-view-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          View
+        </button>` : ''}
       </div>
       <div class="hr-traj-meta">
         ${ev.rbi ? `<span class="hr-traj-rbi">${ev.rbi} RBI</span>` : ''}
@@ -9420,7 +9421,7 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
     </div>`;
 
   if(!hasStatcast){
-    return `<div class="hr-traj-card ${ev.isNew?'is-new':''}" data-batter="${escapeHTML(ev.batter)}">
+    return `<div class="hr-traj-card ${ev.isNew?'is-new':''}" data-batter="${escapeHTML(ev.batter)}" data-key="${escapeHTML(String(ev.key))}">
       <div class="hrm-wrap is-pending"><div class="hrm-graphic">
         <svg class="hrm-svg" viewBox="0 0 ${VW} ${VH}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="home run moment">
           ${slateDefs(id)}${slateBackdrop(id, true)}
@@ -9431,7 +9432,7 @@ function homeRunMomentHTML(ev, narrative, shortPitch){
     </div>`;
   }
 
-  return `<div class="hr-traj-card ${ev.isNew?'is-new':''}" data-batter="${escapeHTML(ev.batter)}">
+  return `<div class="hr-traj-card ${ev.isNew?'is-new':''}" data-batter="${escapeHTML(ev.batter)}" data-key="${escapeHTML(String(ev.key))}">
     <div class="hrm-collapse">
     <div class="hrm-wrap is-ready"><div class="hrm-graphic">
     <svg class="hrm-svg" viewBox="0 0 ${VW} ${VH}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Home run trajectory landing ${Math.round(d)} feet to ${dirDeg>=0?'right':'left'} field">
@@ -9720,6 +9721,28 @@ function toggleHRGraphic(btn){
   btn.setAttribute('aria-expanded', open ? 'true' : 'false');
   for(const node of btn.childNodes){
     if(node.nodeType === 3 && node.textContent.trim()){ node.textContent = open ? ' Hide' : ' View'; break; }
+  }
+  // The arc/ball/splash animations use fill-mode:forwards and finish in
+  // well under 2s — while collapsed (max-height:0, not display:none) they
+  // were still rendered and had long since played out to their frozen end
+  // frame, so opening the card just revealed the finished state instead of
+  // a replay. Restarting them here on open is the standard trick: setting
+  // animation to 'none', forcing a reflow, then clearing it back to '' so
+  // the stylesheet's own rule takes over fresh. Safe for anyone with
+  // prefers-reduced-motion set too — that media query already overrides
+  // these exact elements with animation:none !important, which still wins
+  // over whatever this does.
+  if(open){
+    // getBoundingClientRect(), not offsetHeight — these are SVG <path>/
+    // <circle> elements (SVGElement, not HTMLElement), and offsetHeight is
+    // an HTMLElement-specific property not reliably defined on plain SVG
+    // shapes. getBoundingClientRect() lives on the base Element interface
+    // both inherit from, and reading it still forces the same reflow.
+    collapse.querySelectorAll('.hrm-arc, .hrm-ball, .hrm-splash, .hrm-splash-ring').forEach(el => {
+      el.style.animation = 'none';
+      void el.getBoundingClientRect();
+      el.style.animation = '';
+    });
   }
 }
 function shareHR(btn){
@@ -10021,6 +10044,19 @@ function shareHRClip(btn){
 }
 
 function renderFeed(){
+  // This rebuilds the whole list from scratch on every call, including the
+  // 20s live poll while games are in progress — someone could easily have
+  // a card expanded via View when that fires. Without preserving which
+  // ones were open here, the fresh render always starts every card
+  // collapsed, silently snapping an open card shut on its own even though
+  // nobody clicked Hide. Captured by data-key (unique per event), not
+  // data-batter, since the same player can homer more than once in a day.
+  const openKeys = new Set(
+    [...pickList.querySelectorAll('.hrm-collapse.is-open')]
+      .map(el => el.closest('.hr-traj-card')?.dataset.key)
+      .filter(Boolean)
+  );
+
   if(!feedEvents.length){
     const anyLive = games.some(g => g.mlbStatus === 'Live');
     pickList.innerHTML = iosInstallHintHTML() + `<div class="foryou-empty">
@@ -10106,6 +10142,25 @@ function renderFeed(){
       if(p) openBatterModal(p);
     });
   });
+
+  // Re-apply whichever cards were open before this rebuild, captured above.
+  // Just restoring the visual/aria/label state, not calling
+  // toggleHRGraphic() itself — this is a background refresh keeping an
+  // already-open card open, not someone freshly clicking View, so it
+  // shouldn't replay the arc/ball animation on every 20s poll.
+  if(openKeys.size){
+    pickList.querySelectorAll('.hr-traj-card').forEach(card => {
+      if(!openKeys.has(card.dataset.key)) return;
+      const collapse = card.querySelector('.hrm-collapse');
+      const btn = card.querySelector('.hr-view-btn');
+      if(!collapse || !btn) return;
+      collapse.classList.add('is-open');
+      btn.setAttribute('aria-expanded', 'true');
+      for(const node of btn.childNodes){
+        if(node.nodeType === 3 && node.textContent.trim()){ node.textContent = ' Hide'; break; }
+      }
+    });
+  }
 }
 
 let foryouSub = null;
