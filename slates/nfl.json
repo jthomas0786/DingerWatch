@@ -1,21 +1,21 @@
 {
   "sport": "nfl",
-  "slateId": "2026-pre-w01",
-  "date": "2026-09-05",
+  "slateId": "2026-reg-w01",
+  "date": "2026-09-06",
   "season": 2026,
-  "seasonType": "pre",
+  "seasonType": "reg",
   "week": 1,
-  "generatedAt": "2026-09-05T14:38:42.138Z",
-  "buildDurationMs": 4830,
+  "generatedAt": "2026-09-06T14:58:07.731Z",
+  "buildDurationMs": 4936,
   "gameCount": 16,
   "availability": {
     "source": "espn-injuries",
     "ok": true,
-    "fetchedAt": "2026-09-05T14:38:35Z",
+    "fetchedAt": "2026-09-06T14:58:02Z",
     "counts": {
-      "active": 305,
+      "active": 308,
       "questionable": 69,
-      "unconfirmed": 337,
+      "unconfirmed": 334,
       "out": 60
     }
   },
@@ -24,7 +24,7 @@
     "rosterYear": 2026,
     "statsYear": 2025,
     "source": "nflverse roster_2026 + depth_charts_2026",
-    "depthSnapshot": "2026-09-05T11:25:48Z",
+    "depthSnapshot": "2026-09-06T11:29:30Z",
     "dataConfidence": {
       "full": 456,
       "rookie": 153,
@@ -36,7 +36,7 @@
       "noHistory": 162,
       "teamChanged": 149,
       "departed": 25,
-      "ranked": 748
+      "ranked": 746
     }
   },
   "sources": {
@@ -54,8 +54,8 @@
     "rz-defense: opponent red-zone TD rate allowed is a 2025 signal, tempered by rzDefWeight=0.6",
     "odds/inactives: Live injury/inactive status comes from the ESPN league-wide injuries endpoint (nflverse's injury feed has no data after 2024). OUT/IR/suspended players are zeroed and flagged; questionable/doubtful are discounted. Per-game official inactives (T-90) and OpticOdds ATD markets are still a follow-up.",
     "roster2026: 2947 rows, 771 skill players on 32 teams (147 RET/CUT dropped)",
-    "depth2026: 498893 rows, 748 players ranked, latest snapshot 2026-09-05T11:25:48Z",
-    "availability: 800 ESPN injury entries (800 with ids), as of 2026-09-05T14:38:35Z",
+    "depth2026: 501069 rows, 746 players ranked, latest snapshot 2026-09-06T11:29:30Z",
+    "availability: 800 ESPN injury entries (800 with ids), as of 2026-09-06T14:58:02Z",
     "roster: 3138 rows, 732 skill players",
     "snap_counts: 26613 rows, 5946 matched",
     "pbp: 48772 rows, 1235 TDs + 4579 RZ plays matched",
@@ -620,7 +620,7 @@
                 "status": "questionable",
                 "statusRaw": "Questionable",
                 "detail": "Ankle",
-                "note": "Henderson (ankle) wasn't present for Thursday's practice, Evan Lazar of the Patriots' official site reports.",
+                "note": "Henderson (ankle) was in street clothes ahead of Saturday's practice, Andrew Callahan of the Boston Herald reports.",
                 "factor": 0.85
               },
               "inputs": {
@@ -3218,7 +3218,7 @@
                 "status": "questionable",
                 "statusRaw": "Questionable",
                 "detail": "Groin",
-                "note": "Nacua (groin) was off to the side for team drills at Monday's practice, Nate Atkins of The Athletic reports.",
+                "note": "Nacua (groin), per head coach Sean McVay, is \"making good progress\" in his recovery, Sarah Barshop of ESPN.com reports.",
                 "factor": 0.85
               },
               "inputs": {
@@ -5393,17 +5393,17 @@
           "opponent": "LA",
           "props": {
             "atd": {
-              "probability": 0.0134,
+              "probability": 0.0158,
               "grade": "F",
               "gradeLabel": "Avoid",
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Concussion",
-                "note": "Willis (concussion) participated in Tuesday's practice, Nick Wagoner of ESPN.com reports.",
-                "factor": 0.85
+                "status": "unconfirmed",
+                "statusRaw": null,
+                "detail": null,
+                "note": null,
+                "factor": 1
               },
               "inputs": {
                 "tdRate": 0,
@@ -5481,62 +5481,6 @@
           }
         },
         {
-          "gsisId": "00-0040589",
-          "espnId": "4430431",
-          "name": "Kurtis Rourke",
-          "team": "SF",
-          "position": "QB",
-          "depth": "QB",
-          "jersey": "14",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/rq4swf5c2ar45ljuc0w2",
-          "depthRank": 3,
-          "yearsExp": 1,
-          "isRookie": false,
-          "prevTeam": "SF",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0,
-            "gamesPlayed": 0,
-            "rzTargets": 0,
-            "rzCarries": 0,
-            "tds": 0,
-            "statsSeason": null
-          },
-          "opponent": "LA",
-          "props": {
-            "atd": {
-              "probability": 0.0071,
-              "grade": "F",
-              "gradeLabel": "Avoid",
-              "dataConfidence": "no-history",
-              "isRookie": false,
-              "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
-                "factor": 1
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0,
-                "snapShare": 0,
-                "gamesPlayed": 0,
-                "depthRank": 3,
-                "roleFactor": 0.1,
-                "roleSource": "depth-2026",
-                "historyFactor": 0.55,
-                "oppRzDefIndex": 0.775,
-                "oppRzDefFactor": 0.865,
-                "oppRzTdRateAllowed": 0.1491,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
           "gsisId": "00-0036972",
           "espnId": "4241464",
           "name": "Mac Jones",
@@ -5582,6 +5526,62 @@
                 "roleFactor": 0.12,
                 "roleSource": "depth-2026",
                 "historyFactor": 1,
+                "oppRzDefIndex": 0.775,
+                "oppRzDefFactor": 0.865,
+                "oppRzTdRateAllowed": 0.1491,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0040589",
+          "espnId": "4430431",
+          "name": "Kurtis Rourke",
+          "team": "SF",
+          "position": "QB",
+          "depth": "QB",
+          "jersey": "14",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/rq4swf5c2ar45ljuc0w2",
+          "depthRank": 3,
+          "yearsExp": 1,
+          "isRookie": false,
+          "prevTeam": "SF",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0,
+            "gamesPlayed": 0,
+            "rzTargets": 0,
+            "rzCarries": 0,
+            "tds": 0,
+            "statsSeason": null
+          },
+          "opponent": "LA",
+          "props": {
+            "atd": {
+              "probability": 0.0061,
+              "grade": "F",
+              "gradeLabel": "Avoid",
+              "dataConfidence": "no-history",
+              "isRookie": false,
+              "availability": {
+                "status": "questionable",
+                "statusRaw": "Questionable",
+                "detail": "Ribs",
+                "note": "Coach Kyle Shanahan said Tuesday that Rourke (ribs) has a chance to return to the field next week, Nick Wagoner of ESPN.com reports.",
+                "factor": 0.85
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0,
+                "snapShare": 0,
+                "gamesPlayed": 0,
+                "depthRank": 3,
+                "roleFactor": 0.1,
+                "roleSource": "depth-2026",
+                "historyFactor": 0.55,
                 "oppRzDefIndex": 0.775,
                 "oppRzDefFactor": 0.865,
                 "oppRzTdRateAllowed": 0.1491,
@@ -9310,7 +9310,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Saylors rushed six times for 32 yards while also giving up a fumble-six in Saturday's 17-13 preseason win over the Commanders.",
+                "note": "Saylors earned the trust of coaching staff during training camp and could see consistent playing time on both offense and special teams this season, Tim Twentyman of the Lions' official site reports.",
                 "factor": 1
               },
               "inputs": {
@@ -9419,10 +9419,10 @@
               "dataConfidence": "no-history",
               "isRookie": false,
               "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Martin is the fourth and final wide receiver on the Lions' 53-man active roster for the regular season, Tim Twentyman of the team's official site reports.",
                 "factor": 1
               },
               "inputs": {
@@ -9870,7 +9870,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Estime rushed four times for 46 yards and caught all three of his targets for 22 yards in Friday's 27-24 preseason win over the Cowboys.",
+                "note": "Estime is listed as the fourth running back on the Saints' 53-man roster, Grant Chachere of SI.com reports.",
                 "factor": 1
               },
               "inputs": {
@@ -23812,7 +23812,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Abdullah carried the ball six times for 45 yards and caught three of four targets for 37 yards in Friday's 34-17 preseason loss to the Panthers.",
+                "note": "Abdullah earned a spot on the Jaguars' 53-man roster following a strong training camp, John Oehser of the team's official site reports.",
                 "factor": 1
               },
               "inputs": {
@@ -28191,6 +28191,62 @@
           }
         },
         {
+          "gsisId": "00-0041004",
+          "espnId": "4714388",
+          "name": "Chase Roberts",
+          "team": "LV",
+          "position": "WR",
+          "depth": "WR",
+          "jersey": "86",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/bqncmkjxb7rcvfuhe1ss",
+          "depthRank": null,
+          "yearsExp": 0,
+          "isRookie": true,
+          "prevTeam": null,
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0,
+            "gamesPlayed": 0,
+            "rzTargets": 0,
+            "rzCarries": 0,
+            "tds": 0,
+            "statsSeason": null
+          },
+          "opponent": "MIA",
+          "props": {
+            "atd": {
+              "probability": 0.1141,
+              "grade": "D",
+              "gradeLabel": "Fade",
+              "dataConfidence": "rookie",
+              "isRookie": true,
+              "availability": {
+                "status": "unconfirmed",
+                "statusRaw": null,
+                "detail": null,
+                "note": null,
+                "factor": 1
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0,
+                "snapShare": 0,
+                "gamesPlayed": 0,
+                "depthRank": null,
+                "roleFactor": 0.5,
+                "roleSource": "snap-2025",
+                "historyFactor": 0.92,
+                "oppRzDefIndex": 1.213,
+                "oppRzDefFactor": 1.128,
+                "oppRzTdRateAllowed": 0.2335,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
           "gsisId": "00-0037666",
           "espnId": "4249417",
           "name": "Jalen Tolbert",
@@ -28389,10 +28445,10 @@
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Laube made the Raiders' 53-man roster at the end of training camp and could operate in an elevated role on offense against the Dolphins in Week 1 if Ashton Jeanty (ankle) is limited or ruled out.",
                 "factor": 1
               },
               "inputs": {
@@ -28628,62 +28684,6 @@
                 "roleFactor": 0.45,
                 "roleSource": "depth-2026",
                 "historyFactor": 1,
-                "oppRzDefIndex": 1.213,
-                "oppRzDefFactor": 1.128,
-                "oppRzTdRateAllowed": 0.2335,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
-          "gsisId": "00-0041004",
-          "espnId": "4714388",
-          "name": "Chase Roberts",
-          "team": "LV",
-          "position": "WR",
-          "depth": "WR",
-          "jersey": "86",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/bqncmkjxb7rcvfuhe1ss",
-          "depthRank": 9,
-          "yearsExp": 0,
-          "isRookie": true,
-          "prevTeam": null,
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0,
-            "gamesPlayed": 0,
-            "rzTargets": 0,
-            "rzCarries": 0,
-            "tds": 0,
-            "statsSeason": null
-          },
-          "opponent": "MIA",
-          "props": {
-            "atd": {
-              "probability": 0.0502,
-              "grade": "F",
-              "gradeLabel": "Avoid",
-              "dataConfidence": "rookie",
-              "isRookie": true,
-              "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
-                "factor": 1
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0,
-                "snapShare": 0,
-                "gamesPlayed": 0,
-                "depthRank": 9,
-                "roleFactor": 0.22,
-                "roleSource": "depth-2026",
-                "historyFactor": 0.92,
                 "oppRzDefIndex": 1.213,
                 "oppRzDefFactor": 1.128,
                 "oppRzTdRateAllowed": 0.2335,
@@ -35489,10 +35489,10 @@
               "dataConfidence": "rookie",
               "isRookie": true,
               "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Kaliakmanis made the Commanders' 53-man roster as the third-string quarterback, but he could be the team's backup for Week 1 against the Eagles if Marcus Mariota (knee) is not cleared to play.",
                 "factor": 1
               },
               "inputs": {
@@ -42246,6 +42246,62 @@
           }
         },
         {
+          "gsisId": "00-0040964",
+          "espnId": "4430825",
+          "name": "EJ Smith",
+          "team": "KC",
+          "position": "RB",
+          "depth": "RB",
+          "jersey": "35",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/cbrhecognbp6bxwgtqyh",
+          "depthRank": null,
+          "yearsExp": 0,
+          "isRookie": true,
+          "prevTeam": null,
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0,
+            "gamesPlayed": 0,
+            "rzTargets": 0,
+            "rzCarries": 0,
+            "tds": 0,
+            "statsSeason": null
+          },
+          "opponent": "DEN",
+          "props": {
+            "atd": {
+              "probability": 0.1251,
+              "grade": "D",
+              "gradeLabel": "Fade",
+              "dataConfidence": "rookie",
+              "isRookie": true,
+              "availability": {
+                "status": "unconfirmed",
+                "statusRaw": null,
+                "detail": null,
+                "note": null,
+                "factor": 1
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0,
+                "snapShare": 0,
+                "gamesPlayed": 0,
+                "depthRank": null,
+                "roleFactor": 0.5,
+                "roleSource": "snap-2025",
+                "historyFactor": 0.92,
+                "oppRzDefIndex": 0.737,
+                "oppRzDefFactor": 0.85,
+                "oppRzTdRateAllowed": 0.1419,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
           "gsisId": "00-0036613",
           "espnId": "4372016",
           "name": "Jaylen Waddle",
@@ -43086,62 +43142,6 @@
           }
         },
         {
-          "gsisId": "00-0040964",
-          "espnId": "4430825",
-          "name": "EJ Smith",
-          "team": "KC",
-          "position": "RB",
-          "depth": "RB",
-          "jersey": "35",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/cbrhecognbp6bxwgtqyh",
-          "depthRank": 4,
-          "yearsExp": 0,
-          "isRookie": true,
-          "prevTeam": null,
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0,
-            "gamesPlayed": 0,
-            "rzTargets": 0,
-            "rzCarries": 0,
-            "tds": 0,
-            "statsSeason": null
-          },
-          "opponent": "DEN",
-          "props": {
-            "atd": {
-              "probability": 0.0375,
-              "grade": "F",
-              "gradeLabel": "Avoid",
-              "dataConfidence": "rookie",
-              "isRookie": true,
-              "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
-                "factor": 1
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0,
-                "snapShare": 0,
-                "gamesPlayed": 0,
-                "depthRank": 4,
-                "roleFactor": 0.15,
-                "roleSource": "depth-2026",
-                "historyFactor": 0.92,
-                "oppRzDefIndex": 0.737,
-                "oppRzDefFactor": 0.85,
-                "oppRzTdRateAllowed": 0.1419,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
           "gsisId": "00-0040078",
           "espnId": "4596602",
           "name": "Brashard Smith",
@@ -43175,7 +43175,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Smith is listed as the No. 4 running back on the unofficial depth chart Kansas City released ahead of the preseason, Pete Grathoff of the Kansas City Star reports.",
+                "note": "Smith is the third and final running back on the Chiefs' 53-man roster for the 2026 regular season, Matt McMullen of the team's official site reports.",
                 "factor": 1
               },
               "inputs": {
