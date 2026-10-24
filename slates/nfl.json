@@ -1,22 +1,22 @@
 {
   "sport": "nfl",
   "slateId": "2026-reg-w01",
-  "date": "2026-10-23",
+  "date": "2026-10-24",
   "season": 2026,
   "seasonType": "reg",
   "week": 1,
-  "generatedAt": "2026-10-23T16:30:49.285Z",
-  "buildDurationMs": 5387,
+  "generatedAt": "2026-10-24T15:25:35.227Z",
+  "buildDurationMs": 5393,
   "gameCount": 14,
   "availability": {
     "source": "espn-injuries",
     "ok": true,
-    "fetchedAt": "2026-10-23T16:30:46Z",
+    "fetchedAt": "2026-10-24T15:25:31Z",
     "counts": {
-      "active": 232,
-      "unconfirmed": 391,
-      "questionable": 48,
-      "out": 30,
+      "active": 253,
+      "unconfirmed": 389,
+      "out": 42,
+      "questionable": 18,
       "doubtful": 1
     }
   },
@@ -25,19 +25,19 @@
     "rosterYear": 2026,
     "statsYear": 2025,
     "source": "nflverse roster_2026 + depth_charts_2026",
-    "depthSnapshot": "2026-10-23T12:34:33Z",
+    "depthSnapshot": "2026-10-24T11:57:56Z",
     "dataConfidence": {
       "full": 408,
       "rookie": 136,
-      "no-history": 158
+      "no-history": 159
     },
     "blend": {
       "full": 473,
       "rookie": 154,
-      "noHistory": 175,
-      "teamChanged": 179,
+      "noHistory": 176,
+      "teamChanged": 180,
       "departed": 15,
-      "ranked": 774
+      "ranked": 775
     }
   },
   "sources": {
@@ -54,9 +54,9 @@
     "carryover: a traded player's 2025 rate travels with him; his 2026 opportunity is captured by depth rank, not by his old team's usage",
     "rz-defense: opponent red-zone TD rate allowed is a 2025 signal, tempered by rzDefWeight=0.6",
     "odds/inactives: Live injury/inactive status comes from the ESPN league-wide injuries endpoint (nflverse's injury feed has no data after 2024). OUT/IR/suspended players are zeroed and flagged; questionable/doubtful are discounted. Per-game official inactives (T-90) and OpticOdds ATD markets are still a follow-up.",
-    "roster2026: 3055 rows, 802 skill players on 32 teams (152 RET/CUT dropped)",
-    "depth2026: 689309 rows, 774 players ranked, latest snapshot 2026-10-23T12:34:33Z",
-    "availability: 800 ESPN injury entries (800 with ids), as of 2026-10-23T16:30:46Z",
+    "roster2026: 3055 rows, 803 skill players on 32 teams (151 RET/CUT dropped)",
+    "depth2026: 693887 rows, 775 players ranked, latest snapshot 2026-10-24T11:57:56Z",
+    "availability: 800 ESPN injury entries (800 with ids), as of 2026-10-24T15:25:31Z",
     "roster: 3138 rows, 732 skill players",
     "snap_counts: 26614 rows, 5946 matched",
     "pbp: 48772 rows, 1235 TDs + 4579 RZ plays matched",
@@ -677,7 +677,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Douglas caught seven of eight targets for 86 yards and a touchdown in Sunday's 26-19 win over the Jets.",
+                "note": "Douglas caught three of his four targets for 23 yards in the Patriots' 30-24 loss to the Bears on Thursday.",
                 "factor": 1
               },
               "inputs": {
@@ -789,7 +789,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Raymond caught both of his targets for 18 yards and returned three punts for 54 yards during Chicago's win over the Falcons on Sunday.",
+                "note": "Raymond did not catch either of his two targets and returned one punt for seven yards Thursday in a 30-24 win over New England.",
                 "factor": 1
               },
               "inputs": {
@@ -954,10 +954,10 @@
               "dataConfidence": "no-history",
               "isRookie": false,
               "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Chism caught his sole target for 16 yards in the Patriots' 30-24 loss to the Bears on Thursday.",
                 "factor": 1
               },
               "inputs": {
@@ -1013,7 +1013,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Johnson rushed 13 times for 51 yards and a touchdown in Sunday's 31-23 win over the Falcons. He caught both of his targets for 34 yards.",
+                "note": "Johnson rushed twice for 13 yards in the Bears' 30-24 victory over the Patriots on Thursday.",
                 "factor": 1
               },
               "inputs": {
@@ -1066,10 +1066,10 @@
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Williams returned two kickoffs for 47 yards and failed to haul in his lone target during the Patriots' 30-24 loss to the Bears on Thursday.",
                 "factor": 1
               },
               "inputs": {
@@ -1084,6 +1084,62 @@
                 "oppRzDefIndex": 1.02,
                 "oppRzDefFactor": 1.012,
                 "oppRzTdRateAllowed": 0.1963,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0041558",
+          "espnId": "4685504",
+          "name": "Sam Roush",
+          "team": "CHI",
+          "position": "TE",
+          "depth": "TE",
+          "jersey": "87",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/gjz1in0tnn9vjssgs762",
+          "depthRank": 2,
+          "yearsExp": 0,
+          "isRookie": true,
+          "prevTeam": null,
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0,
+            "gamesPlayed": 0,
+            "rzTargets": 0,
+            "rzCarries": 0,
+            "tds": 0,
+            "statsSeason": null
+          },
+          "opponent": "NE",
+          "props": {
+            "atd": {
+              "probability": 0.0802,
+              "grade": "D",
+              "gradeLabel": "Fade",
+              "dataConfidence": "rookie",
+              "isRookie": true,
+              "availability": {
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Roush is expected to get more work on offense after Cole Kmet (knee) landed on injured reserve Friday.",
+                "factor": 1
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0,
+                "snapShare": 0,
+                "gamesPlayed": 0,
+                "depthRank": 2,
+                "roleFactor": 0.45,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 1.189,
+                "oppRzDefFactor": 1.113,
+                "oppRzTdRateAllowed": 0.2288,
                 "sampleYear": 2025,
                 "rosterYear": 2026
               },
@@ -1122,10 +1178,10 @@
               "dataConfidence": "rookie",
               "isRookie": true,
               "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Raridon caught three of four targets for 56 yards and a touchdown in Thursday's Week 7 loss to the Bears.",
                 "factor": 1
               },
               "inputs": {
@@ -1181,7 +1237,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Kiner rushed 11 times for 57 yards while also adding 88 yards as a kick returner during Sunday's 26-19 win over the Jets.",
+                "note": "Kiner rushed four times for 13 yards in Thursday's Week 7 loss to Chicago. He also returned four kickoffs for 102 yards.",
                 "factor": 1
               },
               "inputs": {
@@ -1212,7 +1268,7 @@
           "depth": "RB",
           "jersey": "38",
           "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/relpury9aesxxbxvryvy",
-          "depthRank": 5,
+          "depthRank": 4,
           "yearsExp": 4,
           "isRookie": false,
           "prevTeam": "CHI",
@@ -1245,64 +1301,8 @@
                 "rzPerGame": 0,
                 "snapShare": 0.1,
                 "gamesPlayed": 2,
-                "depthRank": 5,
+                "depthRank": 4,
                 "roleFactor": 0.15,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
-                "oppRzDefIndex": 1.189,
-                "oppRzDefFactor": 1.113,
-                "oppRzTdRateAllowed": 0.2288,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
-          "gsisId": "00-0036290",
-          "espnId": "4258595",
-          "name": "Cole Kmet",
-          "team": "CHI",
-          "position": "TE",
-          "depth": "TE",
-          "jersey": "85",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/ysnui8mzlu2fo70ub0yt",
-          "depthRank": 2,
-          "yearsExp": 6,
-          "isRookie": false,
-          "prevTeam": "CHI",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0.714,
-            "gamesPlayed": 16,
-            "rzTargets": 7,
-            "rzCarries": 0,
-            "tds": 2,
-            "statsSeason": 2025
-          },
-          "opponent": "NE",
-          "props": {
-            "atd": {
-              "probability": 0.0585,
-              "grade": "F",
-              "gradeLabel": "Avoid",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Knee",
-                "note": "Kmet exited Thursday night's game against the Patriots with a right knee injury and will not return.",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0.125,
-                "rzPerGame": 0.44,
-                "snapShare": 0.714,
-                "gamesPlayed": 16,
-                "depthRank": 2,
-                "roleFactor": 0.45,
                 "roleSource": "depth-2026",
                 "historyFactor": 1,
                 "oppRzDefIndex": 1.189,
@@ -1596,62 +1596,6 @@
           }
         },
         {
-          "gsisId": "00-0041558",
-          "espnId": "4685504",
-          "name": "Sam Roush",
-          "team": "CHI",
-          "position": "TE",
-          "depth": "TE",
-          "jersey": "87",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/gjz1in0tnn9vjssgs762",
-          "depthRank": 3,
-          "yearsExp": 0,
-          "isRookie": true,
-          "prevTeam": null,
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0,
-            "gamesPlayed": 0,
-            "rzTargets": 0,
-            "rzCarries": 0,
-            "tds": 0,
-            "statsSeason": null
-          },
-          "opponent": "NE",
-          "props": {
-            "atd": {
-              "probability": 0.0356,
-              "grade": "F",
-              "gradeLabel": "Avoid",
-              "dataConfidence": "rookie",
-              "isRookie": true,
-              "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
-                "factor": 1
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0,
-                "snapShare": 0,
-                "gamesPlayed": 0,
-                "depthRank": 3,
-                "roleFactor": 0.2,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
-                "oppRzDefIndex": 1.189,
-                "oppRzDefFactor": 1.113,
-                "oppRzTdRateAllowed": 0.2288,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
           "gsisId": "00-0038440",
           "espnId": "4257364",
           "name": "Zavier Scott",
@@ -1682,10 +1626,10 @@
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "active",
-                "statusRaw": "Active",
-                "detail": "active",
-                "note": "Scott has been elevated from Chicago's practice squad ahead of Thursday's game against the Patriots.",
+                "status": "unconfirmed",
+                "statusRaw": null,
+                "detail": null,
+                "note": null,
                 "factor": 1
               },
               "inputs": {
@@ -1794,9 +1738,9 @@
               "dataConfidence": "rookie",
               "isRookie": true,
               "availability": {
-                "status": "active",
-                "statusRaw": "Active",
-                "detail": "active",
+                "status": "unconfirmed",
+                "statusRaw": null,
+                "detail": null,
                 "note": null,
                 "factor": 1
               },
@@ -2828,6 +2772,62 @@
           }
         },
         {
+          "gsisId": "00-0036290",
+          "espnId": "4258595",
+          "name": "Cole Kmet",
+          "team": "CHI",
+          "position": "TE",
+          "depth": "TE",
+          "jersey": "85",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/ysnui8mzlu2fo70ub0yt",
+          "depthRank": 3,
+          "yearsExp": 6,
+          "isRookie": false,
+          "prevTeam": "CHI",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0.714,
+            "gamesPlayed": 16,
+            "rzTargets": 7,
+            "rzCarries": 0,
+            "tds": 2,
+            "statsSeason": 2025
+          },
+          "opponent": "NE",
+          "props": {
+            "atd": {
+              "probability": 0,
+              "grade": "F",
+              "gradeLabel": "Out",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "out",
+                "statusRaw": "Injured Reserve",
+                "detail": "Knee",
+                "note": "The Bears placed Kmet (knee) on injured reserve Friday.",
+                "factor": 0
+              },
+              "inputs": {
+                "tdRate": 0.125,
+                "rzPerGame": 0.44,
+                "snapShare": 0.714,
+                "gamesPlayed": 16,
+                "depthRank": 3,
+                "roleFactor": 0.2,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 1.189,
+                "oppRzDefFactor": 1.113,
+                "oppRzTdRateAllowed": 0.2288,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
           "gsisId": "00-0040236",
           "espnId": "4608686",
           "name": "Kyle Monangai",
@@ -3275,7 +3275,7 @@
                 "status": "questionable",
                 "statusRaw": "Questionable",
                 "detail": "Knee",
-                "note": "Dowdle (knee) is listed as questionable for Sunday's game against the Saints in Paris, Alan Saunders of SteelersNow.com reports.",
+                "note": "Dowdle (knee) was a limited participant in Friday's practice and is listed as questionable for Sunday's game against the Saints in Paris, NFL insider Adam Caplan reports.",
                 "factor": 0.85
               },
               "inputs": {
@@ -6206,10 +6206,10 @@
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "active",
-                "statusRaw": "Active",
-                "detail": "active",
-                "note": "London brought in four of 10 targets for 62 yards in the Falcons' 31-23 loss to the Bears on Sunday. He also recorded a two-point conversion catch.",
+                "status": "unconfirmed",
+                "statusRaw": null,
+                "detail": null,
+                "note": null,
                 "factor": 1
               },
               "inputs": {
@@ -6318,10 +6318,10 @@
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "active",
-                "statusRaw": "Active",
-                "detail": "active",
-                "note": "Pitts brought in five of seven targets for 60 yards and two touchdowns in the Falcons' 31-23 loss to the Bears on Sunday.",
+                "status": "unconfirmed",
+                "statusRaw": null,
+                "detail": null,
+                "note": null,
                 "factor": 1
               },
               "inputs": {
@@ -6336,62 +6336,6 @@
                 "oppRzDefIndex": 1.054,
                 "oppRzDefFactor": 1.032,
                 "oppRzTdRateAllowed": 0.2028,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
-          "gsisId": "00-0031408",
-          "espnId": "16737",
-          "name": "Mike Evans",
-          "team": "SF",
-          "position": "WR",
-          "depth": "WR",
-          "jersey": "5",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/zc4ujpmndyxrbiyyjomz",
-          "depthRank": 1,
-          "yearsExp": 12,
-          "isRookie": false,
-          "prevTeam": "TB",
-          "teamChanged": true,
-          "stats": {
-            "snapShare": 0.656,
-            "gamesPlayed": 8,
-            "rzTargets": 9,
-            "rzCarries": 0,
-            "tds": 3,
-            "statsSeason": 2025
-          },
-          "opponent": "ATL",
-          "props": {
-            "atd": {
-              "probability": 0.2311,
-              "grade": "C",
-              "gradeLabel": "Lean",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Achilles",
-                "note": "Evans (ribs/Achilles) didn't practice Thursday, Nick Wagoner of ESPN.com reports.",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0.375,
-                "rzPerGame": 1.13,
-                "snapShare": 0.656,
-                "gamesPlayed": 8,
-                "depthRank": 1,
-                "roleFactor": 1,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
-                "oppRzDefIndex": 0.836,
-                "oppRzDefFactor": 0.902,
-                "oppRzTdRateAllowed": 0.1609,
                 "sampleYear": 2025,
                 "rosterYear": 2026
               },
@@ -6680,62 +6624,6 @@
           }
         },
         {
-          "gsisId": "00-0037746",
-          "espnId": "4241474",
-          "name": "Brian Robinson",
-          "team": "ATL",
-          "position": "RB",
-          "depth": "RB",
-          "jersey": "15",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/n1xhex1ytisxcbcggqu7",
-          "depthRank": 2,
-          "yearsExp": 4,
-          "isRookie": false,
-          "prevTeam": "SF",
-          "teamChanged": true,
-          "stats": {
-            "snapShare": 0.167,
-            "gamesPlayed": 17,
-            "rzTargets": 4,
-            "rzCarries": 13,
-            "tds": 2,
-            "statsSeason": 2025
-          },
-          "opponent": "SF",
-          "props": {
-            "atd": {
-              "probability": 0.1004,
-              "grade": "D",
-              "gradeLabel": "Fade",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Hamstring",
-                "note": "Robinson (hamstring) didn't practice Thursday, Marc Raimondi of ESPN.com reports.",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0.118,
-                "rzPerGame": 1,
-                "snapShare": 0.167,
-                "gamesPlayed": 17,
-                "depthRank": 2,
-                "roleFactor": 0.62,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
-                "oppRzDefIndex": 1.054,
-                "oppRzDefFactor": 1.032,
-                "oppRzTdRateAllowed": 0.2028,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
           "gsisId": "00-0035208",
           "espnId": "3917914",
           "name": "Olamide Zaccheaus",
@@ -6769,7 +6657,7 @@
                 "status": "questionable",
                 "statusRaw": "Questionable",
                 "detail": "Shoulder",
-                "note": "Zaccheaus (shoulder) was a limited practice participant Thursday, Tori McElhaney of the Falcons' official site reports.",
+                "note": "Zaccheaus (shoulder) is questionable for Sunday's game against the 49ers, Will McFadden of the Falcons' official site reports.",
                 "factor": 0.85
               },
               "inputs": {
@@ -7049,7 +6937,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Cooks brought in one of two targets for 13 yards in the 49ers' 23-17 win over the Commanders on Monday night.",
+                "note": "Cooks could be set to work as San Francisco's top wideout Week 7 against Atlanta, as both Mike Evans (Achilles) and Deebo Samuel (hamstring) have been ruled out for the contest, per Brooke Evans of the team's official site.",
                 "factor": 1
               },
               "inputs": {
@@ -7273,7 +7161,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Watkins caught his lone target for 22 yards during the 49ers' 23-17 win over the Commanders on Monday.",
+                "note": "Watkins could take on a significant role Sunday against Atlanta with Mike Evans (Achilles) and Deebo Samuel (hamstring) both sidelined, Brooke Evans of the 49ers' official site reports.",
                 "factor": 1
               },
               "inputs": {
@@ -7550,10 +7438,10 @@
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "After Brian Robinson (hamstring) was ruled out, Falcons coach Kevin Stefanski said Friday that Herbert will be Bijan Robinson's backup against the 49ers on Sunday, Marc Raimondi of ESPN.com reports.",
                 "factor": 1
               },
               "inputs": {
@@ -8808,6 +8696,62 @@
           }
         },
         {
+          "gsisId": "00-0037746",
+          "espnId": "4241474",
+          "name": "Brian Robinson",
+          "team": "ATL",
+          "position": "RB",
+          "depth": "RB",
+          "jersey": "15",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/n1xhex1ytisxcbcggqu7",
+          "depthRank": 2,
+          "yearsExp": 4,
+          "isRookie": false,
+          "prevTeam": "SF",
+          "teamChanged": true,
+          "stats": {
+            "snapShare": 0.167,
+            "gamesPlayed": 17,
+            "rzTargets": 4,
+            "rzCarries": 13,
+            "tds": 2,
+            "statsSeason": 2025
+          },
+          "opponent": "SF",
+          "props": {
+            "atd": {
+              "probability": 0,
+              "grade": "F",
+              "gradeLabel": "Out",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "out",
+                "statusRaw": "Out",
+                "detail": "Hamstring",
+                "note": "Robinson (hamstring) has been ruled out for Sunday's game against the 49ers, Will McFadden of the Falcons' official site reports.",
+                "factor": 0
+              },
+              "inputs": {
+                "tdRate": 0.118,
+                "rzPerGame": 1,
+                "snapShare": 0.167,
+                "gamesPlayed": 17,
+                "depthRank": 2,
+                "roleFactor": 0.62,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 1.054,
+                "oppRzDefFactor": 1.032,
+                "oppRzTdRateAllowed": 0.2028,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
           "gsisId": "00-0040432",
           "espnId": "4431210",
           "name": "Beaux Collins",
@@ -8841,7 +8785,7 @@
                 "status": "out",
                 "statusRaw": "Injured Reserve",
                 "detail": "Hip",
-                "note": "The Falcons designated Collins (hip) to return from IR on Thursday, per the NFL's transaction log.",
+                "note": "Collins (hip) is listed as questionable for Sunday's game against the 49ers, Will McFadden of the Falcons' official site reports.",
                 "factor": 0
               },
               "inputs": {
@@ -8856,6 +8800,62 @@
                 "oppRzDefIndex": 1.054,
                 "oppRzDefFactor": 1.032,
                 "oppRzTdRateAllowed": 0.2028,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0031408",
+          "espnId": "16737",
+          "name": "Mike Evans",
+          "team": "SF",
+          "position": "WR",
+          "depth": "WR",
+          "jersey": "5",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/zc4ujpmndyxrbiyyjomz",
+          "depthRank": 1,
+          "yearsExp": 12,
+          "isRookie": false,
+          "prevTeam": "TB",
+          "teamChanged": true,
+          "stats": {
+            "snapShare": 0.656,
+            "gamesPlayed": 8,
+            "rzTargets": 9,
+            "rzCarries": 0,
+            "tds": 3,
+            "statsSeason": 2025
+          },
+          "opponent": "ATL",
+          "props": {
+            "atd": {
+              "probability": 0,
+              "grade": "F",
+              "gradeLabel": "Out",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "out",
+                "statusRaw": "Out",
+                "detail": "Achilles",
+                "note": "Evans (Achilles) is out for Sunday's game against the Falcons, Matt Barrows of The Athletic reports.",
+                "factor": 0
+              },
+              "inputs": {
+                "tdRate": 0.375,
+                "rzPerGame": 1.13,
+                "snapShare": 0.656,
+                "gamesPlayed": 8,
+                "depthRank": 1,
+                "roleFactor": 1,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 0.836,
+                "oppRzDefFactor": 0.902,
+                "oppRzTdRateAllowed": 0.1609,
                 "sampleYear": 2025,
                 "rosterYear": 2026
               },
@@ -8897,7 +8897,7 @@
                 "status": "out",
                 "statusRaw": "Injured Reserve",
                 "detail": "Calf",
-                "note": "Kirk (calf) was a full practice participant Thursday, Nick Wagoner of ESPN.com reports.",
+                "note": "Kirk (calf) is questionable for Sunday's game against the Falcons, Matt Barrows of The Athletic reports.",
                 "factor": 0
               },
               "inputs": {
@@ -8953,7 +8953,7 @@
                 "status": "out",
                 "statusRaw": "Out",
                 "detail": "Hamstring",
-                "note": "Samuel (hamstring) is not expected to practice Wednesday, Cam Inman of Bay Area News Group reports.",
+                "note": "Samuel (hamstring) has been ruled out for Sunday's game at Atlanta, Matt Barrows of The Athletic reports.",
                 "factor": 0
               },
               "inputs": {
@@ -9078,17 +9078,17 @@
           "opponent": "TEN",
           "props": {
             "atd": {
-              "probability": 0.4486,
-              "grade": "B",
-              "gradeLabel": "Strong",
+              "probability": 0.5277,
+              "grade": "A",
+              "gradeLabel": "Elite",
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Ankle",
-                "note": "Judkins (ankle) remained a limited participant at Thursday's practice, Chris Easterling of the Akron Beacon Journal reports.",
-                "factor": 0.85
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Judkins (ankle) doesn't have an injury designation and said he's \"good to go\" for Sunday's game against the Titans, Mary Kay Cabot of the Cleveland Plain Dealer reports.",
+                "factor": 1
               },
               "inputs": {
                 "tdRate": 0.5,
@@ -9166,6 +9166,118 @@
           }
         },
         {
+          "gsisId": "00-0041037",
+          "espnId": "4832800",
+          "name": "Denzel Boston",
+          "team": "CLE",
+          "position": "WR",
+          "depth": "WR",
+          "jersey": "12",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/ybkny6eh5eegq3bqmony",
+          "depthRank": 1,
+          "yearsExp": 0,
+          "isRookie": true,
+          "prevTeam": null,
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0,
+            "gamesPlayed": 0,
+            "rzTargets": 0,
+            "rzCarries": 0,
+            "tds": 0,
+            "statsSeason": null
+          },
+          "opponent": "TEN",
+          "props": {
+            "atd": {
+              "probability": 0.2804,
+              "grade": "C",
+              "gradeLabel": "Lean",
+              "dataConfidence": "rookie",
+              "isRookie": true,
+              "availability": {
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Boston (foot) doesn't have an injury designation for Sunday's game against the Titans, Zac Jackson of The Athletic reports.",
+                "factor": 1
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0,
+                "snapShare": 0,
+                "gamesPlayed": 0,
+                "depthRank": 1,
+                "roleFactor": 1,
+                "roleSource": "depth-2026",
+                "historyFactor": 1.08,
+                "oppRzDefIndex": 1.307,
+                "oppRzDefFactor": 1.18,
+                "oppRzTdRateAllowed": 0.2516,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0041547",
+          "espnId": "4870653",
+          "name": "KC Concepcion",
+          "team": "CLE",
+          "position": "WR",
+          "depth": "WR",
+          "jersey": "1",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/evzxqxsyr1m3ohchqcan",
+          "depthRank": 2,
+          "yearsExp": 0,
+          "isRookie": true,
+          "prevTeam": null,
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0,
+            "gamesPlayed": 0,
+            "rzTargets": 0,
+            "rzCarries": 0,
+            "tds": 0,
+            "statsSeason": null
+          },
+          "opponent": "TEN",
+          "props": {
+            "atd": {
+              "probability": 0.2757,
+              "grade": "C",
+              "gradeLabel": "Lean",
+              "dataConfidence": "rookie",
+              "isRookie": true,
+              "availability": {
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Concepcion (calf/quadriceps) doesn't have an injury designation for Sunday's game against the Titans, Zac Jackson of The Athletic reports.",
+                "factor": 1
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0,
+                "snapShare": 0,
+                "gamesPlayed": 0,
+                "depthRank": 2,
+                "roleFactor": 0.9,
+                "roleSource": "depth-2026",
+                "historyFactor": 1.18,
+                "oppRzDefIndex": 1.307,
+                "oppRzDefFactor": 1.18,
+                "oppRzTdRateAllowed": 0.2516,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
           "gsisId": "00-0041438",
           "espnId": "4871023",
           "name": "Carnell Tate",
@@ -9214,118 +9326,6 @@
                 "oppRzDefIndex": 1.054,
                 "oppRzDefFactor": 1.032,
                 "oppRzTdRateAllowed": 0.2028,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
-          "gsisId": "00-0041037",
-          "espnId": "4832800",
-          "name": "Denzel Boston",
-          "team": "CLE",
-          "position": "WR",
-          "depth": "WR",
-          "jersey": "12",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/ybkny6eh5eegq3bqmony",
-          "depthRank": 1,
-          "yearsExp": 0,
-          "isRookie": true,
-          "prevTeam": null,
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0,
-            "gamesPlayed": 0,
-            "rzTargets": 0,
-            "rzCarries": 0,
-            "tds": 0,
-            "statsSeason": null
-          },
-          "opponent": "TEN",
-          "props": {
-            "atd": {
-              "probability": 0.2383,
-              "grade": "C",
-              "gradeLabel": "Lean",
-              "dataConfidence": "rookie",
-              "isRookie": true,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Foot",
-                "note": "Boston (foot) remained limited at Thursday's practice.",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0,
-                "snapShare": 0,
-                "gamesPlayed": 0,
-                "depthRank": 1,
-                "roleFactor": 1,
-                "roleSource": "depth-2026",
-                "historyFactor": 1.08,
-                "oppRzDefIndex": 1.307,
-                "oppRzDefFactor": 1.18,
-                "oppRzTdRateAllowed": 0.2516,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
-          "gsisId": "00-0041547",
-          "espnId": "4870653",
-          "name": "KC Concepcion",
-          "team": "CLE",
-          "position": "WR",
-          "depth": "WR",
-          "jersey": "1",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/evzxqxsyr1m3ohchqcan",
-          "depthRank": 2,
-          "yearsExp": 0,
-          "isRookie": true,
-          "prevTeam": null,
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0,
-            "gamesPlayed": 0,
-            "rzTargets": 0,
-            "rzCarries": 0,
-            "tds": 0,
-            "statsSeason": null
-          },
-          "opponent": "TEN",
-          "props": {
-            "atd": {
-              "probability": 0.2343,
-              "grade": "C",
-              "gradeLabel": "Lean",
-              "dataConfidence": "rookie",
-              "isRookie": true,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Calf",
-                "note": "Concepcion (calf/quadriceps) was a limited participant in Thursday's practice.",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0,
-                "snapShare": 0,
-                "gamesPlayed": 0,
-                "depthRank": 2,
-                "roleFactor": 0.9,
-                "roleSource": "depth-2026",
-                "historyFactor": 1.18,
-                "oppRzDefIndex": 1.307,
-                "oppRzDefFactor": 1.18,
-                "oppRzTdRateAllowed": 0.2516,
                 "sampleYear": 2025,
                 "rosterYear": 2026
               },
@@ -9479,7 +9479,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "McLaughlin rushed nine times for 41 yards and brought in all four targets for 14 yards in the Browns' 13-10 win over the Ravens on Sunday.",
+                "note": "McLaughlin's role in the offense could sharply decrease against the Titans on Sunday, as Quinshon Judkins (ankle) has been cleared to play and Dylan Sampson (knee) is expected to be activated off injured reserve, Daniel Oyefusi of ESPN.com reports.",
                 "factor": 1
               },
               "inputs": {
@@ -9494,62 +9494,6 @@
                 "oppRzDefIndex": 1.307,
                 "oppRzDefFactor": 1.18,
                 "oppRzTdRateAllowed": 0.2516,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
-          "gsisId": "00-0039032",
-          "espnId": "4428557",
-          "name": "Tyjae Spears",
-          "team": "TEN",
-          "position": "RB",
-          "depth": "RB",
-          "jersey": "2",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/muogqv7ht7djqi97snjv",
-          "depthRank": 2,
-          "yearsExp": 3,
-          "isRookie": false,
-          "prevTeam": "TEN",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0.459,
-            "gamesPlayed": 13,
-            "rzTargets": 7,
-            "rzCarries": 10,
-            "tds": 2,
-            "statsSeason": 2025
-          },
-          "opponent": "CLE",
-          "props": {
-            "atd": {
-              "probability": 0.1412,
-              "grade": "D",
-              "gradeLabel": "Fade",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "active",
-                "statusRaw": "Active",
-                "detail": "active",
-                "note": "The Titans listed Spears as a non-participant in Wednesday's practice due to rest, Jim Wyatt of the team's official site reports.",
-                "factor": 1
-              },
-              "inputs": {
-                "tdRate": 0.154,
-                "rzPerGame": 1.31,
-                "snapShare": 0.459,
-                "gamesPlayed": 13,
-                "depthRank": 2,
-                "roleFactor": 0.62,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
-                "oppRzDefIndex": 1.054,
-                "oppRzDefFactor": 1.032,
-                "oppRzTdRateAllowed": 0.2028,
                 "sampleYear": 2025,
                 "rosterYear": 2026
               },
@@ -9644,10 +9588,10 @@
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "active",
-                "statusRaw": "Active",
-                "detail": "active",
-                "note": "Jeudy caught all four targets for 69 yards in Sunday's 13-10 win over the Ravens.",
+                "status": "unconfirmed",
+                "statusRaw": null,
+                "detail": null,
+                "note": null,
                 "factor": 1
               },
               "inputs": {
@@ -9662,6 +9606,62 @@
                 "oppRzDefIndex": 1.307,
                 "oppRzDefFactor": 1.18,
                 "oppRzTdRateAllowed": 0.2516,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0039032",
+          "espnId": "4428557",
+          "name": "Tyjae Spears",
+          "team": "TEN",
+          "position": "RB",
+          "depth": "RB",
+          "jersey": "2",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/muogqv7ht7djqi97snjv",
+          "depthRank": 2,
+          "yearsExp": 3,
+          "isRookie": false,
+          "prevTeam": "TEN",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0.459,
+            "gamesPlayed": 13,
+            "rzTargets": 7,
+            "rzCarries": 10,
+            "tds": 2,
+            "statsSeason": 2025
+          },
+          "opponent": "CLE",
+          "props": {
+            "atd": {
+              "probability": 0.12,
+              "grade": "D",
+              "gradeLabel": "Fade",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "questionable",
+                "statusRaw": "Questionable",
+                "detail": "Knee",
+                "note": "Spears (knee) is listed as questionable for Sunday's game against the Browns, Jim Wyatt of the Titans' official site reports.",
+                "factor": 0.85
+              },
+              "inputs": {
+                "tdRate": 0.154,
+                "rzPerGame": 1.31,
+                "snapShare": 0.459,
+                "gamesPlayed": 13,
+                "depthRank": 2,
+                "roleFactor": 0.62,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 1.054,
+                "oppRzDefFactor": 1.032,
+                "oppRzTdRateAllowed": 0.2028,
                 "sampleYear": 2025,
                 "rosterYear": 2026
               },
@@ -9868,10 +9868,10 @@
               "dataConfidence": "no-history",
               "isRookie": false,
               "availability": {
-                "status": "active",
-                "statusRaw": "Active",
-                "detail": "active",
-                "note": "Watson completed 16 of 26 passes for 164 yards with no touchdowns or interceptions and added eight carries for 29 yards in the Browns' 13-10 win over the Ravens on Sunday.",
+                "status": "unconfirmed",
+                "statusRaw": null,
+                "detail": null,
+                "note": null,
                 "factor": 1
               },
               "inputs": {
@@ -10431,7 +10431,7 @@
                 "status": "questionable",
                 "statusRaw": "Questionable",
                 "detail": "Hip",
-                "note": "Ridley (hip) didn't practice Thursday.",
+                "note": "Ridley (hip) will not practice Friday and is listed as questionable for Sunday's game against Cleveland, Turron Davenport of ESPN.com reports.",
                 "factor": 0.85
               },
               "inputs": {
@@ -11574,62 +11574,6 @@
           }
         },
         {
-          "gsisId": "00-0040704",
-          "espnId": "4427238",
-          "name": "Dillon Gabriel",
-          "team": "CLE",
-          "position": "QB",
-          "depth": "QB",
-          "jersey": "6",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/szpyvusef9jvoctbnkbk",
-          "depthRank": 4,
-          "yearsExp": 1,
-          "isRookie": false,
-          "prevTeam": "CLE",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0.562,
-            "gamesPlayed": 10,
-            "rzTargets": 0,
-            "rzCarries": 2,
-            "tds": 0,
-            "statsSeason": 2025
-          },
-          "opponent": "TEN",
-          "props": {
-            "atd": {
-              "probability": 0.0079,
-              "grade": "F",
-              "gradeLabel": "Avoid",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
-                "factor": 1
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0.2,
-                "snapShare": 0.562,
-                "gamesPlayed": 10,
-                "depthRank": 4,
-                "roleFactor": 0.1,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
-                "oppRzDefIndex": 1.307,
-                "oppRzDefFactor": 1.18,
-                "oppRzTdRateAllowed": 0.2516,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
           "gsisId": "00-0040162",
           "espnId": "5081397",
           "name": "Dylan Sampson",
@@ -11663,7 +11607,7 @@
                 "status": "out",
                 "statusRaw": "Injured Reserve",
                 "detail": "Knee",
-                "note": "Sampson (knee) was a limited participant in Thursday's practice.",
+                "note": "Sampson (knee) is listed as questionable for Sunday's game against the Titans, Scott Petrak of the Elyria Chronicle-Telegram reports.",
                 "factor": 0
               },
               "inputs": {
@@ -11673,6 +11617,62 @@
                 "gamesPlayed": 15,
                 "depthRank": 4,
                 "roleFactor": 0.15,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 1.307,
+                "oppRzDefFactor": 1.18,
+                "oppRzTdRateAllowed": 0.2516,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0040704",
+          "espnId": "4427238",
+          "name": "Dillon Gabriel",
+          "team": "CLE",
+          "position": "QB",
+          "depth": "QB",
+          "jersey": "6",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/szpyvusef9jvoctbnkbk",
+          "depthRank": 4,
+          "yearsExp": 1,
+          "isRookie": false,
+          "prevTeam": "CLE",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0.562,
+            "gamesPlayed": 10,
+            "rzTargets": 0,
+            "rzCarries": 2,
+            "tds": 0,
+            "statsSeason": 2025
+          },
+          "opponent": "TEN",
+          "props": {
+            "atd": {
+              "probability": 0,
+              "grade": "F",
+              "gradeLabel": "Out",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "out",
+                "statusRaw": "Injured Reserve",
+                "detail": "Back",
+                "note": "Gabriel (back) has been ruled out ahead of Sunday's game against the Titans, Zac Jackson of The Athletic reports.",
+                "factor": 0
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0.2,
+                "snapShare": 0.562,
+                "gamesPlayed": 10,
+                "depthRank": 4,
+                "roleFactor": 0.1,
                 "roleSource": "depth-2026",
                 "historyFactor": 1,
                 "oppRzDefIndex": 1.307,
@@ -12044,62 +12044,6 @@
           }
         },
         {
-          "gsisId": "00-0040128",
-          "espnId": "4431459",
-          "name": "Tyler Warren",
-          "team": "IND",
-          "position": "TE",
-          "depth": "TE",
-          "jersey": "84",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/ggbgv9okpladwqzth5l5",
-          "depthRank": 1,
-          "yearsExp": 1,
-          "isRookie": false,
-          "prevTeam": "IND",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0.838,
-            "gamesPlayed": 17,
-            "rzTargets": 23,
-            "rzCarries": 4,
-            "tds": 5,
-            "statsSeason": 2025
-          },
-          "opponent": "MIN",
-          "props": {
-            "atd": {
-              "probability": 0.185,
-              "grade": "C",
-              "gradeLabel": "Lean",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Groin",
-                "note": "Warren (groin) was not practicing Friday, Nathan Brown of The Indianapolis Star reports.",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0.294,
-                "rzPerGame": 1.59,
-                "snapShare": 0.838,
-                "gamesPlayed": 17,
-                "depthRank": 1,
-                "roleFactor": 1,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
-                "oppRzDefIndex": 0.674,
-                "oppRzDefFactor": 0.85,
-                "oppRzTdRateAllowed": 0.1296,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
           "gsisId": "00-0030279",
           "espnId": "15818",
           "name": "Keenan Allen",
@@ -12156,6 +12100,62 @@
           }
         },
         {
+          "gsisId": "00-0041104",
+          "espnId": "4832846",
+          "name": "Demond Claiborne",
+          "team": "MIN",
+          "position": "RB",
+          "depth": "RB",
+          "jersey": "21",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/gfjjkifm7ul9incsl4ag",
+          "depthRank": 2,
+          "yearsExp": 0,
+          "isRookie": true,
+          "prevTeam": null,
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0,
+            "gamesPlayed": 0,
+            "rzTargets": 0,
+            "rzCarries": 0,
+            "tds": 0,
+            "statsSeason": null
+          },
+          "opponent": "IND",
+          "props": {
+            "atd": {
+              "probability": 0.1725,
+              "grade": "D",
+              "gradeLabel": "Fade",
+              "dataConfidence": "rookie",
+              "isRookie": true,
+              "availability": {
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Claiborne carried the ball three times for 12 yards during Minnesota's win over the Dolphins on Sunday.",
+                "factor": 1
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0,
+                "snapShare": 0,
+                "gamesPlayed": 0,
+                "depthRank": 2,
+                "roleFactor": 0.62,
+                "roleSource": "depth-2026",
+                "historyFactor": 0.92,
+                "oppRzDefIndex": 0.908,
+                "oppRzDefFactor": 0.945,
+                "oppRzTdRateAllowed": 0.1748,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
           "gsisId": "00-0033293",
           "espnId": "3042519",
           "name": "Aaron Jones",
@@ -12189,7 +12189,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Jones rushed 25 times for 113 yards and a touchdown and brought in all three targets for four yards in the Vikings' 23-13 win over the Saints on Sunday.",
+                "note": "Jones may log fewer touches in Week 7 against Indianapolis on Sunday, as fellow RB Jordan Mason (thumb) is questionable to suit up, Craig Peters of the Vikings' official site reports.",
                 "factor": 1
               },
               "inputs": {
@@ -12436,16 +12436,16 @@
           }
         },
         {
-          "gsisId": "00-0036425",
-          "espnId": "4240631",
-          "name": "DeeJay Dallas",
+          "gsisId": "00-0035229",
+          "espnId": "4036133",
+          "name": "T.J. Hockenson",
           "team": "MIN",
-          "position": "RB",
-          "depth": "RB",
-          "jersey": "31",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/te9kl13yqhpij5nenoyu",
-          "depthRank": 2,
-          "yearsExp": 6,
+          "position": "TE",
+          "depth": "TE",
+          "jersey": "87",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/rs8o65x0u0n9xzde0fd6",
+          "depthRank": 1,
+          "yearsExp": 7,
           "isRookie": false,
           "prevTeam": null,
           "teamChanged": false,
@@ -12460,72 +12460,16 @@
           "opponent": "IND",
           "props": {
             "atd": {
-              "probability": 0.1031,
+              "probability": 0.0831,
               "grade": "D",
               "gradeLabel": "Fade",
               "dataConfidence": "no-history",
               "isRookie": false,
               "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
-                "factor": 1
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0,
-                "snapShare": 0,
-                "gamesPlayed": 0,
-                "depthRank": 2,
-                "roleFactor": 0.62,
-                "roleSource": "depth-2026",
-                "historyFactor": 0.55,
-                "oppRzDefIndex": 0.908,
-                "oppRzDefFactor": 0.945,
-                "oppRzTdRateAllowed": 0.1748,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
-          "gsisId": "00-0041104",
-          "espnId": "4832846",
-          "name": "Demond Claiborne",
-          "team": "MIN",
-          "position": "RB",
-          "depth": "RB",
-          "jersey": "21",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/gfjjkifm7ul9incsl4ag",
-          "depthRank": 3,
-          "yearsExp": 0,
-          "isRookie": true,
-          "prevTeam": null,
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0,
-            "gamesPlayed": 0,
-            "rzTargets": 0,
-            "rzCarries": 0,
-            "tds": 0,
-            "statsSeason": null
-          },
-          "opponent": "IND",
-          "props": {
-            "atd": {
-              "probability": 0.0834,
-              "grade": "D",
-              "gradeLabel": "Fade",
-              "dataConfidence": "rookie",
-              "isRookie": true,
-              "availability": {
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Claiborne carried the ball three times for 12 yards during Minnesota's win over the Dolphins on Sunday.",
+                "note": "Hockenson (concussion) practiced fully Friday and doesn't have a designation for Sunday's game versus the Colts, Adam Caplan of SiriusXM NFL Radio reports.",
                 "factor": 1
               },
               "inputs": {
@@ -12533,10 +12477,10 @@
                 "rzPerGame": 0,
                 "snapShare": 0,
                 "gamesPlayed": 0,
-                "depthRank": 3,
-                "roleFactor": 0.3,
+                "depthRank": 1,
+                "roleFactor": 1,
                 "roleSource": "depth-2026",
-                "historyFactor": 0.92,
+                "historyFactor": 0.55,
                 "oppRzDefIndex": 0.908,
                 "oppRzDefFactor": 0.945,
                 "oppRzTdRateAllowed": 0.1748,
@@ -12596,62 +12540,6 @@
                 "oppRzDefIndex": 0.674,
                 "oppRzDefFactor": 0.85,
                 "oppRzTdRateAllowed": 0.1296,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
-          "gsisId": "00-0035229",
-          "espnId": "4036133",
-          "name": "T.J. Hockenson",
-          "team": "MIN",
-          "position": "TE",
-          "depth": "TE",
-          "jersey": "87",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/rs8o65x0u0n9xzde0fd6",
-          "depthRank": 1,
-          "yearsExp": 7,
-          "isRookie": false,
-          "prevTeam": null,
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0,
-            "gamesPlayed": 0,
-            "rzTargets": 0,
-            "rzCarries": 0,
-            "tds": 0,
-            "statsSeason": null
-          },
-          "opponent": "IND",
-          "props": {
-            "atd": {
-              "probability": 0.0707,
-              "grade": "F",
-              "gradeLabel": "Avoid",
-              "dataConfidence": "no-history",
-              "isRookie": false,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Concussion",
-                "note": "Hockenson (concussion) was listed as a full participant Thursday.",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0,
-                "snapShare": 0,
-                "gamesPlayed": 0,
-                "depthRank": 1,
-                "roleFactor": 1,
-                "roleSource": "depth-2026",
-                "historyFactor": 0.55,
-                "oppRzDefIndex": 0.908,
-                "oppRzDefFactor": 0.945,
-                "oppRzTdRateAllowed": 0.1748,
                 "sampleYear": 2025,
                 "rosterYear": 2026
               },
@@ -13141,7 +13029,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Mallory caught two of six passes for 20 yards during Sunday's 26-20 loss to the Titans.",
+                "note": "Mallory will once again operate in an expanded role after Tyler Warren (groin) was ruled out ahead of Sunday's game against the Vikings, Abby Halpin of the Colts' official site reports.",
                 "factor": 1
               },
               "inputs": {
@@ -13188,17 +13076,17 @@
           "opponent": "MIN",
           "props": {
             "atd": {
-              "probability": 0.0268,
+              "probability": 0.0315,
               "grade": "F",
               "gradeLabel": "Avoid",
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Hamstring",
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
                 "note": "Dulin (hamstring) was a limited participant in practice Thursday.",
-                "factor": 0.85
+                "factor": 1
               },
               "inputs": {
                 "tdRate": 0,
@@ -13612,62 +13500,6 @@
           }
         },
         {
-          "gsisId": "00-0039816",
-          "espnId": "4429684",
-          "name": "Anthony Gould",
-          "team": "IND",
-          "position": "WR",
-          "depth": "WR",
-          "jersey": "6",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/ewbv5owedaf1ixcfaidy",
-          "depthRank": 6,
-          "yearsExp": 2,
-          "isRookie": false,
-          "prevTeam": "IND",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0.16,
-            "gamesPlayed": 6,
-            "rzTargets": 0,
-            "rzCarries": 0,
-            "tds": 0,
-            "statsSeason": 2025
-          },
-          "opponent": "MIN",
-          "props": {
-            "atd": {
-              "probability": 0.02,
-              "grade": "F",
-              "gradeLabel": "Avoid",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Concussion",
-                "note": "Gould (concussion) did not practice Wednesday or Thursday.",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0,
-                "snapShare": 0.16,
-                "gamesPlayed": 6,
-                "depthRank": 6,
-                "roleFactor": 0.22,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
-                "oppRzDefIndex": 0.674,
-                "oppRzDefFactor": 0.85,
-                "oppRzTdRateAllowed": 0.1296,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
           "gsisId": "00-0037292",
           "espnId": "4722908",
           "name": "Andrew Ogletree",
@@ -13869,7 +13701,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Alie-Cox caught his only target for a one-yard touchdown during Sunday's 26-20 loss to the Titans.",
+                "note": "Alie-Cox will operate in an expanded role against the Vikings on Sunday due to the absence of Tyler Warren (groin), Abby Halpin of the Colts' official site reports.",
                 "factor": 1
               },
               "inputs": {
@@ -14034,10 +13866,10 @@
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Richardson was charged with misdemeanor possession of marijuana in Carmel, Indiana earlier this week, Tyler Haughn of FOX 59 reports.",
                 "factor": 1
               },
               "inputs": {
@@ -14292,7 +14124,7 @@
           "depth": "RB",
           "jersey": "27",
           "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/xe3i1lsb3rsioqy61krt",
-          "depthRank": 4,
+          "depthRank": 3,
           "yearsExp": 4,
           "isRookie": false,
           "prevTeam": "MIN",
@@ -14317,7 +14149,7 @@
                 "status": "out",
                 "statusRaw": "Injured Reserve",
                 "detail": "Thumb",
-                "note": "Mason (thumb) practiced fully Thursday.",
+                "note": "Head coach Kevin O'Connell said Friday that Mason (thumb) is listed as questionable for Sunday's game against the Colts after practicing fully all week, Alec Lewis of The Athletic reports.",
                 "factor": 0
               },
               "inputs": {
@@ -14325,8 +14157,8 @@
                 "rzPerGame": 1.88,
                 "snapShare": 0.428,
                 "gamesPlayed": 16,
-                "depthRank": 4,
-                "roleFactor": 0.15,
+                "depthRank": 3,
+                "roleFactor": 0.3,
                 "roleSource": "depth-2026",
                 "historyFactor": 1,
                 "oppRzDefIndex": 0.908,
@@ -14383,6 +14215,118 @@
                 "gamesPlayed": 15,
                 "depthRank": 7,
                 "roleFactor": 0.22,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 0.674,
+                "oppRzDefFactor": 0.85,
+                "oppRzTdRateAllowed": 0.1296,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0039816",
+          "espnId": "4429684",
+          "name": "Anthony Gould",
+          "team": "IND",
+          "position": "WR",
+          "depth": "WR",
+          "jersey": "6",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/ewbv5owedaf1ixcfaidy",
+          "depthRank": 6,
+          "yearsExp": 2,
+          "isRookie": false,
+          "prevTeam": "IND",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0.16,
+            "gamesPlayed": 6,
+            "rzTargets": 0,
+            "rzCarries": 0,
+            "tds": 0,
+            "statsSeason": 2025
+          },
+          "opponent": "MIN",
+          "props": {
+            "atd": {
+              "probability": 0,
+              "grade": "F",
+              "gradeLabel": "Out",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "out",
+                "statusRaw": "Out",
+                "detail": "Concussion",
+                "note": "Gould (concussion) did not practice Wednesday or Thursday.",
+                "factor": 0
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0,
+                "snapShare": 0.16,
+                "gamesPlayed": 6,
+                "depthRank": 6,
+                "roleFactor": 0.22,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 0.674,
+                "oppRzDefFactor": 0.85,
+                "oppRzTdRateAllowed": 0.1296,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0040128",
+          "espnId": "4431459",
+          "name": "Tyler Warren",
+          "team": "IND",
+          "position": "TE",
+          "depth": "TE",
+          "jersey": "84",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/ggbgv9okpladwqzth5l5",
+          "depthRank": 1,
+          "yearsExp": 1,
+          "isRookie": false,
+          "prevTeam": "IND",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0.838,
+            "gamesPlayed": 17,
+            "rzTargets": 23,
+            "rzCarries": 4,
+            "tds": 5,
+            "statsSeason": 2025
+          },
+          "opponent": "MIN",
+          "props": {
+            "atd": {
+              "probability": 0,
+              "grade": "F",
+              "gradeLabel": "Out",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "out",
+                "statusRaw": "Out",
+                "detail": "Groin",
+                "note": "Warren (groin) is ruled out for Sunday's game against the Vikings, FOX59's Mike Chappell reports.",
+                "factor": 0
+              },
+              "inputs": {
+                "tdRate": 0.294,
+                "rzPerGame": 1.59,
+                "snapShare": 0.838,
+                "gamesPlayed": 17,
+                "depthRank": 1,
+                "roleFactor": 1,
                 "roleSource": "depth-2026",
                 "historyFactor": 1,
                 "oppRzDefIndex": 0.674,
@@ -14698,6 +14642,62 @@
           }
         },
         {
+          "gsisId": "00-0041523",
+          "espnId": "4869645",
+          "name": "Caleb Douglas",
+          "team": "MIA",
+          "position": "WR",
+          "depth": "WR",
+          "jersey": "7",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/h0ds6lir4svszjcpc3hr",
+          "depthRank": 2,
+          "yearsExp": 0,
+          "isRookie": true,
+          "prevTeam": null,
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0,
+            "gamesPlayed": 0,
+            "rzTargets": 0,
+            "rzCarries": 0,
+            "tds": 0,
+            "statsSeason": null
+          },
+          "opponent": "NYJ",
+          "props": {
+            "atd": {
+              "probability": 0.2254,
+              "grade": "C",
+              "gradeLabel": "Lean",
+              "dataConfidence": "rookie",
+              "isRookie": true,
+              "availability": {
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Dolphins coach Jeff Hafley said Friday that Douglas (ankle) will play Sunday against the Jets, C. Isaiah Smalls II of the Miami Herald reports.",
+                "factor": 1
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0,
+                "snapShare": 0,
+                "gamesPlayed": 0,
+                "depthRank": 2,
+                "roleFactor": 0.9,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 1.231,
+                "oppRzDefFactor": 1.139,
+                "oppRzTdRateAllowed": 0.2368,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
           "gsisId": "00-0039794",
           "espnId": "4685247",
           "name": "Braelon Allen",
@@ -14731,7 +14731,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Allen rushed 17 times for 78 yards and brought in both targets for 26 yards in the Jets' 26-19 loss to the Patriots on Sunday.",
+                "note": "Allen's workload and role Sunday against Miami is unclear given that Breece Hall (quadriceps) is officially questionable to play, per Amanda Vogt of the Jets' official site.",
                 "factor": 1
               },
               "inputs": {
@@ -14787,7 +14787,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Cooper brought in six of seven targets for 103 yards and a touchdown in the Jets' 26-19 loss to the Patriots on Sunday.",
+                "note": "Cooper may get fewer looks in the passing game Sunday versus Miami with Adonai Mitchell cleared to return from a finger injury, Amanda Vogt of the Jets' official site reports.",
                 "factor": 1
               },
               "inputs": {
@@ -14810,49 +14810,49 @@
           }
         },
         {
-          "gsisId": "00-0041523",
-          "espnId": "4869645",
-          "name": "Caleb Douglas",
+          "gsisId": "00-0039874",
+          "espnId": "4682745",
+          "name": "Jaylen Wright",
           "team": "MIA",
-          "position": "WR",
-          "depth": "WR",
-          "jersey": "7",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/h0ds6lir4svszjcpc3hr",
+          "position": "RB",
+          "depth": "RB",
+          "jersey": "5",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/sqj7ywvb2lymgykhzr7r",
           "depthRank": 2,
-          "yearsExp": 0,
-          "isRookie": true,
-          "prevTeam": null,
+          "yearsExp": 2,
+          "isRookie": false,
+          "prevTeam": "MIA",
           "teamChanged": false,
           "stats": {
-            "snapShare": 0,
-            "gamesPlayed": 0,
+            "snapShare": 0.215,
+            "gamesPlayed": 10,
             "rzTargets": 0,
-            "rzCarries": 0,
-            "tds": 0,
-            "statsSeason": null
+            "rzCarries": 12,
+            "tds": 2,
+            "statsSeason": 2025
           },
           "opponent": "NYJ",
           "props": {
             "atd": {
-              "probability": 0.1916,
+              "probability": 0.1814,
               "grade": "C",
               "gradeLabel": "Lean",
-              "dataConfidence": "rookie",
-              "isRookie": true,
+              "dataConfidence": "full",
+              "isRookie": false,
               "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Ankle",
-                "note": "Dolphins coach Jeff Hafley said Friday that Douglas (ankle) will play Sunday against the Jets, C. Isaiah Smalls II of the Miami Herald reports.",
-                "factor": 0.85
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Wright (foot) doesn't have an injury designation for Sunday's game at the Jets, David Furones of the South Florida Sun Sentinel reports.",
+                "factor": 1
               },
               "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0,
-                "snapShare": 0,
-                "gamesPlayed": 0,
+                "tdRate": 0.2,
+                "rzPerGame": 1.2,
+                "snapShare": 0.215,
+                "gamesPlayed": 10,
                 "depthRank": 2,
-                "roleFactor": 0.9,
+                "roleFactor": 0.62,
                 "roleSource": "depth-2026",
                 "historyFactor": 1,
                 "oppRzDefIndex": 1.231,
@@ -15090,54 +15090,54 @@
           }
         },
         {
-          "gsisId": "00-0039874",
-          "espnId": "4682745",
-          "name": "Jaylen Wright",
-          "team": "MIA",
-          "position": "RB",
-          "depth": "RB",
-          "jersey": "5",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/sqj7ywvb2lymgykhzr7r",
+          "gsisId": "00-0039890",
+          "espnId": "4597500",
+          "name": "Adonai Mitchell",
+          "team": "NYJ",
+          "position": "WR",
+          "depth": "WR",
+          "jersey": "15",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/hwwacoa3pqapd7pgahfx",
           "depthRank": 2,
           "yearsExp": 2,
           "isRookie": false,
-          "prevTeam": "MIA",
+          "prevTeam": "NYJ",
           "teamChanged": false,
           "stats": {
-            "snapShare": 0.215,
-            "gamesPlayed": 10,
-            "rzTargets": 0,
-            "rzCarries": 12,
+            "snapShare": 0.506,
+            "gamesPlayed": 16,
+            "rzTargets": 8,
+            "rzCarries": 0,
             "tds": 2,
             "statsSeason": 2025
           },
-          "opponent": "NYJ",
+          "opponent": "MIA",
           "props": {
             "atd": {
-              "probability": 0.1542,
+              "probability": 0.16,
               "grade": "D",
               "gradeLabel": "Fade",
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Foot",
-                "note": "Dolphins coach Jeff Hafley said Friday that Wright (foot) will play in Sunday's game against the Jets, Barry Jackson of the Miami Herald reports.",
-                "factor": 0.85
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Mitchell (finger) doesn't have an injury designation for Sunday's game against the Dolphins.",
+                "factor": 1
               },
               "inputs": {
-                "tdRate": 0.2,
-                "rzPerGame": 1.2,
-                "snapShare": 0.215,
-                "gamesPlayed": 10,
+                "tdRate": 0.125,
+                "rzPerGame": 0.5,
+                "snapShare": 0.506,
+                "gamesPlayed": 16,
                 "depthRank": 2,
-                "roleFactor": 0.62,
+                "roleFactor": 0.9,
                 "roleSource": "depth-2026",
                 "historyFactor": 1,
-                "oppRzDefIndex": 1.231,
-                "oppRzDefFactor": 1.139,
-                "oppRzTdRateAllowed": 0.2368,
+                "oppRzDefIndex": 1.213,
+                "oppRzDefFactor": 1.128,
+                "oppRzTdRateAllowed": 0.2335,
                 "sampleYear": 2025,
                 "rosterYear": 2026
               },
@@ -15194,62 +15194,6 @@
                 "oppRzDefIndex": 1.231,
                 "oppRzDefFactor": 1.139,
                 "oppRzTdRateAllowed": 0.2368,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
-          "gsisId": "00-0039890",
-          "espnId": "4597500",
-          "name": "Adonai Mitchell",
-          "team": "NYJ",
-          "position": "WR",
-          "depth": "WR",
-          "jersey": "15",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/hwwacoa3pqapd7pgahfx",
-          "depthRank": 2,
-          "yearsExp": 2,
-          "isRookie": false,
-          "prevTeam": "NYJ",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0.506,
-            "gamesPlayed": 16,
-            "rzTargets": 8,
-            "rzCarries": 0,
-            "tds": 2,
-            "statsSeason": 2025
-          },
-          "opponent": "MIA",
-          "props": {
-            "atd": {
-              "probability": 0.136,
-              "grade": "D",
-              "gradeLabel": "Fade",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Finger",
-                "note": "Jets coach Aaron Glenn said Friday that Mitchell (finger) will play Sunday against the Dolphins, Brian Costello of the New York Post reports.",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0.125,
-                "rzPerGame": 0.5,
-                "snapShare": 0.506,
-                "gamesPlayed": 16,
-                "depthRank": 2,
-                "roleFactor": 0.9,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
-                "oppRzDefIndex": 1.213,
-                "oppRzDefFactor": 1.128,
-                "oppRzTdRateAllowed": 0.2335,
                 "sampleYear": 2025,
                 "rosterYear": 2026
               },
@@ -15674,17 +15618,17 @@
           "opponent": "NYJ",
           "props": {
             "atd": {
-              "probability": 0.0697,
-              "grade": "F",
-              "gradeLabel": "Avoid",
+              "probability": 0.082,
+              "grade": "D",
+              "gradeLabel": "Fade",
               "dataConfidence": "rookie",
               "isRookie": true,
               "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Hamstring",
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
                 "note": "Kacmarek (hamstring) was limited in Thursday's practice, but he said he expects to play Sunday versus the Jets, Joe Schad of The Palm Beach Post reports.",
-                "factor": 0.85
+                "factor": 1
               },
               "inputs": {
                 "tdRate": 0,
@@ -16019,7 +15963,7 @@
                 "status": "questionable",
                 "statusRaw": "Questionable",
                 "detail": "Knee",
-                "note": "Nwangwu (knee) did not participate at practice Thursday.",
+                "note": "Nwangwu (knee) is listed as questionable for Sunday's game against the Dolphins.",
                 "factor": 0.85
               },
               "inputs": {
@@ -17296,6 +17240,62 @@
           }
         },
         {
+          "gsisId": "00-0039361",
+          "espnId": "4596448",
+          "name": "Bucky Irving",
+          "team": "TB",
+          "position": "RB",
+          "depth": "RB",
+          "jersey": "7",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/vkc00rvnix3f2b96vkwo",
+          "depthRank": 1,
+          "yearsExp": 2,
+          "isRookie": false,
+          "prevTeam": "TB",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0.616,
+            "gamesPlayed": 10,
+            "rzTargets": 4,
+            "rzCarries": 18,
+            "tds": 4,
+            "statsSeason": 2025
+          },
+          "opponent": "CAR",
+          "props": {
+            "atd": {
+              "probability": 0.3786,
+              "grade": "B",
+              "gradeLabel": "Strong",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Irving (illness) doesn't have an injury designation for Sunday's game at Carolina, Greg Auman of Fox Sports reports.",
+                "factor": 1
+              },
+              "inputs": {
+                "tdRate": 0.4,
+                "rzPerGame": 2.2,
+                "snapShare": 0.616,
+                "gamesPlayed": 10,
+                "depthRank": 1,
+                "roleFactor": 1,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 1.02,
+                "oppRzDefFactor": 1.012,
+                "oppRzTdRateAllowed": 0.1963,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
           "gsisId": "00-0036555",
           "espnId": "4241416",
           "name": "Chuba Hubbard",
@@ -17352,62 +17352,6 @@
           }
         },
         {
-          "gsisId": "00-0039361",
-          "espnId": "4596448",
-          "name": "Bucky Irving",
-          "team": "TB",
-          "position": "RB",
-          "depth": "RB",
-          "jersey": "7",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/vkc00rvnix3f2b96vkwo",
-          "depthRank": 1,
-          "yearsExp": 2,
-          "isRookie": false,
-          "prevTeam": "TB",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0.616,
-            "gamesPlayed": 10,
-            "rzTargets": 4,
-            "rzCarries": 18,
-            "tds": 4,
-            "statsSeason": 2025
-          },
-          "opponent": "CAR",
-          "props": {
-            "atd": {
-              "probability": 0.3218,
-              "grade": "B",
-              "gradeLabel": "Strong",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Illness",
-                "note": "Irving (illness) is practicing Friday, Pewter Report reports.",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0.4,
-                "rzPerGame": 2.2,
-                "snapShare": 0.616,
-                "gamesPlayed": 10,
-                "depthRank": 1,
-                "roleFactor": 1,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
-                "oppRzDefIndex": 1.02,
-                "oppRzDefFactor": 1.012,
-                "oppRzTdRateAllowed": 0.1963,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
           "gsisId": "00-0036919",
           "espnId": "4371733",
           "name": "Kenny Gainwell",
@@ -17451,62 +17395,6 @@
                 "gamesPlayed": 17,
                 "depthRank": 2,
                 "roleFactor": 0.62,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
-                "oppRzDefIndex": 1.02,
-                "oppRzDefFactor": 1.012,
-                "oppRzTdRateAllowed": 0.1963,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
-          "gsisId": "00-0040129",
-          "espnId": "4567750",
-          "name": "Emeka Egbuka",
-          "team": "TB",
-          "position": "WR",
-          "depth": "WR",
-          "jersey": "2",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/z224kbzs62rjuykc0vha",
-          "depthRank": 1,
-          "yearsExp": 1,
-          "isRookie": false,
-          "prevTeam": "TB",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0.776,
-            "gamesPlayed": 17,
-            "rzTargets": 15,
-            "rzCarries": 1,
-            "tds": 6,
-            "statsSeason": 2025
-          },
-          "opponent": "CAR",
-          "props": {
-            "atd": {
-              "probability": 0.27,
-              "grade": "C",
-              "gradeLabel": "Lean",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Concussion",
-                "note": "Egbuka (concussion/foot) is practicing Friday, Greg Auman of Fox Sports reports.",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0.353,
-                "rzPerGame": 0.94,
-                "snapShare": 0.776,
-                "gamesPlayed": 17,
-                "depthRank": 1,
-                "roleFactor": 1,
                 "roleSource": "depth-2026",
                 "historyFactor": 1,
                 "oppRzDefIndex": 1.02,
@@ -17721,7 +17609,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Hurst caught three of six targets for 40 yards during Sunday's 26-19 overtime loss to the Steelers.",
+                "note": "Hurst and the other Buccaneers' wide receivers will have elevated roles against the Panthers on Sunday due to the absence of Emeka Egbuka (concussion/foot).",
                 "factor": 1
               },
               "inputs": {
@@ -17998,10 +17886,10 @@
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Emeka Egbuka (concussion/foot) has been ruled out ahead of Sunday's game against the Panthers, so Johnson and the rest of the Buccaneers pass catchers will be tasked with larger roles offensively.",
                 "factor": 1
               },
               "inputs": {
@@ -18169,7 +18057,7 @@
                 "status": "questionable",
                 "statusRaw": "Questionable",
                 "detail": "Thumb",
-                "note": "Mayfield (right thumb) practiced fully Thursday.",
+                "note": "Head coach Todd Bowles said Friday that Mayfield (right thumb) is ready for Sunday's game at Carolina, Greg Auman of Fox Sports reports.",
                 "factor": 0.85
               },
               "inputs": {
@@ -19569,7 +19457,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Daniels completed 22 of 43 passes for 164 yards and one touchdown with two interceptions in Sunday's 26-19 overtime loss to the Steelers. He added 39 rushing yards on four carries.",
+                "note": "Daniels is expected to work as Tampa Bay's No. 2 QB on Sunday in Carolina, as Baker Mayfield (thumb) is questionable to play but is expected to start, Scott Smith and Brianna Dix of the Buccaneers' official site report.",
                 "factor": 1
               },
               "inputs": {
@@ -19864,6 +19752,62 @@
                 "oppRzDefIndex": 1.278,
                 "oppRzDefFactor": 1.167,
                 "oppRzTdRateAllowed": 0.2459,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0040129",
+          "espnId": "4567750",
+          "name": "Emeka Egbuka",
+          "team": "TB",
+          "position": "WR",
+          "depth": "WR",
+          "jersey": "2",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/z224kbzs62rjuykc0vha",
+          "depthRank": 1,
+          "yearsExp": 1,
+          "isRookie": false,
+          "prevTeam": "TB",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0.776,
+            "gamesPlayed": 17,
+            "rzTargets": 15,
+            "rzCarries": 1,
+            "tds": 6,
+            "statsSeason": 2025
+          },
+          "opponent": "CAR",
+          "props": {
+            "atd": {
+              "probability": 0,
+              "grade": "F",
+              "gradeLabel": "Out",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "out",
+                "statusRaw": "Out",
+                "detail": "Concussion",
+                "note": "Egbuka (concussion) has been ruled out for Sunday's game against the Panthers, Greg Auman of Fox Sports reports.",
+                "factor": 0
+              },
+              "inputs": {
+                "tdRate": 0.353,
+                "rzPerGame": 0.94,
+                "snapShare": 0.776,
+                "gamesPlayed": 17,
+                "depthRank": 1,
+                "roleFactor": 1,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 1.02,
+                "oppRzDefFactor": 1.012,
+                "oppRzTdRateAllowed": 0.1963,
                 "sampleYear": 2025,
                 "rosterYear": 2026
               },
@@ -20543,7 +20487,7 @@
                 "status": "questionable",
                 "statusRaw": "Questionable",
                 "detail": "Ankle",
-                "note": "Jackson (ankle) was a limited participant at Thursday's practice.",
+                "note": "Jackson (ankle) was a limited participant in Friday's practice and is listed as questionable for Sunday's game against the Bengals.",
                 "factor": 0.85
               },
               "inputs": {
@@ -22335,7 +22279,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Huntley completed 19 of 31 passes for 165 yards with a touchdown and no interceptions and added five rushes for 28 yards in the Ravens' 13-10 loss to the Browns on Sunday. He also fumbled once but recovered.",
+                "note": "Huntley will start Sunday's Week 7 matchup against Cincinnati if Lamar Jackson (ankle) is unable to play, Ryan Mink of the Ravens' official site reports.",
                 "factor": 1
               },
               "inputs": {
@@ -22749,7 +22693,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Skattebo played only six snaps and got zero carries or targets in the Giants' 34-27 loss to the Saints on Sunday.",
+                "note": "Head coach John Harbaugh said Friday that Skattebo had a \"good week\" of practice and that the second-year running back should be back in the mix for backfield touches against the Texans on Sunday, Jordan Ranaan of ESPN.com reports.",
                 "factor": 1
               },
               "inputs": {
@@ -22973,7 +22917,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Marks carried the ball 15 times for 56 yards and caught two of three targets for 25 yards in Sunday's 34-31 win over the Jaguars.",
+                "note": "Marks is lined up to start at running back against the Giants on Sunday with David Montgomery (groin) ruled out.",
                 "factor": 1
               },
               "inputs": {
@@ -23132,17 +23076,17 @@
           "opponent": "NYG",
           "props": {
             "atd": {
-              "probability": 0.163,
-              "grade": "D",
-              "gradeLabel": "Fade",
+              "probability": 0.1917,
+              "grade": "C",
+              "gradeLabel": "Lean",
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Quadriceps",
-                "note": "Schultz (quadriceps) was a limited participant at Thursday's practice.",
-                "factor": 0.85
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Schultz (quadriceps) was a full participant in Friday's practice and doesn't have an injury designation for Sunday's game against the Giants, Adam Caplan or SiriusXM reports.",
+                "factor": 1
               },
               "inputs": {
                 "tdRate": 0.176,
@@ -23375,62 +23319,6 @@
                 "gamesPlayed": 17,
                 "depthRank": 3,
                 "roleFactor": 0.72,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
-                "oppRzDefIndex": 1.184,
-                "oppRzDefFactor": 1.11,
-                "oppRzTdRateAllowed": 0.2278,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
-          "gsisId": "00-0035685",
-          "espnId": "4035538",
-          "name": "David Montgomery",
-          "team": "HOU",
-          "position": "RB",
-          "depth": "RB",
-          "jersey": "32",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/npagyuku5zvrnu9q3jvn",
-          "depthRank": 1,
-          "yearsExp": 7,
-          "isRookie": false,
-          "prevTeam": "DET",
-          "teamChanged": true,
-          "stats": {
-            "snapShare": 0.371,
-            "gamesPlayed": 17,
-            "rzTargets": 2,
-            "rzCarries": 35,
-            "tds": 8,
-            "statsSeason": 2025
-          },
-          "opponent": "NYG",
-          "props": {
-            "atd": {
-              "probability": 0.1203,
-              "grade": "D",
-              "gradeLabel": "Fade",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "doubtful",
-                "statusRaw": "Doubtful",
-                "detail": "Groin",
-                "note": "Montgomery (groin) will not play Sunday against the Giants, Aaron Wilson of KPRC 2 Houston reports.",
-                "factor": 0.25
-              },
-              "inputs": {
-                "tdRate": 0.471,
-                "rzPerGame": 2.18,
-                "snapShare": 0.371,
-                "gamesPlayed": 17,
-                "depthRank": 1,
-                "roleFactor": 1,
                 "roleSource": "depth-2026",
                 "historyFactor": 1,
                 "oppRzDefIndex": 1.184,
@@ -23948,6 +23836,118 @@
           }
         },
         {
+          "gsisId": "00-0031484",
+          "espnId": "2531358",
+          "name": "Chris Manhertz",
+          "team": "NYG",
+          "position": "TE",
+          "depth": "TE",
+          "jersey": "85",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/bw0kytk1nwrdln9t3wzg",
+          "depthRank": null,
+          "yearsExp": 11,
+          "isRookie": false,
+          "prevTeam": "NYG",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0.178,
+            "gamesPlayed": 17,
+            "rzTargets": 1,
+            "rzCarries": 0,
+            "tds": 0,
+            "statsSeason": 2025
+          },
+          "opponent": "HOU",
+          "props": {
+            "atd": {
+              "probability": 0.0561,
+              "grade": "F",
+              "gradeLabel": "Avoid",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": null,
+                "factor": 1
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0.06,
+                "snapShare": 0.178,
+                "gamesPlayed": 17,
+                "depthRank": null,
+                "roleFactor": 1,
+                "roleSource": "none",
+                "historyFactor": 1,
+                "oppRzDefIndex": 1.159,
+                "oppRzDefFactor": 1.095,
+                "oppRzTdRateAllowed": 0.2231,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0038576",
+          "espnId": "4257188",
+          "name": "Charlie Jones",
+          "team": "NYG",
+          "position": "WR",
+          "depth": "WR",
+          "jersey": "89",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/gwqpjp7x9swytqvrdihi",
+          "depthRank": 4,
+          "yearsExp": 3,
+          "isRookie": false,
+          "prevTeam": null,
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0,
+            "gamesPlayed": 0,
+            "rzTargets": 0,
+            "rzCarries": 0,
+            "tds": 0,
+            "statsSeason": null
+          },
+          "opponent": "HOU",
+          "props": {
+            "atd": {
+              "probability": 0.0557,
+              "grade": "F",
+              "gradeLabel": "Avoid",
+              "dataConfidence": "no-history",
+              "isRookie": false,
+              "availability": {
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": null,
+                "factor": 1
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0,
+                "snapShare": 0,
+                "gamesPlayed": 0,
+                "depthRank": 4,
+                "roleFactor": 0.42,
+                "roleSource": "depth-2026",
+                "historyFactor": 0.55,
+                "oppRzDefIndex": 1.159,
+                "oppRzDefFactor": 1.095,
+                "oppRzTdRateAllowed": 0.2231,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
           "gsisId": "00-0037837",
           "espnId": "4243389",
           "name": "Calvin Austin III",
@@ -24228,118 +24228,6 @@
           }
         },
         {
-          "gsisId": "00-0031484",
-          "espnId": "2531358",
-          "name": "Chris Manhertz",
-          "team": "NYG",
-          "position": "TE",
-          "depth": "TE",
-          "jersey": "85",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/bw0kytk1nwrdln9t3wzg",
-          "depthRank": null,
-          "yearsExp": 11,
-          "isRookie": false,
-          "prevTeam": "NYG",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0.178,
-            "gamesPlayed": 17,
-            "rzTargets": 1,
-            "rzCarries": 0,
-            "tds": 0,
-            "statsSeason": 2025
-          },
-          "opponent": "HOU",
-          "props": {
-            "atd": {
-              "probability": 0.0477,
-              "grade": "F",
-              "gradeLabel": "Avoid",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Calf",
-                "note": "questionable",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0.06,
-                "snapShare": 0.178,
-                "gamesPlayed": 17,
-                "depthRank": null,
-                "roleFactor": 1,
-                "roleSource": "none",
-                "historyFactor": 1,
-                "oppRzDefIndex": 1.159,
-                "oppRzDefFactor": 1.095,
-                "oppRzTdRateAllowed": 0.2231,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
-          "gsisId": "00-0038576",
-          "espnId": "4257188",
-          "name": "Charlie Jones",
-          "team": "NYG",
-          "position": "WR",
-          "depth": "WR",
-          "jersey": "89",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/gwqpjp7x9swytqvrdihi",
-          "depthRank": 4,
-          "yearsExp": 3,
-          "isRookie": false,
-          "prevTeam": null,
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0,
-            "gamesPlayed": 0,
-            "rzTargets": 0,
-            "rzCarries": 0,
-            "tds": 0,
-            "statsSeason": null
-          },
-          "opponent": "HOU",
-          "props": {
-            "atd": {
-              "probability": 0.0473,
-              "grade": "F",
-              "gradeLabel": "Avoid",
-              "dataConfidence": "no-history",
-              "isRookie": false,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Achilles",
-                "note": "questionable",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0,
-                "snapShare": 0,
-                "gamesPlayed": 0,
-                "depthRank": 4,
-                "roleFactor": 0.42,
-                "roleSource": "depth-2026",
-                "historyFactor": 0.55,
-                "oppRzDefIndex": 1.159,
-                "oppRzDefFactor": 1.095,
-                "oppRzTdRateAllowed": 0.2231,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
           "gsisId": "00-0039650",
           "espnId": "4362617",
           "name": "Bryce Oliver",
@@ -24609,62 +24497,6 @@
                 "roleFactor": 0.22,
                 "roleSource": "depth-2026",
                 "historyFactor": 1,
-                "oppRzDefIndex": 1.159,
-                "oppRzDefFactor": 1.095,
-                "oppRzTdRateAllowed": 0.2231,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
-          "gsisId": "00-0039847",
-          "espnId": "4429148",
-          "name": "Theo Johnson",
-          "team": "NYG",
-          "position": "TE",
-          "depth": "TE",
-          "jersey": "84",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/fv2jbzlocr1o3ahkru43",
-          "depthRank": 2,
-          "yearsExp": 2,
-          "isRookie": false,
-          "prevTeam": null,
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0,
-            "gamesPlayed": 0,
-            "rzTargets": 0,
-            "rzCarries": 0,
-            "tds": 0,
-            "statsSeason": null
-          },
-          "opponent": "HOU",
-          "props": {
-            "atd": {
-              "probability": 0.0369,
-              "grade": "F",
-              "gradeLabel": "Avoid",
-              "dataConfidence": "no-history",
-              "isRookie": false,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Neck",
-                "note": "Johnson (neck) was a limited participant at practice Thursday.",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0,
-                "snapShare": 0,
-                "gamesPlayed": 0,
-                "depthRank": 2,
-                "roleFactor": 0.45,
-                "roleSource": "depth-2026",
-                "historyFactor": 0.55,
                 "oppRzDefIndex": 1.159,
                 "oppRzDefFactor": 1.095,
                 "oppRzTdRateAllowed": 0.2231,
@@ -25236,6 +25068,62 @@
           }
         },
         {
+          "gsisId": "00-0036556",
+          "espnId": "4362504",
+          "name": "Brevin Jordan",
+          "team": "HOU",
+          "position": "TE",
+          "depth": "TE",
+          "jersey": "9",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/lmgxgwoaxzrx1jbjkiwa",
+          "depthRank": 4,
+          "yearsExp": 5,
+          "isRookie": false,
+          "prevTeam": "HOU",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0,
+            "gamesPlayed": 0,
+            "rzTargets": 0,
+            "rzCarries": 0,
+            "tds": 0,
+            "statsSeason": null
+          },
+          "opponent": "NYG",
+          "props": {
+            "atd": {
+              "probability": 0.0195,
+              "grade": "F",
+              "gradeLabel": "Avoid",
+              "dataConfidence": "no-history",
+              "isRookie": false,
+              "availability": {
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Jordan (foot) does not have any injury designation ahead of Sunday's game against the Giants, Adam Caplan of SiriusXM NFL Radio reports.",
+                "factor": 1
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0,
+                "snapShare": 0,
+                "gamesPlayed": 0,
+                "depthRank": 4,
+                "roleFactor": 0.2,
+                "roleSource": "depth-2026",
+                "historyFactor": 0.55,
+                "oppRzDefIndex": 1.184,
+                "oppRzDefFactor": 1.11,
+                "oppRzTdRateAllowed": 0.2278,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
           "gsisId": "00-0037340",
           "espnId": "4876006",
           "name": "Zaire Mitchell-Paden",
@@ -25348,18 +25236,18 @@
           }
         },
         {
-          "gsisId": "00-0036556",
-          "espnId": "4362504",
-          "name": "Brevin Jordan",
-          "team": "HOU",
+          "gsisId": "00-0039847",
+          "espnId": "4429148",
+          "name": "Theo Johnson",
+          "team": "NYG",
           "position": "TE",
           "depth": "TE",
-          "jersey": "9",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/lmgxgwoaxzrx1jbjkiwa",
-          "depthRank": 4,
-          "yearsExp": 5,
+          "jersey": "84",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/fv2jbzlocr1o3ahkru43",
+          "depthRank": 2,
+          "yearsExp": 2,
           "isRookie": false,
-          "prevTeam": "HOU",
+          "prevTeam": null,
           "teamChanged": false,
           "stats": {
             "snapShare": 0,
@@ -25369,33 +25257,33 @@
             "tds": 0,
             "statsSeason": null
           },
-          "opponent": "NYG",
+          "opponent": "HOU",
           "props": {
             "atd": {
-              "probability": 0.0166,
+              "probability": 0.0108,
               "grade": "F",
               "gradeLabel": "Avoid",
               "dataConfidence": "no-history",
               "isRookie": false,
               "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Foot",
-                "note": "Jordan was limited in practice Thursday due to a foot issue.",
-                "factor": 0.85
+                "status": "doubtful",
+                "statusRaw": "Doubtful",
+                "detail": "Neck",
+                "note": "Johnson (neck) is listed as doubtful for Sunday's game against the Texans.",
+                "factor": 0.25
               },
               "inputs": {
                 "tdRate": 0,
                 "rzPerGame": 0,
                 "snapShare": 0,
                 "gamesPlayed": 0,
-                "depthRank": 4,
-                "roleFactor": 0.2,
+                "depthRank": 2,
+                "roleFactor": 0.45,
                 "roleSource": "depth-2026",
                 "historyFactor": 0.55,
-                "oppRzDefIndex": 1.184,
-                "oppRzDefFactor": 1.11,
-                "oppRzTdRateAllowed": 0.2278,
+                "oppRzDefIndex": 1.159,
+                "oppRzDefFactor": 1.095,
+                "oppRzTdRateAllowed": 0.2231,
                 "sampleYear": 2025,
                 "rosterYear": 2026
               },
@@ -25508,6 +25396,62 @@
                 "oppRzDefIndex": 1.159,
                 "oppRzDefFactor": 1.095,
                 "oppRzTdRateAllowed": 0.2231,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0035685",
+          "espnId": "4035538",
+          "name": "David Montgomery",
+          "team": "HOU",
+          "position": "RB",
+          "depth": "RB",
+          "jersey": "32",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/npagyuku5zvrnu9q3jvn",
+          "depthRank": 1,
+          "yearsExp": 7,
+          "isRookie": false,
+          "prevTeam": "DET",
+          "teamChanged": true,
+          "stats": {
+            "snapShare": 0.371,
+            "gamesPlayed": 17,
+            "rzTargets": 2,
+            "rzCarries": 35,
+            "tds": 8,
+            "statsSeason": 2025
+          },
+          "opponent": "NYG",
+          "props": {
+            "atd": {
+              "probability": 0,
+              "grade": "F",
+              "gradeLabel": "Out",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "out",
+                "statusRaw": "Out",
+                "detail": "Groin",
+                "note": "Montgomery (groin) has been ruled out for Sunday's game against the Giants, Adam Caplan of SiriusXM NFL Radio reports.",
+                "factor": 0
+              },
+              "inputs": {
+                "tdRate": 0.471,
+                "rzPerGame": 2.18,
+                "snapShare": 0.371,
+                "gamesPlayed": 17,
+                "depthRank": 1,
+                "roleFactor": 1,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 1.184,
+                "oppRzDefFactor": 1.11,
+                "oppRzTdRateAllowed": 0.2278,
                 "sampleYear": 2025,
                 "rosterYear": 2026
               },
@@ -25930,62 +25874,6 @@
           }
         },
         {
-          "gsisId": "00-0041027",
-          "espnId": "4870808",
-          "name": "Jeremiyah Love",
-          "team": "ARI",
-          "position": "RB",
-          "depth": "RB",
-          "jersey": "4",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/b12gtjsylmql5v7iyyla",
-          "depthRank": 1,
-          "yearsExp": 0,
-          "isRookie": true,
-          "prevTeam": null,
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0,
-            "gamesPlayed": 0,
-            "rzTargets": 0,
-            "rzCarries": 0,
-            "tds": 0,
-            "statsSeason": null
-          },
-          "opponent": "DEN",
-          "props": {
-            "atd": {
-              "probability": 0.2728,
-              "grade": "C",
-              "gradeLabel": "Lean",
-              "dataConfidence": "rookie",
-              "isRookie": true,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Ankle",
-                "note": "Love (ankle) remained sidelined at Thursday's practice, Darren Urban of the Cardinals' official site reports.",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0,
-                "snapShare": 0,
-                "gamesPlayed": 0,
-                "depthRank": 1,
-                "roleFactor": 1,
-                "roleSource": "depth-2026",
-                "historyFactor": 1.18,
-                "oppRzDefIndex": 0.737,
-                "oppRzDefFactor": 0.85,
-                "oppRzTdRateAllowed": 0.1419,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
           "gsisId": "00-0039732",
           "espnId": "4426338",
           "name": "Bo Nix",
@@ -26075,7 +25963,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Allgeier rushed 18 times for 38 yards and caught one of two targets for 10 yards in Sunday's 18-16 win over the Rams.",
+                "note": "Allgeier and Bam Knight will be the Cardinals' top backs for Sunday's game against the Broncos due to the absence of Jeremiyah Love (ankle), Darren Urban of the Cardinals' official site reports.",
                 "factor": 1
               },
               "inputs": {
@@ -26090,6 +25978,62 @@
                 "oppRzDefIndex": 0.737,
                 "oppRzDefFactor": 0.85,
                 "oppRzTdRateAllowed": 0.1419,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0036613",
+          "espnId": "4372016",
+          "name": "Jaylen Waddle",
+          "team": "DEN",
+          "position": "WR",
+          "depth": "WR",
+          "jersey": "17",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/gkh7m1jedon9mwn5jlf1",
+          "depthRank": 1,
+          "yearsExp": 5,
+          "isRookie": false,
+          "prevTeam": null,
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0,
+            "gamesPlayed": 0,
+            "rzTargets": 0,
+            "rzCarries": 0,
+            "tds": 0,
+            "statsSeason": null
+          },
+          "opponent": "ARI",
+          "props": {
+            "atd": {
+              "probability": 0.1286,
+              "grade": "D",
+              "gradeLabel": "Fade",
+              "dataConfidence": "no-history",
+              "isRookie": false,
+              "availability": {
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Waddle (chest) doesn't have an injury designation for Sunday's game at Arizona.",
+                "factor": 1
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0,
+                "snapShare": 0,
+                "gamesPlayed": 0,
+                "depthRank": 1,
+                "roleFactor": 1,
+                "roleSource": "depth-2026",
+                "historyFactor": 0.55,
+                "oppRzDefIndex": 1.105,
+                "oppRzDefFactor": 1.063,
+                "oppRzTdRateAllowed": 0.2126,
                 "sampleYear": 2025,
                 "rosterYear": 2026
               },
@@ -26131,7 +26075,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Knight rushed 15 times for 80 yards and caught both of his targets for 18 yards in Sunday's 18-16 win over the Rams.",
+                "note": "Jeremiyah Love (ankle) will be sidelined for Sunday's game against the Broncos, so Knight and Tyler Allgeier will be used in tandem in Love's absence, Darren Urban of the Cardinals' official site reports.",
                 "factor": 1
               },
               "inputs": {
@@ -26146,62 +26090,6 @@
                 "oppRzDefIndex": 0.737,
                 "oppRzDefFactor": 0.85,
                 "oppRzTdRateAllowed": 0.1419,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
-          "gsisId": "00-0036613",
-          "espnId": "4372016",
-          "name": "Jaylen Waddle",
-          "team": "DEN",
-          "position": "WR",
-          "depth": "WR",
-          "jersey": "17",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/gkh7m1jedon9mwn5jlf1",
-          "depthRank": 1,
-          "yearsExp": 5,
-          "isRookie": false,
-          "prevTeam": null,
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0,
-            "gamesPlayed": 0,
-            "rzTargets": 0,
-            "rzCarries": 0,
-            "tds": 0,
-            "statsSeason": null
-          },
-          "opponent": "ARI",
-          "props": {
-            "atd": {
-              "probability": 0.1093,
-              "grade": "D",
-              "gradeLabel": "Fade",
-              "dataConfidence": "no-history",
-              "isRookie": false,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Chest",
-                "note": "Waddle (chest) remained a limited participant in Thursday's practice.",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0,
-                "snapShare": 0,
-                "gamesPlayed": 0,
-                "depthRank": 1,
-                "roleFactor": 1,
-                "roleSource": "depth-2026",
-                "historyFactor": 0.55,
-                "oppRzDefIndex": 1.105,
-                "oppRzDefFactor": 1.063,
-                "oppRzTdRateAllowed": 0.2126,
                 "sampleYear": 2025,
                 "rosterYear": 2026
               },
@@ -27151,62 +27039,6 @@
                 "roleFactor": 0.2,
                 "roleSource": "depth-2026",
                 "historyFactor": 0.92,
-                "oppRzDefIndex": 1.105,
-                "oppRzDefFactor": 1.063,
-                "oppRzTdRateAllowed": 0.2126,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
-          "gsisId": "00-0037085",
-          "espnId": "4362748",
-          "name": "Tyler Badie",
-          "team": "DEN",
-          "position": "RB",
-          "depth": "RB",
-          "jersey": "28",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/ghhul5piv9vzeih6atsj",
-          "depthRank": 3,
-          "yearsExp": 4,
-          "isRookie": false,
-          "prevTeam": "DEN",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0.175,
-            "gamesPlayed": 16,
-            "rzTargets": 4,
-            "rzCarries": 2,
-            "tds": 0,
-            "statsSeason": 2025
-          },
-          "opponent": "ARI",
-          "props": {
-            "atd": {
-              "probability": 0.029,
-              "grade": "F",
-              "gradeLabel": "Avoid",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Thumb",
-                "note": "Badie (thumb) did not participate at practice Thursday, Parker Gabriel of The Denver Post reports.",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0.38,
-                "snapShare": 0.175,
-                "gamesPlayed": 16,
-                "depthRank": 3,
-                "roleFactor": 0.3,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
                 "oppRzDefIndex": 1.105,
                 "oppRzDefFactor": 1.063,
                 "oppRzTdRateAllowed": 0.2126,
@@ -28170,6 +28002,62 @@
           }
         },
         {
+          "gsisId": "00-0039550",
+          "espnId": null,
+          "name": "Shawn Bowman",
+          "team": "ARI",
+          "position": "TE",
+          "depth": "TE",
+          "jersey": "44",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/fgltulovm8ikekjc37om",
+          "depthRank": 4,
+          "yearsExp": 2,
+          "isRookie": false,
+          "prevTeam": null,
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0,
+            "gamesPlayed": 0,
+            "rzTargets": 0,
+            "rzCarries": 0,
+            "tds": 0,
+            "statsSeason": null
+          },
+          "opponent": "DEN",
+          "props": {
+            "atd": {
+              "probability": 0.015,
+              "grade": "F",
+              "gradeLabel": "Avoid",
+              "dataConfidence": "no-history",
+              "isRookie": false,
+              "availability": {
+                "status": "unconfirmed",
+                "statusRaw": null,
+                "detail": null,
+                "note": null,
+                "factor": 1
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0,
+                "snapShare": 0,
+                "gamesPlayed": 0,
+                "depthRank": 4,
+                "roleFactor": 0.2,
+                "roleSource": "depth-2026",
+                "historyFactor": 0.55,
+                "oppRzDefIndex": 0.737,
+                "oppRzDefFactor": 0.85,
+                "oppRzTdRateAllowed": 0.1419,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
           "gsisId": "00-0041561",
           "espnId": "4430841",
           "name": "Carson Beck",
@@ -28203,7 +28091,7 @@
                 "status": "questionable",
                 "statusRaw": "Questionable",
                 "detail": "Back",
-                "note": "Beck (back) did not participate at practice Thursday, Darren Urban of the Cardinals' official site reports.",
+                "note": "Beck (back) is questionable for Sunday's game against the Broncos, Darren Urban of the Cardinals' official site reports.",
                 "factor": 0.85
               },
               "inputs": {
@@ -28394,6 +28282,118 @@
           }
         },
         {
+          "gsisId": "00-0041027",
+          "espnId": "4870808",
+          "name": "Jeremiyah Love",
+          "team": "ARI",
+          "position": "RB",
+          "depth": "RB",
+          "jersey": "4",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/b12gtjsylmql5v7iyyla",
+          "depthRank": 1,
+          "yearsExp": 0,
+          "isRookie": true,
+          "prevTeam": null,
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0,
+            "gamesPlayed": 0,
+            "rzTargets": 0,
+            "rzCarries": 0,
+            "tds": 0,
+            "statsSeason": null
+          },
+          "opponent": "DEN",
+          "props": {
+            "atd": {
+              "probability": 0,
+              "grade": "F",
+              "gradeLabel": "Out",
+              "dataConfidence": "rookie",
+              "isRookie": true,
+              "availability": {
+                "status": "out",
+                "statusRaw": "Out",
+                "detail": "Ankle",
+                "note": "Head coach Mike LaFleur said Friday that Love (ankle) won't play Sunday against the Broncos, Darren Urban of the Cardinals' official site reports.",
+                "factor": 0
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0,
+                "snapShare": 0,
+                "gamesPlayed": 0,
+                "depthRank": 1,
+                "roleFactor": 1,
+                "roleSource": "depth-2026",
+                "historyFactor": 1.18,
+                "oppRzDefIndex": 0.737,
+                "oppRzDefFactor": 0.85,
+                "oppRzTdRateAllowed": 0.1419,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0037085",
+          "espnId": "4362748",
+          "name": "Tyler Badie",
+          "team": "DEN",
+          "position": "RB",
+          "depth": "RB",
+          "jersey": "28",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/ghhul5piv9vzeih6atsj",
+          "depthRank": 3,
+          "yearsExp": 4,
+          "isRookie": false,
+          "prevTeam": "DEN",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0.175,
+            "gamesPlayed": 16,
+            "rzTargets": 4,
+            "rzCarries": 2,
+            "tds": 0,
+            "statsSeason": 2025
+          },
+          "opponent": "ARI",
+          "props": {
+            "atd": {
+              "probability": 0,
+              "grade": "F",
+              "gradeLabel": "Out",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "out",
+                "statusRaw": "Out",
+                "detail": "Thumb",
+                "note": "Badie (thumb) has been ruled out for Sunday's game against the Cardinals.",
+                "factor": 0
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0.38,
+                "snapShare": 0.175,
+                "gamesPlayed": 16,
+                "depthRank": 3,
+                "roleFactor": 0.3,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 1.105,
+                "oppRzDefFactor": 1.063,
+                "oppRzTdRateAllowed": 0.2126,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
           "gsisId": "00-0041496",
           "espnId": "4702555",
           "name": "Jonah Coleman",
@@ -28427,7 +28427,7 @@
                 "status": "out",
                 "statusRaw": "Injured Reserve",
                 "detail": "Ankle",
-                "note": "Coleman (ankle) was a full participant in Thursday's practice.",
+                "note": "Coleman (ankle) is listed as questionable for Sunday's game at Arizona.",
                 "factor": 0
               },
               "inputs": {
@@ -28776,17 +28776,17 @@
           "opponent": "DET",
           "props": {
             "atd": {
-              "probability": 0.3567,
+              "probability": 0.4196,
               "grade": "B",
               "gradeLabel": "Strong",
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Ankle",
-                "note": "Watson (ankle) practiced in a limited fashion Thursday, Rob Demovsky of ESPN.com reports.",
-                "factor": 0.85
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Watson (ankle) doesn't have a designation for Sunday's game in Detroit, Wes Hodkiewicz of the Packers' official site reports.",
+                "factor": 1
               },
               "inputs": {
                 "tdRate": 0.6,
@@ -29112,17 +29112,17 @@
           "opponent": "DET",
           "props": {
             "atd": {
-              "probability": 0.0819,
+              "probability": 0.0964,
               "grade": "D",
               "gradeLabel": "Fade",
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Ankle",
-                "note": "Williams (ankle) was listed as limited at Thursday's practice, Rob Demovsky of ESPN.com reports.",
-                "factor": 0.85
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Williams (ankle) does not carry an injury designation ahead of Sunday's game against the Lions, Wes Hodkiewicz of the Packers' official site reports.",
+                "factor": 1
               },
               "inputs": {
                 "tdRate": 0.083,
@@ -29256,6 +29256,62 @@
           }
         },
         {
+          "gsisId": "00-0040667",
+          "espnId": "4701936",
+          "name": "Matthew Golden",
+          "team": "GB",
+          "position": "WR",
+          "depth": "WR",
+          "jersey": "0",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/dbjki6b0swksr7mk17wk",
+          "depthRank": 2,
+          "yearsExp": 1,
+          "isRookie": false,
+          "prevTeam": "GB",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0.532,
+            "gamesPlayed": 14,
+            "rzTargets": 2,
+            "rzCarries": 2,
+            "tds": 0,
+            "statsSeason": 2025
+          },
+          "opponent": "DET",
+          "props": {
+            "atd": {
+              "probability": 0.0697,
+              "grade": "F",
+              "gradeLabel": "Avoid",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Golden (shoulder) doesn't have an injury designation for Sunday's game against the Lions.",
+                "factor": 1
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0.29,
+                "snapShare": 0.532,
+                "gamesPlayed": 14,
+                "depthRank": 2,
+                "roleFactor": 0.9,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 0.942,
+                "oppRzDefFactor": 0.965,
+                "oppRzTdRateAllowed": 0.1813,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
           "gsisId": "00-0038896",
           "espnId": "4383429",
           "name": "Jacob Saylors",
@@ -29304,62 +29360,6 @@
                 "oppRzDefIndex": 0.945,
                 "oppRzDefFactor": 0.967,
                 "oppRzTdRateAllowed": 0.1818,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
-          "gsisId": "00-0040667",
-          "espnId": "4701936",
-          "name": "Matthew Golden",
-          "team": "GB",
-          "position": "WR",
-          "depth": "WR",
-          "jersey": "0",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/dbjki6b0swksr7mk17wk",
-          "depthRank": 2,
-          "yearsExp": 1,
-          "isRookie": false,
-          "prevTeam": "GB",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0.532,
-            "gamesPlayed": 14,
-            "rzTargets": 2,
-            "rzCarries": 2,
-            "tds": 0,
-            "statsSeason": 2025
-          },
-          "opponent": "DET",
-          "props": {
-            "atd": {
-              "probability": 0.0593,
-              "grade": "F",
-              "gradeLabel": "Avoid",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Shoulder",
-                "note": "Golden (shoulder) was limited at Thursday's practice, Rob Demovsky of ESPN.com reports.",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0.29,
-                "snapShare": 0.532,
-                "gamesPlayed": 14,
-                "depthRank": 2,
-                "roleFactor": 0.9,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
-                "oppRzDefIndex": 0.942,
-                "oppRzDefFactor": 0.965,
-                "oppRzTdRateAllowed": 0.1813,
                 "sampleYear": 2025,
                 "rosterYear": 2026
               },
@@ -29793,7 +29793,7 @@
                 "status": "questionable",
                 "statusRaw": "Questionable",
                 "detail": "Back",
-                "note": "Melton (back) did not participate in practice Thursday, Weston Hodkiewicz of the Packers' official site reports.",
+                "note": "Melton (back) is questionable for Sunday's game against the Lions, Wes Hodkiewicz of the Packers' official site reports.",
                 "factor": 0.85
               },
               "inputs": {
@@ -31551,7 +31551,7 @@
                 "status": "questionable",
                 "statusRaw": "Questionable",
                 "detail": "Calf",
-                "note": "The calf injury Nacua sustained Thursday is believed to be \"more minor than anything else\" and \"not significant,\" Ian Rapoport of NFL Network reports.",
+                "note": "Nacua (calf) won't practice Friday and will be listed as questionable for Sunday's game at Las Vegas, Sarah Barshop of ESPN.com reports.",
                 "factor": 0.85
               },
               "inputs": {
@@ -31999,7 +31999,7 @@
                 "status": "questionable",
                 "statusRaw": "Questionable",
                 "detail": "Foot",
-                "note": "Washington (foot/back) downgraded to DNP on Thursday, Anthony Galaviz of The Fresno Bee reports.",
+                "note": "Washington (foot) is questionable for Sunday's game against the Rams, Sam Warren of The Athletic reports.",
                 "factor": 0.85
               },
               "inputs": {
@@ -32111,7 +32111,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Mumpfield caught two of three passes for 15 yards during the Rams' 18-16 loss to the Cardinals on Sunday.",
+                "note": "Mumpfield could get a significant bump in opportunity Sunday in Week 7 against Las Vegas since Davante Adams (hamstring) is on IR and Puka Nacua (calf) is questionable to play, Stu Jackson of the Rams' official site reports.",
                 "factor": 1
               },
               "inputs": {
@@ -32444,10 +32444,10 @@
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Whittington could operate in an expanded role offensively if Puka Nacua (calf, questionable) cannot play against the Raiders on Sunday.",
                 "factor": 1
               },
               "inputs": {
@@ -34183,7 +34183,7 @@
                 "status": "out",
                 "statusRaw": "Injured Reserve",
                 "detail": "Hamstring",
-                "note": "Thornton (hamstring) was a full participant at practice Wednesday.",
+                "note": "Thornton (hamstring) has been ruled out for Sunday's game against the Rams, Sam Warren of The Athletic reports.",
                 "factor": 0
               },
               "inputs": {
@@ -34452,62 +34452,6 @@
           }
         },
         {
-          "gsisId": "00-0039067",
-          "espnId": "4428331",
-          "name": "Rashee Rice",
-          "team": "KC",
-          "position": "WR",
-          "depth": "WR",
-          "jersey": "4",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/qhkbqrydjeur8zvrrmfl",
-          "depthRank": 1,
-          "yearsExp": 3,
-          "isRookie": false,
-          "prevTeam": "KC",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0.749,
-            "gamesPlayed": 8,
-            "rzTargets": 19,
-            "rzCarries": 3,
-            "tds": 6,
-            "statsSeason": 2025
-          },
-          "opponent": "SEA",
-          "props": {
-            "atd": {
-              "probability": 0.3837,
-              "grade": "B",
-              "gradeLabel": "Strong",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Hamstring",
-                "note": "Rice (hamstring/knee) did not practice Thursday.",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0.75,
-                "rzPerGame": 2.75,
-                "snapShare": 0.749,
-                "gamesPlayed": 8,
-                "depthRank": 1,
-                "roleFactor": 1,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
-                "oppRzDefIndex": 0.835,
-                "oppRzDefFactor": 0.901,
-                "oppRzTdRateAllowed": 0.1607,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
           "gsisId": "00-0039793",
           "espnId": "4576297",
           "name": "AJ Barner",
@@ -34538,10 +34482,10 @@
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "active",
-                "statusRaw": "Active",
-                "detail": "active",
-                "note": "Barner caught three of four passes for 16 yards during the Seahawks' 17-14 overtime loss to the Broncos on Thursday.",
+                "status": "unconfirmed",
+                "statusRaw": null,
+                "detail": null,
+                "note": null,
                 "factor": 1
               },
               "inputs": {
@@ -34551,62 +34495,6 @@
                 "gamesPlayed": 17,
                 "depthRank": 1,
                 "roleFactor": 1,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
-                "oppRzDefIndex": 0.968,
-                "oppRzDefFactor": 0.981,
-                "oppRzTdRateAllowed": 0.1862,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
-          "gsisId": "00-0039165",
-          "espnId": "4426385",
-          "name": "Zach Charbonnet",
-          "team": "SEA",
-          "position": "RB",
-          "depth": "RB",
-          "jersey": "26",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/cuuyog0lpxfaj0y0huvp",
-          "depthRank": 2,
-          "yearsExp": 3,
-          "isRookie": false,
-          "prevTeam": "SEA",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0.484,
-            "gamesPlayed": 16,
-            "rzTargets": 3,
-            "rzCarries": 52,
-            "tds": 12,
-            "statsSeason": 2025
-          },
-          "opponent": "KC",
-          "props": {
-            "atd": {
-              "probability": 0.3265,
-              "grade": "B",
-              "gradeLabel": "Strong",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Knee - ACL",
-                "note": "Charbonnet (knee) practiced fully Thursday, John Boyle of the Seahawks' official site reports.",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0.75,
-                "rzPerGame": 3.44,
-                "snapShare": 0.484,
-                "gamesPlayed": 16,
-                "depthRank": 2,
-                "roleFactor": 0.62,
                 "roleSource": "depth-2026",
                 "historyFactor": 1,
                 "oppRzDefIndex": 0.968,
@@ -34732,6 +34620,62 @@
           }
         },
         {
+          "gsisId": "00-0030506",
+          "espnId": "15847",
+          "name": "Travis Kelce",
+          "team": "KC",
+          "position": "TE",
+          "depth": "TE",
+          "jersey": "87",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/dpxovcfku6ud2aohgf6a",
+          "depthRank": 1,
+          "yearsExp": 13,
+          "isRookie": false,
+          "prevTeam": "KC",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0.819,
+            "gamesPlayed": 17,
+            "rzTargets": 13,
+            "rzCarries": 1,
+            "tds": 5,
+            "statsSeason": 2025
+          },
+          "opponent": "SEA",
+          "props": {
+            "atd": {
+              "probability": 0.2286,
+              "grade": "C",
+              "gradeLabel": "Lean",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Kelce (ankle) doesn't have an injury designation for Sunday's game against the Seahawks.",
+                "factor": 1
+              },
+              "inputs": {
+                "tdRate": 0.294,
+                "rzPerGame": 0.82,
+                "snapShare": 0.819,
+                "gamesPlayed": 17,
+                "depthRank": 1,
+                "roleFactor": 1,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 0.835,
+                "oppRzDefFactor": 0.901,
+                "oppRzTdRateAllowed": 0.1607,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
           "gsisId": "00-0038797",
           "espnId": "4887558",
           "name": "Emanuel Wilson",
@@ -34762,10 +34706,10 @@
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Wilson will be the lead back for Sunday's game against the Chiefs after Zach Charbonnet (knee) was ruled out ahead of that contest, John Boyle of the Seahawks' official site reports.",
                 "factor": 1
               },
               "inputs": {
@@ -34892,62 +34836,6 @@
                 "oppRzDefIndex": 0.968,
                 "oppRzDefFactor": 0.981,
                 "oppRzTdRateAllowed": 0.1862,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
-          "gsisId": "00-0030506",
-          "espnId": "15847",
-          "name": "Travis Kelce",
-          "team": "KC",
-          "position": "TE",
-          "depth": "TE",
-          "jersey": "87",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/dpxovcfku6ud2aohgf6a",
-          "depthRank": 1,
-          "yearsExp": 13,
-          "isRookie": false,
-          "prevTeam": "KC",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0.819,
-            "gamesPlayed": 17,
-            "rzTargets": 13,
-            "rzCarries": 1,
-            "tds": 5,
-            "statsSeason": 2025
-          },
-          "opponent": "SEA",
-          "props": {
-            "atd": {
-              "probability": 0.1943,
-              "grade": "C",
-              "gradeLabel": "Lean",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Ankle",
-                "note": "Kelce (ankle) was listed as a limited participant in Thursday's practice.",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0.294,
-                "rzPerGame": 0.82,
-                "snapShare": 0.819,
-                "gamesPlayed": 17,
-                "depthRank": 1,
-                "roleFactor": 1,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
-                "oppRzDefIndex": 0.835,
-                "oppRzDefFactor": 0.901,
-                "oppRzTdRateAllowed": 0.1607,
                 "sampleYear": 2025,
                 "rosterYear": 2026
               },
@@ -35210,10 +35098,10 @@
               "dataConfidence": "full",
               "isRookie": false,
               "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Holani is slated to remain Seattle's No. 2 running back Sunday against Kansas City, as Zach Charbonnet (knee) has been ruled out for the contest, John Boyle of the team's official site reports.",
                 "factor": 1
               },
               "inputs": {
@@ -35325,7 +35213,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Worthy totaled seven catches on as many targets for 73 yards during Sunday's 22-6 victory versus the Chargers.",
+                "note": "Worthy will once again operate as the Chiefs' top wide receiver after Rashee Rice (hamstring/knee) was ruled out ahead of Sunday's game against the Seahawks, Pete Sweeney of The Kansas City Star reports.",
                 "factor": 1
               },
               "inputs": {
@@ -35564,6 +35452,62 @@
                 "oppRzDefIndex": 0.835,
                 "oppRzDefFactor": 0.901,
                 "oppRzTdRateAllowed": 0.1607,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0041512",
+          "espnId": "4685512",
+          "name": "Jadarian Price",
+          "team": "SEA",
+          "position": "RB",
+          "depth": "RB",
+          "jersey": "8",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/toy90i08oumgbdlvctja",
+          "depthRank": 6,
+          "yearsExp": 0,
+          "isRookie": true,
+          "prevTeam": null,
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0,
+            "gamesPlayed": 0,
+            "rzTargets": 0,
+            "rzCarries": 0,
+            "tds": 0,
+            "statsSeason": null
+          },
+          "opponent": "KC",
+          "props": {
+            "atd": {
+              "probability": 0.0556,
+              "grade": "F",
+              "gradeLabel": "Avoid",
+              "dataConfidence": "rookie",
+              "isRookie": true,
+              "availability": {
+                "status": "unconfirmed",
+                "statusRaw": null,
+                "detail": null,
+                "note": null,
+                "factor": 1
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0,
+                "snapShare": 0,
+                "gamesPlayed": 0,
+                "depthRank": 6,
+                "roleFactor": 0.15,
+                "roleSource": "depth-2026",
+                "historyFactor": 1.18,
+                "oppRzDefIndex": 0.968,
+                "oppRzDefFactor": 0.981,
+                "oppRzTdRateAllowed": 0.1862,
                 "sampleYear": 2025,
                 "rosterYear": 2026
               },
@@ -35916,7 +35860,7 @@
           "depth": "WR",
           "jersey": "8",
           "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/nc8rm1ko22poili6r2a8",
-          "depthRank": 7,
+          "depthRank": 8,
           "yearsExp": 0,
           "isRookie": true,
           "prevTeam": null,
@@ -35949,7 +35893,7 @@
                 "rzPerGame": 0,
                 "snapShare": 0,
                 "gamesPlayed": 0,
-                "depthRank": 7,
+                "depthRank": 8,
                 "roleFactor": 0.22,
                 "roleSource": "depth-2026",
                 "historyFactor": 0.92,
@@ -36121,62 +36065,6 @@
                 "roleFactor": 0.5,
                 "roleSource": "snap-2025",
                 "historyFactor": 0.55,
-                "oppRzDefIndex": 0.835,
-                "oppRzDefFactor": 0.901,
-                "oppRzTdRateAllowed": 0.1607,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
-          "gsisId": "00-0040078",
-          "espnId": "4596602",
-          "name": "Brashard Smith",
-          "team": "KC",
-          "position": "RB",
-          "depth": "RB",
-          "jersey": "24",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/xnf4x6b9a2yunsc0gaej",
-          "depthRank": 3,
-          "yearsExp": 1,
-          "isRookie": false,
-          "prevTeam": "KC",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0.167,
-            "gamesPlayed": 17,
-            "rzTargets": 7,
-            "rzCarries": 10,
-            "tds": 1,
-            "statsSeason": 2025
-          },
-          "opponent": "SEA",
-          "props": {
-            "atd": {
-              "probability": 0.039,
-              "grade": "F",
-              "gradeLabel": "Avoid",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "unconfirmed",
-                "statusRaw": null,
-                "detail": null,
-                "note": null,
-                "factor": 1
-              },
-              "inputs": {
-                "tdRate": 0.059,
-                "rzPerGame": 1,
-                "snapShare": 0.167,
-                "gamesPlayed": 17,
-                "depthRank": 3,
-                "roleFactor": 0.3,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
                 "oppRzDefIndex": 0.835,
                 "oppRzDefFactor": 0.901,
                 "oppRzTdRateAllowed": 0.1607,
@@ -36644,7 +36532,7 @@
           "depth": "WR",
           "jersey": "82",
           "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/yk1s0zu3wukxx2plsfpd",
-          "depthRank": 8,
+          "depthRank": 9,
           "yearsExp": 1,
           "isRookie": false,
           "prevTeam": "KC",
@@ -36677,7 +36565,7 @@
                 "rzPerGame": 0,
                 "snapShare": 0,
                 "gamesPlayed": 0,
-                "depthRank": 8,
+                "depthRank": 9,
                 "roleFactor": 0.22,
                 "roleSource": "depth-2026",
                 "historyFactor": 0.55,
@@ -36700,7 +36588,7 @@
           "depth": "WR",
           "jersey": "85",
           "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/hkw32xqnimm6dvx2qfvl",
-          "depthRank": 7,
+          "depthRank": 6,
           "yearsExp": 1,
           "isRookie": false,
           "prevTeam": "DET",
@@ -36725,7 +36613,7 @@
                 "status": "active",
                 "statusRaw": "Active",
                 "detail": "active",
-                "note": "Armstrong reverted to the Chiefs' practice squad Monday, per the NFL's transaction log.",
+                "note": "The Chiefs signed Armstrong from the practice squad to the active roster Friday, Aaron Wilson of KPRC 2 Houston reports.",
                 "factor": 1
               },
               "inputs": {
@@ -36733,8 +36621,64 @@
                 "rzPerGame": 0,
                 "snapShare": 0,
                 "gamesPlayed": 0,
-                "depthRank": 7,
+                "depthRank": 6,
                 "roleFactor": 0.22,
+                "roleSource": "depth-2026",
+                "historyFactor": 0.55,
+                "oppRzDefIndex": 0.835,
+                "oppRzDefFactor": 0.901,
+                "oppRzTdRateAllowed": 0.1607,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0040547",
+          "espnId": "4605841",
+          "name": "Nate Carter",
+          "team": "KC",
+          "position": "RB",
+          "depth": "RB",
+          "jersey": "35",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/c7wg2qvjvd8diaaujwpt",
+          "depthRank": 4,
+          "yearsExp": 1,
+          "isRookie": false,
+          "prevTeam": "ATL",
+          "teamChanged": true,
+          "stats": {
+            "snapShare": 0,
+            "gamesPlayed": 0,
+            "rzTargets": 0,
+            "rzCarries": 0,
+            "tds": 0,
+            "statsSeason": null
+          },
+          "opponent": "SEA",
+          "props": {
+            "atd": {
+              "probability": 0.0238,
+              "grade": "F",
+              "gradeLabel": "Avoid",
+              "dataConfidence": "no-history",
+              "isRookie": false,
+              "availability": {
+                "status": "unconfirmed",
+                "statusRaw": null,
+                "detail": null,
+                "note": null,
+                "factor": 1
+              },
+              "inputs": {
+                "tdRate": 0,
+                "rzPerGame": 0,
+                "snapShare": 0,
+                "gamesPlayed": 0,
+                "depthRank": 4,
+                "roleFactor": 0.15,
                 "roleSource": "depth-2026",
                 "historyFactor": 0.55,
                 "oppRzDefIndex": 0.835,
@@ -37285,7 +37229,7 @@
                 "status": "questionable",
                 "statusRaw": "Questionable",
                 "detail": "Elbow",
-                "note": "Lock (elbow) was a limited practice participant Thursday, John Boyle of the Seahawks' official site reports.",
+                "note": "Lock (elbow) is listed as questionable ahead of Sunday's game against the Chiefs, John Boyle of the Seahawks' official site reports.",
                 "factor": 0.85
               },
               "inputs": {
@@ -37364,6 +37308,62 @@
           }
         },
         {
+          "gsisId": "00-0039165",
+          "espnId": "4426385",
+          "name": "Zach Charbonnet",
+          "team": "SEA",
+          "position": "RB",
+          "depth": "RB",
+          "jersey": "26",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/cuuyog0lpxfaj0y0huvp",
+          "depthRank": 2,
+          "yearsExp": 3,
+          "isRookie": false,
+          "prevTeam": "SEA",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0.484,
+            "gamesPlayed": 16,
+            "rzTargets": 3,
+            "rzCarries": 52,
+            "tds": 12,
+            "statsSeason": 2025
+          },
+          "opponent": "KC",
+          "props": {
+            "atd": {
+              "probability": 0,
+              "grade": "F",
+              "gradeLabel": "Out",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "out",
+                "statusRaw": "Out",
+                "detail": "Knee - ACL",
+                "note": "Head coach Mike Macdonald said Friday that Charbonnet (knee) has been ruled out for Sunday's game versus the Chiefs, Curtis Crabtree of Fox 13 Seattle reports.",
+                "factor": 0
+              },
+              "inputs": {
+                "tdRate": 0.75,
+                "rzPerGame": 3.44,
+                "snapShare": 0.484,
+                "gamesPlayed": 16,
+                "depthRank": 2,
+                "roleFactor": 0.62,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 0.968,
+                "oppRzDefFactor": 0.981,
+                "oppRzTdRateAllowed": 0.1862,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
           "gsisId": "00-0040739",
           "espnId": "4678006",
           "name": "Elijah Arroyo",
@@ -37397,7 +37397,7 @@
                 "status": "out",
                 "statusRaw": "Injured Reserve",
                 "detail": "Shoulder",
-                "note": "Arroyo (shoulder) was placed on injured reserve Thursday, and Adam Schefter of ESPN reports that Arroyo will miss the remainder of the season.",
+                "note": "Head coach Mike Macdonald told reporters Friday that Arroyo (shoulder) underwent surgery and will likely be out for the rest of the season, Curtis Crabtree of Fox 13 Seattle reports.",
                 "factor": 0
               },
               "inputs": {
@@ -37420,62 +37420,6 @@
           }
         },
         {
-          "gsisId": "00-0041512",
-          "espnId": "4685512",
-          "name": "Jadarian Price",
-          "team": "SEA",
-          "position": "RB",
-          "depth": "RB",
-          "jersey": "8",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/toy90i08oumgbdlvctja",
-          "depthRank": 6,
-          "yearsExp": 0,
-          "isRookie": true,
-          "prevTeam": null,
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0,
-            "gamesPlayed": 0,
-            "rzTargets": 0,
-            "rzCarries": 0,
-            "tds": 0,
-            "statsSeason": null
-          },
-          "opponent": "KC",
-          "props": {
-            "atd": {
-              "probability": 0,
-              "grade": "F",
-              "gradeLabel": "Out",
-              "dataConfidence": "rookie",
-              "isRookie": true,
-              "availability": {
-                "status": "out",
-                "statusRaw": "Injured Reserve",
-                "detail": "Chest",
-                "note": "Head coach Mike Macdonald said Friday that Price \"should be looking at a sooner rather than later return after\" the Seahawks' next game in Week 7, Brady Henderson of ESPN.com reports.",
-                "factor": 0
-              },
-              "inputs": {
-                "tdRate": 0,
-                "rzPerGame": 0,
-                "snapShare": 0,
-                "gamesPlayed": 0,
-                "depthRank": 6,
-                "roleFactor": 0.15,
-                "roleSource": "depth-2026",
-                "historyFactor": 1.18,
-                "oppRzDefIndex": 0.968,
-                "oppRzDefFactor": 0.981,
-                "oppRzTdRateAllowed": 0.1862,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
           "gsisId": "00-0038104",
           "espnId": "4362921",
           "name": "Tyquan Thornton",
@@ -37484,7 +37428,7 @@
           "depth": "WR",
           "jersey": "2",
           "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/bjqzuempyiwxe0hl7e5a",
-          "depthRank": 6,
+          "depthRank": 7,
           "yearsExp": 4,
           "isRookie": false,
           "prevTeam": "KC",
@@ -37517,8 +37461,120 @@
                 "rzPerGame": 0.29,
                 "snapShare": 0.39,
                 "gamesPlayed": 14,
-                "depthRank": 6,
+                "depthRank": 7,
                 "roleFactor": 0.22,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 0.835,
+                "oppRzDefFactor": 0.901,
+                "oppRzTdRateAllowed": 0.1607,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0039067",
+          "espnId": "4428331",
+          "name": "Rashee Rice",
+          "team": "KC",
+          "position": "WR",
+          "depth": "WR",
+          "jersey": "4",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/qhkbqrydjeur8zvrrmfl",
+          "depthRank": 1,
+          "yearsExp": 3,
+          "isRookie": false,
+          "prevTeam": "KC",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0.749,
+            "gamesPlayed": 8,
+            "rzTargets": 19,
+            "rzCarries": 3,
+            "tds": 6,
+            "statsSeason": 2025
+          },
+          "opponent": "SEA",
+          "props": {
+            "atd": {
+              "probability": 0,
+              "grade": "F",
+              "gradeLabel": "Out",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "out",
+                "statusRaw": "Out",
+                "detail": "Hamstring",
+                "note": "Rice (hamstring/knee) was not present during the portion of Friday's practice open to the media, Pete Sweeney of The Kansas City Star reports.",
+                "factor": 0
+              },
+              "inputs": {
+                "tdRate": 0.75,
+                "rzPerGame": 2.75,
+                "snapShare": 0.749,
+                "gamesPlayed": 8,
+                "depthRank": 1,
+                "roleFactor": 1,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 0.835,
+                "oppRzDefFactor": 0.901,
+                "oppRzTdRateAllowed": 0.1607,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0040078",
+          "espnId": "4596602",
+          "name": "Brashard Smith",
+          "team": "KC",
+          "position": "RB",
+          "depth": "RB",
+          "jersey": "24",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/xnf4x6b9a2yunsc0gaej",
+          "depthRank": 3,
+          "yearsExp": 1,
+          "isRookie": false,
+          "prevTeam": "KC",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0.167,
+            "gamesPlayed": 17,
+            "rzTargets": 7,
+            "rzCarries": 10,
+            "tds": 1,
+            "statsSeason": 2025
+          },
+          "opponent": "SEA",
+          "props": {
+            "atd": {
+              "probability": 0,
+              "grade": "F",
+              "gradeLabel": "Out",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "out",
+                "statusRaw": "Out",
+                "detail": "Hamstring",
+                "note": "Smith (hamstring) has been ruled out for Sunday's game against the Seahawks.",
+                "factor": 0
+              },
+              "inputs": {
+                "tdRate": 0.059,
+                "rzPerGame": 1,
+                "snapShare": 0.167,
+                "gamesPlayed": 17,
+                "depthRank": 3,
+                "roleFactor": 0.3,
                 "roleSource": "depth-2026",
                 "historyFactor": 1,
                 "oppRzDefIndex": 0.835,
@@ -37701,7 +37757,7 @@
                 "status": "questionable",
                 "statusRaw": "Questionable",
                 "detail": "Knee",
-                "note": "Goedert (knee) was held out of Thursday's practice.",
+                "note": "Goedert (knee) was a non-participant at Friday's practice.",
                 "factor": 0.85
               },
               "inputs": {
@@ -37757,7 +37813,7 @@
                 "status": "questionable",
                 "statusRaw": "Questionable",
                 "detail": "Hamstring",
-                "note": "Barkley (hamstring) practiced in a limited capacity Thursday.",
+                "note": "Barkley (hamstring) was a limited practice participant Friday.",
                 "factor": 0.85
               },
               "inputs": {
@@ -37772,6 +37828,62 @@
                 "oppRzDefIndex": 1.167,
                 "oppRzDefFactor": 1.1,
                 "oppRzTdRateAllowed": 0.2245,
+                "sampleYear": 2025,
+                "rosterYear": 2026
+              },
+              "oddsAvailable": false
+            }
+          }
+        },
+        {
+          "gsisId": "00-0037247",
+          "espnId": "4426354",
+          "name": "George Pickens",
+          "team": "DAL",
+          "position": "WR",
+          "depth": "WR",
+          "jersey": "3",
+          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/cbpyykoguf7rsxezqzvk",
+          "depthRank": 2,
+          "yearsExp": 4,
+          "isRookie": false,
+          "prevTeam": "DAL",
+          "teamChanged": false,
+          "stats": {
+            "snapShare": 0.811,
+            "gamesPlayed": 17,
+            "rzTargets": 24,
+            "rzCarries": 0,
+            "tds": 9,
+            "statsSeason": 2025
+          },
+          "opponent": "PHI",
+          "props": {
+            "atd": {
+              "probability": 0.3675,
+              "grade": "B",
+              "gradeLabel": "Strong",
+              "dataConfidence": "full",
+              "isRookie": false,
+              "availability": {
+                "status": "active",
+                "statusRaw": "Active",
+                "detail": "active",
+                "note": "Pickens (shoulder) was a full participant in Friday's practice, Tommy Yarrish of the Cowboys' official site reports.",
+                "factor": 1
+              },
+              "inputs": {
+                "tdRate": 0.529,
+                "rzPerGame": 1.41,
+                "snapShare": 0.811,
+                "gamesPlayed": 17,
+                "depthRank": 2,
+                "roleFactor": 0.9,
+                "roleSource": "depth-2026",
+                "historyFactor": 1,
+                "oppRzDefIndex": 0.888,
+                "oppRzDefFactor": 0.933,
+                "oppRzTdRateAllowed": 0.1709,
                 "sampleYear": 2025,
                 "rosterYear": 2026
               },
@@ -37836,62 +37948,6 @@
           }
         },
         {
-          "gsisId": "00-0037247",
-          "espnId": "4426354",
-          "name": "George Pickens",
-          "team": "DAL",
-          "position": "WR",
-          "depth": "WR",
-          "jersey": "3",
-          "headshot": "https://static.www.nfl.com/image/upload/f_auto,q_auto/league/cbpyykoguf7rsxezqzvk",
-          "depthRank": 2,
-          "yearsExp": 4,
-          "isRookie": false,
-          "prevTeam": "DAL",
-          "teamChanged": false,
-          "stats": {
-            "snapShare": 0.811,
-            "gamesPlayed": 17,
-            "rzTargets": 24,
-            "rzCarries": 0,
-            "tds": 9,
-            "statsSeason": 2025
-          },
-          "opponent": "PHI",
-          "props": {
-            "atd": {
-              "probability": 0.3123,
-              "grade": "B",
-              "gradeLabel": "Strong",
-              "dataConfidence": "full",
-              "isRookie": false,
-              "availability": {
-                "status": "questionable",
-                "statusRaw": "Questionable",
-                "detail": "Shoulder",
-                "note": "Pickens was a limited practice participant Thursday due to a shoulder injury, Tommy Yarrish of the Cowboys' official site reports.",
-                "factor": 0.85
-              },
-              "inputs": {
-                "tdRate": 0.529,
-                "rzPerGame": 1.41,
-                "snapShare": 0.811,
-                "gamesPlayed": 17,
-                "depthRank": 2,
-                "roleFactor": 0.9,
-                "roleSource": "depth-2026",
-                "historyFactor": 1,
-                "oppRzDefIndex": 0.888,
-                "oppRzDefFactor": 0.933,
-                "oppRzTdRateAllowed": 0.1709,
-                "sampleYear": 2025,
-                "rosterYear": 2026
-              },
-              "oddsAvailable": false
-            }
-          }
-        },
-        {
           "gsisId": "00-0036912",
           "espnId": "4241478",
           "name": "DeVonta Smith",
@@ -37925,7 +37981,7 @@
                 "status": "questionable",
                 "statusRaw": "Questionable",
                 "detail": "Hamstring",
-                "note": "Smith (hamstring) didn't practice Thursday.",
+                "note": "Smith (hamstring) didn't practice Friday.",
                 "factor": 0.85
               },
               "inputs": {
@@ -37978,10 +38034,10 @@
               "dataConfidence": "rookie",
               "isRookie": true,
               "availability": {
-                "status": "active",
-                "statusRaw": "Active",
-                "detail": "active",
-                "note": "Lemon caught three of six targets for 19 yards in Sunday's 25-14 loss to the Panthers.",
+                "status": "unconfirmed",
+                "statusRaw": null,
+                "detail": null,
+                "note": null,
                 "factor": 1
               },
               "inputs": {
@@ -38373,7 +38429,7 @@
                 "status": "questionable",
                 "statusRaw": "Questionable",
                 "detail": "Ankle",
-                "note": "Wicks (ankle) was a non-participant at Thursday's practice.",
+                "note": "Wicks (ankle) didn't take part in Friday's practice.",
                 "factor": 0.85
               },
               "inputs": {
